@@ -1,11 +1,18 @@
-// Shared nav bar — injected into all algo/ and db/ pages
+// Shared nav bar — load this in <head> for zero layout-shift
 (function () {
   'use strict';
   const d = document;
   if (d.getElementById('__snav')) return;
 
-  const H = 44; // nav height px
+  const H = 44;
   const RKEY = 'recentPages_v2';
+
+  // ── Inject body padding IMMEDIATELY (sync, before body renders) ──
+  // This prevents the layout-shift flash
+  const padStyle = d.createElement('style');
+  padStyle.id = '__snavPad';
+  padStyle.textContent = 'body{padding-top:' + H + 'px!important;box-sizing:border-box!important;}';
+  d.head.appendChild(padStyle);
 
   function loadR() {
     try { return JSON.parse(localStorage.getItem(RKEY) || '[]'); } catch (e) { return []; }
@@ -14,7 +21,7 @@
     try { localStorage.setItem(RKEY, JSON.stringify(a)); } catch (e) {}
   }
 
-  // ── CSS ──
+  // ── Nav CSS ──
   const style = d.createElement('style');
   style.textContent = `
 #__snav{
@@ -61,36 +68,31 @@
 `;
   d.head.appendChild(style);
 
-  // ── HTML ──
+  // ── Nav HTML ──
   const nav = d.createElement('div');
   nav.id = '__snav';
-  nav.innerHTML = `
-    <a href="../index.html" class="sn-logo"><span class="sn-dot"></span>hudan's notes</a>
-    <div class="sn-uw">
-      <button class="sn-btn" id="snBtn">
-        <span>👤</span><span>游客</span><span class="sn-chev" id="snChev">▾</span>
-      </button>
-      <div class="sn-panel" id="snPanel">
-        <div class="sn-ph">
-          <span>最近访问</span>
-          <button class="sn-pc" id="snClear">清除</button>
-        </div>
-        <div class="sn-list" id="snList"></div>
-      </div>
-    </div>`;
+  nav.innerHTML =
+    '<a href="../index.html" class="sn-logo"><span class="sn-dot"></span>hudan\'s notes</a>' +
+    '<div class="sn-uw">' +
+      '<button class="sn-btn" id="snBtn"><span>👤</span><span>游客</span><span class="sn-chev" id="snChev">▾</span></button>' +
+      '<div class="sn-panel" id="snPanel">' +
+        '<div class="sn-ph"><span>最近访问</span><button class="sn-pc" id="snClear">清除</button></div>' +
+        '<div class="sn-list" id="snList"></div>' +
+      '</div>' +
+    '</div>';
 
   function renderList() {
     const items = loadR();
     const list = d.getElementById('snList');
     if (!items.length) { list.innerHTML = '<div class="sn-empty">暂无记录<br>浏览页面后自动保存</div>'; return; }
     const cc = { '算法': '#38bdf8', '数据库': '#fbbf24' };
-    list.innerHTML = items.map(r =>
-      `<a href="${r.href}" class="sn-item">
-        <span class="sn-ico">${r.icon || '📄'}</span>
-        <span class="sn-name">${r.name}</span>
-        <span class="sn-cat" style="color:${cc[r.cat] || '#64748b'}">${r.cat || ''}</span>
-      </a>`
-    ).join('');
+    list.innerHTML = items.map(function (r) {
+      return '<a href="' + r.href + '" class="sn-item">' +
+        '<span class="sn-ico">' + (r.icon || '📄') + '</span>' +
+        '<span class="sn-name">' + r.name + '</span>' +
+        '<span class="sn-cat" style="color:' + (cc[r.cat] || '#64748b') + '">' + (r.cat || '') + '</span>' +
+        '</a>';
+    }).join('');
   }
 
   function toggle() {
@@ -102,10 +104,6 @@
 
   function init() {
     d.body.insertBefore(nav, d.body.firstChild);
-    // Push body content down without breaking height:100vh layouts
-    d.body.style.boxSizing = 'border-box';
-    d.body.style.paddingTop = H + 'px';
-
     d.getElementById('snBtn').addEventListener('click', toggle);
     d.getElementById('snClear').addEventListener('click', function () { saveR([]); renderList(); });
     d.addEventListener('click', function (e) {
