@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数据存储结构 - 数据库可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--purple:#c084fc;--green:#4ade80;--yellow:#fbbf24;--orange:#fb923c;--red:#f87171;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.pkg{color:#ffa657}.cm{color:#8b949e;font-style:italic}.id{color:#e6edf3}
+body{height:100vh;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;}
+nav{height:52px;display:flex;align-items:center;gap:16px;padding:0 20px;background:var(--panel2);border-bottom:1px solid var(--border);flex-shrink:0;}
+nav h1{font-size:1.1rem;font-weight:600;}
+.ds-tags{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;}
+.ds-tag{font-size:0.72rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;overflow:hidden;display:flex;flex-direction:column;background:var(--bg);}
+.code-panel{width:44%;min-width:360px;background:var(--panel2);border-left:1px solid var(--border);overflow-y:auto;}
+.controls{flex-shrink:0;height:52px;display:flex;align-items:center;gap:10px;padding:0 16px;background:var(--panel);border-top:1px solid var(--border);}
+.status-bar{flex-shrink:0;height:36px;display:flex;align-items:center;padding:0 16px;background:var(--panel2);border-top:1px solid var(--border);font-size:0.82rem;color:var(--dim);}
+.tab-bar{display:flex;gap:4px;padding:10px 16px 0;flex-shrink:0;border-bottom:1px solid var(--border);}
+.tab-btn{padding:6px 18px;border-radius:7px 7px 0 0;border:1px solid transparent;border-bottom:none;background:transparent;color:var(--dim);cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.tab-btn.active{background:var(--panel);color:var(--text);border-color:var(--border);}
+.tab-btn:hover:not(.active){color:var(--text);}
+.viz-area{flex:1;overflow:auto;padding:20px;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}
+.btn.primary{background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.3);color:var(--yellow);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--yellow);cursor:pointer;}
+.step-counter{font-family:monospace;font-size:0.8rem;color:var(--dim);white-space:nowrap;}
+/* Code panel */
+.code-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;position:sticky;top:0;background:var(--panel2);z-index:2;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{padding:16px 0;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono','Fira Code',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}
+.code-line.active{background:rgba(251,191,36,0.15);border-left:2px solid var(--yellow);}
+.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+/* Page format viz */
+.page-container{display:flex;justify-content:center;gap:40px;padding:10px 0;}
+.db-page{width:220px;border:2px solid var(--border);border-radius:8px;overflow:hidden;display:flex;flex-direction:column;font-size:0.75rem;font-family:monospace;}
+.db-page-region{padding:8px 12px;transition:all 0.3s;border-bottom:1px solid rgba(255,255,255,0.05);}
+.page-header-reg{background:rgba(56,189,248,0.1);border-left:3px solid var(--blue);}
+.page-header-reg.lit{background:rgba(56,189,248,0.25);border-left:3px solid var(--blue);box-shadow:0 0 10px rgba(56,189,248,0.3);}
+.slot-reg{background:rgba(251,191,36,0.07);border-left:3px solid rgba(251,191,36,0.3);min-height:48px;transition:all 0.3s;}
+.slot-reg.lit{background:rgba(251,191,36,0.18);border-left:3px solid var(--yellow);box-shadow:0 0 10px rgba(251,191,36,0.2);}
+.free-reg{background:rgba(148,163,184,0.05);border-left:3px solid rgba(148,163,184,0.2);flex:1;display:flex;align-items:center;justify-content:center;min-height:80px;color:var(--dim);font-size:0.7rem;}
+.tuple-reg{background:rgba(74,222,128,0.07);border-left:3px solid rgba(74,222,128,0.3);min-height:48px;transition:all 0.3s;}
+.tuple-reg.lit{background:rgba(74,222,128,0.18);border-left:3px solid var(--green);box-shadow:0 0 10px rgba(74,222,128,0.2);}
+.page-trailer-reg{background:rgba(192,132,252,0.1);border-left:3px solid var(--purple);}
+.region-label{font-size:0.65rem;color:var(--dim);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;}
+.region-content{color:var(--text);font-size:0.7rem;line-height:1.5;}
+.deleted-slot{color:var(--red);text-decoration:line-through;opacity:0.6;}
+/* Heap file viz */
+.heap-container{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;padding:10px 0;}
+.heap-page{width:120px;border:1.5px solid var(--border);border-radius:8px;overflow:hidden;display:flex;flex-direction:column;transition:all 0.3s;}
+.heap-page.target{border-color:var(--yellow);box-shadow:0 0 14px rgba(251,191,36,0.4);}
+.heap-page-header{padding:6px 10px;background:rgba(255,255,255,0.05);font-size:0.7rem;font-family:monospace;color:var(--dim);}
+.heap-fill-wrap{height:100px;background:rgba(0,0,0,0.2);position:relative;}
+.heap-fill-bar{position:absolute;bottom:0;left:0;right:0;background:rgba(56,189,248,0.4);transition:all 0.5s;border-top:1px solid var(--blue);}
+.heap-fill-label{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:0.72rem;font-family:monospace;color:var(--text);font-weight:600;}
+.heap-page-footer{padding:4px 10px;font-size:0.68rem;font-family:monospace;color:var(--dim);border-top:1px solid var(--border);}
+.heap-arrow{display:flex;align-items:center;color:var(--yellow);font-size:1.4rem;}
+/* Row vs Col viz */
+.rvcol-container{display:flex;gap:30px;justify-content:center;flex-wrap:wrap;padding:10px 0;}
+.store-section{flex:1;min-width:260px;}
+.store-title{font-size:0.78rem;color:var(--dim);font-family:monospace;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.05em;}
+.row-store-grid{display:flex;flex-direction:column;gap:4px;}
+.col-store-grid{display:flex;gap:4px;}
+.table-row{display:flex;gap:2px;transition:all 0.3s;}
+.table-col{display:flex;flex-direction:column;gap:2px;transition:all 0.3s;flex:1;}
+.cell{padding:5px 8px;font-size:0.7rem;font-family:monospace;border-radius:4px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.07);color:var(--text);transition:all 0.25s;white-space:nowrap;}
+.cell.header{background:rgba(56,189,248,0.1);color:var(--blue);font-weight:600;}
+.cell.lit{background:rgba(74,222,128,0.2);border-color:var(--green);color:var(--green);}
+.cell.dim{background:rgba(255,255,255,0.02);opacity:0.3;}
+.cell.col-lit{background:rgba(251,191,36,0.2);border-color:var(--yellow);color:var(--yellow);}
+.desc-box{padding:10px 20px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:50px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+/* MOBILE_INJECTED */
+@media(max-width:768px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;overflow-x:hidden;}
+  nav{flex-wrap:wrap;padding:10px 16px;gap:6px;height:auto!important;}
+  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
+  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:320px!important;min-height:320px!important;flex:none!important;overflow:hidden;}
+  .code-panel{width:100%!important;min-width:unset!important;height:360px!important;flex:none!important;}
+  .controls{flex-wrap:wrap!important;padding:10px 14px!important;gap:6px!important;height:auto!important;}
+}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" style="color:var(--dim);text-decoration:none;font-size:0.88rem;margin-right:8px;">← 返回</a>
+  <h1>数据存储结构</h1>
+  <div class="ds-tags">
+    <span class="ds-tag" style="background:rgba(56,189,248,0.1);color:var(--blue);">页格式</span>
+    <span class="ds-tag" style="background:rgba(74,222,128,0.1);color:var(--green);">堆文件</span>
+    <span class="ds-tag" style="background:rgba(192,132,252,0.1);color:var(--purple);">行存vs列存</span>
+  </div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab(0)">页格式</button>
+      <button class="tab-btn" onclick="switchTab(1)">堆文件</button>
+      <button class="tab-btn" onclick="switchTab(2)">行存 vs 列存</button>
+    </div>
+    <div class="viz-area" id="vizArea"></div>
+    <div class="desc-box" id="descBox"><span id="descText">初始化中...</span><span class="step-counter" id="stepCounter">0 / 0</span></div>
+    <div class="controls">
+      <button class="btn" id="prevBtn" onclick="prev()">◀ 上一步</button>
+      <button class="btn primary" id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      <button class="btn" id="nextBtn" onclick="next()">下一步 ▶</button>
+      <button class="btn" onclick="reset()">↺ 重置</button>
+      <div class="speed-wrap">
+        <span>速度</span>
+        <input type="range" min="0" max="4" value="2" id="speedSlider" oninput="speedIdx=+this.value">
+      </div>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-header">
+      <span class="code-dot" style="background:#ff5f57"></span>
+      <span class="code-dot" style="background:#febc2e"></span>
+      <span class="code-dot" style="background:#28c840"></span>
+      <span style="margin-left:6px;">storage_page.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+
+<script>
+const codeLines = [
+  '<span class="cm">// 数据库页结构</span>',
+  '<span class="kw">type</span> <span class="id">PageHeader</span> <span class="kw">struct</span> {',
+  '    <span class="id">PageID</span>    <span class="id">uint32</span>  <span class="cm">// 4 bytes: 页唯一标识</span>',
+  '    <span class="id">LSN</span>       <span class="id">uint64</span>  <span class="cm">// 8 bytes: 最新日志序列号</span>',
+  '    <span class="id">Checksum</span>  <span class="id">uint32</span>  <span class="cm">// 4 bytes: 页内容校验</span>',
+  '    <span class="id">FreeOff</span>   <span class="id">uint16</span>  <span class="cm">// 2 bytes: 空闲空间起始偏移</span>',
+  '    <span class="id">SlotCount</span> <span class="id">uint16</span>  <span class="cm">// 2 bytes: 槽数量</span>',
+  '}',
+  '',
+  '<span class="kw">const</span> <span class="id">PageSize</span> = <span class="num">16</span> * <span class="num">1024</span>  <span class="cm">// 16KB</span>',
+  '',
+  '<span class="kw">type</span> <span class="id">Page</span> <span class="kw">struct</span> {',
+  '    <span class="id">header</span> <span class="id">PageHeader</span>',
+  '    <span class="id">data</span>   [<span class="id">PageSize</span> - <span class="num">24</span>]<span class="id">byte</span>  <span class="cm">// 实际数据区</span>',
+  '}',
+  '',
+  '<span class="cm">// 槽页 (Slotted Page) 写入元组</span>',
+  '<span class="kw">func</span> (<span class="id">p</span> *<span class="id">Page</span>) <span class="fn">InsertTuple</span>(<span class="id">tuple</span> []<span class="id">byte</span>) (<span class="id">SlotID</span>, <span class="id">error</span>) {',
+  '    <span class="id">tupleSize</span> := <span class="id">uint16</span>(<span class="pkg">len</span>(<span class="id">tuple</span>))',
+  '    <span class="cm">// 检查空闲空间是否足够</span>',
+  '    <span class="id">slotArrayEnd</span> := <span class="num">24</span> + <span class="id">p</span>.<span class="id">header</span>.<span class="id">SlotCount</span>*<span class="num">2</span>',
+  '    <span class="kw">if</span> <span class="id">p</span>.<span class="id">header</span>.<span class="id">FreeOff</span> - <span class="id">slotArrayEnd</span> &lt; <span class="id">tupleSize</span> + <span class="num">2</span> {',
+  '        <span class="kw">return</span> <span class="num">0</span>, <span class="id">ErrPageFull</span>',
+  '    }',
+  '    <span class="cm">// 从页尾向上写入元组</span>',
+  '    <span class="id">p</span>.<span class="id">header</span>.<span class="id">FreeOff</span> -= <span class="id">tupleSize</span>',
+  '    <span class="pkg">copy</span>(<span class="id">p</span>.<span class="id">data</span>[<span class="id">p</span>.<span class="id">header</span>.<span class="id">FreeOff</span>:], <span class="id">tuple</span>)',
+  '    <span class="cm">// 在槽数组中记录偏移</span>',
+  '    <span class="id">slotIdx</span> := <span class="id">p</span>.<span class="id">header</span>.<span class="id">SlotCount</span>',
+  '    <span class="id">p</span>.<span class="fn">setSlot</span>(<span class="id">slotIdx</span>, <span class="id">p</span>.<span class="id">header</span>.<span class="id">FreeOff</span>)',
+  '    <span class="id">p</span>.<span class="id">header</span>.<span class="id">SlotCount</span>++',
+  '    <span class="kw">return</span> <span class="id">SlotID</span>(<span class="id">slotIdx</span>), <span class="kw">nil</span>',
+  '}',
+  '',
+  '<span class="cm">// 堆文件：找空闲页插入</span>',
+  '<span class="kw">func</span> (<span class="id">hf</span> *<span class="id">HeapFile</span>) <span class="fn">Insert</span>(<span class="id">tuple</span> []<span class="id">byte</span>) <span class="id">error</span> {',
+  '    <span class="cm">// 通过空闲空间映射(FSM)快速定位有空间的页</span>',
+  '    <span class="id">pageID</span> := <span class="id">hf</span>.<span class="id">fsm</span>.<span class="fn">FindFreePage</span>(<span class="id">uint16</span>(<span class="pkg">len</span>(<span class="id">tuple</span>)))',
+  '    <span class="id">page</span> := <span class="id">hf</span>.<span class="id">bufPool</span>.<span class="fn">GetPage</span>(<span class="id">pageID</span>)',
+  '    _, <span class="id">err</span> := <span class="id">page</span>.<span class="fn">InsertTuple</span>(<span class="id">tuple</span>)',
+  '    <span class="kw">return</span> <span class="id">err</span>',
+  '}',
+];
+
+// Build code panel
+const codeBody = document.getElementById('codeBody');
+codeLines.forEach((html, i) => {
+  const div = document.createElement('div');
+  div.className = 'code-line';
+  div.dataset.line = i + 1;
+  div.innerHTML = `<span class="ln">${i+1}</span><code class="lc">${html}</code>`;
+  div.onclick = () => jumpToLine(i + 1);
+  codeBody.appendChild(div);
+});
+
+// ---- Tab state ----
+let curTab = 0;
+let steps = [];
+let cur = 0, timer = null;
+const SPEEDS = [1500,1000,600,350,180];
+let speedIdx = 2;
+
+function switchTab(idx) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i===idx));
+  curTab = idx;
+  buildSteps();
+  reset();
+}
+
+// ---- Step builders ----
+function buildSteps() {
+  if (curTab === 0) buildPageFormatSteps();
+  else if (curTab === 1) buildHeapSteps();
+  else buildRowColSteps();
+}
+
+// ===== TAB 0: Page Format =====
+function buildPageFormatSteps() {
+  steps = [
+    {
+      desc: "一个 16KB 的数据库页由页头、槽数组、空闲空间、元组区、页尾组成。槽页结构允许变长记录存储。",
+      highlightLines: [10,12,13,14],
+      state: {headerLit:false, slotLit:false, tupleLit:false, slots:[], tuples:[], deletedSlot:-1}
+    },
+    {
+      desc: "页头存储元数据：页ID、日志序列号(LSN)、校验和，占 24 bytes",
+      highlightLines: [2,3,4,5,6,7,8],
+      state: {headerLit:true, slotLit:false, tupleLit:false, slots:[], tuples:[], deletedSlot:-1}
+    },
+    {
+      desc: "插入第1条元组 (id=1, age=28, name='Alice')，从页尾向上写入，占 32 bytes",
+      highlightLines: [18,19,25,26,27],
+      state: {headerLit:false, slotLit:false, tupleLit:true, slots:[], tuples:["id=1, age=28, name='Alice' (32B)"], deletedSlot:-1}
+    },
+    {
+      desc: "槽数组新增 slot[0] 指针，指向第1条元组的偏移量 0x3FE0",
+      highlightLines: [28,29,30,31],
+      state: {headerLit:false, slotLit:true, tupleLit:true, slots:["slot[0]=0x3FE0"], tuples:["id=1, age=28, name='Alice' (32B)"], deletedSlot:-1}
+    },
+    {
+      desc: "插入第2条元组，槽数组继续向下增长，元组区向上增长",
+      highlightLines: [18,19,25,26,27,28,29,30,31],
+      state: {headerLit:false, slotLit:true, tupleLit:true, slots:["slot[0]=0x3FE0","slot[1]=0x3FC0"], tuples:["id=1, age=28, name='Alice' (32B)","id=2, age=34, name='Bob' (32B)"], deletedSlot:-1}
+    },
+    {
+      desc: "删除 slot[1] 的元组：仅标记 slot[1]=INVALID，数据不立即清除（延迟清理）",
+      highlightLines: [22,23],
+      state: {headerLit:false, slotLit:true, tupleLit:true, slots:["slot[0]=0x3FE0","slot[1]=INVALID"], tuples:["id=1, age=28, name='Alice' (32B)","id=2, age=34, name='Bob' (32B)"], deletedSlot:1}
+    },
+    {
+      desc: "空闲空间在中间：槽数组从上往下，元组从下往上，两者相遇时页面已满",
+      highlightLines: [20,21,22],
+      state: {headerLit:false, slotLit:false, tupleLit:false, slots:["slot[0]=0x3FE0","slot[1]=INVALID","slot[2]=..."], tuples:["id=1, ...(32B)","id=2, ...(32B)","id=3, ...(32B)"], deletedSlot:1}
+    },
+    {
+      desc: "真实的 InnoDB 页为 16KB，B+ 树叶节点存真实数据行，非叶节点只存键值",
+      highlightLines: [10],
+      state: {headerLit:true, slotLit:true, tupleLit:true, slots:["slot[0]=0x3FE0","slot[1]=INVALID","slot[2]=0x3F80"], tuples:["id=1, age=28, name='Alice'","id=2 (deleted)","id=3, age=22, name='Charlie'"], deletedSlot:1}
+    }
+  ];
+}
+
+function renderPageFormat(state) {
+  const {headerLit, slotLit, tupleLit, slots, tuples, deletedSlot} = state;
+  return `<div class="page-container">
+  <div style="display:flex;flex-direction:column;gap:12px;max-width:600px;width:100%;">
+    <div style="display:flex;gap:30px;justify-content:center;flex-wrap:wrap;">
+      <div>
+        <div style="font-size:0.72rem;color:var(--dim);font-family:monospace;margin-bottom:8px;text-align:center;">16KB 数据库页</div>
+        <div class="db-page" style="width:240px;">
+          <div class="db-page-region page-header-reg${headerLit?' lit':''}">
+            <div class="region-label">📋 Page Header (24 bytes)</div>
+            <div class="region-content">页ID: 42 | LSN: 8834<br>校验和: 0xA3F1 | 空闲偏移: 0x3A20</div>
+          </div>
+          <div class="db-page-region slot-reg${slotLit?' lit':''}">
+            <div class="region-label">🔢 Slot Array ↓</div>
+            <div class="region-content">
+              ${slots.length === 0
+                ? '<span style="color:var(--dim);font-size:0.68rem;">(空)</span>'
+                : slots.map((s,i) => `<div class="${i===deletedSlot?'deleted-slot':''}">${s}</div>`).join('')}
+            </div>
+          </div>
+          <div class="free-reg">
+            <span>⬆ 空闲空间 ⬇<br><span style="font-size:0.65rem;">${8192 - slots.length*2 - tuples.length*32}+ bytes</span></span>
+          </div>
+          <div class="db-page-region tuple-reg${tupleLit?' lit':''}">
+            <div class="region-label">↑ Tuple Data (行数据)</div>
+            <div class="region-content">
+              ${tuples.length === 0
+                ? '<span style="color:var(--dim);font-size:0.68rem;">(空)</span>'
+                : tuples.map((t,i) => `<div style="${i===deletedSlot?'text-decoration:line-through;opacity:0.5;':''}">${t}</div>`).join('')}
+            </div>
+          </div>
+          <div class="db-page-region page-trailer-reg">
+            <div class="region-label">🔒 Page Trailer (校验)</div>
+            <div class="region-content">校验和验证 | FIL_PAGE_END</div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;justify-content:center;max-width:240px;">
+        <div style="font-size:0.72rem;color:var(--blue);font-family:monospace;padding:8px 12px;background:rgba(56,189,248,0.07);border-radius:6px;border:1px solid rgba(56,189,248,0.15);">
+          <b>页头</b>: PageID + LSN + Checksum + FreeOffset + SlotCount
+        </div>
+        <div style="font-size:0.72rem;color:var(--yellow);font-family:monospace;padding:8px 12px;background:rgba(251,191,36,0.07);border-radius:6px;border:1px solid rgba(251,191,36,0.15);">
+          <b>槽数组</b>: 每个 slot 2 bytes，指向元组偏移量；支持变长记录
+        </div>
+        <div style="font-size:0.72rem;color:var(--green);font-family:monospace;padding:8px 12px;background:rgba(74,222,128,0.07);border-radius:6px;border:1px solid rgba(74,222,128,0.15);">
+          <b>元组</b>: 从页尾向上增长；删除只改槽，不移数据
+        </div>
+      </div>
+    </div>
+  </div>
+</div>`;
+}
+
+// ===== TAB 1: Heap File =====
+function buildHeapSteps() {
+  steps = [
+    {
+      desc: "堆文件是数据库表的物理存储形式，由一系列固定大小的页组成",
+      highlightLines: [35,36],
+      state: {fills:[100,75,45,10,0], target:-1, insertPage:-1, fillOverride:{}}
+    },
+    {
+      desc: "Page 0: 已满(100%) Page 1: 75% Page 2: 45% Page 3: 10% Page 4: 空",
+      highlightLines: [35,36],
+      state: {fills:[100,75,45,10,0], target:-1, insertPage:-1, fillOverride:{}}
+    },
+    {
+      desc: "插入新行：数据库通过空闲空间管理(FSM)找到有足够空间的页 → Page 3",
+      highlightLines: [37,38],
+      state: {fills:[100,75,45,10,0], target:3, insertPage:-1, fillOverride:{}}
+    },
+    {
+      desc: "Page 3 高亮，新行写入其中，fill level 10%→25%",
+      highlightLines: [37,38,39,40,41],
+      state: {fills:[100,75,45,25,0], target:3, insertPage:3, fillOverride:{3:25}}
+    },
+    {
+      desc: "更新行：若新行比旧行大，可能触发页分裂或在原页就地更新",
+      highlightLines: [20,21,22,23],
+      state: {fills:[100,75,45,25,0], target:-1, insertPage:-1, fillOverride:{}}
+    },
+    {
+      desc: "表空间 = 多个堆文件；每个页16KB；100万行约需要 200MB 磁盘空间（假设每行 200 bytes）",
+      highlightLines: [10,35,36],
+      state: {fills:[100,75,45,25,0], target:-1, insertPage:-1, fillOverride:{}}
+    }
+  ];
+}
+
+function renderHeapFile(state) {
+  const {fills, target, insertPage} = state;
+  return `<div class="heap-container">
+  ${fills.map((fill, i) => `
+    <div class="heap-page${i===target?' target':''}">
+      <div class="heap-page-header">Page ${i}</div>
+      <div class="heap-fill-wrap">
+        <div class="heap-fill-bar" style="height:${fill}%;background:${fill===100?'rgba(248,113,113,0.4)':i===target?'rgba(251,191,36,0.4)':'rgba(56,189,248,0.4)'};border-top-color:${fill===100?'var(--red)':i===target?'var(--yellow)':'var(--blue)'};"></div>
+        <div class="heap-fill-label">${fill}%</div>
+      </div>
+      <div class="heap-page-footer">${fill===100?'🚫 已满':i===insertPage?'✏️ 写入中':fill===0?'空页':'可用'}</div>
+    </div>
+    ${i < fills.length-1 ? '' : ''}
+  `).join('')}
+</div>
+<div style="display:flex;gap:16px;justify-content:center;margin-top:16px;flex-wrap:wrap;">
+  <div style="font-size:0.72rem;font-family:monospace;padding:6px 14px;background:rgba(248,113,113,0.1);border-radius:6px;border:1px solid rgba(248,113,113,0.2);color:var(--red);">🚫 已满 (100%)</div>
+  <div style="font-size:0.72rem;font-family:monospace;padding:6px 14px;background:rgba(56,189,248,0.1);border-radius:6px;border:1px solid rgba(56,189,248,0.2);color:var(--blue);">🔵 有空闲</div>
+  <div style="font-size:0.72rem;font-family:monospace;padding:6px 14px;background:rgba(251,191,36,0.1);border-radius:6px;border:1px solid rgba(251,191,36,0.2);color:var(--yellow);">⭐ FSM目标页</div>
+</div>`;
+}
+
+// ===== TAB 2: Row vs Col =====
+const tableData = [
+  {id:'1', name:'Alice', age:'28', salary:'8500'},
+  {id:'2', name:'Bob',   age:'34', salary:'12000'},
+  {id:'3', name:'Carol', age:'29', salary:'9200'},
+  {id:'4', name:'Dave',  age:'41', salary:'15000'},
+  {id:'5', name:'Eve',   age:'26', salary:'7800'},
+];
+
+function buildRowColSteps() {
+  steps = [
+    {desc:"示例表：users(id, name, age, salary)，5条数据", highlightLines:[], state:{rowLit:-1, colLit:-1, showRow:true, showCol:false, dimOther:false}},
+    {desc:"行存储(Row Store)：同一行所有列连续存放。InnoDB使用行存", highlightLines:[12,13,14], state:{rowLit:0, colLit:-1, showRow:true, showCol:false, dimOther:false}},
+    {desc:"行存优点：INSERT/UPDATE快，只需写一次；单行查询高效。SELECT * FROM users WHERE id=3 只触碰1行", highlightLines:[12,13,14], state:{rowLit:2, colLit:-1, showRow:true, showCol:false, dimOther:false}},
+    {desc:"行存缺点：分析查询需读整行。SELECT AVG(salary) FROM users 必须读取所有行的所有列", highlightLines:[12,13,14], state:{rowLit:'all', colLit:-1, showRow:true, showCol:false, dimOther:true, dimCols:[0,1,2]}},
+    {desc:"列存储(Column Store)：同一列所有行连续存放。ClickHouse/Parquet使用列存", highlightLines:[], state:{rowLit:-1, colLit:3, showRow:false, showCol:true, dimOther:false}},
+    {desc:"列存优点：分析查询只读需要的列。SELECT AVG(salary) 只读salary列，I/O减少75%", highlightLines:[], state:{rowLit:-1, colLit:3, showRow:false, showCol:true, dimOther:true}},
+    {desc:"选择原则：OLTP（高并发单行操作）→行存；OLAP（大表聚合分析）→列存", highlightLines:[], state:{rowLit:-1, colLit:-1, showRow:true, showCol:true, dimOther:false}},
+  ];
+}
+
+function renderRowCol(state) {
+  const {rowLit, colLit, showRow, showCol, dimOther, dimCols} = state;
+  const cols = ['id','name','age','salary'];
+  const colColors = ['var(--blue)','var(--green)','var(--teal)','var(--yellow)'];
+  const rowColors = ['rgba(56,189,248,0.15)','rgba(74,222,128,0.15)','rgba(192,132,252,0.15)','rgba(251,191,36,0.15)','rgba(251,146,60,0.15)'];
+
+  function cellClass(rIdx, cIdx) {
+    if (rowLit === 'all') {
+      if (dimOther && dimCols && dimCols.includes(cIdx)) return 'cell dim';
+      return 'cell lit';
+    }
+    if (rowLit >= 0 && rIdx === rowLit) return 'cell lit';
+    if (colLit >= 0 && cIdx === colLit) {
+      if (dimOther && cIdx !== colLit) return 'cell dim';
+      return 'cell col-lit';
+    }
+    if (dimOther) return 'cell dim';
+    return 'cell';
+  }
+
+  let html = '<div class="rvcol-container">';
+
+  if (showRow) {
+    html += `<div class="store-section">
+      <div class="store-title">行存储 (Row Store)</div>
+      <div class="row-store-grid">
+        <div class="table-row">${cols.map(c=>`<div class="cell header" style="flex:1;">${c}</div>`).join('')}</div>
+        ${tableData.map((row, rIdx) => `
+          <div class="table-row" style="${rowLit===rIdx||rowLit==='all'?`background:${rowColors[rIdx]};border-radius:4px;`:''}">
+            ${cols.map((c,cIdx) => `<div class="${cellClass(rIdx,cIdx)}" style="flex:1;">${row[c]}</div>`).join('')}
+          </div>`).join('')}
+      </div>
+      <div style="margin-top:10px;font-size:0.7rem;color:var(--dim);font-family:monospace;">每行连续存储 → 顺序写入一次</div>
+    </div>`;
+  }
+
+  if (showCol) {
+    html += `<div class="store-section">
+      <div class="store-title">列存储 (Column Store)</div>
+      <div class="col-store-grid">
+        ${cols.map((c,cIdx) => `
+          <div class="table-col" style="${colLit===cIdx?`background:rgba(251,191,36,0.05);border-radius:6px;padding:4px;`:''}">
+            <div class="cell header" style="color:${colColors[cIdx]};">${c}</div>
+            ${tableData.map((row,rIdx) => `<div class="${colLit===cIdx?(dimOther?'cell col-lit':'cell col-lit'):'cell'}">${row[c]}</div>`).join('')}
+          </div>`).join('')}
+      </div>
+      <div style="margin-top:10px;font-size:0.7rem;color:var(--dim);font-family:monospace;">每列连续存储 → 只读需要的列</div>
+    </div>`;
+  }
+
+  html += '</div>';
+  return html;
+}
+
+// ---- Render ----
+function render(idx) {
+  const s = steps[idx];
+  if (!s) return;
+  let html = '';
+  if (curTab === 0) html = renderPageFormat(s.state);
+  else if (curTab === 1) html = renderHeapFile(s.state);
+  else html = renderRowCol(s.state);
+  document.getElementById('vizArea').innerHTML = html;
+  document.getElementById('descText').textContent = s.desc;
+  document.getElementById('stepCounter').textContent = `${idx+1} / ${steps.length}`;
+  // Code highlight
+  document.querySelectorAll('.code-line').forEach(el => {
+    const ln = parseInt(el.dataset.line);
+    el.classList.toggle('active', s.highlightLines.includes(ln));
+  });
+  // Scroll to first highlighted line
+  if (s.highlightLines.length > 0) {
+    const first = document.querySelector(`.code-line[data-line="${s.highlightLines[0]}"]`);
+    if (first) first.scrollIntoView({block:'nearest', behavior:'smooth'});
+  }
+  document.getElementById('prevBtn').disabled = idx === 0;
+  document.getElementById('nextBtn').disabled = idx === steps.length - 1;
+}
+
+function next() { if (cur < steps.length-1) { cur++; render(cur); } }
+function prev() { if (cur > 0) { cur--; render(cur); } }
+function reset() { clearInterval(timer); timer = null; cur = 0; render(0); updatePlayBtn(); }
+function updatePlayBtn() {
+  document.getElementById('playBtn').textContent = timer ? '⏸ 暂停' : '▶ 播放';
+  document.getElementById('playBtn').classList.toggle('primary', !timer);
+}
+function togglePlay() {
+  if (timer) { clearInterval(timer); timer = null; }
+  else {
+    timer = setInterval(() => {
+      if (cur >= steps.length-1) { clearInterval(timer); timer = null; updatePlayBtn(); return; }
+      cur++; render(cur); updatePlayBtn();
+    }, SPEEDS[speedIdx]);
+  }
+  updatePlayBtn();
+}
+
+function jumpToLine(ln) {
+  let best = -1, bestDist = Infinity;
+  steps.forEach((s,i) => {
+    if (s.highlightLines.includes(ln)) {
+      const dist = Math.abs(i - cur);
+      if (dist < bestDist) { bestDist = dist; best = i; }
+    }
+  });
+  if (best >= 0) { cur = best; render(cur); }
+}
+
+// Init
+buildSteps();
+reset();
+</script>
+</body>
+</html>

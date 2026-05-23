@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQL执行全路径 - 数据库可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--purple:#c084fc;--green:#4ade80;--yellow:#fbbf24;--orange:#fb923c;--red:#f87171;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;font-style:italic;}.id{color:#e6edf3;}
+body{height:100vh;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;}
+nav{height:52px;display:flex;align-items:center;gap:16px;padding:0 20px;background:var(--panel2);border-bottom:1px solid var(--border);flex-shrink:0;}
+nav h1{font-size:1.05rem;font-weight:600;white-space:nowrap;}
+.ds-tags{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;}
+.ds-tag{font-size:0.72rem;padding:3px 10px;border-radius:100px;font-family:monospace;background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--dim);}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;overflow:hidden;display:flex;flex-direction:column;background:var(--bg);}
+.viz-area{flex:1;overflow-y:auto;padding:16px 20px;}
+.code-panel{width:44%;min-width:360px;background:var(--panel2);border-left:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;}
+.controls{flex-shrink:0;height:52px;display:flex;align-items:center;gap:10px;padding:0 16px;background:var(--panel);border-top:1px solid var(--border);}
+.status-bar{flex-shrink:0;height:36px;display:flex;align-items:center;padding:0 16px;background:var(--panel2);border-top:1px solid var(--border);font-size:0.82rem;color:var(--dim);}
+button{padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:rgba(255,255,255,0.05);color:var(--text);cursor:pointer;font-size:0.85rem;transition:background 0.15s;}
+button:hover{background:rgba(255,255,255,0.1);}
+button.play-btn{background:rgba(56,189,248,0.15);border-color:var(--blue);color:var(--blue);}
+button.play-btn:hover{background:rgba(56,189,248,0.25);}
+select{padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:0.82rem;cursor:pointer;}
+.speed-label{font-size:0.78rem;color:var(--dim);}
+.step-info{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;}
+
+/* Flow diagram */
+.flow-container{display:flex;flex-direction:column;align-items:center;gap:0;padding:8px 0;}
+.stage-box{width:82%;max-width:520px;border-radius:10px;border:1.5px solid var(--border);padding:12px 16px;background:rgba(255,255,255,0.02);transition:all 0.35s;opacity:0.4;cursor:default;}
+.stage-box.active{border:1.5px solid var(--yellow);box-shadow:0 0 14px rgba(251,191,36,0.3);background:rgba(251,191,36,0.06);opacity:1;}
+.stage-box.done{border-color:var(--green);opacity:0.65;background:rgba(74,222,128,0.04);}
+.stage-box.pending{opacity:0.35;}
+
+.stage-icon-title{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+.stage-icon{font-size:1.1rem;}
+.stage-title{font-size:0.9rem;font-weight:600;color:var(--dim);transition:color 0.35s;}
+.stage-box.active .stage-title{color:#f1f5f9;}
+.stage-box.done .stage-title{color:var(--green);}
+.stage-detail{font-size:0.75rem;font-family:monospace;color:#475569;transition:color 0.35s;line-height:1.5;}
+.stage-box.active .stage-detail{color:var(--dim);}
+.stage-box.done .stage-detail{color:#4ade8099;}
+.stage-extra{font-size:0.72rem;font-family:monospace;color:var(--teal);margin-top:5px;line-height:1.5;max-height:0;overflow:hidden;opacity:0;transition:all 0.35s;}
+.stage-box.active .stage-extra{max-height:80px;opacity:1;}
+.done-check{margin-left:auto;color:var(--green);font-size:0.85rem;}
+
+/* Arrow between stages */
+.flow-arrow{color:#334155;font-size:1rem;text-align:center;padding:2px 0;transition:color 0.3s;width:82%;max-width:520px;}
+.flow-arrow.lit{color:var(--yellow);}
+.flow-arrow.done-lit{color:var(--green);}
+
+/* Mini AST tree */
+.mini-tree{font-family:monospace;font-size:0.7rem;color:var(--purple);line-height:1.6;padding:4px 0 0 4px;}
+
+/* Code panel */
+.code-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:12px 0;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:baseline;gap:0;padding:1px 0;cursor:pointer;transition:background 0.15s;border-left:2px solid transparent;}
+.code-line:hover{background:rgba(255,255,255,0.04);}
+.code-line.active{background:rgba(251,191,36,0.15);border-left:2px solid var(--yellow);}
+.ln{min-width:42px;text-align:right;padding-right:14px;font-size:0.78rem;color:#4b5563;font-family:monospace;user-select:none;}
+code{font-family:'SF Mono','Fira Code',monospace;font-size:0.82rem;white-space:pre;}
+
+/* MOBILE_INJECTED */
+@media(max-width:768px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;overflow-x:hidden;}
+  nav{flex-wrap:wrap;padding:10px 16px;gap:6px;height:auto!important;}
+  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
+  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:320px!important;min-height:320px!important;flex:none!important;overflow:hidden;}
+  .code-panel{width:100%!important;min-width:unset!important;height:360px!important;flex:none!important;}
+  .controls{flex-wrap:wrap!important;padding:10px 14px!important;gap:6px!important;height:auto!important;}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" style="color:var(--dim);text-decoration:none;font-size:0.88rem;margin-right:8px;">← 返回</a>
+  <h1>SQL执行全路径</h1>
+  <div class="ds-tags">
+    <span class="ds-tag">AST</span>
+    <span class="ds-tag">查询优化</span>
+    <span class="ds-tag">索引扫描</span>
+  </div>
+</nav>
+
+<div class="main">
+  <!-- VIZ PANEL -->
+  <div class="viz-panel">
+    <div class="viz-area">
+      <!-- SQL being traced -->
+      <div style="text-align:center;margin-bottom:12px;">
+        <span style="font-family:monospace;font-size:0.78rem;color:var(--dim);">追踪 SQL：</span>
+        <span style="font-family:monospace;font-size:0.82rem;color:var(--blue);">SELECT name FROM users WHERE age &gt; 25 ORDER BY age LIMIT 10</span>
+      </div>
+
+      <div class="flow-container" id="flowContainer">
+
+        <!-- Stage 0: SQL Text -->
+        <div class="stage-box" id="stage0" data-stage="0">
+          <div class="stage-icon-title">
+            <span class="stage-icon">📄</span>
+            <span class="stage-title">SQL 文本</span>
+            <span class="done-check" id="done0" style="display:none;">✓</span>
+          </div>
+          <div class="stage-detail">原始字符串输入</div>
+          <div class="stage-extra" id="extra0">SELECT name FROM users WHERE age &gt; 25 ORDER BY age LIMIT 10</div>
+        </div>
+
+        <div class="flow-arrow" id="arrow0">▼</div>
+
+        <!-- Stage 1: Lexer -->
+        <div class="stage-box" id="stage1" data-stage="1">
+          <div class="stage-icon-title">
+            <span class="stage-icon">🔤</span>
+            <span class="stage-title">词法分析 Lexer</span>
+            <span class="done-check" id="done1" style="display:none;">✓</span>
+          </div>
+          <div class="stage-detail">字符流 → Token 序列</div>
+          <div class="stage-extra" id="extra1">[SELECT] [name] [FROM] [users] [WHERE] [age] [&gt;] [25] [ORDER BY] [age] [LIMIT] [10]</div>
+        </div>
+
+        <div class="flow-arrow" id="arrow1">▼</div>
+
+        <!-- Stage 2: Parser -->
+        <div class="stage-box" id="stage2" data-stage="2">
+          <div class="stage-icon-title">
+            <span class="stage-icon">🌲</span>
+            <span class="stage-title">语法分析 Parser</span>
+            <span class="done-check" id="done2" style="display:none;">✓</span>
+          </div>
+          <div class="stage-detail">Token流 → 抽象语法树 AST</div>
+          <div class="stage-extra" id="extra2">
+            <div class="mini-tree">SelectStmt
+├─ Fields  : [name]
+├─ From    : users
+├─ Where   : BinaryExpr(age &gt; 25)
+├─ OrderBy : [age ASC]
+└─ Limit   : 10</div>
+          </div>
+        </div>
+
+        <div class="flow-arrow" id="arrow2">▼</div>
+
+        <!-- Stage 3: Logical Plan -->
+        <div class="stage-box" id="stage3" data-stage="3">
+          <div class="stage-icon-title">
+            <span class="stage-icon">📐</span>
+            <span class="stage-title">逻辑计划 Logical Plan</span>
+            <span class="done-check" id="done3" style="display:none;">✓</span>
+          </div>
+          <div class="stage-detail">关系代数树，与具体实现无关</div>
+          <div class="stage-extra" id="extra3">Limit(10) → Sort(age) → Filter(age&gt;25) → SeqScan(users)</div>
+        </div>
+
+        <div class="flow-arrow" id="arrow3">▼</div>
+
+        <!-- Stage 4: Cost Estimation -->
+        <div class="stage-box" id="stage4" data-stage="4">
+          <div class="stage-icon-title">
+            <span class="stage-icon">📊</span>
+            <span class="stage-title">代价估算 Cost Estimation</span>
+            <span class="done-check" id="done4" style="display:none;">✓</span>
+          </div>
+          <div class="stage-detail">统计信息 + 直方图 → 估算各方案代价</div>
+          <div class="stage-extra" id="extra4">users表 10万行，age列有索引
+IndexScan cost=31  &lt;  SeqScan cost=8200
+→ 选择 IndexScan(idx_age)</div>
+        </div>
+
+        <div class="flow-arrow" id="arrow4">▼</div>
+
+        <!-- Stage 5: Physical Plan -->
+        <div class="stage-box" id="stage5" data-stage="5">
+          <div class="stage-icon-title">
+            <span class="stage-icon">⚙️</span>
+            <span class="stage-title">物理计划 Physical Plan</span>
+            <span class="done-check" id="done5" style="display:none;">✓</span>
+          </div>
+          <div class="stage-detail">可直接执行的算子树</div>
+          <div class="stage-extra" id="extra5">Limit(10) → Sort(age) → IndexScan(users.idx_age, age&gt;25)</div>
+        </div>
+
+        <div class="flow-arrow" id="arrow5">▼</div>
+
+        <!-- Stage 6: Index Scan -->
+        <div class="stage-box" id="stage6" data-stage="6">
+          <div class="stage-icon-title">
+            <span class="stage-icon">🌿</span>
+            <span class="stage-title">执行：索引扫描</span>
+            <span class="done-check" id="done6" style="display:none;">✓</span>
+          </div>
+          <div class="stage-detail">B+ 树遍历，定位 age &gt; 25 的叶节点</div>
+          <div class="stage-extra" id="extra6">idx_age B+ 树: 找到 age=26 入口叶节点
+顺序扫描叶节点链表 → 收集 row_id 列表</div>
+        </div>
+
+        <div class="flow-arrow" id="arrow6">▼</div>
+
+        <!-- Stage 7: Buffer Pool -->
+        <div class="stage-box" id="stage7" data-stage="7">
+          <div class="stage-icon-title">
+            <span class="stage-icon">💾</span>
+            <span class="stage-title">执行：获取数据页</span>
+            <span class="done-check" id="done7" style="display:none;">✓</span>
+          </div>
+          <div class="stage-detail">row_id → Buffer Pool → 数据行</div>
+          <div class="stage-extra" id="extra7">bufPool.GetPage(rid.PageID)
+命中 → 直接读内存；未命中 → disk.ReadPage() 16KB</div>
+        </div>
+
+        <div class="flow-arrow" id="arrow7">▼</div>
+
+        <!-- Stage 8: Return -->
+        <div class="stage-box" id="stage8" data-stage="8">
+          <div class="stage-icon-title">
+            <span class="stage-icon">✅</span>
+            <span class="stage-title">返回结果</span>
+            <span class="done-check" id="done8" style="display:none;">✓</span>
+          </div>
+          <div class="stage-detail">排序 + Limit → 10行 name 字段返回客户端</div>
+          <div class="stage-extra" id="extra8">sort.Slice(rows, age ASC)
+result = rows[:10]  →  返回给客户端</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- CODE PANEL -->
+  <div class="code-panel">
+    <div class="code-header">
+      <div class="code-dot" style="background:#f87171;"></div>
+      <div class="code-dot" style="background:#fbbf24;"></div>
+      <div class="code-dot" style="background:#4ade80;"></div>
+      <span style="margin-left:4px;">query_path.go</span>
+    </div>
+    <div class="code-body" id="codeBody">
+      <div class="code-line" data-line="1"><span class="ln">1</span><code><span class="cm">// 完整查询处理流程</span></code></div>
+      <div class="code-line" data-line="2"><span class="ln">2</span><code><span class="kw">func</span> (<span class="id">db</span> *<span class="id">DB</span>) <span class="fn">handleQuery</span>(<span class="id">sql</span> <span class="kw">string</span>) {</code></div>
+      <div class="code-line" data-line="3"><span class="ln">3</span><code>    <span class="cm">// Step 1: 词法+语法分析</span></code></div>
+      <div class="code-line" data-line="4"><span class="ln">4</span><code>    <span class="id">tokens</span> := <span class="fn">lex</span>(<span class="id">sql</span>)          <span class="cm">// ["SELECT","name","FROM",...]</span></code></div>
+      <div class="code-line" data-line="5"><span class="ln">5</span><code>    <span class="id">ast</span> := <span class="fn">parse</span>(<span class="id">tokens</span>)         <span class="cm">// AST tree</span></code></div>
+      <div class="code-line" data-line="6"><span class="ln">6</span><code></code></div>
+      <div class="code-line" data-line="7"><span class="ln">7</span><code>    <span class="cm">// Step 2: 构建逻辑计划</span></code></div>
+      <div class="code-line" data-line="8"><span class="ln">8</span><code>    <span class="id">logicalPlan</span> := <span class="fn">buildLogical</span>(<span class="id">ast</span>)</code></div>
+      <div class="code-line" data-line="9"><span class="ln">9</span><code>    <span class="cm">// Limit → Sort → Filter → SeqScan</span></code></div>
+      <div class="code-line" data-line="10"><span class="ln">10</span><code></code></div>
+      <div class="code-line" data-line="11"><span class="ln">11</span><code>    <span class="cm">// Step 3: 代价优化（选择索引）</span></code></div>
+      <div class="code-line" data-line="12"><span class="ln">12</span><code>    <span class="id">stats</span> := <span class="id">db</span>.<span class="id">catalog</span>.<span class="fn">GetStats</span>(<span class="st">"users"</span>)</code></div>
+      <div class="code-line" data-line="13"><span class="ln">13</span><code>    <span class="id">physicalPlan</span> := <span class="fn">optimize</span>(<span class="id">logicalPlan</span>, <span class="id">stats</span>)</code></div>
+      <div class="code-line" data-line="14"><span class="ln">14</span><code>    <span class="cm">// 选择 IndexScan 替换 SeqScan+Filter</span></code></div>
+      <div class="code-line" data-line="15"><span class="ln">15</span><code></code></div>
+      <div class="code-line" data-line="16"><span class="ln">16</span><code>    <span class="cm">// Step 4: 执行—索引扫描</span></code></div>
+      <div class="code-line" data-line="17"><span class="ln">17</span><code>    <span class="id">idx</span> := <span class="id">db</span>.<span class="id">indexMgr</span>.<span class="fn">Get</span>(<span class="st">"users"</span>, <span class="st">"idx_age"</span>)</code></div>
+      <div class="code-line" data-line="18"><span class="ln">18</span><code>    <span class="id">rowIDs</span> := <span class="id">idx</span>.<span class="fn">RangeScan</span>(<span class="num">25</span>, <span class="id">math</span>.<span class="id">MaxInt64</span>)</code></div>
+      <div class="code-line" data-line="19"><span class="ln">19</span><code>    <span class="cm">// B+ 树: 从 age=26 的叶节点开始遍历</span></code></div>
+      <div class="code-line" data-line="20"><span class="ln">20</span><code></code></div>
+      <div class="code-line" data-line="21"><span class="ln">21</span><code>    <span class="cm">// Step 5: 根据 row_id 获取数据页</span></code></div>
+      <div class="code-line" data-line="22"><span class="ln">22</span><code>    <span class="kw">var</span> <span class="id">rows</span> []<span class="id">Row</span></code></div>
+      <div class="code-line" data-line="23"><span class="ln">23</span><code>    <span class="kw">for</span> _, <span class="id">rid</span> := <span class="kw">range</span> <span class="id">rowIDs</span> {</code></div>
+      <div class="code-line" data-line="24"><span class="ln">24</span><code>        <span class="id">page</span> := <span class="id">db</span>.<span class="id">bufPool</span>.<span class="fn">GetPage</span>(<span class="id">rid</span>.<span class="id">PageID</span>)</code></div>
+      <div class="code-line" data-line="25"><span class="ln">25</span><code>        <span class="id">row</span> := <span class="id">page</span>.<span class="fn">GetRow</span>(<span class="id">rid</span>.<span class="id">SlotID</span>)</code></div>
+      <div class="code-line" data-line="26"><span class="ln">26</span><code>        <span class="id">rows</span> = <span class="pkg">append</span>(<span class="id">rows</span>, <span class="id">row</span>)</code></div>
+      <div class="code-line" data-line="27"><span class="ln">27</span><code>    }</code></div>
+      <div class="code-line" data-line="28"><span class="ln">28</span><code></code></div>
+      <div class="code-line" data-line="29"><span class="ln">29</span><code>    <span class="cm">// Step 6: 排序 + Limit</span></code></div>
+      <div class="code-line" data-line="30"><span class="ln">30</span><code>    <span class="id">sort</span>.<span class="fn">Slice</span>(<span class="id">rows</span>, <span class="kw">func</span>(<span class="id">i</span>,<span class="id">j</span> <span class="kw">int</span>) <span class="kw">bool</span> {</code></div>
+      <div class="code-line" data-line="31"><span class="ln">31</span><code>        <span class="kw">return</span> <span class="id">rows</span>[<span class="id">i</span>][<span class="st">"age"</span>] &lt; <span class="id">rows</span>[<span class="id">j</span>][<span class="st">"age"</span>]</code></div>
+      <div class="code-line" data-line="32"><span class="ln">32</span><code>    })</code></div>
+      <div class="code-line" data-line="33"><span class="ln">33</span><code>    <span class="id">result</span> := <span class="id">rows</span>[:<span class="fn">min</span>(<span class="num">10</span>, <span class="pkg">len</span>(<span class="id">rows</span>))]</code></div>
+      <div class="code-line" data-line="34"><span class="ln">34</span><code>    <span class="kw">return</span> <span class="id">result</span></code></div>
+      <div class="code-line" data-line="35"><span class="ln">35</span><code>}</code></div>
+    </div>
+  </div>
+</div>
+
+<div class="controls">
+  <button onclick="reset()">↺ 重置</button>
+  <button onclick="prev()">← 上一步</button>
+  <button class="play-btn" id="playBtn" onclick="togglePlay()">▶ 播放</button>
+  <button onclick="next()">下一步 →</button>
+  <span class="speed-label">速度:</span>
+  <select id="speedSel" onchange="speedIdx=+this.value">
+    <option value="0">0.5×</option>
+    <option value="1">0.8×</option>
+    <option value="2" selected>1×</option>
+    <option value="3">1.5×</option>
+    <option value="4">2.5×</option>
+  </select>
+  <span class="step-info" id="stepInfo">步骤 1 / 9</span>
+</div>
+<div class="status-bar" id="statusBar">SQL语句准备进入处理流程</div>
+
+<script>
+// 9 steps, one per stage (0–8)
+const steps = [
+  {
+    activeStage: 0, doneUpTo: -1,
+    highlightLines: [2],
+    description: "Stage 1 · SQL文本：原始 SQL 字符串到达数据库处理入口"
+  },
+  {
+    activeStage: 1, doneUpTo: 0,
+    highlightLines: [3,4],
+    description: "Stage 2 · 词法分析 Lexer：将字符流切分为 Token 序列，识别关键字、标识符、操作符、字面量"
+  },
+  {
+    activeStage: 2, doneUpTo: 1,
+    highlightLines: [5],
+    description: "Stage 3 · 语法分析 Parser：Token 流 → 抽象语法树 AST，验证语法合法性与语义（表名、列名）"
+  },
+  {
+    activeStage: 3, doneUpTo: 2,
+    highlightLines: [7,8,9],
+    description: "Stage 4 · 逻辑计划：AST 转换为关系代数树，与具体存储引擎无关：Limit→Sort→Filter→SeqScan"
+  },
+  {
+    activeStage: 4, doneUpTo: 3,
+    highlightLines: [11,12,13,14],
+    description: "Stage 5 · 代价估算：users表10万行，age列有索引。IndexScan cost=31 < SeqScan cost=8200，选择索引扫描"
+  },
+  {
+    activeStage: 5, doneUpTo: 4,
+    highlightLines: [13,14],
+    description: "Stage 6 · 物理计划：将 Filter+SeqScan 替换为 IndexScan(idx_age)，生成可执行算子树"
+  },
+  {
+    activeStage: 6, doneUpTo: 5,
+    highlightLines: [16,17,18,19],
+    description: "Stage 7 · 索引扫描：沿 B+ 树找到 age=26 的叶节点入口，顺序遍历叶节点链表，收集所有 row_id"
+  },
+  {
+    activeStage: 7, doneUpTo: 6,
+    highlightLines: [21,22,23,24,25,26,27],
+    description: "Stage 8 · 获取数据页：对每个 row_id 查询 Buffer Pool；命中直接读内存，未命中从磁盘读16KB页"
+  },
+  {
+    activeStage: 8, doneUpTo: 7,
+    highlightLines: [29,30,31,32,33,34],
+    description: "Stage 9 · 返回结果：对收集到的行按 age 排序，取前10行，仅投影 name 字段返回客户端"
+  },
+];
+
+let cur = 0, timer = null;
+const SPEEDS = [1500, 1000, 600, 350, 180];
+let speedIdx = 2;
+const TOTAL = steps.length;
+
+function render(idx) {
+  const s = steps[idx];
+
+  for (let i = 0; i < 9; i++) {
+    const box = document.getElementById('stage' + i);
+    const doneEl = document.getElementById('done' + i);
+    const arrowEl = document.getElementById('arrow' + i);
+
+    box.classList.remove('active', 'done', 'pending');
+    if (doneEl) doneEl.style.display = 'none';
+
+    if (i === s.activeStage) {
+      box.classList.add('active');
+    } else if (i <= s.doneUpTo) {
+      box.classList.add('done');
+      if (doneEl) doneEl.style.display = 'inline';
+    } else {
+      box.classList.add('pending');
+    }
+
+    if (arrowEl) {
+      arrowEl.classList.remove('lit', 'done-lit');
+      if (i === s.activeStage) arrowEl.classList.add('lit');
+      else if (i <= s.doneUpTo) arrowEl.classList.add('done-lit');
+    }
+  }
+
+  // Scroll active box into view
+  const activeBox = document.getElementById('stage' + s.activeStage);
+  if (activeBox) activeBox.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
+  highlightLines(s.highlightLines);
+
+  document.getElementById('statusBar').textContent = `步骤 ${idx + 1} / ${TOTAL}  ·  ${s.description}`;
+  document.getElementById('stepInfo').textContent = `步骤 ${idx + 1} / ${TOTAL}`;
+}
+
+function highlightLines(lines) {
+  document.querySelectorAll('.code-line').forEach(el => {
+    el.classList.toggle('active', lines.includes(+el.dataset.line));
+  });
+  if (lines.length) {
+    const first = document.querySelector(`.code-line[data-line="${lines[0]}"]`);
+    if (first) first.scrollIntoView({ block: 'nearest' });
+  }
+}
+
+function jumpToLine(n) {
+  let target = -1;
+  for (let i = steps.length - 1; i >= 0; i--) {
+    if (steps[i].highlightLines.includes(n)) { target = i; break; }
+  }
+  if (target >= 0) { cur = target; render(cur); updatePlayBtn(); }
+}
+
+function next() { if (cur < steps.length - 1) { cur++; render(cur); } }
+function prev() { if (cur > 0) { cur--; render(cur); } }
+function reset() { clearInterval(timer); timer = null; cur = 0; render(0); updatePlayBtn(); }
+function togglePlay() {
+  if (timer) { clearInterval(timer); timer = null; }
+  else {
+    timer = setInterval(() => {
+      if (cur >= steps.length - 1) { clearInterval(timer); timer = null; updatePlayBtn(); return; }
+      cur++; render(cur); updatePlayBtn();
+    }, SPEEDS[speedIdx]);
+  }
+  updatePlayBtn();
+}
+function updatePlayBtn() {
+  document.getElementById('playBtn').textContent = timer ? '⏸ 暂停' : '▶ 播放';
+}
+
+document.querySelectorAll('.code-line').forEach(el => {
+  el.addEventListener('click', () => jumpToLine(+el.dataset.line));
+});
+
+render(0);
+</script>
+</body>
+</html>

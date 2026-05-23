@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>外部排序 External Sort</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--purple:#c084fc;--green:#4ade80;--yellow:#fbbf24;--orange:#fb923c;--red:#f87171;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{height:100vh;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;}
+nav{height:52px;display:flex;align-items:center;gap:16px;padding:0 20px;background:var(--panel2);border-bottom:1px solid var(--border);flex-shrink:0;}
+nav h1{font-size:1.05rem;font-weight:600;}
+.ds-tags{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;}
+.ds-tag{font-size:0.72rem;padding:2px 8px;border-radius:4px;font-family:monospace;font-weight:500;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;overflow-y:auto;background:var(--bg);padding:16px;}
+.code-panel{width:44%;min-width:360px;background:var(--panel2);border-left:1px solid var(--border);overflow-y:auto;}
+.controls{flex-shrink:0;height:52px;display:flex;align-items:center;gap:10px;padding:0 16px;background:var(--panel);border-top:1px solid var(--border);}
+.status-bar{flex-shrink:0;height:36px;display:flex;align-items:center;padding:0 16px;background:var(--panel2);border-top:1px solid var(--border);font-size:0.82rem;color:var(--dim);}
+.btn{background:rgba(255,255,255,.07);border:1px solid var(--border);color:var(--text);padding:6px 14px;border-radius:7px;cursor:pointer;font-size:.85rem;transition:all .15s;font-family:inherit;}
+.btn:hover{background:rgba(255,255,255,.12);}
+.btn.primary{background:rgba(56,189,248,.15);border-color:rgba(56,189,248,.3);color:var(--blue);}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:80px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
+
+/* Code panel */
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;position:sticky;top:0;background:var(--panel2);z-index:2;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background .15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.7;}
+.code-line:hover{background:rgba(255,255,255,.04);}
+.code-line.active{background:rgba(251,191,36,.12);border-left:2px solid var(--yellow);}
+.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:44px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;}.id{color:#e6edf3;}
+
+/* Phase section labels */
+.phase-section{margin-bottom:20px;}
+.phase-label{font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:4px 10px;border-radius:4px;display:inline-flex;align-items:center;gap:6px;margin-bottom:12px;}
+.phase-label.p1{background:rgba(56,189,248,.12);color:var(--blue);border:1px solid rgba(56,189,248,.25);}
+.phase-label.p2{background:rgba(45,212,191,.12);color:var(--teal);border:1px solid rgba(45,212,191,.25);}
+
+/* Disk pages grid */
+.disk-pages-row{display:flex;gap:12px;align-items:flex-start;margin-bottom:10px;}
+.disk-page{border:1px solid var(--border);border-radius:6px;padding:8px 10px;background:rgba(255,255,255,.03);transition:all .25s;}
+.disk-page.active{border-color:var(--blue);background:rgba(56,189,248,.08);}
+.disk-page.done{border-color:var(--green);background:rgba(74,222,128,.05);opacity:0.5;}
+.disk-page-label{font-size:0.7rem;color:var(--dim);margin-bottom:6px;font-family:monospace;}
+.page-cells{display:flex;gap:4px;}
+.cell{width:30px;height:30px;border:1px solid var(--border);border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:0.82rem;font-weight:600;background:rgba(255,255,255,.04);transition:all .25s;}
+.cell.active{border-color:var(--blue);background:rgba(56,189,248,.18);color:var(--blue);}
+.cell.sorted{border-color:var(--green);background:rgba(74,222,128,.14);color:var(--green);}
+.cell.output{border-color:var(--yellow);background:rgba(251,191,36,.14);color:var(--yellow);}
+.cell.heap-active{border-color:var(--orange);background:rgba(251,146,60,.18);color:var(--orange);}
+
+/* Arrow between sections */
+.flow-arrow{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 6px;color:var(--dim);font-size:0.9rem;min-width:28px;}
+
+/* Buffer area */
+.buffer-box{border:1px dashed var(--border);border-radius:8px;padding:10px 12px;background:rgba(255,255,255,.02);min-width:120px;}
+.buffer-box.active{border-color:var(--blue);background:rgba(56,189,248,.06);}
+.buffer-label{font-size:0.7rem;color:var(--dim);margin-bottom:6px;font-family:monospace;text-transform:uppercase;letter-spacing:.04em;}
+
+/* Runs display */
+.runs-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:4px;}
+.run-block{border:1px solid var(--border);border-radius:6px;padding:8px 10px;background:rgba(255,255,255,.03);transition:all .25s;}
+.run-block.active{border-color:var(--teal);background:rgba(45,212,191,.08);}
+.run-block-label{font-size:0.7rem;color:var(--dim);margin-bottom:6px;font-family:monospace;}
+
+/* Phase 2 merge area */
+.merge-layout{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;}
+.run-stream{flex:1;min-width:160px;}
+.run-stream-label{font-size:0.72rem;color:var(--dim);margin-bottom:6px;font-family:monospace;}
+.run-ptr-row{display:flex;gap:3px;position:relative;align-items:flex-start;}
+.run-ptr-marker{font-size:0.65rem;color:var(--teal);position:absolute;top:-16px;white-space:nowrap;}
+
+/* Min-heap display */
+.heap-area{min-width:150px;text-align:center;}
+.heap-label{font-size:0.72rem;color:var(--dim);margin-bottom:8px;font-family:monospace;text-transform:uppercase;}
+.heap-tree{display:flex;flex-direction:column;align-items:center;gap:6px;}
+.heap-row{display:flex;gap:8px;justify-content:center;}
+.heap-node{width:44px;height:36px;border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:monospace;font-size:0.78rem;background:rgba(255,255,255,.04);transition:all .25s;position:relative;}
+.heap-node.min{border-color:var(--orange);background:rgba(251,146,60,.18);color:var(--orange);}
+.heap-node.normal{border-color:var(--border);}
+.heap-node.empty{opacity:0.25;}
+.heap-node-run{font-size:0.6rem;color:var(--dim);}
+
+/* Output array */
+.output-area{margin-top:14px;}
+.output-label{font-size:0.72rem;color:var(--green);margin-bottom:6px;font-family:monospace;text-transform:uppercase;letter-spacing:.04em;}
+.output-cells{display:flex;gap:3px;flex-wrap:wrap;}
+
+/* Description box */
+.desc-row{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:0.88rem;color:var(--text);min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.desc-text{flex:1;}
+.step-counter{font-family:monospace;font-size:0.8rem;color:var(--dim);white-space:nowrap;}
+
+/* MOBILE_INJECTED */
+@media(max-width:768px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;overflow-x:hidden;}
+  nav{flex-wrap:wrap;padding:10px 16px;gap:6px;height:auto!important;}
+  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
+  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:340px!important;min-height:340px!important;flex:none!important;overflow:hidden;}
+  .code-panel{width:100%!important;min-width:unset!important;height:360px!important;flex:none!important;}
+  .controls{flex-wrap:wrap!important;padding:10px 14px!important;gap:6px!important;height:auto!important;}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" style="color:var(--dim);text-decoration:none;font-size:0.88rem;margin-right:8px;">← 返回</a>
+  <h1>外部排序 External Sort</h1>
+  <div class="ds-tags">
+    <span class="ds-tag" style="background:rgba(251,191,36,.12);color:var(--yellow);border:1px solid rgba(251,191,36,.25)">最小堆</span>
+    <span class="ds-tag" style="background:rgba(45,212,191,.12);color:var(--teal);border:1px solid rgba(45,212,191,.25)">k路归并</span>
+    <span class="ds-tag" style="background:rgba(192,132,252,.12);color:var(--purple);border:1px solid rgba(192,132,252,.25)">磁盘I/O优化</span>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="viz-panel" id="vizPanel">
+    <!-- Rendered by JS -->
+  </div>
+
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <span class="code-dot" style="background:var(--red)"></span>
+      <span class="code-dot" style="background:var(--yellow)"></span>
+      <span class="code-dot" style="background:var(--green)"></span>
+      <span style="margin-left:4px">external_sort.go</span>
+    </div>
+    <div id="codeBody"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="btn" id="btnReset">↺ 重置</button>
+  <button class="btn" id="btnPrev">‹ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ›</button>
+  <div class="speed-wrap">
+    <span>速度</span>
+    <input type="range" id="speedRange" min="1" max="5" value="3">
+    <span>快</span>
+  </div>
+</div>
+
+<div class="status-bar" id="statusBar">就绪 — 点击播放开始演示外部排序</div>
+
+<script>
+// ─── Constants ────────────────────────────────────────────────────────────────
+const SPEEDS = [1500, 1000, 600, 350, 180];
+let speedIdx = 2;
+
+// Input data
+const INPUT_PAGES = [
+  [15, 3, 9, 1, 12, 7],
+  [8, 14, 2, 11, 5, 16],
+  [6, 18, 4, 13, 10, 17]
+];
+const SORTED_RUNS = [
+  [1, 3, 7, 9, 12, 15],
+  [2, 5, 8, 11, 14, 16],
+  [4, 6, 10, 13, 17, 18]
+];
+const FINAL_OUTPUT = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18];
+
+// ─── Steps Definition ─────────────────────────────────────────────────────────
+// state fields:
+//   phase: 1 or 2
+//   activePage: which input page is highlighted (-1 = none)
+//   bufferContents: array shown in buffer
+//   bufferSorted: bool — are buffer contents sorted?
+//   completedRuns: how many runs are shown on right (0..3)
+//   heapItems: [{val, runId}] — current heap
+//   runPtrs: [i0, i1, i2] — how many consumed from each run
+//   output: numbers emitted so far
+//   highlightOutput: index range to highlight
+
+const steps = [
+  {
+    highlightLines: [1,2],
+    description: "外部排序：数据量远超内存时使用。内存=1页(6个数)，磁盘有3页共18个数",
+    state: {
+      phase: 1, activePage: -1, bufferContents: [], bufferSorted: false,
+      completedRuns: 0, heapItems: [], runPtrs: [0,0,0], output: [], highlightOutput: []
+    }
+  },
+  {
+    highlightLines: [5,6,7,8],
+    description: "阶段1 第1步：从磁盘读取 Page 0 [15,3,9,1,12,7] 到内存缓冲区",
+    state: {
+      phase: 1, activePage: 0, bufferContents: [15,3,9,1,12,7], bufferSorted: false,
+      completedRuns: 0, heapItems: [], runPtrs: [0,0,0], output: [], highlightOutput: []
+    }
+  },
+  {
+    highlightLines: [10,11,12,13],
+    description: "在内存中排序（快速排序）：[1,3,7,9,12,15]，写回磁盘作为 Run 0",
+    state: {
+      phase: 1, activePage: 0, bufferContents: [1,3,7,9,12,15], bufferSorted: true,
+      completedRuns: 1, heapItems: [], runPtrs: [0,0,0], output: [], highlightOutput: []
+    }
+  },
+  {
+    highlightLines: [5,6,7,8],
+    description: "读取 Page 1 [8,14,2,11,5,16] 到内存缓冲区",
+    state: {
+      phase: 1, activePage: 1, bufferContents: [8,14,2,11,5,16], bufferSorted: false,
+      completedRuns: 1, heapItems: [], runPtrs: [0,0,0], output: [], highlightOutput: []
+    }
+  },
+  {
+    highlightLines: [10,11,12,13],
+    description: "排序后写回磁盘：Run 1 = [2,5,8,11,14,16]",
+    state: {
+      phase: 1, activePage: 1, bufferContents: [2,5,8,11,14,16], bufferSorted: true,
+      completedRuns: 2, heapItems: [], runPtrs: [0,0,0], output: [], highlightOutput: []
+    }
+  },
+  {
+    highlightLines: [5,6,7,8],
+    description: "读取 Page 2 [6,18,4,13,17,10] 到内存缓冲区",
+    state: {
+      phase: 1, activePage: 2, bufferContents: [6,18,4,13,17,10], bufferSorted: false,
+      completedRuns: 2, heapItems: [], runPtrs: [0,0,0], output: [], highlightOutput: []
+    }
+  },
+  {
+    highlightLines: [10,11,12,13,14],
+    description: "排序后写回磁盘：Run 2 = [4,6,10,13,17,18]。阶段1完成，产生3个有序归并段",
+    state: {
+      phase: 1, activePage: 2, bufferContents: [4,6,10,13,17,18], bufferSorted: true,
+      completedRuns: 3, heapItems: [], runPtrs: [0,0,0], output: [], highlightOutput: []
+    }
+  },
+  {
+    highlightLines: [17,18,19,20,21],
+    description: "阶段2：3路归并。从每个 Run 取第1个元素放入最小堆",
+    state: {
+      phase: 2, activePage: -1, bufferContents: [], bufferSorted: false,
+      completedRuns: 3, heapItems: [], runPtrs: [0,0,0], output: [], highlightOutput: []
+    }
+  },
+  {
+    highlightLines: [22,23,24,25,26],
+    description: "初始化堆：堆中放入 [1(R0), 2(R1), 4(R2)]，堆顶 = 最小值 1",
+    state: {
+      phase: 2, activePage: -1, bufferContents: [], bufferSorted: false,
+      completedRuns: 3,
+      heapItems: [{val:1,runId:0},{val:2,runId:1},{val:4,runId:2}],
+      runPtrs: [1,1,1], output: [], highlightOutput: []
+    }
+  },
+  {
+    highlightLines: [28,29,30,31,32,33,34,35],
+    description: "取出堆顶1(来自Run0)，写入输出。Run0指针后移，将3加入堆",
+    state: {
+      phase: 2, activePage: -1, bufferContents: [], bufferSorted: false,
+      completedRuns: 3,
+      heapItems: [{val:2,runId:1},{val:4,runId:2},{val:3,runId:0}],
+      runPtrs: [2,1,1], output: [1], highlightOutput: [0]
+    }
+  },
+  {
+    highlightLines: [28,29,30,31,32,33,34,35],
+    description: "堆调整：[2(R1), 4(R2), 3(R0)]，堆顶=2。取出2(R1)，输出[1,2]，将5加入堆",
+    state: {
+      phase: 2, activePage: -1, bufferContents: [], bufferSorted: false,
+      completedRuns: 3,
+      heapItems: [{val:3,runId:0},{val:4,runId:2},{val:5,runId:1}],
+      runPtrs: [2,2,1], output: [1,2], highlightOutput: [1]
+    }
+  },
+  {
+    highlightLines: [28,29,30,31,32,33,34,35],
+    description: "取出3(R0)，输出[1,2,3]。将7加入堆",
+    state: {
+      phase: 2, activePage: -1, bufferContents: [], bufferSorted: false,
+      completedRuns: 3,
+      heapItems: [{val:4,runId:2},{val:5,runId:1},{val:7,runId:0}],
+      runPtrs: [3,2,1], output: [1,2,3], highlightOutput: [2]
+    }
+  },
+  {
+    highlightLines: [28,29,30,31,32,33,34,35],
+    description: "取出4(R2)，输出[1,2,3,4]。将6加入堆",
+    state: {
+      phase: 2, activePage: -1, bufferContents: [], bufferSorted: false,
+      completedRuns: 3,
+      heapItems: [{val:5,runId:1},{val:7,runId:0},{val:6,runId:2}],
+      runPtrs: [3,2,2], output: [1,2,3,4], highlightOutput: [3]
+    }
+  },
+  {
+    highlightLines: [28,29,30,31,32,33,34,35],
+    description: "继续归并…取出5,6,7,8,9,10。输出 [1,2,3,4,5,6,7,8,9,10]",
+    state: {
+      phase: 2, activePage: -1, bufferContents: [], bufferSorted: false,
+      completedRuns: 3,
+      heapItems: [{val:11,runId:1},{val:13,runId:2},{val:12,runId:0}],
+      runPtrs: [4,4,4], output: [1,2,3,4,5,6,7,8,9,10], highlightOutput: [4,5,6,7,8,9]
+    }
+  },
+  {
+    highlightLines: [28,29,30,31,32,33,34,35],
+    description: "继续归并…取出11,12,13,14,15,16。输出 [1..16]",
+    state: {
+      phase: 2, activePage: -1, bufferContents: [], bufferSorted: false,
+      completedRuns: 3,
+      heapItems: [],
+      runPtrs: [6,6,5], output: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16], highlightOutput: [10,11,12,13,14,15]
+    }
+  },
+  {
+    highlightLines: [36,37,38,39,40],
+    description: "Run0 和 Run1 已耗尽，Run2 剩余 [17,18] 直接追加输出",
+    state: {
+      phase: 2, activePage: -1, bufferContents: [], bufferSorted: false,
+      completedRuns: 3,
+      heapItems: [],
+      runPtrs: [6,6,6], output: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18], highlightOutput: [16,17]
+    }
+  },
+  {
+    highlightLines: [36,37,38,39,40,41],
+    description: "归并完成！最终有序序列：[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18]",
+    state: {
+      phase: 2, activePage: -1, bufferContents: [], bufferSorted: false,
+      completedRuns: 3,
+      heapItems: [],
+      runPtrs: [6,6,6], output: FINAL_OUTPUT, highlightOutput: Array.from({length:18},(_,i)=>i)
+    }
+  },
+  {
+    highlightLines: [1,2,3,4,5],
+    description: "复杂度分析：阶段1 O(N log B)，阶段2 O(N log k)，总体 O(N log N)。I/O 代价 = 2 × 总页数",
+    state: {
+      phase: 2, activePage: -1, bufferContents: [], bufferSorted: false,
+      completedRuns: 3,
+      heapItems: [],
+      runPtrs: [6,6,6], output: FINAL_OUTPUT, highlightOutput: []
+    }
+  },
+  {
+    highlightLines: [1],
+    description: "实际数据库（InnoDB/PostgreSQL）ORDER BY 超出 sort_buffer_size 时自动使用外部排序（filesort）",
+    state: {
+      phase: 2, activePage: -1, bufferContents: [], bufferSorted: false,
+      completedRuns: 3,
+      heapItems: [],
+      runPtrs: [6,6,6], output: FINAL_OUTPUT, highlightOutput: []
+    }
+  }
+];
+
+// ─── Code lines ───────────────────────────────────────────────────────────────
+const CODE_LINES = [
+  {n:1,  html:`<span class="cm">// 外部排序：两阶段实现</span>`},
+  {n:2,  html:`<span class="kw">func</span> <span class="fn">ExternalSort</span>(input []<span class="id">Page</span>, bufSize <span class="kw">int</span>) []<span class="kw">int</span> {`},
+  {n:3,  html:``},
+  {n:4,  html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// === 阶段1: 创建有序归并段 ===</span>`},
+  {n:5,  html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">var</span> <span class="id">runs</span> [][]<span class="kw">int</span>`},
+  {n:6,  html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="pkg">len</span>(<span class="id">input</span>); <span class="id">i</span> += <span class="id">bufSize</span> {`},
+  {n:7,  html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 读取 bufSize 个页到内存</span>`},
+  {n:8,  html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">end</span> := <span class="fn">min</span>(<span class="id">i</span>+<span class="id">bufSize</span>, <span class="pkg">len</span>(<span class="id">input</span>))`},
+  {n:9,  html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">buf</span> := <span class="fn">mergePages</span>(<span class="id">input</span>[<span class="id">i</span>:<span class="id">end</span>])`},
+  {n:10, html:``},
+  {n:11, html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 内存中排序（快速排序 O(B log B)）</span>`},
+  {n:12, html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">sort</span>.<span class="fn">Ints</span>(<span class="id">buf</span>)`},
+  {n:13, html:``},
+  {n:14, html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 写回磁盘作为有序归并段</span>`},
+  {n:15, html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">runs</span> = <span class="pkg">append</span>(<span class="id">runs</span>, <span class="id">buf</span>)`},
+  {n:16, html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {n:17, html:``},
+  {n:18, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// === 阶段2: k路归并（最小堆）===</span>`},
+  {n:19, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="fn">kWayMerge</span>(<span class="id">runs</span>)`},
+  {n:20, html:`}`},
+  {n:21, html:``},
+  {n:22, html:`<span class="cm">// 最小堆实现k路归并</span>`},
+  {n:23, html:`<span class="kw">func</span> <span class="fn">kWayMerge</span>(runs [][]<span class="kw">int</span>) []<span class="kw">int</span> {`},
+  {n:24, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">h</span> := &amp;<span class="fn">MinHeap</span>{}`},
+  {n:25, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">heap</span>.<span class="fn">Init</span>(<span class="id">h</span>)`},
+  {n:26, html:``},
+  {n:27, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 初始化：每个Run取第一个元素</span>`},
+  {n:28, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">ptrs</span> := <span class="fn">make</span>([]<span class="kw">int</span>, <span class="pkg">len</span>(<span class="id">runs</span>))`},
+  {n:29, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> <span class="id">i</span>, <span class="id">run</span> := <span class="kw">range</span> <span class="id">runs</span> {`},
+  {n:30, html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> <span class="pkg">len</span>(<span class="id">run</span>) &gt; <span class="num">0</span> {`},
+  {n:31, html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">heap</span>.<span class="fn">Push</span>(<span class="id">h</span>, <span class="id">HeapItem</span>{val: <span class="id">run</span>[<span class="num">0</span>], runID: <span class="id">i</span>})`},
+  {n:32, html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">ptrs</span>[<span class="id">i</span>] = <span class="num">1</span>`},
+  {n:33, html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {n:34, html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {n:35, html:``},
+  {n:36, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">var</span> <span class="id">result</span> []<span class="kw">int</span>`},
+  {n:37, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> <span class="id">h</span>.<span class="fn">Len</span>() &gt; <span class="num">0</span> {`},
+  {n:38, html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 取出最小值</span>`},
+  {n:39, html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">item</span> := <span class="pkg">heap</span>.<span class="fn">Pop</span>(<span class="id">h</span>).(<span class="id">HeapItem</span>)`},
+  {n:40, html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">result</span> = <span class="pkg">append</span>(<span class="id">result</span>, <span class="id">item</span>.<span class="id">val</span>)`},
+  {n:41, html:``},
+  {n:42, html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 从同一Run取下一个元素</span>`},
+  {n:43, html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">runID</span> := <span class="id">item</span>.<span class="id">runID</span>`},
+  {n:44, html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> <span class="id">ptrs</span>[<span class="id">runID</span>] &lt; <span class="pkg">len</span>(<span class="id">runs</span>[<span class="id">runID</span>]) {`},
+  {n:45, html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">next</span> := <span class="id">runs</span>[<span class="id">runID</span>][<span class="id">ptrs</span>[<span class="id">runID</span>]]`},
+  {n:46, html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">heap</span>.<span class="fn">Push</span>(<span class="id">h</span>, <span class="id">HeapItem</span>{val: <span class="id">next</span>, runID: <span class="id">runID</span>})`},
+  {n:47, html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">ptrs</span>[<span class="id">runID</span>]++`},
+  {n:48, html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {n:49, html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {n:50, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="id">result</span>`},
+  {n:51, html:`}`},
+];
+
+// ─── Render Code Panel ────────────────────────────────────────────────────────
+function renderCode(activeLines) {
+  const body = document.getElementById('codeBody');
+  const activeSet = new Set(activeLines);
+  body.innerHTML = CODE_LINES.map(({n, html}) => {
+    const cls = activeSet.has(n) ? 'code-line active' : 'code-line';
+    return `<div class="${cls}" data-line="${n}" onclick="jumpToStep(${n})">
+      <span class="ln">${n}</span>
+      <span class="lc">${html || '&nbsp;'}</span>
+    </div>`;
+  }).join('');
+  // Scroll first active line into view
+  const firstActive = body.querySelector('.code-line.active');
+  if (firstActive) firstActive.scrollIntoView({block:'nearest', behavior:'smooth'});
+}
+
+// ─── Render Viz Panel ─────────────────────────────────────────────────────────
+function cellHtml(val, cls='') {
+  return `<div class="cell ${cls}">${val}</div>`;
+}
+
+function renderPhase1(st) {
+  const {activePage, bufferContents, bufferSorted, completedRuns} = st;
+  let html = '';
+
+  // Phase 1 label
+  html += `<div class="phase-label p1">&#9658; 阶段 1 — 创建有序归并段</div>`;
+
+  // Input pages row
+  html += `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">`;
+  html += `<div>`;
+  html += `<div style="font-size:0.7rem;color:var(--dim);margin-bottom:6px;font-family:monospace;">磁盘输入页</div>`;
+  html += `<div class="disk-pages-row">`;
+  for (let p = 0; p < 3; p++) {
+    const isActive = (activePage === p);
+    const isDone = (completedRuns > p && activePage !== p) || (bufferSorted && activePage === p && completedRuns > p);
+    const pgCls = isActive ? 'disk-page active' : (isDone ? 'disk-page done' : 'disk-page');
+    html += `<div class="${pgCls}">`;
+    html += `<div class="disk-page-label">Page ${p}</div>`;
+    html += `<div class="page-cells">`;
+    for (const v of INPUT_PAGES[p]) {
+      const c = isActive ? 'active' : (isDone ? 'sorted' : '');
+      html += cellHtml(v, c);
+    }
+    html += `</div></div>`;
+  }
+  html += `</div></div>`;
+
+  // Arrow
+  html += `<div class="flow-arrow" style="font-size:1.2rem;color:var(--blue)">&#8594;</div>`;
+
+  // Buffer
+  const bufActive = bufferContents.length > 0;
+  html += `<div class="buffer-box ${bufActive ? 'active' : ''}">`;
+  html += `<div class="buffer-label">内存缓冲区 (B=1)</div>`;
+  if (bufferContents.length > 0) {
+    html += `<div class="page-cells">`;
+    for (const v of bufferContents) {
+      html += cellHtml(v, bufferSorted ? 'sorted' : 'active');
+    }
+    html += `</div>`;
+    if (bufferSorted) {
+      html += `<div style="font-size:0.68rem;color:var(--green);margin-top:4px;">&#10003; 已排序</div>`;
+    }
+  } else {
+    html += `<div style="font-size:0.75rem;color:var(--dim);padding:4px 0;">空</div>`;
+  }
+  html += `</div>`;
+
+  // Arrow to runs
+  html += `<div class="flow-arrow" style="font-size:1.2rem;color:var(--green)">&#8594;</div>`;
+
+  // Sorted runs
+  html += `<div>`;
+  html += `<div style="font-size:0.7rem;color:var(--dim);margin-bottom:6px;font-family:monospace;">有序归并段（磁盘）</div>`;
+  html += `<div style="display:flex;flex-direction:column;gap:8px;">`;
+  for (let r = 0; r < 3; r++) {
+    if (r < completedRuns) {
+      html += `<div class="run-block active">`;
+      html += `<div class="run-block-label">Run ${r}</div>`;
+      html += `<div class="page-cells">`;
+      for (const v of SORTED_RUNS[r]) html += cellHtml(v, 'sorted');
+      html += `</div></div>`;
+    } else {
+      html += `<div class="run-block">`;
+      html += `<div class="run-block-label" style="color:var(--dim)">Run ${r} <span style="color:var(--border)">(待生成)</span></div>`;
+      html += `</div>`;
+    }
+  }
+  html += `</div></div>`;
+  html += `</div>`;
+
+  return html;
+}
+
+function renderPhase2(st) {
+  const {heapItems, runPtrs, output, highlightOutput} = st;
+  const hlSet = new Set(highlightOutput);
+  let html = '';
+
+  html += `<div class="phase-label p2" style="margin-top:8px;">&#9658; 阶段 2 — k路归并（最小堆）</div>`;
+  html += `<div class="merge-layout">`;
+
+  // Run streams (left side)
+  html += `<div style="display:flex;flex-direction:column;gap:10px;min-width:220px;">`;
+  html += `<div style="font-size:0.7rem;color:var(--dim);margin-bottom:2px;font-family:monospace;">有序归并段（读指针）</div>`;
+  for (let r = 0; r < 3; r++) {
+    const ptr = runPtrs[r];
+    html += `<div class="run-stream">`;
+    html += `<div class="run-stream-label">Run ${r}</div>`;
+    html += `<div class="run-ptr-row" style="position:relative;padding-top:18px;">`;
+    for (let i = 0; i < SORTED_RUNS[r].length; i++) {
+      let cls = '';
+      if (i < ptr) cls = 'sorted'; // consumed
+      else if (i === ptr) cls = 'active'; // current front
+      html += cellHtml(SORTED_RUNS[r][i], cls);
+    }
+    if (ptr < SORTED_RUNS[r].length) {
+      // Draw pointer above the current front cell
+      // Approximate: each cell is 30+4=34px wide
+      const leftPx = ptr * 34;
+      html += `<div class="run-ptr-marker" style="left:${leftPx}px">&#9660;</div>`;
+    }
+    html += `</div></div>`;
+  }
+  html += `</div>`;
+
+  // Min heap (center)
+  html += `<div class="heap-area">`;
+  html += `<div class="heap-label">最小堆</div>`;
+  html += `<div class="heap-tree">`;
+
+  // Heap visualised as root + 2 children
+  // heapItems[0] = min (root), heapItems[1], heapItems[2]
+  const runColors = ['var(--blue)', 'var(--purple)', 'var(--teal)'];
+  const h = heapItems;
+
+  const nodeHtml = (item, isMin) => {
+    if (!item) return `<div class="heap-node empty">—</div>`;
+    const col = runColors[item.runId] || 'var(--text)';
+    return `<div class="heap-node ${isMin ? 'min' : 'normal'}" style="${isMin ? '' : `border-color:${col};`}">
+      <span style="font-weight:700;font-size:0.88rem;${isMin?'':''}">${item.val}</span>
+      <span class="heap-node-run" style="color:${col}">R${item.runId}</span>
+    </div>`;
+  };
+
+  // Root row
+  html += `<div class="heap-row">`;
+  html += nodeHtml(h[0] || null, true);
+  html += `</div>`;
+  // Children row
+  html += `<div style="display:flex;gap:4px;font-size:0.65rem;color:var(--border);align-items:center;">`;
+  html += `<span>&#9585;</span><span style="display:flex;gap:24px;">`;
+  html += `</span><span>&#9586;</span>`;
+  html += `</div>`;
+  html += `<div class="heap-row">`;
+  html += nodeHtml(h[1] || null, false);
+  html += nodeHtml(h[2] || null, false);
+  html += `</div>`;
+  html += `</div>`;
+
+  if (h.length === 0 && output.length === 0) {
+    html += `<div style="font-size:0.72rem;color:var(--dim);margin-top:8px;">等待初始化…</div>`;
+  } else if (h.length === 0 && output.length > 0) {
+    html += `<div style="font-size:0.72rem;color:var(--green);margin-top:8px;">&#10003; 堆已清空</div>`;
+  }
+  html += `</div>`;
+
+  html += `</div>`; // end merge-layout
+
+  // Output array (below)
+  html += `<div class="output-area">`;
+  html += `<div class="output-label">输出数组（已排序）— ${output.length}/18 个数</div>`;
+  html += `<div class="output-cells">`;
+  for (let i = 0; i < output.length; i++) {
+    const cls = hlSet.has(i) ? 'output' : 'sorted';
+    html += cellHtml(output[i], cls);
+  }
+  if (output.length === 18) {
+    html += `<div style="margin-left:8px;font-size:0.85rem;color:var(--green);align-self:center;">&#10003; 完成</div>`;
+  }
+  html += `</div></div>`;
+
+  return html;
+}
+
+function renderViz(stepIdx) {
+  const {state, description} = steps[stepIdx];
+  const panel = document.getElementById('vizPanel');
+
+  let html = '';
+
+  // Description box
+  html += `<div class="desc-row">
+    <span class="desc-text">${description}</span>
+    <span class="step-counter">步骤 ${stepIdx + 1} / ${steps.length}</span>
+  </div>`;
+
+  // Phase 1 section always visible
+  html += `<div class="phase-section">`;
+  html += renderPhase1(state);
+  html += `</div>`;
+
+  // Divider
+  html += `<hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">`;
+
+  // Phase 2 section always visible
+  html += `<div class="phase-section">`;
+  html += renderPhase2(state);
+  html += `</div>`;
+
+  panel.innerHTML = html;
+}
+
+// ─── Step system ──────────────────────────────────────────────────────────────
+let currentStep = 0;
+let playing = false;
+let playTimer = null;
+
+function goTo(idx) {
+  if (idx < 0) idx = 0;
+  if (idx >= steps.length) idx = steps.length - 1;
+  currentStep = idx;
+  const step = steps[idx];
+  renderViz(idx);
+  renderCode(step.highlightLines);
+  document.getElementById('statusBar').textContent =
+    `步骤 ${idx + 1}/${steps.length} — ${step.description}`;
+  document.getElementById('btnPrev').disabled = (idx === 0);
+  document.getElementById('btnNext').disabled = (idx === steps.length - 1);
+}
+
+function jumpToStep(lineNum) {
+  // Find last step that highlights this line
+  for (let i = steps.length - 1; i >= 0; i--) {
+    if (steps[i].highlightLines.includes(lineNum)) {
+      stopPlay();
+      goTo(i);
+      return;
+    }
+  }
+}
+
+function startPlay() {
+  playing = true;
+  document.getElementById('btnPlay').textContent = '⏸ 暂停';
+  document.getElementById('btnPlay').classList.add('primary');
+  tick();
+}
+
+function stopPlay() {
+  playing = false;
+  clearTimeout(playTimer);
+  document.getElementById('btnPlay').textContent = '▶ 播放';
+}
+
+function tick() {
+  if (!playing) return;
+  if (currentStep >= steps.length - 1) {
+    stopPlay();
+    return;
+  }
+  goTo(currentStep + 1);
+  playTimer = setTimeout(tick, SPEEDS[speedIdx]);
+}
+
+// ─── Event listeners ──────────────────────────────────────────────────────────
+document.getElementById('btnReset').onclick = () => { stopPlay(); goTo(0); };
+document.getElementById('btnPrev').onclick  = () => { stopPlay(); goTo(currentStep - 1); };
+document.getElementById('btnNext').onclick  = () => { stopPlay(); goTo(currentStep + 1); };
+document.getElementById('btnPlay').onclick  = () => {
+  if (playing) stopPlay();
+  else {
+    if (currentStep >= steps.length - 1) goTo(0);
+    startPlay();
+  }
+};
+document.getElementById('speedRange').oninput = function() {
+  speedIdx = parseInt(this.value) - 1;
+};
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+goTo(0);
+</script>
+</body>
+</html>

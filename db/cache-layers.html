@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数据库缓存体系 - 数据库可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--purple:#c084fc;--green:#4ade80;--yellow:#fbbf24;--orange:#fb923c;--red:#f87171;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;font-style:italic;}.id{color:#e6edf3;}
+body{height:100vh;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;}
+nav{height:52px;display:flex;align-items:center;gap:16px;padding:0 20px;background:var(--panel2);border-bottom:1px solid var(--border);flex-shrink:0;}
+nav h1{font-size:1.1rem;font-weight:600;}
+.ds-tags{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;}
+.ds-tag{font-size:0.72rem;padding:3px 10px;border-radius:100px;font-family:monospace;background:rgba(255,255,255,0.06);border:1px solid var(--border);}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;overflow:hidden;display:flex;flex-direction:column;background:var(--bg);padding:16px;overflow-y:auto;}
+.code-panel{width:44%;min-width:360px;background:var(--panel2);border-left:1px solid var(--border);overflow-y:auto;}
+.controls{flex-shrink:0;height:52px;display:flex;align-items:center;gap:10px;padding:0 16px;background:var(--panel);border-top:1px solid var(--border);}
+.status-bar{flex-shrink:0;height:36px;display:flex;align-items:center;padding:0 16px;background:var(--panel2);border-top:1px solid var(--border);font-size:0.82rem;color:var(--dim);}
+
+/* Description box */
+.desc-box{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;padding:12px 16px;font-size:0.9rem;color:var(--text);margin-bottom:14px;min-height:52px;line-height:1.5;flex-shrink:0;}
+
+/* Cache pyramid */
+.pyramid-wrap{margin-bottom:16px;}
+.pyramid-label{font-size:0.75rem;color:var(--dim);font-family:monospace;margin-bottom:8px;letter-spacing:0.04em;}
+.cache-level{display:flex;align-items:center;gap:10px;margin-bottom:4px;transition:all 0.4s;}
+.level-bar-wrap{flex:1;position:relative;height:34px;}
+.level-bar{height:100%;border-radius:5px;transition:all 0.4s;display:flex;align-items:center;padding:0 10px;font-size:0.78rem;font-weight:600;font-family:monospace;min-width:60px;}
+.level-bar.dim-bar{opacity:0.3;}
+.level-bar.highlight-bar{box-shadow:0 0 12px rgba(255,255,255,0.25);transform:scaleY(1.08);z-index:1;position:relative;}
+.level-meta{min-width:190px;display:flex;gap:10px;align-items:center;flex-shrink:0;}
+.level-name{font-size:0.78rem;font-weight:600;min-width:130px;}
+.level-size{font-size:0.72rem;color:var(--dim);font-family:monospace;min-width:52px;}
+.level-lat{font-size:0.72rem;font-family:monospace;min-width:70px;}
+
+/* DB-specific cache boxes */
+.db-cache-section{margin-top:8px;}
+.db-cache-label{font-size:0.75rem;color:var(--dim);font-family:monospace;margin-bottom:8px;letter-spacing:0.04em;}
+.db-cache-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.cache-box{border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,0.03);padding:10px 12px;transition:all 0.4s;}
+.cache-box.highlight-box{border-color:var(--blue);background:rgba(56,189,248,0.08);box-shadow:0 0 12px rgba(56,189,248,0.15);}
+.cache-box.dim-box{opacity:0.3;}
+.cache-box-title{font-size:0.8rem;font-weight:700;color:var(--text);margin-bottom:3px;}
+.cache-box-sub{font-size:0.7rem;color:var(--dim);line-height:1.4;}
+.cache-box-badge{display:inline-block;font-size:0.65rem;padding:1px 7px;border-radius:4px;margin-top:4px;font-family:monospace;}
+.badge-blue{background:rgba(56,189,248,0.15);color:var(--blue);}
+.badge-green{background:rgba(74,222,128,0.15);color:var(--green);}
+.badge-red{background:rgba(248,113,113,0.15);color:var(--red);}
+.badge-yellow{background:rgba(251,191,36,0.15);color:var(--yellow);}
+.badge-purple{background:rgba(192,132,252,0.15);color:var(--purple);}
+
+/* Info badge / extra info */
+.info-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:6px;font-size:0.78rem;font-family:monospace;}
+.info-badge.blue{background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.3);color:var(--blue);}
+.info-badge.green{background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3);color:var(--green);}
+.info-badge.orange{background:rgba(251,146,60,0.1);border:1px solid rgba(251,146,60,0.3);color:var(--orange);}
+.info-badge.red{background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);color:var(--red);}
+.info-badge.yellow{background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);color:var(--yellow);}
+.info-badge.purple{background:rgba(192,132,252,0.1);border:1px solid rgba(192,132,252,0.3);color:var(--purple);}
+
+.extra-info{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;}
+
+/* Controls */
+button{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.82rem;transition:all 0.2s;}
+button:hover{background:rgba(255,255,255,0.12);}
+button.play-btn{background:rgba(56,189,248,0.15);border-color:var(--blue);color:var(--blue);}
+button.play-btn:hover{background:rgba(56,189,248,0.25);}
+.speed-btn{font-size:0.75rem;padding:4px 10px;}
+.speed-btn.active-speed{background:rgba(251,191,36,0.15);border-color:var(--yellow);color:var(--yellow);}
+.step-info{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;}
+
+/* Code panel */
+.code-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;position:sticky;top:0;background:var(--panel2);z-index:1;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{padding:8px 0;}
+.code-line{display:flex;align-items:baseline;gap:0;padding:1px 0;cursor:pointer;transition:background 0.15s;}
+.code-line:hover{background:rgba(255,255,255,0.04);}
+.code-line.active-line{background:rgba(251,191,36,0.12);border-left:2px solid var(--yellow);}
+.code-line:not(.active-line){border-left:2px solid transparent;}
+.ln{display:inline-block;width:36px;text-align:right;color:#4b5563;font-size:0.78rem;font-family:monospace;padding-right:12px;flex-shrink:0;user-select:none;}
+.lc{font-family:'Consolas','Fira Code',monospace;font-size:0.8rem;white-space:pre;color:var(--id);}
+
+/* MOBILE_INJECTED */
+@media(max-width:768px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;overflow-x:hidden;}
+  nav{flex-wrap:wrap;padding:10px 16px;gap:6px;height:auto!important;}
+  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
+  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:320px!important;min-height:320px!important;flex:none!important;overflow:hidden;}
+  .code-panel{width:100%!important;min-width:unset!important;height:360px!important;flex:none!important;}
+  .controls{flex-wrap:wrap!important;padding:10px 14px!important;gap:6px!important;height:auto!important;}
+  .db-cache-grid{grid-template-columns:1fr!important;}
+  .level-meta{min-width:120px!important;}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" style="color:var(--dim);text-decoration:none;font-size:0.88rem;margin-right:8px;">← 返回</a>
+  <h1>数据库缓存体系</h1>
+  <div class="ds-tags">
+    <span class="ds-tag">多级缓存</span>
+    <span class="ds-tag">延迟对比</span>
+    <span class="ds-tag">LRU/LFU</span>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="viz-panel" id="vizPanel">
+    <!-- Description -->
+    <div class="desc-box" id="descBox">数据库系统利用多层缓存体系，尽量避免慢速的磁盘访问</div>
+
+    <!-- Cache Pyramid -->
+    <div class="pyramid-wrap">
+      <div class="pyramid-label">▸ 内存层次结构（由快到慢）</div>
+      <!-- L1 -->
+      <div class="cache-level" id="lvl0">
+        <div class="level-meta">
+          <span class="level-name" style="color:var(--red);">L1 CPU Cache</span>
+          <span class="level-size">32 KB</span>
+          <span class="level-lat" style="color:var(--red);">~1 ns</span>
+        </div>
+        <div class="level-bar-wrap">
+          <div class="level-bar" id="bar0" style="background:rgba(248,113,113,0.3);border:1px solid rgba(248,113,113,0.5);width:18%;color:var(--red);">L1</div>
+        </div>
+      </div>
+      <!-- L2 -->
+      <div class="cache-level" id="lvl1">
+        <div class="level-meta">
+          <span class="level-name" style="color:var(--orange);">L2 CPU Cache</span>
+          <span class="level-size">256 KB</span>
+          <span class="level-lat" style="color:var(--orange);">~5 ns</span>
+        </div>
+        <div class="level-bar-wrap">
+          <div class="level-bar" id="bar1" style="background:rgba(251,146,60,0.3);border:1px solid rgba(251,146,60,0.5);width:28%;color:var(--orange);">L2</div>
+        </div>
+      </div>
+      <!-- L3 -->
+      <div class="cache-level" id="lvl2">
+        <div class="level-meta">
+          <span class="level-name" style="color:var(--yellow);">L3 CPU Cache</span>
+          <span class="level-size">8 MB</span>
+          <span class="level-lat" style="color:var(--yellow);">~30 ns</span>
+        </div>
+        <div class="level-bar-wrap">
+          <div class="level-bar" id="bar2" style="background:rgba(251,191,36,0.3);border:1px solid rgba(251,191,36,0.5);width:40%;color:var(--yellow);">L3</div>
+        </div>
+      </div>
+      <!-- L4 DRAM -->
+      <div class="cache-level" id="lvl3">
+        <div class="level-meta">
+          <span class="level-name" style="color:var(--green);">DRAM / 内存</span>
+          <span class="level-size">64 GB</span>
+          <span class="level-lat" style="color:var(--green);">~100 ns</span>
+        </div>
+        <div class="level-bar-wrap">
+          <div class="level-bar" id="bar3" style="background:rgba(74,222,128,0.3);border:1px solid rgba(74,222,128,0.5);width:56%;color:var(--green);">DRAM</div>
+        </div>
+      </div>
+      <!-- L5 Buffer Pool -->
+      <div class="cache-level" id="lvl4">
+        <div class="level-meta">
+          <span class="level-name" style="color:var(--blue);">Buffer Pool</span>
+          <span class="level-size">8 GB</span>
+          <span class="level-lat" style="color:var(--blue);">~200 ns(命中)</span>
+        </div>
+        <div class="level-bar-wrap">
+          <div class="level-bar" id="bar4" style="background:rgba(56,189,248,0.3);border:1px solid rgba(56,189,248,0.5);width:68%;color:var(--blue);">Buffer Pool</div>
+        </div>
+      </div>
+      <!-- L6 SSD -->
+      <div class="cache-level" id="lvl5">
+        <div class="level-meta">
+          <span class="level-name" style="color:var(--purple);">SSD</span>
+          <span class="level-size">1 TB</span>
+          <span class="level-lat" style="color:var(--purple);">~0.1 ms</span>
+        </div>
+        <div class="level-bar-wrap">
+          <div class="level-bar" id="bar5" style="background:rgba(192,132,252,0.3);border:1px solid rgba(192,132,252,0.5);width:82%;color:var(--purple);">SSD</div>
+        </div>
+      </div>
+      <!-- L7 HDD -->
+      <div class="cache-level" id="lvl6">
+        <div class="level-meta">
+          <span class="level-name" style="color:var(--dim);">HDD</span>
+          <span class="level-size">10 TB</span>
+          <span class="level-lat" style="color:var(--dim);">~8 ms</span>
+        </div>
+        <div class="level-bar-wrap">
+          <div class="level-bar" id="bar6" style="background:rgba(148,163,184,0.2);border:1px solid rgba(148,163,184,0.3);width:96%;color:var(--dim);">HDD</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DB-specific caches -->
+    <div class="db-cache-section">
+      <div class="db-cache-label">▸ 数据库特有缓存</div>
+      <div class="db-cache-grid">
+        <div class="cache-box" id="boxBP">
+          <div class="cache-box-title">🗃 Buffer Pool (InnoDB)</div>
+          <div class="cache-box-sub">缓存数据页、索引页、undo页<br>LRU 变种（young/old 链表）</div>
+          <span class="cache-box-badge badge-blue">16KB 页</span>
+          <span class="cache-box-badge badge-green">命中率 &gt;99%</span>
+        </div>
+        <div class="cache-box" id="boxAHI">
+          <div class="cache-box-title">⚡ 自适应哈希索引 AHI</div>
+          <div class="cache-box-sub">InnoDB 自动为热点索引页建哈希索引<br>O(1) vs O(log n)</div>
+          <span class="cache-box-badge badge-yellow">自动启用</span>
+        </div>
+        <div class="cache-box" id="boxQC">
+          <div class="cache-box-title">🗑 查询缓存 Query Cache</div>
+          <div class="cache-box-sub">SQL→结果集映射；写操作即失效<br>MySQL 8.0 已删除</div>
+          <span class="cache-box-badge badge-red">已废弃</span>
+        </div>
+        <div class="cache-box" id="boxRedis">
+          <div class="cache-box-title">🚀 应用层缓存 Redis</div>
+          <div class="cache-box-sub">KV 存储；多种数据结构；持久化<br>单机 10 万 QPS</div>
+          <span class="cache-box-badge badge-purple">&lt;1ms</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="extra-info" id="extraInfo"></div>
+  </div>
+
+  <!-- Code Panel -->
+  <div class="code-panel">
+    <div class="code-header">
+      <div class="code-dot" style="background:#ff5f57;"></div>
+      <div class="code-dot" style="background:#febc2e;margin-left:4px;"></div>
+      <div class="code-dot" style="background:#28c840;margin-left:4px;"></div>
+      <span style="margin-left:8px;">cache_layers.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button onclick="reset()">重置</button>
+  <button onclick="prev()">← 上一步</button>
+  <button class="play-btn" id="playBtn" onclick="togglePlay()">▶ 播放</button>
+  <button onclick="next()">下一步 →</button>
+  <button class="speed-btn" onclick="setSpeed(0)" id="sp0">慢</button>
+  <button class="speed-btn active-speed" onclick="setSpeed(1)" id="sp1">中</button>
+  <button class="speed-btn" onclick="setSpeed(2)" id="sp2">快</button>
+  <button class="speed-btn" onclick="setSpeed(3)" id="sp3">极速</button>
+  <span class="step-info" id="stepInfo">步骤 1 / 12</span>
+</div>
+<div class="status-bar" id="statusBar">数据库缓存体系 — Step 0</div>
+
+<script>
+// ─── Code Lines ───────────────────────────────────────────────
+const CODE_LINES = [
+`<span class="cm">// 多级缓存查询示例</span>`,
+`<span class="kw">func</span> (<span class="id">db</span> <span class="id">*Database</span>) <span class="fn">GetUser</span>(<span class="id">userID</span> <span class="kw">int64</span>) (<span class="id">*User</span>, <span class="kw">error</span>) {`,
+`    <span class="id">key</span> := <span class="pkg">fmt</span>.<span class="fn">Sprintf</span>(<span class="st">"user:%d"</span>, <span class="id">userID</span>)`,
+``,
+`    <span class="cm">// Level 1: Redis 应用层缓存</span>`,
+`    <span class="kw">if</span> <span class="id">val</span>, <span class="id">err</span> := <span class="id">db</span>.<span class="id">redis</span>.<span class="fn">Get</span>(<span class="id">key</span>); <span class="id">err</span> == <span class="kw">nil</span> {`,
+`        <span class="kw">var</span> <span class="id">user</span> <span class="id">User</span>`,
+`        <span class="pkg">json</span>.<span class="fn">Unmarshal</span>([]<span class="kw">byte</span>(<span class="id">val</span>), &<span class="id">user</span>)`,
+`        <span class="kw">return</span> &<span class="id">user</span>, <span class="kw">nil</span>  <span class="cm">// ~0.5ms</span>`,
+`    }`,
+``,
+`    <span class="cm">// Level 2: Buffer Pool (InnoDB)</span>`,
+`    <span class="cm">// 自动处理，对应用透明</span>`,
+`    <span class="id">user</span>, <span class="id">err</span> := <span class="id">db</span>.<span class="id">mysql</span>.<span class="fn">QueryRow</span>(`,
+`        <span class="st">"SELECT * FROM users WHERE id = ?"</span>, <span class="id">userID</span>,`,
+`    )`,
+`    <span class="cm">// 若Buffer Pool命中: ~0.2ms</span>`,
+`    <span class="cm">// 若需读SSD:         ~0.3ms</span>`,
+`    <span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> {`,
+`        <span class="kw">return</span> <span class="kw">nil</span>, <span class="id">err</span>`,
+`    }`,
+``,
+`    <span class="cm">// 回填 Redis，TTL=300s</span>`,
+`    <span class="id">data</span>, _ := <span class="pkg">json</span>.<span class="fn">Marshal</span>(<span class="id">user</span>)`,
+`    <span class="id">db</span>.<span class="id">redis</span>.<span class="fn">SetEx</span>(<span class="id">key</span>, <span class="num">300</span>, <span class="pkg">string</span>(<span class="id">data</span>))`,
+`    <span class="kw">return</span> <span class="id">user</span>, <span class="kw">nil</span>`,
+`}`,
+``,
+`<span class="cm">// InnoDB Buffer Pool 改良LRU</span>`,
+`<span class="cm">// Young链表(5/8): 最近多次访问的热页</span>`,
+`<span class="cm">// Old链表(3/8):   新载入的页，避免全表扫描污染</span>`,
+`<span class="kw">type</span> <span class="id">BufferPool</span> <span class="kw">struct</span> {`,
+`    <span class="id">youngList</span> <span class="id">*LRUList</span>  <span class="cm">// 热数据区</span>`,
+`    <span class="id">oldList</span>   <span class="id">*LRUList</span>  <span class="cm">// 冷数据区（新页先进这里）</span>`,
+`    <span class="id">capacity</span>  <span class="kw">int</span>`,
+`}`,
+``,
+`<span class="kw">func</span> (<span class="id">bp</span> <span class="id">*BufferPool</span>) <span class="fn">Access</span>(<span class="id">pageID</span> <span class="kw">uint32</span>) <span class="id">*Page</span> {`,
+`    <span class="kw">if</span> <span class="id">page</span> := <span class="id">bp</span>.<span class="id">youngList</span>.<span class="fn">Get</span>(<span class="id">pageID</span>); <span class="id">page</span> != <span class="kw">nil</span> {`,
+`        <span class="kw">return</span> <span class="id">page</span>  <span class="cm">// 热区命中</span>`,
+`    }`,
+`    <span class="kw">if</span> <span class="id">page</span> := <span class="id">bp</span>.<span class="id">oldList</span>.<span class="fn">Get</span>(<span class="id">pageID</span>); <span class="id">page</span> != <span class="kw">nil</span> {`,
+`        <span class="cm">// 在Old区停留超过1秒 → 晋升到Young区</span>`,
+`        <span class="kw">if</span> <span class="pkg">time</span>.<span class="fn">Since</span>(<span class="id">page</span>.<span class="id">firstAccess</span>) > <span class="pkg">time</span>.<span class="id">Second</span> {`,
+`            <span class="id">bp</span>.<span class="id">youngList</span>.<span class="fn">Put</span>(<span class="id">pageID</span>, <span class="id">page</span>)`,
+`        }`,
+`        <span class="kw">return</span> <span class="id">page</span>`,
+`    }`,
+`    <span class="kw">return</span> <span class="id">bp</span>.<span class="fn">loadFromDisk</span>(<span class="id">pageID</span>)`,
+`}`,
+];
+
+// ─── Steps ────────────────────────────────────────────────────
+const STEPS = [
+  { desc:"数据库系统利用多层缓存体系，尽量避免慢速的磁盘访问", line:1, hl:[], boxes:[], extra:[] },
+  { desc:"CPU L1 Cache: 32KB, ~1ns。缓存最热的CPU指令和数据", line:1, hl:[0], boxes:[], extra:['<span class="info-badge red">L1: ~1ns（最快）</span>'] },
+  { desc:"CPU L3 Cache: 8MB, ~30ns。热点数据库代码路径会被CPU自动缓存", line:1, hl:[2], boxes:[], extra:['<span class="info-badge yellow">L3: ~30ns，数据库热路径自动缓存</span>'] },
+  { desc:"DRAM 内存: 64GB, ~100ns。所有数据库缓存最终都在这里", line:1, hl:[3], boxes:[], extra:['<span class="info-badge green">DRAM: ~100ns，所有上层缓存的物理存储</span>'] },
+  { desc:"Buffer Pool: InnoDB最重要的缓存！缓存16KB的数据页和索引页", line:12, hl:[4], boxes:['boxBP'], extra:['<span class="info-badge blue">Buffer Pool: InnoDB 核心缓存，16KB 页</span>'] },
+  { desc:"Buffer Pool 命中：~200ns（内存读取）。Buffer Pool 未命中→SSD: ~0.1ms（慢500倍！）", line:16, hl:[4,5], boxes:['boxBP'], extra:['<span class="info-badge blue">命中: ~200ns</span>','<span class="info-badge red">未命中→SSD: ~0.1ms（慢500x）</span>'] },
+  { desc:"Buffer Pool 使用改良LRU：分 Young(5/8) 和 Old(3/8) 两个链表，防止全表扫描污染热缓存", line:28, hl:[4], boxes:['boxBP'], extra:['<span class="info-badge blue">Young(5/8): 热数据</span>','<span class="info-badge yellow">Old(3/8): 新载入页，防污染</span>'] },
+  { desc:"自适应哈希索引(AHI)：InnoDB 自动检测高频点查，在 B+树之上建哈希层，O(log n)→O(1)", line:1, hl:[4], boxes:['boxAHI'], extra:['<span class="info-badge yellow">AHI: O(log n) → O(1)</span>'] },
+  { desc:"Redis 作为应用层缓存：在数据库前挡住 90% 读请求，延迟<1ms，极大降低 DB 压力", line:5, hl:[3], boxes:['boxRedis'], extra:['<span class="info-badge purple">Redis: &lt;1ms，拦截90%读请求</span>'] },
+  { desc:"缓存击穿：热点 key 过期，大量请求直接打到数据库。解决：锁+单线程重建缓存", line:5, hl:[4,5], boxes:['boxRedis','boxBP'], extra:['<span class="info-badge red">击穿：热点key过期 → 大量请求穿透到DB</span>','<span class="info-badge green">解决：分布式锁+单线程重建</span>'] },
+  { desc:"缓存穿透：查询不存在的 key，缓存无法命中。解决：布隆过滤器(Bloom Filter)预判", line:5, hl:[], boxes:['boxRedis'], extra:['<span class="info-badge red">穿透：查不存在的key，缓存永远miss</span>','<span class="info-badge green">解决：Bloom Filter 预判</span>'] },
+  { desc:"典型生产架构：客户端 → Redis → MySQL Buffer Pool → SSD。99% 请求在前两层解决", line:1, hl:[3,4], boxes:['boxRedis','boxBP'], extra:['<span class="info-badge purple">Redis: ~0.5ms</span>','<span class="info-badge blue">Buffer Pool: ~0.2ms</span>','<span class="info-badge green">99% 请求在此两层解决</span>'] },
+];
+
+const SPEEDS = [1500,1000,600,350,180];
+let cur = 0, playing = false, timer = null, speedIdx = 1;
+
+// ─── Render Code ──────────────────────────────────────────────
+function renderCode(activeLine) {
+  const cb = document.getElementById('codeBody');
+  cb.innerHTML = CODE_LINES.map((ln, i) => {
+    const active = (i+1) === activeLine;
+    return `<div class="code-line${active?' active-line':''}" data-line="${i+1}" onclick="jumpToLine(${i+1})">
+      <span class="ln">${i+1}</span><span class="lc">${ln}</span>
+    </div>`;
+  }).join('');
+  if (activeLine) {
+    const el = cb.querySelector(`[data-line="${activeLine}"]`);
+    if (el) el.scrollIntoView({block:'nearest'});
+  }
+}
+
+function jumpToLine(n) {
+  let best = 0;
+  for (let i=0;i<STEPS.length;i++) if(STEPS[i].line<=n) best=i;
+  cur = best;
+  applyStep();
+}
+
+// ─── Apply Step ───────────────────────────────────────────────
+function applyStep() {
+  const step = STEPS[cur];
+  document.getElementById('descBox').textContent = step.desc;
+  renderCode(step.line);
+  document.getElementById('stepInfo').textContent = `步骤 ${cur+1} / ${STEPS.length}`;
+  document.getElementById('statusBar').textContent = `数据库缓存体系 — Step ${cur}`;
+
+  // Highlight pyramid levels
+  const barIds = ['bar0','bar1','bar2','bar3','bar4','bar5','bar6'];
+  barIds.forEach((id,i)=>{
+    const el = document.getElementById(id);
+    el.classList.remove('highlight-bar','dim-bar');
+    if(step.hl.length===0){
+      // no dim
+    } else if(step.hl.includes(i)){
+      el.classList.add('highlight-bar');
+    } else {
+      el.classList.add('dim-bar');
+    }
+  });
+
+  // Highlight DB cache boxes
+  const allBoxes = ['boxBP','boxAHI','boxQC','boxRedis'];
+  allBoxes.forEach(id=>{
+    const el = document.getElementById(id);
+    el.classList.remove('highlight-box','dim-box');
+    if(step.boxes.length===0){
+      // no dim
+    } else if(step.boxes.includes(id)){
+      el.classList.add('highlight-box');
+    } else {
+      el.classList.add('dim-box');
+    }
+  });
+
+  // Extra info
+  document.getElementById('extraInfo').innerHTML = step.extra.join('');
+}
+
+function next(){if(cur<STEPS.length-1){cur++;applyStep();}}
+function prev(){if(cur>0){cur--;applyStep();}}
+function reset(){cur=0;stopPlay();applyStep();}
+function setSpeed(i){
+  speedIdx=i;
+  ['sp0','sp1','sp2','sp3'].forEach((id,j)=>document.getElementById(id).classList.toggle('active-speed',j===i));
+  if(playing){stopPlay();startPlay();}
+}
+function startPlay(){
+  playing=true;
+  document.getElementById('playBtn').textContent='⏸ 暂停';
+  timer=setInterval(()=>{
+    if(cur>=STEPS.length-1){stopPlay();return;}
+    cur++;applyStep();
+  },SPEEDS[speedIdx]);
+}
+function stopPlay(){
+  playing=false;clearInterval(timer);timer=null;
+  document.getElementById('playBtn').textContent='▶ 播放';
+}
+function togglePlay(){if(playing)stopPlay();else startPlay();}
+
+// ─── Init ─────────────────────────────────────────────────────
+renderCode(1);
+applyStep();
+</script>
+</body>
+</html>

@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>分布式数据库 - 数据库可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--purple:#c084fc;--green:#4ade80;--yellow:#fbbf24;--orange:#fb923c;--red:#f87171;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;font-style:italic;}.id{color:#e6edf3;}
+body{height:100vh;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;}
+nav{height:52px;display:flex;align-items:center;gap:16px;padding:0 20px;background:var(--panel2);border-bottom:1px solid var(--border);flex-shrink:0;}
+nav h1{font-size:1.1rem;font-weight:600;}
+.ds-tags{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;}
+.ds-tag{font-size:0.72rem;padding:3px 10px;border-radius:100px;font-family:monospace;background:rgba(255,255,255,0.06);border:1px solid var(--border);}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;overflow:hidden;display:flex;flex-direction:column;background:var(--bg);padding:16px;overflow-y:auto;}
+.code-panel{width:44%;min-width:360px;background:var(--panel2);border-left:1px solid var(--border);overflow-y:auto;}
+.controls{flex-shrink:0;height:52px;display:flex;align-items:center;gap:10px;padding:0 16px;background:var(--panel);border-top:1px solid var(--border);}
+.status-bar{flex-shrink:0;height:36px;display:flex;align-items:center;padding:0 16px;background:var(--panel2);border-top:1px solid var(--border);font-size:0.82rem;color:var(--dim);}
+
+/* Tabs */
+.tabs{display:flex;gap:4px;margin-bottom:14px;flex-shrink:0;}
+.tab-btn{padding:6px 16px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--dim);font-size:0.85rem;cursor:pointer;transition:all 0.2s;}
+.tab-btn.active{background:rgba(56,189,248,0.15);border-color:var(--blue);color:var(--blue);}
+.tab-btn:hover:not(.active){color:var(--text);}
+
+/* Description box */
+.desc-box{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;padding:12px 16px;font-size:0.9rem;color:var(--text);margin-bottom:14px;min-height:52px;line-height:1.5;flex-shrink:0;}
+
+/* Sharding viz */
+.router-area{display:flex;justify-content:center;margin-bottom:8px;}
+.router-box{background:rgba(251,191,36,0.1);border:2px solid var(--yellow);border-radius:10px;padding:10px 24px;font-size:0.85rem;font-weight:600;color:var(--yellow);text-align:center;min-width:160px;}
+.router-label{font-size:0.7rem;color:var(--dim);margin-top:2px;}
+.arrows-area{display:flex;justify-content:space-around;height:30px;margin-bottom:4px;position:relative;}
+.arrow-line{display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--dim);font-size:0.9rem;}
+.shards-area{display:flex;gap:12px;justify-content:center;margin-bottom:14px;}
+.shard-node{flex:1;max-width:200px;border-radius:12px;border:2px solid;padding:12px;transition:all 0.4s;min-height:140px;}
+.shard-node.shard-blue{border-color:rgba(56,189,248,0.5);background:rgba(56,189,248,0.06);}
+.shard-node.shard-purple{border-color:rgba(192,132,252,0.5);background:rgba(192,132,252,0.06);}
+.shard-node.shard-teal{border-color:rgba(45,212,191,0.5);background:rgba(45,212,191,0.06);}
+.shard-node.shard-blue.highlight{border-color:var(--blue);background:rgba(56,189,248,0.15);box-shadow:0 0 16px rgba(56,189,248,0.3);}
+.shard-node.shard-purple.highlight{border-color:var(--purple);background:rgba(192,132,252,0.15);box-shadow:0 0 16px rgba(192,132,252,0.3);}
+.shard-node.shard-teal.highlight{border-color:var(--teal);background:rgba(45,212,191,0.15);box-shadow:0 0 16px rgba(45,212,191,0.3);}
+.shard-node.dim-shard{opacity:0.4;}
+.shard-title{font-size:0.8rem;font-weight:700;margin-bottom:6px;font-family:monospace;}
+.shard-blue .shard-title{color:var(--blue);}
+.shard-purple .shard-title{color:var(--purple);}
+.shard-teal .shard-title{color:var(--teal);}
+.shard-entries{display:flex;flex-direction:column;gap:3px;}
+.shard-entry{font-size:0.75rem;padding:2px 8px;border-radius:4px;font-family:monospace;background:rgba(255,255,255,0.05);color:var(--dim);transition:all 0.3s;}
+.shard-entry.new{animation:fadeIn 0.4s ease;}
+.shard-entry.query-hit{background:rgba(74,222,128,0.2);color:var(--green);border:1px solid rgba(74,222,128,0.4);}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:translateY(0);}}
+
+/* Formula badge */
+.formula-badge{display:inline-block;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);color:var(--yellow);padding:4px 12px;border-radius:6px;font-family:monospace;font-size:0.85rem;}
+
+/* Query path */
+.query-path{display:flex;align-items:center;gap:6px;font-family:monospace;font-size:0.82rem;padding:6px 12px;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.2);border-radius:8px;margin-bottom:10px;color:var(--green);flex-wrap:wrap;}
+
+/* Replication viz */
+.repl-area{display:flex;gap:16px;align-items:flex-start;margin-bottom:12px;}
+.repl-clients{display:flex;flex-direction:column;gap:10px;min-width:110px;}
+.client-box{padding:8px 12px;border-radius:8px;border:1px solid;font-size:0.8rem;text-align:center;transition:all 0.4s;}
+.client-write{border-color:rgba(251,191,36,0.4);background:rgba(251,191,36,0.07);color:var(--yellow);}
+.client-read{border-color:rgba(74,222,128,0.4);background:rgba(74,222,128,0.07);color:var(--green);}
+.client-box.active-client{box-shadow:0 0 12px rgba(251,191,36,0.4);transform:scale(1.04);}
+.repl-nodes{display:flex;gap:14px;align-items:flex-start;flex:1;}
+.db-node{border-radius:12px;border:2px solid;padding:14px;transition:all 0.4s;text-align:center;}
+.db-node.leader-node{border-color:rgba(251,191,36,0.5);background:rgba(251,191,36,0.07);min-width:130px;}
+.db-node.follower-node{border-color:rgba(148,163,184,0.3);background:rgba(148,163,184,0.05);min-width:110px;}
+.db-node.node-active{box-shadow:0 0 16px rgba(56,189,248,0.4);border-color:var(--blue);}
+.db-node.node-fail{border-color:var(--red)!important;background:rgba(248,113,113,0.12)!important;animation:pulse-red 0.8s 2;}
+.db-node.node-new-leader{border-color:var(--green)!important;background:rgba(74,222,128,0.1)!important;box-shadow:0 0 16px rgba(74,222,128,0.3)!important;}
+@keyframes pulse-red{0%,100%{box-shadow:0 0 8px rgba(248,113,113,0.3);}50%{box-shadow:0 0 20px rgba(248,113,113,0.7);}}
+.node-icon{font-size:1.4rem;margin-bottom:4px;}
+.node-title{font-size:0.8rem;font-weight:700;font-family:monospace;}
+.leader-node .node-title{color:var(--yellow);}
+.follower-node .node-title{color:var(--dim);}
+.node-data{font-size:0.7rem;color:var(--dim);margin-top:4px;font-family:monospace;}
+.repl-lag{font-size:0.68rem;padding:2px 8px;border-radius:4px;background:rgba(251,191,36,0.15);color:var(--yellow);border:1px solid rgba(251,191,36,0.3);margin-top:4px;display:inline-block;}
+.repl-arrow{display:flex;align-items:center;font-size:0.8rem;color:var(--blue);writing-mode:horizontal-tb;align-self:center;}
+.followers-col{display:flex;flex-direction:column;gap:10px;}
+
+/* WAL log */
+.wal-log{background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-family:monospace;font-size:0.75rem;color:var(--dim);margin-top:10px;}
+.wal-entry{padding:2px 0;transition:all 0.3s;}
+.wal-entry.active-log{color:var(--blue);}
+
+/* CAP Triangle */
+.cap-area{display:flex;gap:20px;align-items:flex-start;margin-bottom:12px;flex-wrap:wrap;}
+.cap-triangle-wrap{position:relative;width:260px;height:220px;flex-shrink:0;}
+.cap-svg{width:260px;height:220px;}
+.cap-vertex{fill:var(--panel);stroke-width:2;transition:all 0.4s;}
+.cap-vertex.highlight-c{fill:rgba(56,189,248,0.25);stroke:var(--blue)!important;}
+.cap-vertex.highlight-a{fill:rgba(74,222,128,0.25);stroke:var(--green)!important;}
+.cap-vertex.highlight-p{fill:rgba(192,132,252,0.25);stroke:var(--purple)!important;}
+.cap-region{fill:transparent;transition:all 0.4s;opacity:0;}
+.cap-region.show{opacity:0.25;}
+.cap-region-cp{fill:var(--blue);}
+.cap-region-ap{fill:var(--green);}
+.cap-region-ca{fill:var(--orange);}
+.cap-label{font-size:0.8rem;font-weight:700;fill:var(--text);font-family:'Segoe UI',sans-serif;}
+.cap-sublabel{font-size:0.65rem;fill:var(--dim);font-family:'Segoe UI',sans-serif;}
+
+.cap-scenarios{display:flex;flex-direction:column;gap:8px;flex:1;min-width:160px;}
+.cap-scenario{padding:10px 14px;border-radius:8px;border:2px solid var(--border);background:rgba(255,255,255,0.03);transition:all 0.4s;}
+.cap-scenario.active-cp{border-color:var(--blue);background:rgba(56,189,248,0.1);}
+.cap-scenario.active-ap{border-color:var(--green);background:rgba(74,222,128,0.1);}
+.cap-scenario.active-ca{border-color:var(--orange);background:rgba(251,146,60,0.1);}
+.cap-s-title{font-size:0.82rem;font-weight:700;font-family:monospace;}
+.active-cp .cap-s-title{color:var(--blue);}
+.active-ap .cap-s-title{color:var(--green);}
+.active-ca .cap-s-title{color:var(--orange);}
+.cap-s-desc{font-size:0.72rem;color:var(--dim);margin-top:3px;line-height:1.4;}
+.cap-s-examples{font-size:0.7rem;color:var(--dim);margin-top:4px;font-family:monospace;}
+
+/* Controls */
+button{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.82rem;transition:all 0.2s;}
+button:hover{background:rgba(255,255,255,0.12);}
+button.play-btn{background:rgba(56,189,248,0.15);border-color:var(--blue);color:var(--blue);}
+button.play-btn:hover{background:rgba(56,189,248,0.25);}
+.speed-btn{font-size:0.75rem;padding:4px 10px;}
+.speed-btn.active-speed{background:rgba(251,191,36,0.15);border-color:var(--yellow);color:var(--yellow);}
+.step-info{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;}
+
+/* Code panel */
+.code-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;position:sticky;top:0;background:var(--panel2);z-index:1;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{padding:8px 0;}
+.code-line{display:flex;align-items:baseline;gap:0;padding:1px 0;cursor:pointer;transition:background 0.15s;}
+.code-line:hover{background:rgba(255,255,255,0.04);}
+.code-line.active-line{background:rgba(251,191,36,0.12);border-left:2px solid var(--yellow);}
+.code-line:not(.active-line){border-left:2px solid transparent;}
+.ln{display:inline-block;width:36px;text-align:right;color:#4b5563;font-size:0.78rem;font-family:monospace;padding-right:12px;flex-shrink:0;user-select:none;}
+.lc{font-family:'Consolas','Fira Code',monospace;font-size:0.8rem;white-space:pre;color:var(--id);}
+
+/* Info badges */
+.info-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:6px;font-size:0.78rem;font-family:monospace;}
+.info-badge.blue{background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.3);color:var(--blue);}
+.info-badge.green{background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3);color:var(--green);}
+.info-badge.orange{background:rgba(251,146,60,0.1);border:1px solid rgba(251,146,60,0.3);color:var(--orange);}
+.info-badge.red{background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);color:var(--red);}
+
+/* MOBILE_INJECTED */
+@media(max-width:768px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;overflow-x:hidden;}
+  nav{flex-wrap:wrap;padding:10px 16px;gap:6px;height:auto!important;}
+  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
+  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:320px!important;min-height:320px!important;flex:none!important;overflow:hidden;}
+  .code-panel{width:100%!important;min-width:unset!important;height:360px!important;flex:none!important;}
+  .controls{flex-wrap:wrap!important;padding:10px 14px!important;gap:6px!important;height:auto!important;}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" style="color:var(--dim);text-decoration:none;font-size:0.88rem;margin-right:8px;">← 返回</a>
+  <h1>分布式数据库</h1>
+  <div class="ds-tags">
+    <span class="ds-tag">分片</span>
+    <span class="ds-tag">主从复制</span>
+    <span class="ds-tag">CAP定理</span>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="viz-panel" id="vizPanel">
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab(0)">分片 Sharding</button>
+      <button class="tab-btn" onclick="switchTab(1)">主从复制</button>
+      <button class="tab-btn" onclick="switchTab(2)">CAP定理</button>
+    </div>
+
+    <!-- Description -->
+    <div class="desc-box" id="descBox">分布式数据库将数据拆分到多台机器，解决单机容量和性能瓶颈</div>
+
+    <!-- Tab 0: Sharding -->
+    <div id="tab0">
+      <div class="router-area">
+        <div class="router-box" id="routerBox">
+          🔀 Router
+          <div class="router-label">hash(user_id) % 3</div>
+        </div>
+      </div>
+      <div class="arrows-area" id="arrowsArea">
+        <div class="arrow-line">↙</div>
+        <div class="arrow-line">↓</div>
+        <div class="arrow-line">↘</div>
+      </div>
+      <div class="shards-area">
+        <div class="shard-node shard-blue" id="shard0">
+          <div class="shard-title">Shard 0</div>
+          <div class="shard-entries" id="shard0-entries"></div>
+        </div>
+        <div class="shard-node shard-purple" id="shard1">
+          <div class="shard-title">Shard 1</div>
+          <div class="shard-entries" id="shard1-entries"></div>
+        </div>
+        <div class="shard-node shard-teal" id="shard2">
+          <div class="shard-title">Shard 2</div>
+          <div class="shard-entries" id="shard2-entries"></div>
+        </div>
+      </div>
+      <div id="shardExtra"></div>
+    </div>
+
+    <!-- Tab 1: Replication -->
+    <div id="tab1" style="display:none;">
+      <div class="repl-area" id="replArea">
+        <div class="repl-clients">
+          <div class="client-box client-write" id="writeClient">✏️ Write Client<div style="font-size:0.7rem;margin-top:2px;color:var(--dim)">UPDATE users...</div></div>
+          <div class="client-box client-read" id="readClient">👁 Read Client<div style="font-size:0.7rem;margin-top:2px;color:var(--dim)">SELECT ...</div></div>
+        </div>
+        <div class="repl-nodes">
+          <div class="db-node leader-node" id="leaderNode">
+            <div class="node-icon">🗄</div>
+            <div class="node-title">Leader (Primary)</div>
+            <div class="node-data" id="leaderData">balance=1000</div>
+            <div id="walBadge" style="display:none;margin-top:6px;"><span style="font-size:0.7rem;color:var(--blue);font-family:monospace;">WAL ✓</span></div>
+          </div>
+          <div style="display:flex;flex-direction:column;justify-content:center;gap:16px;align-self:center;">
+            <div style="color:var(--blue);font-size:0.8rem;" id="replArrow1">→</div>
+            <div style="color:var(--blue);font-size:0.8rem;" id="replArrow2">→</div>
+          </div>
+          <div class="followers-col">
+            <div class="db-node follower-node" id="follower1">
+              <div class="node-icon">📋</div>
+              <div class="node-title">Follower 1</div>
+              <div class="node-data" id="f1Data">balance=1000</div>
+              <div id="lagBadge1" style="display:none;"><div class="repl-lag">lag ~200ms</div></div>
+            </div>
+            <div class="db-node follower-node" id="follower2">
+              <div class="node-icon">📋</div>
+              <div class="node-title">Follower 2</div>
+              <div class="node-data" id="f2Data">balance=1000</div>
+              <div id="lagBadge2" style="display:none;"><div class="repl-lag">lag ~500ms</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="wal-log" id="walLog" style="display:none;">
+        <div style="color:var(--dim);font-size:0.72rem;margin-bottom:4px;">WAL / binlog:</div>
+        <div id="walEntries"></div>
+      </div>
+    </div>
+
+    <!-- Tab 2: CAP -->
+    <div id="tab2" style="display:none;">
+      <div class="cap-area">
+        <div class="cap-triangle-wrap">
+          <svg class="cap-svg" viewBox="0 0 260 220">
+            <!-- Triangle fill regions -->
+            <polygon id="capRegionCP" class="cap-region cap-region-cp" points="130,20 20,190 130,190"/>
+            <polygon id="capRegionAP" class="cap-region cap-region-ap" points="130,20 240,190 130,190"/>
+            <polygon id="capRegionCA" class="cap-region cap-region-ca" points="20,190 130,190 240,190"/>
+            <!-- Triangle edges -->
+            <line x1="130" y1="24" x2="24" y2="188" stroke="#334155" stroke-width="1.5"/>
+            <line x1="130" y1="24" x2="236" y2="188" stroke="#334155" stroke-width="1.5"/>
+            <line x1="24" y1="188" x2="236" y2="188" stroke="#334155" stroke-width="1.5"/>
+            <!-- Vertices -->
+            <circle id="vertexC" class="cap-vertex" cx="130" cy="20" r="18" stroke="#334155" fill="#1e293b"/>
+            <circle id="vertexA" class="cap-vertex" cx="20" cy="190" r="18" stroke="#334155" fill="#1e293b"/>
+            <circle id="vertexP" class="cap-vertex" cx="240" cy="190" r="18" stroke="#334155" fill="#1e293b"/>
+            <!-- Labels inside circles -->
+            <text x="130" y="25" text-anchor="middle" class="cap-label">C</text>
+            <text x="20" y="195" text-anchor="middle" class="cap-label">A</text>
+            <text x="240" y="195" text-anchor="middle" class="cap-label">P</text>
+            <!-- Sub-labels outside -->
+            <text x="130" y="8" text-anchor="middle" class="cap-sublabel">Consistency</text>
+            <text x="0" y="215" text-anchor="start" class="cap-sublabel">Availability</text>
+            <text x="190" y="215" text-anchor="start" class="cap-sublabel">Partition</text>
+            <!-- Edge labels -->
+            <text x="62" y="120" text-anchor="middle" class="cap-sublabel" transform="rotate(-62,62,120)">CP</text>
+            <text x="198" y="120" text-anchor="middle" class="cap-sublabel" transform="rotate(62,198,120)">AP</text>
+            <text x="130" y="202" text-anchor="middle" class="cap-sublabel">CA</text>
+          </svg>
+        </div>
+        <div class="cap-scenarios">
+          <div class="cap-scenario" id="capCP">
+            <div class="cap-s-title">CP — 一致性 + 分区容错</div>
+            <div class="cap-s-desc">网络分区时拒绝响应以保证数据一致</div>
+            <div class="cap-s-examples">ZooKeeper · HBase · Redis Cluster</div>
+          </div>
+          <div class="cap-scenario" id="capAP">
+            <div class="cap-s-title">AP — 可用性 + 分区容错</div>
+            <div class="cap-s-desc">网络分区时继续响应，可能返回旧数据</div>
+            <div class="cap-s-examples">Cassandra · DynamoDB · CouchDB</div>
+          </div>
+          <div class="cap-scenario" id="capCA">
+            <div class="cap-s-title">CA — 一致性 + 可用性</div>
+            <div class="cap-s-desc">不考虑网络分区（单机或同机房）</div>
+            <div class="cap-s-examples">传统单机 MySQL</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Code Panel -->
+  <div class="code-panel">
+    <div class="code-header">
+      <div class="code-dot" style="background:#ff5f57;"></div>
+      <div class="code-dot" style="background:#febc2e;margin-left:4px;"></div>
+      <div class="code-dot" style="background:#28c840;margin-left:4px;"></div>
+      <span style="margin-left:8px;">distributed.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button onclick="reset()">重置</button>
+  <button onclick="prev()">← 上一步</button>
+  <button class="play-btn" id="playBtn" onclick="togglePlay()">▶ 播放</button>
+  <button onclick="next()">下一步 →</button>
+  <button class="speed-btn" onclick="setSpeed(0)" id="sp0">慢</button>
+  <button class="speed-btn active-speed" onclick="setSpeed(1)" id="sp1">中</button>
+  <button class="speed-btn" onclick="setSpeed(2)" id="sp2">快</button>
+  <button class="speed-btn" onclick="setSpeed(3)" id="sp3">极速</button>
+  <span class="step-info" id="stepInfo">步骤 1 / 12</span>
+</div>
+<div class="status-bar" id="statusBar">分片 Sharding — Step 0</div>
+
+<script>
+// ─── Code lines ───────────────────────────────────────────────
+const CODE_LINES = [
+`<span class="cm">// 哈希分片路由</span>`,
+`<span class="kw">type</span> <span class="id">ShardRouter</span> <span class="kw">struct</span> {`,
+`    <span class="id">shards</span> []<span class="id">*Shard</span>`,
+`    <span class="id">n</span>      <span class="kw">int</span>  <span class="cm">// 分片数量</span>`,
+`}`,
+``,
+`<span class="kw">func</span> (<span class="id">r</span> <span class="id">*ShardRouter</span>) <span class="fn">Route</span>(<span class="id">key</span> <span class="kw">int64</span>) <span class="id">*Shard</span> {`,
+`    <span class="cm">// 哈希分片: O(1) 路由</span>`,
+`    <span class="kw">return</span> <span class="id">r</span>.<span class="id">shards</span>[<span class="id">key</span> % <span class="kw">int64</span>(<span class="id">r</span>.<span class="id">n</span>)]`,
+`}`,
+``,
+`<span class="cm">// 一致性哈希（减少再平衡时的数据迁移）</span>`,
+`<span class="kw">type</span> <span class="id">ConsistentHash</span> <span class="kw">struct</span> {`,
+`    <span class="id">ring</span>     []<span class="kw">uint32</span>          <span class="cm">// 哈希环</span>`,
+`    <span class="id">nodes</span>    <span class="kw">map</span>[<span class="kw">uint32</span>]<span class="kw">string</span> <span class="cm">// 虚拟节点→真实节点</span>`,
+`    <span class="id">replicas</span> <span class="kw">int</span>               <span class="cm">// 每个节点的虚拟节点数</span>`,
+`}`,
+``,
+`<span class="cm">// 主从复制日志记录</span>`,
+`<span class="kw">type</span> <span class="id">BinlogEntry</span> <span class="kw">struct</span> {`,
+`    <span class="id">LSN</span>      <span class="kw">uint64</span>`,
+`    <span class="id">TxnID</span>    <span class="kw">uint64</span>`,
+`    <span class="id">SQL</span>      <span class="kw">string</span>  <span class="cm">// 语句模式(Statement-based)</span>`,
+`    <span class="id">Before</span>   []<span class="kw">byte</span>  <span class="cm">// 行模式(Row-based)</span>`,
+`    <span class="id">After</span>    []<span class="kw">byte</span>`,
+`}`,
+``,
+`<span class="cm">// Raft 领导者选举（简化版）</span>`,
+`<span class="kw">type</span> <span class="id">RaftNode</span> <span class="kw">struct</span> {`,
+`    <span class="id">id</span>        <span class="kw">string</span>`,
+`    <span class="id">term</span>      <span class="kw">uint64</span>  <span class="cm">// 任期</span>`,
+`    <span class="id">state</span>     <span class="id">State</span>   <span class="cm">// Leader/Follower/Candidate</span>`,
+`    <span class="id">votedFor</span>  <span class="kw">string</span>`,
+`    <span class="id">log</span>       []<span class="id">LogEntry</span>`,
+`    <span class="id">commitIdx</span> <span class="kw">uint64</span>`,
+`}`,
+``,
+`<span class="kw">func</span> (<span class="id">n</span> <span class="id">*RaftNode</span>) <span class="fn">StartElection</span>() {`,
+`    <span class="id">n</span>.<span class="id">state</span> = <span class="id">Candidate</span>`,
+`    <span class="id">n</span>.<span class="id">term</span>++`,
+`    <span class="id">n</span>.<span class="id">votedFor</span> = <span class="id">n</span>.<span class="id">id</span>`,
+`    <span class="id">votes</span> := <span class="num">1</span>`,
+`    <span class="cm">// 向其他节点请求投票</span>`,
+`    <span class="kw">for</span> _, <span class="id">peer</span> := <span class="kw">range</span> <span class="id">n</span>.<span class="id">peers</span> {`,
+`        <span class="kw">if</span> <span class="id">peer</span>.<span class="fn">RequestVote</span>(<span class="id">n</span>.<span class="id">term</span>, <span class="id">n</span>.<span class="id">id</span>) {`,
+`            <span class="id">votes</span>++`,
+`        }`,
+`    }`,
+`    <span class="kw">if</span> <span class="id">votes</span> > <span class="fn">len</span>(<span class="id">n</span>.<span class="id">peers</span>)/<span class="num">2</span> {`,
+`        <span class="id">n</span>.<span class="id">state</span> = <span class="id">Leader</span>  <span class="cm">// 获得多数票</span>`,
+`    }`,
+`}`,
+];
+
+// ─── Steps per tab ────────────────────────────────────────────
+const TABS = [
+  { // Tab 0: Sharding
+    steps: [
+      { desc:"分布式数据库将数据拆分到多台机器，解决单机容量和性能瓶颈", line:1, action:"reset" },
+      { desc:"哈希分片：shard = hash(user_id) % 3，数据均匀分布", line:8, action:"formula" },
+      { desc:"路由 user 1,2,3 → Shard 1(1%3=1), Shard 2(2%3=2), Shard 0(3%3=0)", line:8, action:"batch1" },
+      { desc:"路由 user 4,5,6 → Shard 1(4%3=1), Shard 2(5%3=2), Shard 0(6%3=0)", line:8, action:"batch2" },
+      { desc:"路由 user 7,8,9 → Shard 1(7%3=1), Shard 2(8%3=2), Shard 0(9%3=0)", line:8, action:"batch3" },
+      { desc:"查询 id=5：Router 计算 5%3=2 → 路由到 Shard 2，只需查一个节点", line:8, action:"query5" },
+      { desc:"范围分片：按 id 范围，Shard0: 1-3, Shard1: 4-6, Shard2: 7-9", line:12, action:"range" },
+      { desc:"范围分片优点：范围查询高效 (SELECT WHERE id BETWEEN 4 AND 6 只查 Shard1)", line:12, action:"rangeHL" },
+      { desc:"范围分片缺点：热点问题，新注册用户都在最后一个分片 → 负载不均", line:12, action:"hotspot" },
+      { desc:"跨分片 JOIN：需要在应用层合并，或使用分布式查询引擎（Presto/Spark SQL）", line:12, action:"crossjoin" },
+      { desc:"再平衡(Rebalancing)：增加 Shard4 时，需要迁移 25% 数据，期间服务可用", line:12, action:"rebalance" },
+      { desc:"一致性哈希(Consistent Hashing)可将再平衡时的数据迁移量降到最低", line:13, action:"consistenthash" },
+    ]
+  },
+  { // Tab 1: Replication
+    steps: [
+      { desc:"主从复制：所有写入到主节点，主节点将变更同步给从节点", line:19, action:"r_reset" },
+      { desc:"客户端发起写入：UPDATE users SET balance=900 WHERE id=1", line:22, action:"r_write" },
+      { desc:"Leader 写入本地 WAL 日志，修改数据，事务提交成功 ✓", line:20, action:"r_wal" },
+      { desc:"Leader 将 binlog/WAL 异步发送给 Follower 1 和 Follower 2", line:22, action:"r_async_send" },
+      { desc:"异步复制：Leader 不等 Follower 确认，延迟低但 Follower 可能落后 100ms~1s", line:22, action:"r_lag" },
+      { desc:"Follower 应用日志，数据同步完成。读请求可路由到任意 Follower（读写分离）", line:22, action:"r_sync_done" },
+      { desc:"同步复制：Leader 等待至少 1 个 Follower 确认后才返回客户端（半同步）", line:22, action:"r_semisync" },
+      { desc:"主节点故障！Follower 1 通过选举 (Raft/Paxos) 成为新主节点", line:36, action:"r_fail" },
+      { desc:"自动故障转移(Failover)：通常 30s 内完成；期间写入请求失败或等待", line:37, action:"r_failover" },
+      { desc:"读写分离架构：写→主节点；读→从节点；主节点故障不影响读服务", line:36, action:"r_readwrite" },
+    ]
+  },
+  { // Tab 2: CAP
+    steps: [
+      { desc:"CAP 定理：分布式系统最多同时满足三个属性中的两个", line:1, action:"cap_reset" },
+      { desc:"C - 一致性(Consistency)：所有节点同时看到相同的数据（线性一致性）", line:1, action:"cap_c" },
+      { desc:"A - 可用性(Availability)：每个请求都会收到响应（不会超时/报错）", line:1, action:"cap_a" },
+      { desc:"P - 分区容错(Partition Tolerance)：网络分区时系统仍然运行", line:1, action:"cap_p" },
+      { desc:"⚠️ 网络分区在分布式系统中不可避免，因此 P 必须保留，只能在 C 和 A 之间取舍", line:12, action:"cap_p_must" },
+      { desc:"CP 系统（放弃A）：网络分区时，拒绝响应以保证一致性。例：ZooKeeper, HBase, Redis Cluster", line:12, action:"cap_cp" },
+      { desc:"AP 系统（放弃C）：网络分区时，继续响应但可能返回旧数据（最终一致性）。例：Cassandra, DynamoDB, CouchDB", line:12, action:"cap_ap" },
+      { desc:"CA 系统：不考虑网络分区（单机或同机房）。例：传统单机 MySQL", line:12, action:"cap_ca" },
+      { desc:"实践中更常用 PACELC：无分区时也要在延迟(L)和一致性(C)之间取舍", line:12, action:"cap_pacelc" },
+      { desc:"选型建议：金融交易→CP；社交动态→AP；用户登录状态→视场景而定", line:12, action:"cap_advice" },
+    ]
+  }
+];
+
+const SPEEDS = [1500,1000,600,350,180];
+let curTab = 0, cur = 0, playing = false, timer = null, speedIdx = 1;
+
+// ─── Render Code ──────────────────────────────────────────────
+function renderCode(activeLine) {
+  const cb = document.getElementById('codeBody');
+  cb.innerHTML = CODE_LINES.map((ln, i) => {
+    const active = (i+1) === activeLine;
+    return `<div class="code-line${active?' active-line':''}" data-line="${i+1}" onclick="jumpToLine(${i+1})">
+      <span class="ln">${i+1}</span><span class="lc">${ln}</span>
+    </div>`;
+  }).join('');
+  if (activeLine) {
+    const el = cb.querySelector(`[data-line="${activeLine}"]`);
+    if (el) el.scrollIntoView({block:'nearest'});
+  }
+}
+function jumpToLine(n) {
+  const steps = TABS[curTab].steps;
+  let best = 0;
+  for (let i=0;i<steps.length;i++) if(steps[i].line<=n) best=i;
+  cur = best;
+  applyStep();
+}
+
+// ─── Tab 0: Sharding ─────────────────────────────────────────
+const SHARD_DATA_HASH = {0:['id=3','id=6','id=9'], 1:['id=1','id=4','id=7'], 2:['id=2','id=5','id=8']};
+const SHARD_DATA_RANGE = {0:['id=1','id=2','id=3'], 1:['id=4','id=5','id=6'], 2:['id=7','id=8','id=9']};
+
+function clearShards() {
+  [0,1,2].forEach(i=>{
+    document.getElementById(`shard${i}-entries`).innerHTML='';
+    const n = document.getElementById(`shard${i}`);
+    n.classList.remove('highlight','dim-shard');
+  });
+  document.getElementById('shardExtra').innerHTML='';
+}
+
+function setShardEntries(data, highlightShard=-1, queryEntry='') {
+  [0,1,2].forEach(i=>{
+    const el = document.getElementById(`shard${i}-entries`);
+    el.innerHTML = (data[i]||[]).map(e=>{
+      const isQ = queryEntry && e===queryEntry;
+      return `<div class="shard-entry${isQ?' query-hit':''}">${e}</div>`;
+    }).join('');
+    const n = document.getElementById(`shard${i}`);
+    n.classList.toggle('highlight', highlightShard===i);
+    n.classList.toggle('dim-shard', highlightShard>=0 && highlightShard!==i);
+  });
+}
+
+function applyShardStep(action) {
+  const extra = document.getElementById('shardExtra');
+  clearShards();
+  document.getElementById('routerBox').innerHTML='🔀 Router<div class="router-label">hash(user_id) % 3</div>';
+
+  if(action==='reset'){
+    // empty shards
+  } else if(action==='formula'){
+    extra.innerHTML='<div style="text-align:center;margin-top:8px;"><span class="formula-badge">shard = user_id % 3</span></div>';
+  } else if(action==='batch1'){
+    setShardEntries({0:['id=3'],1:['id=1'],2:['id=2']});
+    extra.innerHTML='<div style="text-align:center;margin-top:8px;"><span class="formula-badge">shard = user_id % 3</span></div>';
+  } else if(action==='batch2'){
+    setShardEntries({0:['id=3','id=6'],1:['id=1','id=4'],2:['id=2','id=5']});
+  } else if(action==='batch3'){
+    setShardEntries({0:['id=3','id=6','id=9'],1:['id=1','id=4','id=7'],2:['id=2','id=5','id=8']});
+  } else if(action==='query5'){
+    setShardEntries({0:['id=3','id=6','id=9'],1:['id=1','id=4','id=7'],2:['id=2','id=5','id=8']},2,'id=5');
+    document.getElementById('routerBox').innerHTML='🔀 Router<div class="router-label">5 % 3 = 2 → Shard 2</div>';
+    extra.innerHTML='<div class="query-path">Query id=5 → 5%3=2 → <strong>Shard 2</strong> ✓</div>';
+  } else if(action==='range'){
+    setShardEntries(SHARD_DATA_RANGE);
+    extra.innerHTML='<div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;">'
+      +'<span class="info-badge blue">Shard 0: id 1~3</span>'
+      +'<span class="info-badge blue">Shard 1: id 4~6</span>'
+      +'<span class="info-badge blue">Shard 2: id 7~9</span>'
+      +'</div>';
+  } else if(action==='rangeHL'){
+    setShardEntries(SHARD_DATA_RANGE,1,'');
+    extra.innerHTML='<div class="query-path">SELECT WHERE id BETWEEN 4 AND 6 → 只查 Shard 1 ✓</div>';
+  } else if(action==='hotspot'){
+    setShardEntries(SHARD_DATA_RANGE,2,'');
+    extra.innerHTML='<div style="margin-top:6px;"><span class="info-badge red">⚠ 新用户 id=10,11,12... 都进 Shard 2 → 热点！</span></div>';
+  } else if(action==='crossjoin'){
+    setShardEntries(SHARD_DATA_RANGE);
+    extra.innerHTML='<div style="margin-top:6px;"><span class="info-badge orange">跨分片JOIN：应用层聚合 / Presto / Spark SQL</span></div>';
+  } else if(action==='rebalance'){
+    setShardEntries(SHARD_DATA_RANGE);
+    extra.innerHTML='<div style="margin-top:6px;"><span class="info-badge orange">增加 Shard 3 → 迁移 25% 数据（1/4）</span></div>';
+  } else if(action==='consistenthash'){
+    setShardEntries(SHARD_DATA_RANGE);
+    extra.innerHTML='<div style="margin-top:6px;"><span class="info-badge blue">一致性哈希：仅迁移 1/n 数据，n = 新节点数</span></div>';
+  }
+}
+
+// ─── Tab 1: Replication ───────────────────────────────────────
+function applyReplStep(action) {
+  const leader = document.getElementById('leaderNode');
+  const f1 = document.getElementById('follower1');
+  const f2 = document.getElementById('follower2');
+  const wc = document.getElementById('writeClient');
+  const walLog = document.getElementById('walLog');
+  const walEntries = document.getElementById('walEntries');
+
+  // Reset states
+  leader.classList.remove('node-active','node-fail','node-new-leader');
+  f1.classList.remove('node-active','node-new-leader');
+  f2.classList.remove('node-active');
+  wc.classList.remove('active-client');
+  document.getElementById('walBadge').style.display='none';
+  document.getElementById('lagBadge1').style.display='none';
+  document.getElementById('lagBadge2').style.display='none';
+  walLog.style.display='none';
+  document.getElementById('leaderData').textContent='balance=1000';
+  document.getElementById('f1Data').textContent='balance=1000';
+  document.getElementById('f2Data').textContent='balance=1000';
+  f1.querySelector('.node-title').textContent='Follower 1';
+  f1.querySelector('.node-icon').textContent='📋';
+  leader.querySelector('.node-title').textContent='Leader (Primary)';
+  leader.querySelector('.node-icon').textContent='🗄';
+
+  if(action==='r_reset'){
+    // base state
+  } else if(action==='r_write'){
+    wc.classList.add('active-client');
+  } else if(action==='r_wal'){
+    leader.classList.add('node-active');
+    document.getElementById('walBadge').style.display='block';
+    document.getElementById('leaderData').textContent='balance=900 ✓';
+    walLog.style.display='block';
+    walEntries.innerHTML='<div class="wal-entry active-log">LSN:001 UPDATE users SET balance=900 WHERE id=1</div>';
+  } else if(action==='r_async_send'){
+    leader.classList.add('node-active');
+    document.getElementById('leaderData').textContent='balance=900 ✓';
+    document.getElementById('walBadge').style.display='block';
+    walLog.style.display='block';
+    walEntries.innerHTML='<div class="wal-entry active-log">LSN:001 → Follower 1 (sending...)</div><div class="wal-entry active-log">LSN:001 → Follower 2 (sending...)</div>';
+  } else if(action==='r_lag'){
+    leader.classList.add('node-active');
+    document.getElementById('leaderData').textContent='balance=900 ✓';
+    document.getElementById('lagBadge1').style.display='block';
+    document.getElementById('lagBadge2').style.display='block';
+    document.getElementById('f1Data').textContent='balance=1000 (stale)';
+    document.getElementById('f2Data').textContent='balance=1000 (stale)';
+  } else if(action==='r_sync_done'){
+    document.getElementById('leaderData').textContent='balance=900 ✓';
+    document.getElementById('f1Data').textContent='balance=900 ✓';
+    document.getElementById('f2Data').textContent='balance=900 ✓';
+    f1.classList.add('node-active');
+    f2.classList.add('node-active');
+  } else if(action==='r_semisync'){
+    leader.classList.add('node-active');
+    document.getElementById('leaderData').textContent='balance=900';
+    document.getElementById('f1Data').textContent='balance=900 ✓';
+    f1.classList.add('node-active');
+    walLog.style.display='block';
+    walEntries.innerHTML='<div class="wal-entry active-log">等待 Follower 1 ACK... ✓ 已收到，提交事务</div>';
+  } else if(action==='r_fail'){
+    leader.classList.add('node-fail');
+    leader.querySelector('.node-icon').textContent='💥';
+    leader.querySelector('.node-title').textContent='Leader (FAILED)';
+    document.getElementById('leaderData').textContent='—';
+    walLog.style.display='block';
+    walEntries.innerHTML='<div class="wal-entry" style="color:var(--red);">Raft election: term=2, Follower 1 获得多数票</div>';
+  } else if(action==='r_failover'){
+    leader.classList.add('node-fail');
+    leader.querySelector('.node-icon').textContent='💥';
+    leader.querySelector('.node-title').textContent='Leader (FAILED)';
+    document.getElementById('leaderData').textContent='—';
+    f1.classList.add('node-new-leader');
+    f1.querySelector('.node-title').textContent='NEW Leader ✓';
+    f1.querySelector('.node-icon').textContent='🗄';
+    document.getElementById('f1Data').textContent='balance=900 ✓';
+  } else if(action==='r_readwrite'){
+    f1.classList.add('node-new-leader');
+    f1.querySelector('.node-title').textContent='Leader (Write)';
+    f1.querySelector('.node-icon').textContent='🗄';
+    f2.classList.add('node-active');
+    document.getElementById('f1Data').textContent='balance=900';
+    document.getElementById('f2Data').textContent='balance=900';
+    document.getElementById('writeClient').style.borderColor='var(--yellow)';
+    document.getElementById('readClient').classList.add('active-client');
+  }
+}
+
+// ─── Tab 2: CAP ───────────────────────────────────────────────
+function applyCapStep(action) {
+  // Reset
+  document.getElementById('vertexC').className.baseVal='cap-vertex';
+  document.getElementById('vertexA').className.baseVal='cap-vertex';
+  document.getElementById('vertexP').className.baseVal='cap-vertex';
+  document.getElementById('capRegionCP').className.baseVal='cap-region cap-region-cp';
+  document.getElementById('capRegionAP').className.baseVal='cap-region cap-region-ap';
+  document.getElementById('capRegionCA').className.baseVal='cap-region cap-region-ca';
+  document.getElementById('capCP').className='cap-scenario';
+  document.getElementById('capAP').className='cap-scenario';
+  document.getElementById('capCA').className='cap-scenario';
+
+  function hlV(id,cls){document.getElementById(id).classList.add(cls);}
+  function hlR(id){document.getElementById(id).classList.add('show');}
+  function hlS(id,cls){document.getElementById(id).className='cap-scenario '+cls;}
+
+  if(action==='cap_c'){hlV('vertexC','highlight-c');}
+  else if(action==='cap_a'){hlV('vertexA','highlight-a');}
+  else if(action==='cap_p'){hlV('vertexP','highlight-p');}
+  else if(action==='cap_p_must'){hlV('vertexP','highlight-p');hlR('capRegionCP');hlR('capRegionAP');}
+  else if(action==='cap_cp'){hlV('vertexC','highlight-c');hlV('vertexP','highlight-p');hlR('capRegionCP');hlS('capCP','active-cp');}
+  else if(action==='cap_ap'){hlV('vertexA','highlight-a');hlV('vertexP','highlight-p');hlR('capRegionAP');hlS('capAP','active-ap');}
+  else if(action==='cap_ca'){hlV('vertexC','highlight-c');hlV('vertexA','highlight-a');hlR('capRegionCA');hlS('capCA','active-ca');}
+  else if(action==='cap_pacelc'){hlR('capRegionCP');hlR('capRegionAP');}
+  else if(action==='cap_advice'){hlR('capRegionCP');hlR('capRegionAP');hlS('capCP','active-cp');hlS('capAP','active-ap');}
+}
+
+// ─── Core step logic ──────────────────────────────────────────
+function applyStep() {
+  const tab = TABS[curTab];
+  const step = tab.steps[cur];
+  document.getElementById('descBox').textContent = step.desc;
+  renderCode(step.line);
+  document.getElementById('stepInfo').textContent = `步骤 ${cur+1} / ${tab.steps.length}`;
+  document.getElementById('statusBar').textContent = ['分片 Sharding','主从复制','CAP定理'][curTab] + ` — Step ${cur}`;
+
+  if(curTab===0) applyShardStep(step.action);
+  else if(curTab===1) applyReplStep(step.action);
+  else if(curTab===2) applyCapStep(step.action);
+}
+
+function switchTab(t) {
+  curTab = t; cur = 0;
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',i===t));
+  document.getElementById('tab0').style.display = t===0?'block':'none';
+  document.getElementById('tab1').style.display = t===1?'block':'none';
+  document.getElementById('tab2').style.display = t===2?'block':'none';
+  stopPlay();
+  applyStep();
+}
+
+function next(){if(cur<TABS[curTab].steps.length-1){cur++;applyStep();}}
+function prev(){if(cur>0){cur--;applyStep();}}
+function reset(){cur=0;stopPlay();applyStep();}
+function setSpeed(i){
+  speedIdx=i;
+  ['sp0','sp1','sp2','sp3'].forEach((id,j)=>document.getElementById(id).classList.toggle('active-speed',j===i));
+  if(playing){stopPlay();startPlay();}
+}
+function startPlay(){
+  playing=true;
+  document.getElementById('playBtn').textContent='⏸ 暂停';
+  timer=setInterval(()=>{
+    if(cur>=TABS[curTab].steps.length-1){stopPlay();return;}
+    cur++;applyStep();
+  },SPEEDS[speedIdx]);
+}
+function stopPlay(){
+  playing=false;clearInterval(timer);timer=null;
+  document.getElementById('playBtn').textContent='▶ 播放';
+}
+function togglePlay(){if(playing)stopPlay();else startPlay();}
+
+// ─── Init ─────────────────────────────────────────────────────
+renderCode(1);
+switchTab(0);
+</script>
+</body>
+</html>

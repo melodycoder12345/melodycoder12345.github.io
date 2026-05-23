@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WAL 预写日志 - 数据库可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--purple:#c084fc;--green:#4ade80;--yellow:#fbbf24;--orange:#fb923c;--red:#f87171;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.pkg{color:#ffa657}.cm{color:#8b949e;font-style:italic}.id{color:#e6edf3}
+body{height:100vh;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;}
+nav{height:52px;display:flex;align-items:center;gap:16px;padding:0 20px;background:var(--panel2);border-bottom:1px solid var(--border);flex-shrink:0;}
+nav h1{font-size:1.1rem;font-weight:600;}
+.ds-tags{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;}
+.ds-tag{font-size:0.72rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;overflow:hidden;display:flex;flex-direction:column;background:var(--bg);}
+.code-panel{width:44%;min-width:360px;background:var(--panel2);border-left:1px solid var(--border);overflow-y:auto;}
+.controls{flex-shrink:0;height:52px;display:flex;align-items:center;gap:10px;padding:0 16px;background:var(--panel);border-top:1px solid var(--border);}
+.status-bar{flex-shrink:0;height:36px;display:flex;align-items:center;padding:0 16px;background:var(--panel2);border-top:1px solid var(--border);font-size:0.82rem;color:var(--dim);}
+.tab-bar{display:flex;gap:4px;padding:10px 16px 0;flex-shrink:0;border-bottom:1px solid var(--border);}
+.tab-btn{padding:6px 18px;border-radius:7px 7px 0 0;border:1px solid transparent;border-bottom:none;background:transparent;color:var(--dim);cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.tab-btn.active{background:var(--panel);color:var(--text);border-color:var(--border);}
+.tab-btn:hover:not(.active){color:var(--text);}
+.viz-area{flex:1;overflow:auto;padding:16px;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}
+.btn.primary{background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.3);color:var(--yellow);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--yellow);cursor:pointer;}
+.step-counter{font-family:monospace;font-size:0.8rem;color:var(--dim);white-space:nowrap;}
+/* Code panel */
+.code-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;position:sticky;top:0;background:var(--panel2);z-index:2;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{padding:16px 0;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono','Fira Code',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}
+.code-line.active{background:rgba(251,191,36,0.15);border-left:2px solid var(--yellow);}
+.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+/* WAL columns layout */
+.wal-columns{display:flex;gap:16px;height:100%;min-height:0;}
+.wal-log-col{flex:0 0 45%;display:flex;flex-direction:column;gap:8px;min-width:0;}
+.wal-right-col{flex:1;display:flex;flex-direction:column;gap:12px;min-width:0;}
+.col-title{font-size:0.72rem;color:var(--dim);font-family:monospace;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;}
+/* Log records */
+.log-record{display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:7px;background:rgba(255,255,255,0.04);border:1px solid var(--border);font-family:monospace;font-size:0.73rem;transition:all 0.3s;position:relative;}
+.log-record.new{animation:fadeIn 0.4s ease;}
+.log-record.flushed{border-color:rgba(74,222,128,0.4);background:rgba(74,222,128,0.07);}
+.log-record.active-rec{border-color:var(--yellow);background:rgba(251,191,36,0.1);box-shadow:0 0 10px rgba(251,191,36,0.2);}
+.log-record.scanning{border-color:var(--blue);background:rgba(56,189,248,0.1);animation:pulse 1s infinite;}
+.log-record.redo-rec{border-color:var(--teal);background:rgba(45,212,191,0.1);}
+.log-record.undo-rec{border-color:var(--orange);background:rgba(251,146,60,0.1);}
+.lsn-badge{padding:2px 7px;border-radius:4px;font-size:0.68rem;font-weight:700;background:rgba(56,189,248,0.15);color:var(--blue);white-space:nowrap;}
+.txn-badge{padding:2px 7px;border-radius:4px;font-size:0.68rem;font-weight:700;white-space:nowrap;}
+.log-type-BEGIN{color:var(--teal);}
+.log-type-UPDATE{color:var(--text);}
+.log-type-COMMIT{color:var(--green);font-weight:600;}
+.log-type-ABORT{color:var(--red);font-weight:600;}
+.log-type-CHECKPOINT{color:var(--purple);}
+.log-type-CLR{color:var(--orange);}
+.flush-check{color:var(--green);font-size:0.8rem;margin-left:auto;white-space:nowrap;}
+/* Buffer pool boxes */
+.bp-section{display:flex;flex-direction:column;gap:6px;}
+.bp-pages{display:flex;gap:8px;flex-wrap:wrap;}
+.bp-page{flex:1;min-width:100px;max-width:160px;border:1.5px solid var(--border);border-radius:8px;overflow:hidden;transition:all 0.3s;}
+.bp-page.dirty{border-color:var(--orange);}
+.bp-page.clean{border-color:var(--green);}
+.bp-page.affected{border-color:var(--yellow);box-shadow:0 0 10px rgba(251,191,36,0.3);}
+.bp-page-hdr{padding:5px 10px;font-size:0.7rem;font-family:monospace;border-bottom:1px solid rgba(255,255,255,0.05);}
+.bp-page.dirty .bp-page-hdr{background:rgba(251,146,60,0.12);}
+.bp-page.clean .bp-page-hdr{background:rgba(74,222,128,0.08);}
+.bp-page.affected .bp-page-hdr{background:rgba(251,191,36,0.12);}
+.bp-page-body{padding:6px 10px;font-size:0.69rem;font-family:monospace;color:var(--dim);line-height:1.6;}
+.bp-page-lsn{font-size:0.65rem;color:var(--dim);}
+/* Disk section */
+.disk-section{display:flex;flex-direction:column;gap:6px;}
+.disk-box{padding:8px 12px;background:rgba(148,163,184,0.05);border:1px dashed var(--border);border-radius:8px;font-size:0.72rem;font-family:monospace;color:var(--dim);}
+.disk-item{display:flex;align-items:center;gap:8px;margin-bottom:3px;}
+.disk-icon{font-size:0.8rem;}
+/* Crash scenario */
+.crash-banner{padding:8px 14px;border-radius:8px;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);color:var(--red);font-size:0.8rem;font-family:monospace;text-align:center;font-weight:600;}
+.phase-badge{padding:4px 12px;border-radius:100px;font-size:0.72rem;font-family:monospace;font-weight:600;display:inline-block;}
+.phase-analysis{background:rgba(56,189,248,0.15);color:var(--blue);}
+.phase-redo{background:rgba(45,212,191,0.15);color:var(--teal);}
+.phase-undo{background:rgba(251,146,60,0.15);color:var(--orange);}
+.desc-box{padding:10px 20px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:50px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+@keyframes fadeIn{from{opacity:0;transform:translateX(-8px);}to{opacity:1;transform:translateX(0);}}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.5;}}
+/* MOBILE_INJECTED */
+@media(max-width:768px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;overflow-x:hidden;}
+  nav{flex-wrap:wrap;padding:10px 16px;gap:6px;height:auto!important;}
+  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
+  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:320px!important;min-height:320px!important;flex:none!important;overflow:hidden;}
+  .code-panel{width:100%!important;min-width:unset!important;height:360px!important;flex:none!important;}
+  .controls{flex-wrap:wrap!important;padding:10px 14px!important;gap:6px!important;height:auto!important;}
+}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" style="color:var(--dim);text-decoration:none;font-size:0.88rem;margin-right:8px;">← 返回</a>
+  <h1>WAL 预写日志</h1>
+  <div class="ds-tags">
+    <span class="ds-tag" style="background:rgba(56,189,248,0.1);color:var(--blue);">顺序写</span>
+    <span class="ds-tag" style="background:rgba(248,113,113,0.1);color:var(--red);">崩溃恢复</span>
+    <span class="ds-tag" style="background:rgba(192,132,252,0.1);color:var(--purple);">Redo/Undo</span>
+  </div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab(0)">正常提交</button>
+      <button class="tab-btn" onclick="switchTab(1)">崩溃恢复</button>
+    </div>
+    <div class="viz-area" id="vizArea"></div>
+    <div class="desc-box" id="descBox"><span id="descText">初始化中...</span><span class="step-counter" id="stepCounter">0 / 0</span></div>
+    <div class="controls">
+      <button class="btn" id="prevBtn" onclick="prev()">◀ 上一步</button>
+      <button class="btn primary" id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      <button class="btn" id="nextBtn" onclick="next()">下一步 ▶</button>
+      <button class="btn" onclick="reset()">↺ 重置</button>
+      <div class="speed-wrap">
+        <span>速度</span>
+        <input type="range" min="0" max="4" value="2" id="speedSlider" oninput="speedIdx=+this.value">
+      </div>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-header">
+      <span class="code-dot" style="background:#ff5f57"></span>
+      <span class="code-dot" style="background:#febc2e"></span>
+      <span class="code-dot" style="background:#28c840"></span>
+      <span style="margin-left:6px;">wal.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+
+<script>
+const codeLines = [
+  '<span class="cm">// WAL 核心数据结构</span>',
+  '<span class="kw">type</span> <span class="id">LogRecord</span> <span class="kw">struct</span> {',
+  '    <span class="id">LSN</span>     <span class="id">uint64</span>  <span class="cm">// 日志序列号(单调递增)</span>',
+  '    <span class="id">TxnID</span>   <span class="id">uint64</span>  <span class="cm">// 事务ID</span>',
+  '    <span class="id">Type</span>    <span class="id">LogType</span> <span class="cm">// BEGIN/UPDATE/COMMIT/ABORT/CLR</span>',
+  '    <span class="id">PageID</span>  <span class="id">uint32</span>  <span class="cm">// 修改的页ID</span>',
+  '    <span class="id">Offset</span>  <span class="id">uint16</span>  <span class="cm">// 页内偏移</span>',
+  '    <span class="id">Before</span>  []<span class="id">byte</span>  <span class="cm">// 修改前的值(用于Undo)</span>',
+  '    <span class="id">After</span>   []<span class="id">byte</span>  <span class="cm">// 修改后的值(用于Redo)</span>',
+  '    <span class="id">PrevLSN</span> <span class="id">uint64</span>  <span class="cm">// 同一事务的上一条日志</span>',
+  '}',
+  '',
+  '<span class="cm">// WAL规则：写页面前必须先持久化日志</span>',
+  '<span class="kw">func</span> (<span class="id">wm</span> *<span class="id">WALManager</span>) <span class="fn">BeforePageWrite</span>(<span class="id">page</span> *<span class="id">Page</span>, <span class="id">record</span> <span class="id">LogRecord</span>) {',
+  '    <span class="id">lsn</span> := <span class="id">wm</span>.<span class="fn">appendLog</span>(<span class="id">record</span>)',
+  '    <span class="id">page</span>.<span class="id">PageLSN</span> = <span class="id">lsn</span>',
+  '    <span class="cm">// 确保日志先于数据页到达磁盘</span>',
+  '    <span class="cm">// (数据页可以延迟写，但日志不能)</span>',
+  '}',
+  '',
+  '<span class="cm">// 事务提交：强制刷盘日志</span>',
+  '<span class="kw">func</span> (<span class="id">wm</span> *<span class="id">WALManager</span>) <span class="fn">Commit</span>(<span class="id">txnID</span> <span class="id">uint64</span>) {',
+  '    <span class="id">lsn</span> := <span class="id">wm</span>.<span class="fn">appendLog</span>(<span class="id">LogRecord</span>{<span class="id">TxnID</span>: <span class="id">txnID</span>, <span class="id">Type</span>: <span class="id">COMMIT</span>})',
+  '    <span class="id">wm</span>.<span class="fn">flushLogUpTo</span>(<span class="id">lsn</span>)  <span class="cm">// 关键：提交前必须刷日志</span>',
+  '    <span class="cm">// 此后即使崩溃，Redo保证数据不丢失</span>',
+  '}',
+  '',
+  '<span class="cm">// ARIES崩溃恢复</span>',
+  '<span class="kw">func</span> (<span class="id">db</span> *<span class="id">DB</span>) <span class="fn">Recover</span>() {',
+  '    <span class="cm">// Phase 1: Analysis</span>',
+  '    <span class="id">activeTxns</span>, <span class="id">dirtyPages</span> := <span class="id">db</span>.<span class="id">wal</span>.<span class="fn">Analysis</span>()',
+  '    ',
+  '    <span class="cm">// Phase 2: Redo (重放所有日志)</span>',
+  '    <span class="kw">for</span> _, <span class="id">record</span> := <span class="kw">range</span> <span class="id">db</span>.<span class="id">wal</span>.<span class="fn">ScanForward</span>(<span class="id">db</span>.<span class="id">lastCheckpoint</span>) {',
+  '        <span class="kw">if</span> <span class="id">record</span>.<span class="id">LSN</span> &gt; <span class="id">dirtyPages</span>[<span class="id">record</span>.<span class="id">PageID</span>] {',
+  '            <span class="id">db</span>.<span class="fn">redo</span>(<span class="id">record</span>)  <span class="cm">// 幂等操作</span>',
+  '        }',
+  '    }',
+  '    ',
+  '    <span class="cm">// Phase 3: Undo (回滚未提交事务)</span>',
+  '    <span class="kw">for</span> <span class="id">txnID</span> := <span class="kw">range</span> <span class="id">activeTxns</span> {',
+  '        <span class="id">db</span>.<span class="fn">undoTransaction</span>(<span class="id">txnID</span>)',
+  '    }',
+  '}',
+];
+
+// Build code panel
+const codeBody = document.getElementById('codeBody');
+codeLines.forEach((html, i) => {
+  const div = document.createElement('div');
+  div.className = 'code-line';
+  div.dataset.line = i + 1;
+  div.innerHTML = `<span class="ln">${i+1}</span><code class="lc">${html}</code>`;
+  div.onclick = () => jumpToLine(i + 1);
+  codeBody.appendChild(div);
+});
+
+let curTab = 0;
+let steps = [];
+let cur = 0, timer = null;
+const SPEEDS = [1500,1000,600,350,180];
+let speedIdx = 2;
+
+function switchTab(idx) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i===idx));
+  curTab = idx;
+  buildSteps();
+  reset();
+}
+
+// ===== Helper: render WAL layout =====
+function makeLogRecord(lsn, txnId, type, detail, flushed, cls) {
+  const txnColors = {T1:'var(--blue)', T2:'var(--purple)'};
+  const color = txnColors[txnId] || 'var(--dim)';
+  return `<div class="log-record${flushed?' flushed':''}${cls?' '+cls:''}">
+    <span class="lsn-badge">LSN ${String(lsn).padStart(3,'0')}</span>
+    <span class="txn-badge" style="background:${color}22;color:${color};">${txnId}</span>
+    <span class="log-type-${type}">${type}</span>
+    ${detail ? `<span style="color:var(--dim);font-size:0.68rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${detail}</span>` : ''}
+    ${flushed ? '<span class="flush-check">✓ 已落盘</span>' : ''}
+  </div>`;
+}
+
+function makePage(pageId, status, lsn, content, extra) {
+  // status: 'clean'|'dirty'|'affected'|'normal'
+  const cls = status === 'dirty' ? 'dirty' : status === 'clean' ? 'clean' : status === 'affected' ? 'affected' : '';
+  const label = status === 'dirty' ? '🔴 脏页' : status === 'clean' ? '✅ 已落盘' : status === 'affected' ? '⭐ 修改中' : '🔵 干净';
+  return `<div class="bp-page ${cls}">
+    <div class="bp-page-hdr">Page#${pageId} &nbsp; <span style="font-size:0.65rem;">${label}</span></div>
+    <div class="bp-page-body">${content}<br><span class="bp-page-lsn">pageLSN=${lsn}</span>${extra||''}</div>
+  </div>`;
+}
+
+// ===== TAB 0: Normal Commit =====
+function buildNormalSteps() {
+  steps = [
+    {
+      desc: "初始状态：WAL日志为空，Buffer Pool有3个干净页面，T1事务即将开始",
+      highlightLines: [1,2,3,4,5,10,11],
+      state: {
+        logs: [],
+        pages: [
+          {id:5, status:'normal', lsn:0, content:'balance=1000'},
+          {id:8, status:'normal', lsn:0, content:'status=pending'},
+          {id:12, status:'normal', lsn:0, content:'data...'},
+        ],
+        diskLogs: [],
+        diskPages: [],
+        phase: null,
+        crashBanner: false,
+      }
+    },
+    {
+      desc: "T1 BEGIN：写入日志记录 LSN=001 [BEGIN T1]",
+      highlightLines: [13,14,15],
+      state: {
+        logs: [{lsn:1,txn:'T1',type:'BEGIN',detail:'',flushed:false}],
+        pages: [
+          {id:5, status:'normal', lsn:0, content:'balance=1000'},
+          {id:8, status:'normal', lsn:0, content:'status=pending'},
+          {id:12, status:'normal', lsn:0, content:'data...'},
+        ],
+        diskLogs: [],
+        diskPages: [],
+        phase: null,
+      }
+    },
+    {
+      desc: "T1 修改 users(id=1) balance: 1000 → 800。先写日志 LSN=002，日志在内存中",
+      highlightLines: [13,14,15,16,17,18],
+      state: {
+        logs: [
+          {lsn:1,txn:'T1',type:'BEGIN',detail:'',flushed:false},
+          {lsn:2,txn:'T1',type:'UPDATE',detail:'users.balance: 1000→800',flushed:false,cls:'active-rec'},
+        ],
+        pages: [
+          {id:5, status:'affected', lsn:2, content:'balance=800'},
+          {id:8, status:'normal', lsn:0, content:'status=pending'},
+          {id:12, status:'normal', lsn:0, content:'data...'},
+        ],
+        diskLogs: [],
+        diskPages: [],
+        phase: null,
+      }
+    },
+    {
+      desc: "缓冲池中 Page#5 变为脏页(dirty)，标记 pageLSN=002，但还未写入磁盘",
+      highlightLines: [15,16],
+      state: {
+        logs: [
+          {lsn:1,txn:'T1',type:'BEGIN',detail:'',flushed:false},
+          {lsn:2,txn:'T1',type:'UPDATE',detail:'users.balance: 1000→800',flushed:false},
+        ],
+        pages: [
+          {id:5, status:'dirty', lsn:2, content:'balance=800'},
+          {id:8, status:'normal', lsn:0, content:'status=pending'},
+          {id:12, status:'normal', lsn:0, content:'data...'},
+        ],
+        diskLogs: [],
+        diskPages: [],
+        phase: null,
+      }
+    },
+    {
+      desc: "T1 修改 orders(id=7) status: pending → paid。写日志 LSN=003",
+      highlightLines: [13,14,15,16,17,18],
+      state: {
+        logs: [
+          {lsn:1,txn:'T1',type:'BEGIN',detail:'',flushed:false},
+          {lsn:2,txn:'T1',type:'UPDATE',detail:'users.balance: 1000→800',flushed:false},
+          {lsn:3,txn:'T1',type:'UPDATE',detail:'orders.status: pending→paid',flushed:false,cls:'active-rec'},
+        ],
+        pages: [
+          {id:5, status:'dirty', lsn:2, content:'balance=800'},
+          {id:8, status:'dirty', lsn:3, content:'status=paid'},
+          {id:12, status:'normal', lsn:0, content:'data...'},
+        ],
+        diskLogs: [],
+        diskPages: [],
+        phase: null,
+      }
+    },
+    {
+      desc: "T1 COMMIT：写入 LSN=004 [COMMIT T1]，强制将 LSN≤004 的日志 flush 到磁盘（WAL规则！）",
+      highlightLines: [21,22,23,24,25],
+      state: {
+        logs: [
+          {lsn:1,txn:'T1',type:'BEGIN',detail:'',flushed:true},
+          {lsn:2,txn:'T1',type:'UPDATE',detail:'users.balance: 1000→800',flushed:true},
+          {lsn:3,txn:'T1',type:'UPDATE',detail:'orders.status: pending→paid',flushed:true},
+          {lsn:4,txn:'T1',type:'COMMIT',detail:'',flushed:true,cls:'active-rec'},
+        ],
+        pages: [
+          {id:5, status:'dirty', lsn:2, content:'balance=800'},
+          {id:8, status:'dirty', lsn:3, content:'status=paid'},
+          {id:12, status:'normal', lsn:0, content:'data...'},
+        ],
+        diskLogs: [1,2,3,4],
+        diskPages: [],
+        phase: null,
+      }
+    },
+    {
+      desc: "提交完成！脏页(Page#5, Page#8)可以稍后异步刷盘，不影响事务提交",
+      highlightLines: [23,24],
+      state: {
+        logs: [
+          {lsn:1,txn:'T1',type:'BEGIN',detail:'',flushed:true},
+          {lsn:2,txn:'T1',type:'UPDATE',detail:'users.balance: 1000→800',flushed:true},
+          {lsn:3,txn:'T1',type:'UPDATE',detail:'orders.status: pending→paid',flushed:true},
+          {lsn:4,txn:'T1',type:'COMMIT',detail:'✓ 事务已提交',flushed:true},
+        ],
+        pages: [
+          {id:5, status:'dirty', lsn:2, content:'balance=800', extra:'<br><span style="color:var(--orange);font-size:0.65rem;">异步落盘中...</span>'},
+          {id:8, status:'dirty', lsn:3, content:'status=paid', extra:'<br><span style="color:var(--orange);font-size:0.65rem;">异步落盘中...</span>'},
+          {id:12, status:'normal', lsn:0, content:'data...'},
+        ],
+        diskLogs: [1,2,3,4],
+        diskPages: [],
+        phase: null,
+      }
+    },
+    {
+      desc: "后台检查点(Checkpoint)：定期将脏页写入磁盘，写入 LSN=005 [CHECKPOINT]",
+      highlightLines: [],
+      state: {
+        logs: [
+          {lsn:1,txn:'T1',type:'BEGIN',detail:'',flushed:true},
+          {lsn:2,txn:'T1',type:'UPDATE',detail:'users.balance: 1000→800',flushed:true},
+          {lsn:3,txn:'T1',type:'UPDATE',detail:'orders.status: pending→paid',flushed:true},
+          {lsn:4,txn:'T1',type:'COMMIT',detail:'',flushed:true},
+          {lsn:5,txn:'SYS',type:'CHECKPOINT',detail:'',flushed:true,cls:'active-rec'},
+        ],
+        pages: [
+          {id:5, status:'clean', lsn:2, content:'balance=800'},
+          {id:8, status:'clean', lsn:3, content:'status=paid'},
+          {id:12, status:'normal', lsn:0, content:'data...'},
+        ],
+        diskLogs: [1,2,3,4,5],
+        diskPages: [5,8],
+        phase: null,
+      }
+    },
+    {
+      desc: "WAL的优势：日志是顺序追加写(append-only)，比随机写磁盘快 10-100x",
+      highlightLines: [13,14,15,16,17,18],
+      state: {
+        logs: [
+          {lsn:1,txn:'T1',type:'BEGIN',detail:'',flushed:true},
+          {lsn:2,txn:'T1',type:'UPDATE',detail:'顺序追加写 ↓',flushed:true},
+          {lsn:3,txn:'T1',type:'UPDATE',detail:'顺序追加写 ↓',flushed:true},
+          {lsn:4,txn:'T1',type:'COMMIT',detail:'',flushed:true},
+          {lsn:5,txn:'SYS',type:'CHECKPOINT',detail:'顺序追加写 ↓',flushed:true},
+        ],
+        pages: [
+          {id:5, status:'clean', lsn:2, content:'balance=800'},
+          {id:8, status:'clean', lsn:3, content:'status=paid'},
+          {id:12, status:'normal', lsn:0, content:'data...'},
+        ],
+        diskLogs: [1,2,3,4,5],
+        diskPages: [5,8],
+        phase: null,
+      }
+    },
+    {
+      desc: "WAL已被 PostgreSQL/InnoDB/SQLite 等所有主流数据库采用",
+      highlightLines: [28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],
+      state: {
+        logs: [
+          {lsn:1,txn:'T1',type:'BEGIN',detail:'',flushed:true},
+          {lsn:2,txn:'T1',type:'UPDATE',detail:'users.balance: 1000→800',flushed:true},
+          {lsn:3,txn:'T1',type:'UPDATE',detail:'orders.status: pending→paid',flushed:true},
+          {lsn:4,txn:'T1',type:'COMMIT',detail:'',flushed:true},
+          {lsn:5,txn:'SYS',type:'CHECKPOINT',detail:'',flushed:true},
+        ],
+        pages: [
+          {id:5, status:'clean', lsn:2, content:'balance=800'},
+          {id:8, status:'clean', lsn:3, content:'status=paid'},
+          {id:12, status:'normal', lsn:0, content:'data...'},
+        ],
+        diskLogs: [1,2,3,4,5],
+        diskPages: [5,8],
+        phase: null,
+        tagline: 'PostgreSQL · InnoDB · SQLite · RocksDB · etcd',
+      }
+    },
+  ];
+}
+
+// ===== TAB 1: Crash Recovery =====
+function buildCrashSteps() {
+  steps = [
+    {
+      desc: "系统崩溃场景：T1已提交但Page#5未刷盘；T2未提交，系统在此时崩溃",
+      highlightLines: [28,29,30],
+      state: {
+        logs: [
+          {lsn:1,txn:'T1',type:'BEGIN',detail:'',flushed:true},
+          {lsn:2,txn:'T1',type:'UPDATE',detail:'balance: 1000→800',flushed:true},
+          {lsn:3,txn:'T1',type:'COMMIT',detail:'',flushed:true},
+          {lsn:4,txn:'T2',type:'BEGIN',detail:'',flushed:true},
+          {lsn:5,txn:'T2',type:'UPDATE',detail:'credit: 500→300',flushed:true},
+        ],
+        pages: [
+          {id:5, status:'dirty', lsn:2, content:'balance=800', extra:'<br><span style="color:var(--red);font-size:0.65rem;">未刷盘!</span>'},
+          {id:9, status:'dirty', lsn:5, content:'credit=300', extra:'<br><span style="color:var(--red);font-size:0.65rem;">T2未提交</span>'},
+        ],
+        diskLogs: [1,2,3,4,5],
+        diskPages: [],
+        phase: null,
+        crashBanner: false,
+      }
+    },
+    {
+      desc: "崩溃！数据库重启，开始崩溃恢复三阶段...",
+      highlightLines: [28,29],
+      state: {
+        logs: [
+          {lsn:1,txn:'T1',type:'BEGIN',detail:'',flushed:true},
+          {lsn:2,txn:'T1',type:'UPDATE',detail:'balance: 1000→800',flushed:true},
+          {lsn:3,txn:'T1',type:'COMMIT',detail:'',flushed:true},
+          {lsn:4,txn:'T2',type:'BEGIN',detail:'',flushed:true},
+          {lsn:5,txn:'T2',type:'UPDATE',detail:'credit: 500→300',flushed:true},
+        ],
+        pages: [
+          {id:5, status:'normal', lsn:0, content:'balance=1000', extra:'<br><span style="color:var(--dim);font-size:0.65rem;">重启后磁盘值</span>'},
+          {id:9, status:'normal', lsn:0, content:'credit=500', extra:'<br><span style="color:var(--dim);font-size:0.65rem;">重启后磁盘值</span>'},
+        ],
+        diskLogs: [1,2,3,4,5],
+        diskPages: [],
+        phase: null,
+        crashBanner: true,
+      }
+    },
+    {
+      desc: "阶段1 Analysis：扫描日志，确定崩溃时哪些事务活跃，哪些已提交",
+      highlightLines: [29,30,31],
+      state: {
+        logs: [
+          {lsn:1,txn:'T1',type:'BEGIN',detail:'',flushed:true,cls:'scanning'},
+          {lsn:2,txn:'T1',type:'UPDATE',detail:'balance: 1000→800',flushed:true,cls:'scanning'},
+          {lsn:3,txn:'T1',type:'COMMIT',detail:'',flushed:true,cls:'scanning'},
+          {lsn:4,txn:'T2',type:'BEGIN',detail:'',flushed:true,cls:'scanning'},
+          {lsn:5,txn:'T2',type:'UPDATE',detail:'credit: 500→300',flushed:true,cls:'scanning'},
+        ],
+        pages: [
+          {id:5, status:'normal', lsn:0, content:'balance=1000'},
+          {id:9, status:'normal', lsn:0, content:'credit=500'},
+        ],
+        diskLogs: [1,2,3,4,5],
+        diskPages: [],
+        phase: 'analysis',
+        crashBanner: true,
+      }
+    },
+    {
+      desc: "发现：T1(COMMIT LSN=003) → 需要Redo；T2(无COMMIT) → 需要Undo",
+      highlightLines: [30,31],
+      state: {
+        logs: [
+          {lsn:1,txn:'T1',type:'BEGIN',detail:'',flushed:true},
+          {lsn:2,txn:'T1',type:'UPDATE',detail:'balance: 1000→800',flushed:true,cls:'redo-rec'},
+          {lsn:3,txn:'T1',type:'COMMIT',detail:'→ Redo',flushed:true,cls:'redo-rec'},
+          {lsn:4,txn:'T2',type:'BEGIN',detail:'',flushed:true},
+          {lsn:5,txn:'T2',type:'UPDATE',detail:'credit: 500→300 → Undo',flushed:true,cls:'undo-rec'},
+        ],
+        pages: [
+          {id:5, status:'normal', lsn:0, content:'balance=1000'},
+          {id:9, status:'normal', lsn:0, content:'credit=500'},
+        ],
+        diskLogs: [1,2,3,4,5],
+        diskPages: [],
+        phase: 'analysis',
+        crashBanner: true,
+      }
+    },
+    {
+      desc: "阶段2 Redo（重做）：从最近检查点向前，重新执行T1的所有修改，确保已提交数据不丢失",
+      highlightLines: [32,33,34,35,36,37],
+      state: {
+        logs: [
+          {lsn:1,txn:'T1',type:'BEGIN',detail:'',flushed:true},
+          {lsn:2,txn:'T1',type:'UPDATE',detail:'balance: 1000→800',flushed:true,cls:'active-rec'},
+          {lsn:3,txn:'T1',type:'COMMIT',detail:'',flushed:true},
+          {lsn:4,txn:'T2',type:'BEGIN',detail:'',flushed:true},
+          {lsn:5,txn:'T2',type:'UPDATE',detail:'credit: 500→300',flushed:true},
+        ],
+        pages: [
+          {id:5, status:'affected', lsn:0, content:'balance=800'},
+          {id:9, status:'normal', lsn:0, content:'credit=500'},
+        ],
+        diskLogs: [1,2,3,4,5],
+        diskPages: [],
+        phase: 'redo',
+        crashBanner: true,
+      }
+    },
+    {
+      desc: "Page#5 重新应用 LSN=002 的修改 balance=800，Page#9 无需redo（T2未提交）",
+      highlightLines: [34,35,36],
+      state: {
+        logs: [
+          {lsn:1,txn:'T1',type:'BEGIN',detail:'',flushed:true},
+          {lsn:2,txn:'T1',type:'UPDATE',detail:'balance: 1000→800 ✓',flushed:true,cls:'redo-rec'},
+          {lsn:3,txn:'T1',type:'COMMIT',detail:'',flushed:true},
+          {lsn:4,txn:'T2',type:'BEGIN',detail:'',flushed:true},
+          {lsn:5,txn:'T2',type:'UPDATE',detail:'credit: 500→300',flushed:true},
+        ],
+        pages: [
+          {id:5, status:'clean', lsn:2, content:'balance=800', extra:'<br><span style="color:var(--green);font-size:0.65rem;">✓ Redo完成</span>'},
+          {id:9, status:'normal', lsn:0, content:'credit=500'},
+        ],
+        diskLogs: [1,2,3,4,5],
+        diskPages: [5],
+        phase: 'redo',
+        crashBanner: true,
+      }
+    },
+    {
+      desc: "阶段3 Undo（回滚）：反向扫描日志，撤销T2的所有未提交修改（写CLR补偿日志）",
+      highlightLines: [38,39,40,41],
+      state: {
+        logs: [
+          {lsn:1,txn:'T1',type:'BEGIN',detail:'',flushed:true},
+          {lsn:2,txn:'T1',type:'UPDATE',detail:'balance: 1000→800',flushed:true},
+          {lsn:3,txn:'T1',type:'COMMIT',detail:'',flushed:true},
+          {lsn:4,txn:'T2',type:'BEGIN',detail:'',flushed:true},
+          {lsn:5,txn:'T2',type:'UPDATE',detail:'credit: 500→300',flushed:true,cls:'undo-rec'},
+          {lsn:6,txn:'T2',type:'CLR',detail:'撤销LSN=5: credit→500',flushed:true,cls:'active-rec'},
+          {lsn:7,txn:'T2',type:'ABORT',detail:'',flushed:true},
+        ],
+        pages: [
+          {id:5, status:'clean', lsn:2, content:'balance=800'},
+          {id:9, status:'clean', lsn:6, content:'credit=500', extra:'<br><span style="color:var(--teal);font-size:0.65rem;">↩ Undo完成</span>'},
+        ],
+        diskLogs: [1,2,3,4,5,6,7],
+        diskPages: [5,9],
+        phase: 'undo',
+        crashBanner: false,
+      }
+    },
+    {
+      desc: "恢复完成！数据库回到一致状态。ARIES算法保证了这个过程的正确性",
+      highlightLines: [28,29,30,31,32,33,34,35,36,37,38,39,40,41,42],
+      state: {
+        logs: [
+          {lsn:1,txn:'T1',type:'BEGIN',detail:'',flushed:true},
+          {lsn:2,txn:'T1',type:'UPDATE',detail:'balance: 1000→800',flushed:true},
+          {lsn:3,txn:'T1',type:'COMMIT',detail:'',flushed:true},
+          {lsn:4,txn:'T2',type:'BEGIN',detail:'',flushed:true},
+          {lsn:5,txn:'T2',type:'UPDATE',detail:'credit: 500→300',flushed:true},
+          {lsn:6,txn:'T2',type:'CLR',detail:'补偿日志',flushed:true},
+          {lsn:7,txn:'T2',type:'ABORT',detail:'',flushed:true},
+        ],
+        pages: [
+          {id:5, status:'clean', lsn:2, content:'balance=800'},
+          {id:9, status:'clean', lsn:6, content:'credit=500'},
+        ],
+        diskLogs: [1,2,3,4,5,6,7],
+        diskPages: [5,9],
+        phase: null,
+        crashBanner: false,
+        tagline: 'ARIES: Analysis → Redo → Undo',
+      }
+    },
+  ];
+}
+
+function renderWAL(state) {
+  const {logs, pages, diskLogs, diskPages, phase, crashBanner, tagline} = state;
+
+  let phaseHtml = '';
+  if (phase === 'analysis') phaseHtml = '<span class="phase-badge phase-analysis">Phase 1: Analysis</span>';
+  else if (phase === 'redo') phaseHtml = '<span class="phase-badge phase-redo">Phase 2: Redo</span>';
+  else if (phase === 'undo') phaseHtml = '<span class="phase-badge phase-undo">Phase 3: Undo</span>';
+
+  const logsHtml = logs.map(r => makeLogRecord(r.lsn, r.txn, r.type, r.detail, r.flushed, r.cls)).join('');
+
+  const pagesHtml = pages.map(p => makePage(p.id, p.status, p.lsn, p.content, p.extra)).join('');
+
+  const diskLogsHtml = diskLogs.length > 0
+    ? diskLogs.map(lsn => `<span style="padding:2px 6px;background:rgba(74,222,128,0.12);border-radius:3px;font-size:0.68rem;color:var(--green);">LSN ${String(lsn).padStart(3,'0')}</span>`).join(' ')
+    : '<span style="color:var(--dim);font-size:0.7rem;">(空)</span>';
+
+  const diskPagesHtml = diskPages.length > 0
+    ? diskPages.map(id => `<span style="padding:2px 6px;background:rgba(74,222,128,0.12);border-radius:3px;font-size:0.68rem;color:var(--green);">Page#${id}</span>`).join(' ')
+    : '<span style="color:var(--dim);font-size:0.7rem;">(待写入)</span>';
+
+  return `
+  ${crashBanner ? '<div class="crash-banner" style="margin-bottom:12px;">💥 系统崩溃！正在恢复...</div>' : ''}
+  ${phaseHtml ? `<div style="margin-bottom:10px;">${phaseHtml}</div>` : ''}
+  <div class="wal-columns">
+    <div class="wal-log-col">
+      <div class="col-title">WAL Log (内存+磁盘)</div>
+      ${logsHtml || '<div style="color:var(--dim);font-size:0.75rem;padding:8px;">等待事务...</div>'}
+    </div>
+    <div class="wal-right-col">
+      <div class="bp-section">
+        <div class="col-title">Buffer Pool (内存)</div>
+        <div class="bp-pages">${pagesHtml}</div>
+      </div>
+      <div class="disk-section">
+        <div class="col-title">磁盘</div>
+        <div class="disk-box">
+          <div class="disk-item"><span class="disk-icon">📋</span><span style="color:var(--dim);font-size:0.7rem;">已落盘日志：</span></div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;padding:2px 0 6px 20px;">${diskLogsHtml}</div>
+          <div class="disk-item"><span class="disk-icon">💾</span><span style="color:var(--dim);font-size:0.7rem;">已落盘页面：</span></div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;padding:2px 0 0 20px;">${diskPagesHtml}</div>
+        </div>
+      </div>
+      ${tagline ? `<div style="font-size:0.75rem;color:var(--teal);font-family:monospace;padding:6px 10px;background:rgba(45,212,191,0.07);border-radius:6px;border:1px solid rgba(45,212,191,0.15);">${tagline}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+function buildSteps() {
+  if (curTab === 0) buildNormalSteps();
+  else buildCrashSteps();
+}
+
+function render(idx) {
+  const s = steps[idx];
+  if (!s) return;
+  document.getElementById('vizArea').innerHTML = renderWAL(s.state);
+  document.getElementById('descText').textContent = s.desc;
+  document.getElementById('stepCounter').textContent = `${idx+1} / ${steps.length}`;
+  document.querySelectorAll('.code-line').forEach(el => {
+    const ln = parseInt(el.dataset.line);
+    el.classList.toggle('active', s.highlightLines.includes(ln));
+  });
+  if (s.highlightLines.length > 0) {
+    const first = document.querySelector(`.code-line[data-line="${s.highlightLines[0]}"]`);
+    if (first) first.scrollIntoView({block:'nearest', behavior:'smooth'});
+  }
+  document.getElementById('prevBtn').disabled = idx === 0;
+  document.getElementById('nextBtn').disabled = idx === steps.length - 1;
+}
+
+function next() { if (cur < steps.length-1) { cur++; render(cur); } }
+function prev() { if (cur > 0) { cur--; render(cur); } }
+function reset() { clearInterval(timer); timer = null; cur = 0; render(0); updatePlayBtn(); }
+function updatePlayBtn() {
+  document.getElementById('playBtn').textContent = timer ? '⏸ 暂停' : '▶ 播放';
+  document.getElementById('playBtn').classList.toggle('primary', !timer);
+}
+function togglePlay() {
+  if (timer) { clearInterval(timer); timer = null; }
+  else {
+    timer = setInterval(() => {
+      if (cur >= steps.length-1) { clearInterval(timer); timer = null; updatePlayBtn(); return; }
+      cur++; render(cur); updatePlayBtn();
+    }, SPEEDS[speedIdx]);
+  }
+  updatePlayBtn();
+}
+
+function jumpToLine(ln) {
+  let best = -1, bestDist = Infinity;
+  steps.forEach((s,i) => {
+    if (s.highlightLines.includes(ln)) {
+      const dist = Math.abs(i - cur);
+      if (dist < bestDist) { bestDist = dist; best = i; }
+    }
+  });
+  if (best >= 0) { cur = best; render(cur); }
+}
+
+buildSteps();
+reset();
+</script>
+</body>
+</html>
