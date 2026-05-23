@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Skip List 跳表可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Fira Code','Consolas',monospace;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{background:var(--panel);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:16px;flex-shrink:0;}
+nav h1{font-size:16px;font-weight:700;color:var(--blue);}
+.badge{background:#1e3a4a;border:1px solid var(--blue);color:var(--blue);font-size:11px;padding:2px 8px;border-radius:12px;}
+.badge-green{background:#14291f;border-color:var(--green);color:var(--green);}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:16px;}
+.code-panel{width:45%;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:12px 16px;border-bottom:1px solid var(--border);font-size:12px;color:var(--dim);display:flex;align-items:center;gap:8px;}
+.code-panel-header .dot{color:var(--green);}
+.code-content{flex:1;overflow-y:auto;padding:16px;}
+.code-content pre{font-size:12px;line-height:1.75;color:#94a3b8;white-space:pre;}
+.kw{color:#c084fc;}
+.fn{color:#38bdf8;}
+.cm{color:#475569;font-style:italic;}
+.st{color:#4ade80;}
+.nm{color:#fb923c;}
+.hl-line{background:#1e3a2a;display:block;margin:0 -16px;padding:0 16px;border-left:2px solid var(--green);}
+.controls{background:var(--panel);border-top:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;flex-shrink:0;}
+.ctrl-group{display:flex;align-items:center;gap:8px;}
+.ctrl-group label{font-size:12px;color:var(--dim);}
+.sep{width:1px;height:28px;background:var(--border);}
+input[type=number]{background:#0f172a;border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;width:70px;font-family:inherit;font-size:13px;}
+input[type=number]:focus{outline:none;border-color:var(--blue);}
+button{padding:6px 16px;border-radius:6px;border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;transition:all .15s;}
+.btn-blue{background:#0ea5e9;color:#0f172a;}
+.btn-blue:hover{background:#38bdf8;}
+.btn-yellow{background:#d97706;color:#0f172a;}
+.btn-yellow:hover{background:#fbbf24;}
+.btn-red{background:#dc2626;color:#fff;}
+.btn-red:hover{background:#ef4444;}
+.btn-nav{background:var(--border);color:var(--text);}
+.btn-nav:hover{background:#475569;}
+.btn-nav:disabled{opacity:.3;cursor:default;}
+.step-info{flex:1;font-size:12px;color:var(--dim);min-width:160px;}
+.step-desc{color:var(--text);margin-top:2px;font-size:13px;}
+.step-counter{font-size:11px;color:var(--dim);}
+.viz-canvas-wrap{flex:1;overflow:auto;position:relative;border:1px solid var(--border);border-radius:8px;background:#0a1120;}
+canvas{display:block;}
+.viz-title{font-size:12px;color:var(--dim);margin-bottom:8px;}
+</style>
+</head>
+<body>
+
+<nav>
+  <h1>Skip List 跳表</h1>
+  <span class="badge">Search / Insert / Delete 均摊 O(log n)</span>
+  <span class="badge badge-green">空间 O(n log n)</span>
+  <span style="margin-left:auto;font-size:12px;color:var(--dim);">多层有序链表 · 概率平衡</span>
+</nav>
+
+<div class="main">
+  <div class="viz-panel">
+    <div class="viz-title">跳表结构可视化 · 横向布局，行=层级，列=节点值 · 黄色=向右移动 橙色=向下转层 绿色=找到目标</div>
+    <div class="viz-canvas-wrap" id="canvasWrap">
+      <canvas id="canvas"></canvas>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <span class="dot">●</span> skip_list.go
+    </div>
+    <div class="code-content" id="codeContent">
+      <pre id="codeBlock"></pre>
+    </div>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="ctrl-group">
+    <label>插入</label>
+    <input type="number" id="insertVal" value="15" min="1" max="99">
+    <button class="btn-blue" onclick="doInsert()">Insert</button>
+  </div>
+  <div class="ctrl-group">
+    <label>查找</label>
+    <input type="number" id="searchVal" value="9" min="1" max="99">
+    <button class="btn-yellow" onclick="doSearch()">Search</button>
+  </div>
+  <div class="ctrl-group">
+    <label>删除</label>
+    <input type="number" id="deleteVal" value="7" min="1" max="99">
+    <button class="btn-red" onclick="doDelete()">Delete</button>
+  </div>
+  <div class="sep"></div>
+  <button class="btn-nav" id="btnPrev" onclick="prevStep()" disabled>&#9664; 上一步</button>
+  <button class="btn-nav" id="btnNext" onclick="nextStep()" disabled>下一步 &#9654;</button>
+  <button class="btn-nav" onclick="autoPlay()" id="btnAuto">&#9654; 自动播放</button>
+  <div class="step-info">
+    <div class="step-counter" id="stepCounter">步骤 1 / 1</div>
+    <div class="step-desc" id="stepDesc">初始状态：8个元素，4层结构</div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// 数据结构
+// ═══════════════════════════════════════════════════════════════
+
+const MAX_LEVEL = 3; // 层级 0~3，共 4 层
+
+class SkipNode {
+  constructor(val, level) {
+    this.val = val;
+    this.level = level; // 该节点存在的最高层（0-indexed）
+    this.forward = new Array(MAX_LEVEL + 1).fill(null);
+  }
+}
+
+class SkipList {
+  constructor() {
+    this.header = new SkipNode(-Infinity, MAX_LEVEL);
+    this.tail   = new SkipNode(+Infinity, MAX_LEVEL);
+    for (let i = 0; i <= MAX_LEVEL; i++) this.header.forward[i] = this.tail;
+    this.level = 0; // 当前有效最高层
+  }
+
+  // 确定性伪随机层高（同一值每次得到相同层高，演示一致）
+  randomLevel(seed) {
+    let lv = 0;
+    let s = (seed * 2654435761) >>> 0;
+    while (lv < MAX_LEVEL) {
+      s = ((s * 1664525) + 1013904223) >>> 0;
+      if ((s & 1) === 0) lv++;
+      else break;
+    }
+    return lv;
+  }
+
+  // 生成快照（序列化整个跳表，节点用数组下标互相引用）
+  snapshot() {
+    const nodes = [];
+    const nodeToIdx = new Map();
+    // 沿第0层收集所有节点（含 header 和 tail）
+    let cur = this.header;
+    while (cur !== null) {
+      nodeToIdx.set(cur, nodes.length);
+      nodes.push({
+        val: cur.val,
+        level: cur.level,
+        forward: new Array(MAX_LEVEL + 1).fill(null)
+      });
+      cur = cur.forward[0];
+    }
+    // 填充 forward（使用节点索引）
+    cur = this.header;
+    let ni = 0;
+    while (cur !== null) {
+      for (let i = 0; i <= MAX_LEVEL; i++) {
+        const fwd = cur.forward[i];
+        nodes[ni].forward[i] = fwd !== null ? (nodeToIdx.get(fwd) ?? null) : null;
+      }
+      cur = cur.forward[0];
+      ni++;
+    }
+    return { nodes, level: this.level };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 跳表全局实例 + 步骤列表
+// ═══════════════════════════════════════════════════════════════
+
+let sl = new SkipList();
+let steps = []; // { snap, hl:{nodeIdx:{color,ring}}, desc, codeLines }
+let stepIdx = 0;
+let autoTimer = null;
+let autoPlaying = false;
+
+function addStep(snapRef, hl, desc, codeLines) {
+  steps.push({
+    snap: JSON.parse(JSON.stringify(snapRef)),
+    hl: Object.assign({}, hl),
+    desc,
+    codeLines: codeLines || []
+  });
+}
+
+// 根据快照节点数组建立 val→idx 映射
+function buildNM(snap) {
+  const m = new Map();
+  snap.nodes.forEach((n, i) => m.set(n.val, i));
+  return m;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 初始化：手动设置层高保证演示美观
+// ═══════════════════════════════════════════════════════════════
+
+function initSkipList() {
+  sl = new SkipList();
+  steps = [];
+  autoPlaying = false;
+  document.getElementById('btnAuto').textContent = '▶ 自动播放';
+
+  // val→层高（0-indexed）：保证结构与说明文档一致
+  //  L3:  -∞ ─────────────────────────────────── 21 ──── +∞
+  //  L2:  -∞ ── 6 ───────────────────── 19 ──── 21 ──── +∞
+  //  L1:  -∞ ── 6 ── 9 ────── 12 ───── 19 ──── 21 ──── +∞
+  //  L0:  -∞ ─ 3 ─ 6 ─ 7 ─ 9 ─ 12 ─ 19 ─ 21 ─ 25 ─── +∞
+  const initData = [
+    {v:3,  lv:0},
+    {v:6,  lv:2},
+    {v:7,  lv:0},
+    {v:9,  lv:1},
+    {v:12, lv:1},
+    {v:19, lv:2},
+    {v:21, lv:3},
+    {v:25, lv:0},
+  ];
+
+  for (const {v, lv} of initData) {
+    insertFixed(v, lv);
+  }
+
+  const snap = sl.snapshot();
+  addStep(snap, {}, '初始状态：[3, 6, 7, 9, 12, 19, 21, 25]，4 层跳表结构', []);
+  stepIdx = 0;
+  renderStep(0);
+  updateNav();
+}
+
+// 按照指定层高插入节点
+function insertFixed(val, fixedLevel) {
+  const update = new Array(MAX_LEVEL + 1).fill(null);
+  let cur = sl.header;
+  for (let i = sl.level; i >= 0; i--) {
+    while (cur.forward[i] !== sl.tail && cur.forward[i].val < val) {
+      cur = cur.forward[i];
+    }
+    update[i] = cur;
+  }
+  const level = fixedLevel;
+  if (level > sl.level) {
+    for (let i = sl.level + 1; i <= level; i++) update[i] = sl.header;
+    sl.level = level;
+  }
+  const node = new SkipNode(val, level);
+  for (let i = 0; i <= level; i++) {
+    node.forward[i] = update[i].forward[i];
+    update[i].forward[i] = node;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 操作：Search
+// ═══════════════════════════════════════════════════════════════
+
+function doSearch() {
+  const val = parseInt(document.getElementById('searchVal').value);
+  if (isNaN(val)) return;
+  stopAuto();
+  steps = [];
+
+  const snap = sl.snapshot();
+  const nm = buildNM(snap);
+  const hl = {};
+
+  addStep(snap, {}, `开始查找 ${val}：从最高层 L${sl.level} 的 header(-∞) 出发`, [15, 16, 17]);
+
+  hl[0] = {color:'#38bdf8', ring:true};
+  addStep(snap, hl, `高亮当前节点 header(-∞)，从 L${sl.level} 开始向右扫描`, [17, 18]);
+
+  let cur = sl.header;
+  let found = false;
+
+  for (let lv = sl.level; lv >= 0; lv--) {
+    // 向右：只要下一节点 < val 就右移
+    while (cur.forward[lv] !== sl.tail && cur.forward[lv].val < val) {
+      cur = cur.forward[lv];
+      const ci = nm.get(cur.val);
+      if (ci !== undefined) hl[ci] = {color:'#fbbf24', ring:true};
+      addStep(snap, {...hl}, `L${lv}：向右走到 ${cur.val} < ${val}，继续右移`, [19, 20, 21]);
+    }
+    // 检查下一节点是否 == val
+    if (cur.forward[lv] !== sl.tail && cur.forward[lv].val === val) {
+      const ni2 = nm.get(cur.forward[lv].val);
+      if (ni2 !== undefined) hl[ni2] = {color:'#4ade80', ring:true};
+      addStep(snap, {...hl}, `L${lv}：下一节点正好是 ${val}，查找成功！`, [19, 21, 22]);
+      found = true;
+      break;
+    }
+    // 向下
+    if (lv > 0) {
+      const ci = nm.get(cur.val);
+      if (ci !== undefined) hl[ci] = {color:'#fb923c', ring:false};
+      addStep(snap, {...hl}, `L${lv}：下一节点 > ${val} 或末尾，向下转至 L${lv-1}`, [22, 23]);
+    }
+  }
+
+  if (!found) {
+    // 在 L0 再确认一次
+    if (cur.forward[0] !== sl.tail && cur.forward[0].val === val) {
+      const ni2 = nm.get(val);
+      if (ni2 !== undefined) hl[ni2] = {color:'#4ade80', ring:true};
+      addStep(snap, {...hl}, `L0：找到 ${val}，查找成功！`, [25, 26]);
+    } else {
+      addStep(snap, {...hl}, `L0：${val} 不在跳表中，查找失败`, [25, 26]);
+    }
+  }
+
+  stepIdx = 0;
+  renderStep(0);
+  updateNav();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 操作：Insert
+// ═══════════════════════════════════════════════════════════════
+
+function doInsert() {
+  const val = parseInt(document.getElementById('insertVal').value);
+  if (isNaN(val)) return;
+  stopAuto();
+  steps = [];
+
+  const snap0 = sl.snapshot();
+  const nm0 = buildNM(snap0);
+  const hl = {};
+
+  addStep(snap0, {}, `开始插入 ${val}：先查找各层插入前驱 update[]`, [29, 30, 31]);
+
+  hl[0] = {color:'#38bdf8', ring:true};
+  addStep(snap0, {...hl}, `从 L${sl.level} 的 header 出发，向右扫描记录前驱`, [31, 32]);
+
+  const update = new Array(MAX_LEVEL + 1).fill(null);
+  let cur = sl.header;
+
+  for (let lv = sl.level; lv >= 0; lv--) {
+    while (cur.forward[lv] !== sl.tail && cur.forward[lv].val < val) {
+      cur = cur.forward[lv];
+      const ci = nm0.get(cur.val);
+      if (ci !== undefined) hl[ci] = {color:'#fbbf24', ring:false};
+      addStep(snap0, {...hl}, `L${lv}：向右走到 ${cur.val} < ${val}`, [33, 34, 35, 36]);
+    }
+    update[lv] = cur;
+    const ci = nm0.get(cur.val);
+    if (ci !== undefined) hl[ci] = {color:'#fb923c', ring:false};
+    const updateLabel = cur.val === -Infinity ? '-∞' : cur.val;
+    if (lv > 0) {
+      addStep(snap0, {...hl}, `记录 update[${lv}] = ${updateLabel}，向下转至 L${lv-1}`, [37, 38, 39]);
+    } else {
+      addStep(snap0, {...hl}, `记录 update[0] = ${updateLabel}，前驱收集完成`, [37, 38, 39]);
+    }
+  }
+
+  addStep(snap0, {...hl}, `所有前驱 update[] 记录完毕，准备随机确定新节点层高`, [40]);
+
+  const newLevel = sl.randomLevel(val);
+  addStep(snap0, {...hl}, `随机层高 = ${newLevel}（节点在 L0~L${newLevel} 共 ${newLevel+1} 层存在）`, [40, 41, 42]);
+
+  // 实际插入到跳表
+  if (newLevel > sl.level) {
+    for (let i = sl.level + 1; i <= newLevel; i++) update[i] = sl.header;
+    sl.level = newLevel;
+  }
+  const newNode = new SkipNode(val, newLevel);
+  for (let i = 0; i <= newLevel; i++) {
+    newNode.forward[i] = update[i].forward[i];
+    update[i].forward[i] = newNode;
+  }
+
+  const snap1 = sl.snapshot();
+  const nm1 = buildNM(snap1);
+  const newIdx = nm1.get(val);
+
+  // 逐层展示插入
+  const nh = {};
+  for (let lv = 0; lv <= newLevel; lv++) {
+    nh[newIdx] = {color:'#fb923c', ring:true};
+    const prevLabel = update[lv].val === -Infinity ? '-∞' : update[lv].val;
+    addStep(snap1, {...nh}, `L${lv}：新节点 ${val} 插入到 ${prevLabel} 之后（修改指针）`, [47, 48, 49, 50]);
+  }
+  addStep(snap1, {[newIdx]:{color:'#4ade80', ring:true}}, `插入完成！${val} 已插入，层高 ${newLevel}（L0~L${newLevel}）`, [51, 52]);
+
+  stepIdx = 0;
+  renderStep(0);
+  updateNav();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 操作：Delete
+// ═══════════════════════════════════════════════════════════════
+
+function doDelete() {
+  const val = parseInt(document.getElementById('deleteVal').value);
+  if (isNaN(val)) return;
+  stopAuto();
+  steps = [];
+
+  const snap0 = sl.snapshot();
+  const nm0 = buildNM(snap0);
+  const hl = {};
+
+  addStep(snap0, {}, `开始删除 ${val}：先查找各层前驱 update[]`, [54, 55, 56]);
+
+  hl[0] = {color:'#38bdf8', ring:true};
+  addStep(snap0, {...hl}, `从 L${sl.level} 的 header 出发`, [56, 57]);
+
+  const update = new Array(MAX_LEVEL + 1).fill(null);
+  let cur = sl.header;
+
+  for (let lv = sl.level; lv >= 0; lv--) {
+    while (cur.forward[lv] !== sl.tail && cur.forward[lv].val < val) {
+      cur = cur.forward[lv];
+      const ci = nm0.get(cur.val);
+      if (ci !== undefined) hl[ci] = {color:'#fbbf24', ring:false};
+      addStep(snap0, {...hl}, `L${lv}：向右走到 ${cur.val}`, [58, 59, 60, 61]);
+    }
+    update[lv] = cur;
+    const ci = nm0.get(cur.val);
+    if (ci !== undefined) hl[ci] = {color:'#fb923c', ring:false};
+    if (lv > 0) {
+      addStep(snap0, {...hl}, `记录 update[${lv}]，向下转至 L${lv-1}`, [62, 63]);
+    }
+  }
+
+  // 检查目标节点是否存在
+  const target = cur.forward[0];
+  if (target === sl.tail || target.val !== val) {
+    addStep(snap0, {...hl}, `L0 的下一节点不是 ${val}，元素不存在，删除失败`, [65, 66, 67]);
+    stepIdx = 0; renderStep(0); updateNav();
+    return;
+  }
+
+  const targetIdx = nm0.get(val);
+  if (targetIdx !== undefined) hl[targetIdx] = {color:'#ef4444', ring:true};
+  addStep(snap0, {...hl}, `找到目标节点 ${val}（红色），准备逐层断开指针`, [65, 68, 69]);
+
+  // 实际删除
+  for (let i = 0; i <= sl.level; i++) {
+    if (update[i].forward[i] !== target) break;
+    update[i].forward[i] = target.forward[i];
+  }
+  while (sl.level > 0 && sl.header.forward[sl.level] === sl.tail) sl.level--;
+
+  const snap1 = sl.snapshot();
+  addStep(snap1, {}, `删除完成！${val} 已从跳表中移除，指针重新连接`, [69, 70, 71, 72]);
+
+  stepIdx = 0;
+  renderStep(0);
+  updateNav();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 渲染
+// ═══════════════════════════════════════════════════════════════
+
+const NODE_W   = 44;
+const NODE_H   = 30;
+const GAP_X    = 26;
+const LEVEL_H  = 60;
+const PAD_X    = 50;
+const PAD_Y    = 20;
+
+function renderStep(idx) {
+  if (!steps.length) return;
+  const step = steps[idx];
+  drawSkipList(step.snap, step.hl);
+  document.getElementById('stepDesc').textContent = step.desc;
+  document.getElementById('stepCounter').textContent = `步骤 ${idx + 1} / ${steps.length}`;
+  highlightCode(step.codeLines);
+}
+
+function drawSkipList(snap, hl) {
+  const canvas = document.getElementById('canvas');
+  const wrap   = document.getElementById('canvasWrap');
+  const { nodes } = snap;
+  const n = nodes.length;
+
+  const canvasW = Math.max(PAD_X * 2 + n * (NODE_W + GAP_X) - GAP_X + 20, wrap.clientWidth - 2);
+  const canvasH = PAD_Y * 2 + (MAX_LEVEL + 1) * LEVEL_H;
+
+  canvas.width  = canvasW;
+  canvas.height = canvasH;
+
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvasW, canvasH);
+
+  // x 坐标（每列一个节点）
+  const xPos = nodes.map((_, i) => PAD_X + i * (NODE_W + GAP_X));
+  // y 坐标（从上到下：高层在上）
+  const yTop = (lv) => PAD_Y + (MAX_LEVEL - lv) * LEVEL_H;
+  const yMid = (lv) => yTop(lv) + NODE_H / 2;
+
+  // ── 层级标签
+  ctx.font = '11px Fira Code, monospace';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  for (let lv = 0; lv <= MAX_LEVEL; lv++) {
+    ctx.fillStyle = '#475569';
+    ctx.fillText(`L${lv}`, PAD_X - 8, yMid(lv));
+  }
+
+  // ── 水平箭头（逐层遍历 forward）
+  for (let lv = 0; lv <= MAX_LEVEL; lv++) {
+    const y = yMid(lv);
+    for (let ni = 0; ni < n; ni++) {
+      const fwdIdx = nodes[ni].forward[lv];
+      if (fwdIdx === null || fwdIdx === undefined) continue;
+      const x1 = xPos[ni] + NODE_W;
+      const x2 = xPos[fwdIdx];
+      if (x2 <= x1) continue;
+
+      ctx.beginPath();
+      ctx.strokeStyle = '#2d4a6a';
+      ctx.lineWidth = 1.5;
+      ctx.moveTo(x1 + 2, y);
+      ctx.lineTo(x2 - 7, y);
+      ctx.stroke();
+      // 箭头头
+      ctx.beginPath();
+      ctx.fillStyle = '#2d4a6a';
+      ctx.moveTo(x2 - 7, y - 4);
+      ctx.lineTo(x2 - 1, y);
+      ctx.lineTo(x2 - 7, y + 4);
+      ctx.fill();
+    }
+  }
+
+  // ── 竖虚线连接同一节点的多层
+  for (let ni = 0; ni < n; ni++) {
+    const nd = nodes[ni];
+    if (nd.level <= 0) continue;
+    const x = xPos[ni] + NODE_W / 2;
+    ctx.beginPath();
+    ctx.setLineDash([3, 4]);
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1;
+    ctx.moveTo(x, yTop(0) + NODE_H);
+    ctx.lineTo(x, yTop(nd.level));
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // ── 节点方块
+  for (let ni = 0; ni < n; ni++) {
+    const nd  = nodes[ni];
+    const hli = hl[ni];
+
+    for (let lv = 0; lv <= nd.level; lv++) {
+      const x = xPos[ni];
+      const y = yTop(lv);
+
+      let fillC   = '#1a2840';
+      let strokeC = '#2d4a6a';
+      let textC   = '#64748b';
+
+      if (hli) {
+        fillC   = hli.color + '28';
+        strokeC = hli.color;
+        textC   = hli.color;
+      }
+
+      // 方块
+      roundRect(ctx, x, y, NODE_W, NODE_H, 5, fillC, strokeC, hli ? 2 : 1);
+
+      // 外圈 ring
+      if (hli && hli.ring) {
+        roundRectStroke(ctx, x - 3, y - 3, NODE_W + 6, NODE_H + 6, 8, hli.color + '55', 2);
+      }
+
+      // 文字
+      ctx.font = 'bold 12px Fira Code, monospace';
+      ctx.fillStyle = textC;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      let label;
+      if (nd.val === -Infinity)  label = '-∞';
+      else if (nd.val === Infinity) label = '+∞';
+      else label = String(nd.val);
+      ctx.fillText(label, x + NODE_W / 2, y + NODE_H / 2);
+    }
+  }
+}
+
+function roundRect(ctx, x, y, w, h, r, fill, stroke, sw) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = sw;
+  ctx.stroke();
+}
+
+function roundRectStroke(ctx, x, y, w, h, r, stroke, sw) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = sw;
+  ctx.stroke();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 步骤导航
+// ═══════════════════════════════════════════════════════════════
+
+function prevStep() {
+  if (stepIdx > 0) { stepIdx--; renderStep(stepIdx); updateNav(); }
+}
+
+function nextStep() {
+  if (stepIdx < steps.length - 1) { stepIdx++; renderStep(stepIdx); updateNav(); }
+}
+
+function updateNav() {
+  document.getElementById('btnPrev').disabled = stepIdx <= 0;
+  document.getElementById('btnNext').disabled = stepIdx >= steps.length - 1;
+}
+
+function stopAuto() {
+  if (autoPlaying) {
+    clearInterval(autoTimer);
+    autoPlaying = false;
+    document.getElementById('btnAuto').textContent = '▶ 自动播放';
+  }
+}
+
+function autoPlay() {
+  if (autoPlaying) {
+    stopAuto();
+    return;
+  }
+  autoPlaying = true;
+  document.getElementById('btnAuto').textContent = '⏸ 暂停';
+  autoTimer = setInterval(() => {
+    if (stepIdx >= steps.length - 1) {
+      stopAuto();
+      return;
+    }
+    nextStep();
+  }, 850);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Go 代码 + 代码高亮
+// ═══════════════════════════════════════════════════════════════
+
+const CODE_LINES = [
+/* 0*/ 'package main',
+/* 1*/ 'import ("fmt"; "math/rand")',
+/* 2*/ '',
+/* 3*/ 'const MaxLevel = 4',
+/* 4*/ '',
+/* 5*/ 'type Node struct {',
+/* 6*/ '    val     int',
+/* 7*/ '    forward [MaxLevel+1]*Node',
+/* 8*/ '}',
+/* 9*/ '',
+/*10*/ 'type SkipList struct {',
+/*11*/ '    header *Node',
+/*12*/ '    level  int',
+/*13*/ '}',
+/*14*/ '',
+/*15*/ '// ── Search ────────────────────────────────',
+/*16*/ 'func (sl *SkipList) Search(val int) bool {',
+/*17*/ '    cur := sl.header',
+/*18*/ '    for i := sl.level; i >= 0; i-- {',
+/*19*/ '        for cur.forward[i] != nil &&',
+/*20*/ '            cur.forward[i].val < val {',
+/*21*/ '            cur = cur.forward[i]  // 向右',
+/*22*/ '        }',
+/*23*/ '        // 向下（i-- 自动完成）',
+/*24*/ '    }',
+/*25*/ '    cur = cur.forward[0]',
+/*26*/ '    return cur != nil && cur.val == val',
+/*27*/ '}',
+/*28*/ '',
+/*29*/ '// ── Insert ────────────────────────────────',
+/*30*/ 'func (sl *SkipList) Insert(val int) {',
+/*31*/ '    update := make([]*Node, MaxLevel+1)',
+/*32*/ '    cur := sl.header',
+/*33*/ '    for i := sl.level; i >= 0; i-- {',
+/*34*/ '        for cur.forward[i] != nil &&',
+/*35*/ '            cur.forward[i].val < val {',
+/*36*/ '            cur = cur.forward[i]',
+/*37*/ '        }',
+/*38*/ '        update[i] = cur',
+/*39*/ '    }',
+/*40*/ '    level := randomLevel()',
+/*41*/ '    if level > sl.level {',
+/*42*/ '        for i := sl.level+1; i <= level; i++ {',
+/*43*/ '            update[i] = sl.header',
+/*44*/ '        }',
+/*45*/ '        sl.level = level',
+/*46*/ '    }',
+/*47*/ '    newNode := &Node{val: val}',
+/*48*/ '    for i := 0; i <= level; i++ {',
+/*49*/ '        newNode.forward[i] = update[i].forward[i]',
+/*50*/ '        update[i].forward[i] = newNode',
+/*51*/ '    }',
+/*52*/ '}',
+/*53*/ '',
+/*54*/ '// ── Delete ────────────────────────────────',
+/*55*/ 'func (sl *SkipList) Delete(val int) {',
+/*56*/ '    update := make([]*Node, MaxLevel+1)',
+/*57*/ '    cur := sl.header',
+/*58*/ '    for i := sl.level; i >= 0; i-- {',
+/*59*/ '        for cur.forward[i] != nil &&',
+/*60*/ '            cur.forward[i].val < val {',
+/*61*/ '            cur = cur.forward[i]',
+/*62*/ '        }',
+/*63*/ '        update[i] = cur',
+/*64*/ '    }',
+/*65*/ '    target := cur.forward[0]',
+/*66*/ '    if target == nil || target.val != val {',
+/*67*/ '        return  // 未找到',
+/*68*/ '    }',
+/*69*/ '    for i := 0; i <= sl.level; i++ {',
+/*70*/ '        if update[i].forward[i] != target { break }',
+/*71*/ '        update[i].forward[i] = target.forward[i]',
+/*72*/ '    }',
+/*73*/ '}',
+/*74*/ '',
+/*75*/ '// ── randomLevel ───────────────────────────',
+/*76*/ 'func randomLevel() int {',
+/*77*/ '    level := 0',
+/*78*/ '    for rand.Float32() < 0.5 &&',
+/*79*/ '        level < MaxLevel {',
+/*80*/ '        level++',
+/*81*/ '    }',
+/*82*/ '    return level',
+/*83*/ '}',
+/*84*/ '',
+/*85*/ 'func main() {',
+/*86*/ '    sl := &SkipList{header: &Node{}}',
+/*87*/ '    for _, v := range []int{3,6,7,9,12,19,21,25} {',
+/*88*/ '        sl.Insert(v)',
+/*89*/ '    }',
+/*90*/ '    fmt.Println(sl.Search(9))   // true',
+/*91*/ '    fmt.Println(sl.Search(15))  // false',
+/*92*/ '}',
+];
+
+// 操作与 CODE_LINES 行号的映射
+// Search: 16~27, Insert: 30~52, Delete: 55~73
+
+function highlightCode(activeLines) {
+  const pre = document.getElementById('codeBlock');
+
+  const KW  = /\b(package|import|func|for|if|return|const|type|var|nil|true|false|break|struct|int|bool)\b/g;
+  const FN  = /\b(Search|Insert|Delete|randomLevel|make|fmt|rand|Println|Float32)\b/g;
+  const CM  = /\/\/.*/g;
+  const STR = /"[^"]*"/g;
+  const NUM = /\b(\d+)\b/g;
+
+  pre.innerHTML = CODE_LINES.map((line, i) => {
+    const isActive = activeLines.includes(i);
+    const safe = line
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    let colored = safe
+      .replace(CM,  m => `<span class="cm">${m}</span>`)
+      .replace(STR, m => `<span class="st">${m}</span>`)
+      .replace(KW,  m => `<span class="kw">${m}</span>`)
+      .replace(FN,  m => `<span class="fn">${m}</span>`)
+      .replace(NUM, m => `<span class="nm">${m}</span>`);
+    if (isActive) return `<span class="hl-line">${colored || ' '}</span>`;
+    return colored || ' ';
+  }).join('\n');
+
+  if (activeLines.length > 0) {
+    const first = Math.min(...activeLines);
+    const container = document.getElementById('codeContent');
+    const lineH = 21;
+    container.scrollTop = Math.max(0, first * lineH - container.clientHeight / 2);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 启动
+// ═══════════════════════════════════════════════════════════════
+
+window.addEventListener('resize', () => {
+  if (steps.length > 0) renderStep(stepIdx);
+});
+
+initSkipList();
+</script>
+</body>
+</html>

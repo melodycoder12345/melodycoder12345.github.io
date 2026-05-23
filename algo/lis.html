@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LIS 最长递增子序列可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;}
+
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;}
+
+/* NAV */
+nav{background:var(--panel);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:16px;flex-shrink:0;}
+nav h1{font-size:1.1rem;font-weight:700;color:var(--blue);}
+.badge{padding:3px 8px;border-radius:4px;font-size:0.72rem;font-weight:700;font-family:monospace;}
+.badge-blue{background:rgba(56,189,248,.15);color:var(--blue);border:1px solid rgba(56,189,248,.3);}
+.badge-purple{background:rgba(192,132,252,.15);color:var(--purple);border:1px solid rgba(192,132,252,.3);}
+nav .spacer{flex:1;}
+.nav-info{font-size:0.82rem;color:var(--dim);}
+
+/* LAYOUT */
+.layout{display:flex;flex:1;overflow:hidden;}
+
+/* SIDEBAR */
+.sidebar{width:280px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;}
+.sidebar-section{padding:16px;border-bottom:1px solid var(--border);}
+.sidebar-section h3{font-size:0.78rem;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;}
+.code-block{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;font-family:monospace;font-size:0.72rem;line-height:1.6;color:#cbd5e1;overflow-x:auto;}
+.code-block .hl{background:rgba(251,191,36,.18);color:var(--yellow);border-radius:2px;}
+
+.legend{display:flex;flex-direction:column;gap:6px;}
+.legend-item{display:flex;align-items:center;gap:8px;font-size:0.8rem;color:var(--dim);}
+.legend-dot{width:14px;height:14px;border-radius:3px;flex-shrink:0;}
+
+.stat-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.stat-label{font-size:0.8rem;color:var(--dim);}
+.stat-value{font-size:1.1rem;font-weight:700;color:var(--blue);font-family:monospace;}
+
+.tails-display{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;}
+.tails-cell{width:34px;height:30px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:0.82rem;font-weight:700;background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.3);color:var(--blue);}
+
+.lis-seq{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;}
+.lis-seq-cell{padding:3px 8px;border-radius:4px;background:rgba(74,222,128,.12);border:1px solid rgba(74,222,128,.3);color:var(--green);font-family:monospace;font-size:0.85rem;font-weight:700;}
+
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+
+.viz-area{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:20px;}
+
+/* SECTION CARDS */
+.section-card{background:var(--panel);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+.section-header{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+.section-title{font-size:0.82rem;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.07em;}
+.section-badge{font-size:0.7rem;padding:2px 6px;border-radius:3px;}
+.section-body{padding:16px;}
+
+/* ARRAY ROW */
+.array-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.arr-cell{width:52px;height:52px;border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:monospace;font-weight:700;font-size:1rem;border:2px solid var(--border);background:rgba(255,255,255,.04);color:var(--text);transition:all .25s;position:relative;}
+.arr-cell .idx{font-size:0.6rem;font-weight:400;color:var(--dim);position:absolute;top:4px;left:0;right:0;text-align:center;}
+.arr-cell.current{background:rgba(251,191,36,.18);border-color:var(--yellow);color:var(--yellow);transform:scale(1.08);}
+.arr-cell.in-lis{background:rgba(74,222,128,.15);border-color:var(--green);color:var(--green);}
+.arr-cell.replaced{background:rgba(251,146,60,.15);border-color:var(--orange);color:var(--orange);}
+.arr-cell.current.in-lis{background:rgba(74,222,128,.25);border-color:var(--green);color:var(--green);transform:scale(1.08);}
+
+/* DP ROW */
+.dp-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.dp-cell{width:52px;height:52px;border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:monospace;font-weight:700;font-size:1rem;border:2px solid var(--border);background:rgba(255,255,255,.04);color:var(--text);transition:all .25s;position:relative;}
+.dp-cell .idx{font-size:0.6rem;font-weight:400;color:var(--dim);position:absolute;top:4px;left:0;right:0;text-align:center;}
+.dp-cell.dp-current{background:rgba(251,191,36,.18);border-color:var(--yellow);color:var(--yellow);}
+.dp-cell.dp-dep{background:rgba(192,132,252,.18);border-color:var(--purple);color:var(--purple);}
+.dp-cell.dp-done{background:rgba(74,222,128,.12);border-color:rgba(74,222,128,.4);color:var(--green);}
+
+/* PATIENCE PILES */
+.pile-container{display:flex;gap:10px;align-items:flex-end;padding:8px 16px;min-height:120px;flex-wrap:wrap;}
+.pile-wrapper{display:flex;flex-direction:column;align-items:center;}
+.pile{display:flex;flex-direction:column-reverse;align-items:center;gap:3px;}
+.pile-card{width:42px;height:36px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-family:monospace;font-weight:700;font-size:0.9rem;border:2px solid transparent;transition:all 0.2s;background:rgba(255,255,255,.05);border-color:var(--border);color:var(--dim);}
+.pile-card.pile-top{background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.4);color:var(--blue);}
+.pile-card.pile-new{background:rgba(74,222,128,.18);border-color:var(--green);color:var(--green);animation:popIn .25s ease;}
+.pile-card.pile-replaced{background:rgba(251,146,60,.18);border-color:var(--orange);color:var(--orange);animation:popIn .25s ease;}
+.pile-label{font-size:0.68rem;color:var(--dim);text-align:center;margin-top:5px;}
+@keyframes popIn{from{transform:scale(.7);opacity:.4;}to{transform:scale(1);opacity:1;}}
+
+/* DESCRIPTION */
+.desc-box{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:12px 16px;font-size:0.85rem;color:var(--text);line-height:1.55;min-height:42px;}
+.desc-box strong{color:var(--yellow);}
+.desc-box .green{color:var(--green);}
+.desc-box .blue{color:var(--blue);}
+.desc-box .orange{color:var(--orange);}
+.desc-box .purple{color:var(--purple);}
+
+/* CONTROLS */
+.controls{background:var(--panel);border-top:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.btn{padding:8px 16px;border-radius:7px;border:1px solid var(--border);background:rgba(255,255,255,.05);color:var(--text);cursor:pointer;font-size:0.85rem;font-weight:600;transition:all .15s;display:flex;align-items:center;gap:6px;}
+.btn:hover{background:rgba(255,255,255,.1);border-color:var(--blue);}
+.btn:disabled{opacity:.35;cursor:not-allowed;}
+.btn-primary{background:rgba(56,189,248,.15);border-color:rgba(56,189,248,.4);color:var(--blue);}
+.btn-primary:hover{background:rgba(56,189,248,.25);}
+.btn-icon{font-size:1rem;}
+
+.step-counter{font-size:0.82rem;color:var(--dim);font-family:monospace;}
+.step-counter span{color:var(--text);font-weight:700;}
+
+.speed-group{display:flex;align-items:center;gap:8px;margin-left:auto;}
+.speed-label{font-size:0.78rem;color:var(--dim);}
+select{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:6px;font-size:0.82rem;cursor:pointer;}
+
+.input-group{display:flex;align-items:center;gap:8px;}
+input[type=text]{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:0.82rem;width:240px;font-family:monospace;}
+input[type=text]:focus{outline:none;border-color:var(--blue);}
+
+.progress-bar{height:3px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:0;}
+.progress-fill{height:100%;background:var(--blue);border-radius:2px;transition:width .2s;}
+</style>
+</head>
+<body>
+
+<nav>
+  <h1>LIS 最长递增子序列</h1>
+  <span class="badge badge-blue">O(n log n) Patience Sort</span>
+  <span class="badge badge-purple">O(n²) DP</span>
+  <span class="spacer"></span>
+  <span class="nav-info">Longest Increasing Subsequence</span>
+</nav>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <h3>当前状态</h3>
+      <div class="stat-row">
+        <span class="stat-label">LIS 长度</span>
+        <span class="stat-value" id="lis-len">0</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">处理进度</span>
+        <span class="stat-value" id="progress-val">0 / 8</span>
+      </div>
+      <div style="margin-top:4px;">
+        <div style="font-size:0.78rem;color:var(--dim);margin-bottom:5px;">tails 数组</div>
+        <div class="tails-display" id="tails-display"></div>
+      </div>
+      <div style="margin-top:10px;">
+        <div style="font-size:0.78rem;color:var(--dim);margin-bottom:5px;">LIS 序列（一种可能）</div>
+        <div class="lis-seq" id="lis-seq"></div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Go 代码</h3>
+      <div class="code-block" id="code-display">
+<span style="color:var(--purple)">func</span> <span style="color:var(--blue)">lis</span>(nums []<span style="color:var(--orange)">int</span>) <span style="color:var(--orange)">int</span> {
+  tails := []<span style="color:var(--orange)">int</span>{}
+  <span style="color:var(--purple)">for</span> _, n := <span style="color:var(--purple)">range</span> nums {
+    <span id="cl1">    pos := sort.<span style="color:var(--blue)">SearchInts</span>(tails, n)</span>
+    <span id="cl2">    <span style="color:var(--purple)">if</span> pos == <span style="color:var(--blue)">len</span>(tails) {</span>
+    <span id="cl3">      tails = <span style="color:var(--blue)">append</span>(tails, n)</span>
+    <span id="cl4">    } <span style="color:var(--purple)">else</span> {
+      tails[pos] = n</span>
+      }
+  }
+  <span style="color:var(--purple)">return</span> <span style="color:var(--blue)">len</span>(tails)
+}
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>颜色图例</h3>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(251,191,36,.3);border:1px solid var(--yellow);"></div>当前处理元素</div>
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(74,222,128,.2);border:1px solid var(--green);"></div>LIS 中的元素 / 新建牌堆</div>
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(251,146,60,.2);border:1px solid var(--orange);"></div>被替换元素</div>
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(192,132,252,.2);border:1px solid var(--purple);"></div>DP 依赖位置</div>
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(56,189,248,.15);border:1px solid var(--blue);"></div>牌堆顶部元素</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>算法原理</h3>
+      <div style="font-size:0.78rem;color:var(--dim);line-height:1.65;">
+        <p style="margin-bottom:8px;"><strong style="color:var(--blue)">Patience Sort 思路：</strong>将每个元素放入第一个顶部 &ge; 它的牌堆；若无，则新建牌堆。牌堆数量即为 LIS 长度。</p>
+        <p style="margin-bottom:8px;"><strong style="color:var(--purple)">O(n²) DP：</strong>dp[i] = 以 arr[i] 结尾的最长递增子序列长度。dp[i] = max(dp[j]+1) 其中 j&lt;i 且 arr[j]&lt;arr[i]。</p>
+        <p><strong style="color:var(--green)">关键洞察：</strong>二分搜索找插入位置，每次操作 O(log n)，共 n 次，总复杂度 O(n log n)。</p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+    <div class="viz-area">
+
+      <!-- Description -->
+      <div class="desc-box" id="desc-box">
+        点击 <strong>下一步</strong> 开始可视化，或点击 <strong>播放</strong> 自动演示。
+      </div>
+
+      <!-- Array -->
+      <div class="section-card">
+        <div class="section-header">
+          <span class="section-title">原始数组</span>
+          <span class="badge badge-blue section-badge">arr[i]</span>
+        </div>
+        <div class="section-body">
+          <div class="array-row" id="arr-display"></div>
+        </div>
+      </div>
+
+      <!-- DP Array -->
+      <div class="section-card">
+        <div class="section-header">
+          <span class="section-title">dp 数组</span>
+          <span class="badge badge-purple section-badge">O(n²)</span>
+          <span style="font-size:0.75rem;color:var(--dim);margin-left:4px;">dp[i] = 以 arr[i] 结尾的 LIS 长度</span>
+        </div>
+        <div class="section-body">
+          <div class="dp-row" id="dp-display"></div>
+        </div>
+      </div>
+
+      <!-- Patience Piles -->
+      <div class="section-card">
+        <div class="section-header">
+          <span class="section-title">Patience 牌堆</span>
+          <span class="badge badge-blue section-badge">O(n log n)</span>
+          <span style="font-size:0.75rem;color:var(--dim);margin-left:4px;">牌堆数量 = LIS 长度</span>
+        </div>
+        <div class="section-body" style="padding:8px 0;">
+          <div class="pile-container" id="piles-display"></div>
+          <div style="padding:8px 16px 4px;font-size:0.75rem;color:var(--dim);">
+            tails = [<span id="tails-inline" style="font-family:monospace;color:var(--blue);"></span>]
+            &nbsp;&nbsp;←&nbsp; 各牌堆顶部元素
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- CONTROLS -->
+    <div class="controls">
+      <div class="input-group">
+        <input type="text" id="arr-input" value="10, 9, 2, 5, 3, 7, 101, 18" placeholder="输入数组，逗号分隔">
+        <button class="btn" onclick="resetWithInput()">重置</button>
+      </div>
+      <div style="width:1px;height:24px;background:var(--border);margin:0 4px;"></div>
+      <button class="btn" id="btn-prev" onclick="prevStep()" disabled>
+        <span class="btn-icon">&#9664;</span> 上一步
+      </button>
+      <button class="btn btn-primary" id="btn-next" onclick="nextStep()">
+        下一步 <span class="btn-icon">&#9654;</span>
+      </button>
+      <button class="btn" id="btn-play" onclick="togglePlay()">
+        <span class="btn-icon">&#9654;&#9654;</span> 播放
+      </button>
+      <span class="step-counter">步骤 <span id="cur-step">0</span> / <span id="total-steps">0</span></span>
+      <div class="speed-group">
+        <span class="speed-label">速度</span>
+        <select id="speed-select">
+          <option value="1200">慢</option>
+          <option value="700" selected>中</option>
+          <option value="350">快</option>
+          <option value="150">极快</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+let steps = [];
+let curStep = -1;
+let playing = false;
+let playTimer = null;
+
+// ─── Build Steps ─────────────────────────────────────────────────────────────
+function buildSteps(arr) {
+  const n = arr.length;
+  const allSteps = [];
+
+  // Initial state
+  allSteps.push({
+    arr: arr.slice(),
+    dp: new Array(n).fill(0),
+    tails: [],
+    piles: [],
+    curIdx: -1,
+    highlight: [],
+    lisIndices: [],
+    replacedIdx: -1,
+    isNew: false,
+    description: `数组 arr = [${arr.join(', ')}]，共 ${n} 个元素。<br>将逐个处理每个元素，同步展示 O(n log n) Patience Sort 和 O(n²) DP 两种思路。`,
+    highlightLines: []
+  });
+
+  const dp = new Array(n).fill(1);
+  const tails = [];
+  const piles = []; // piles[k] = stack of values in pile k
+  const parent = new Array(n).fill(-1); // for LIS reconstruction
+  const tailsIdx = []; // tailsIdx[k] = index in arr of tails[k]
+
+  for (let i = 0; i < n; i++) {
+    const val = arr[i];
+
+    // --- Step: highlight current element ---
+    allSteps.push({
+      arr: arr.slice(),
+      dp: dp.slice(),
+      tails: tails.slice(),
+      piles: piles.map(p => p.slice()),
+      curIdx: i,
+      highlight: [],
+      lisIndices: computeLisIndices(arr, dp, i - 1),
+      replacedIdx: -1,
+      isNew: false,
+      description: `处理 <strong>arr[${i}] = ${val}</strong>。对每个 j &lt; ${i}，若 arr[j] &lt; ${val} 则 dp[${i}] 可更新为 dp[j]+1。`,
+      highlightLines: ['cl1']
+    });
+
+    // O(n²) DP: compute dp[i]
+    const deps = [];
+    for (let j = 0; j < i; j++) {
+      if (arr[j] < val) {
+        deps.push(j);
+        if (dp[j] + 1 > dp[i]) {
+          dp[i] = dp[j] + 1;
+          parent[i] = j;
+        }
+      }
+    }
+
+    // --- Step: show dp deps ---
+    if (deps.length > 0) {
+      allSteps.push({
+        arr: arr.slice(),
+        dp: dp.slice(),
+        tails: tails.slice(),
+        piles: piles.map(p => p.slice()),
+        curIdx: i,
+        highlight: deps,
+        lisIndices: computeLisIndices(arr, dp, i - 1),
+        replacedIdx: -1,
+        isNew: false,
+        description: `dp[${i}] 依赖位置 [${deps.join(', ')}]（值均小于 ${val}）。<span class="purple">紫色</span>格是依赖位置，dp[${i}] = ${dp[i]}。`,
+        highlightLines: ['cl1']
+      });
+    }
+
+    // O(n log n): binary search in tails
+    const pos = lowerBound(tails, val);
+    const isNewPile = (pos === tails.length);
+
+    // --- Step: binary search result ---
+    allSteps.push({
+      arr: arr.slice(),
+      dp: dp.slice(),
+      tails: tails.slice(),
+      piles: piles.map(p => p.slice()),
+      curIdx: i,
+      highlight: [i],
+      lisIndices: computeLisIndices(arr, dp, i - 1),
+      replacedIdx: isNewPile ? -1 : pos,
+      isNew: isNewPile,
+      description: isNewPile
+        ? `二分搜索：${val} 大于所有 tails 元素，<span class="green">新建牌堆 #${pos + 1}</span>，tails 增长。`
+        : `二分搜索：找到第一个 tails[${pos}] = ${tails[pos]} &ge; ${val}，<span class="orange">替换为 ${val}</span>。`,
+      highlightLines: isNewPile ? ['cl2', 'cl3'] : ['cl2', 'cl4']
+    });
+
+    // Update tails and piles
+    if (isNewPile) {
+      tails.push(val);
+      piles.push([val]);
+      tailsIdx.push(i);
+    } else {
+      tails[pos] = val;
+      piles[pos].push(val);
+      tailsIdx[pos] = i;
+    }
+
+    // --- Step: after update ---
+    allSteps.push({
+      arr: arr.slice(),
+      dp: dp.slice(),
+      tails: tails.slice(),
+      piles: piles.map(p => p.slice()),
+      curIdx: i,
+      highlight: [i],
+      lisIndices: computeLisIndices(arr, dp, i),
+      replacedIdx: -1,
+      isNew: false,
+      justPlaced: isNewPile ? pos : -1,
+      justReplaced: isNewPile ? -1 : pos,
+      description: `完成处理 arr[${i}] = ${val}。当前 tails = [${tails.join(', ')}]，LIS 长度 = <span class="blue">${tails.length}</span>，dp[${i}] = <span class="green">${dp[i]}</span>。`,
+      highlightLines: []
+    });
+  }
+
+  // Final step
+  const finalLis = reconstructLis(arr, dp, parent);
+  allSteps.push({
+    arr: arr.slice(),
+    dp: dp.slice(),
+    tails: tails.slice(),
+    piles: piles.map(p => p.slice()),
+    curIdx: -1,
+    highlight: [],
+    lisIndices: finalLis.indices,
+    replacedIdx: -1,
+    isNew: false,
+    description: `<span class="green">完成！</span>最长递增子序列长度 = <span class="blue">${tails.length}</span>。<br>LIS = [${finalLis.seq.join(', ')}]（一种可能的序列）。`,
+    highlightLines: [],
+    finalLis: finalLis
+  });
+
+  return allSteps;
+}
+
+function lowerBound(arr, target) {
+  let lo = 0, hi = arr.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (arr[mid] < target) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function computeLisIndices(arr, dp, maxI) {
+  if (maxI < 0) return [];
+  let maxVal = 0;
+  for (let i = 0; i <= maxI; i++) maxVal = Math.max(maxVal, dp[i]);
+  if (maxVal <= 1) return [];
+  // Simple: just mark indices where dp[i] > 1 (rough approximation for animation)
+  const res = [];
+  for (let i = 0; i <= maxI; i++) {
+    if (dp[i] === maxVal) { res.push(i); break; }
+  }
+  return res;
+}
+
+function reconstructLis(arr, dp, parent) {
+  let maxLen = 0, maxIdx = 0;
+  for (let i = 0; i < dp.length; i++) {
+    if (dp[i] > maxLen) { maxLen = dp[i]; maxIdx = i; }
+  }
+  const indices = [];
+  let cur = maxIdx;
+  while (cur !== -1) {
+    indices.unshift(cur);
+    cur = parent[cur];
+  }
+  return { indices, seq: indices.map(i => arr[i]), length: maxLen };
+}
+
+// ─── Render ──────────────────────────────────────────────────────────────────
+function render(step) {
+  const { arr, dp, tails, piles, curIdx, highlight, lisIndices, replacedIdx, isNew, justPlaced, justReplaced, finalLis } = step;
+
+  // Array
+  const arrEl = document.getElementById('arr-display');
+  arrEl.innerHTML = arr.map((v, i) => {
+    let cls = 'arr-cell';
+    if (i === curIdx) cls += ' current';
+    else if (lisIndices && lisIndices.includes(i)) cls += ' in-lis';
+    return `<div class="${cls}"><span class="idx">[${i}]</span>${v}</div>`;
+  }).join('');
+
+  // DP
+  const dpEl = document.getElementById('dp-display');
+  dpEl.innerHTML = dp.map((v, i) => {
+    let cls = 'dp-cell';
+    if (i === curIdx) cls += ' dp-current';
+    else if (highlight && highlight.includes(i)) cls += ' dp-dep';
+    else if (curIdx >= 0 && i < curIdx && dp[i] > 0) cls += ' dp-done';
+    return `<div class="${cls}"><span class="idx">[${i}]</span>${v === 0 ? '-' : v}</div>`;
+  }).join('');
+
+  // Piles
+  const pilesEl = document.getElementById('piles-display');
+  if (piles.length === 0) {
+    pilesEl.innerHTML = '<div style="color:var(--dim);font-size:0.8rem;padding:8px;">（牌堆为空）</div>';
+  } else {
+    pilesEl.innerHTML = piles.map((pile, pi) => {
+      const cards = pile.map((val, ci) => {
+        const isTop = ci === pile.length - 1;
+        let cardCls = 'pile-card';
+        if (isTop && pi === justPlaced) cardCls += ' pile-new';
+        else if (isTop && pi === justReplaced) cardCls += ' pile-replaced';
+        else if (isTop) cardCls += ' pile-top';
+        return `<div class="${cardCls}">${val}</div>`;
+      }).join('');
+      return `<div class="pile-wrapper">
+        <div class="pile">${cards}</div>
+        <div class="pile-label">堆 ${pi + 1}<br><span style="color:var(--dim);font-size:0.65rem;">顶:${pile[pile.length - 1]}</span></div>
+      </div>`;
+    }).join('');
+  }
+
+  // tails inline
+  document.getElementById('tails-inline').textContent = tails.join(', ');
+
+  // sidebar tails
+  const tailsDisp = document.getElementById('tails-display');
+  tailsDisp.innerHTML = tails.map(v => `<div class="tails-cell">${v}</div>`).join('') || '<span style="font-size:0.78rem;color:var(--dim);">空</span>';
+
+  // LIS length
+  document.getElementById('lis-len').textContent = tails.length;
+
+  // Progress
+  const total = arr.length;
+  const done = curIdx >= 0 ? curIdx + 1 : (step === steps[steps.length - 1] ? total : 0);
+  document.getElementById('progress-val').textContent = `${Math.min(done, total)} / ${total}`;
+
+  // LIS seq
+  const lisSeqEl = document.getElementById('lis-seq');
+  if (finalLis) {
+    lisSeqEl.innerHTML = finalLis.seq.map(v => `<div class="lis-seq-cell">${v}</div>`).join('');
+  } else if (tails.length > 0) {
+    lisSeqEl.innerHTML = '<span style="font-size:0.78rem;color:var(--dim);">计算中…</span>';
+  } else {
+    lisSeqEl.innerHTML = '<span style="font-size:0.78rem;color:var(--dim);">-</span>';
+  }
+
+  // Description
+  const descEl = document.getElementById('desc-box');
+  descEl.innerHTML = step.description;
+
+  // Code highlight
+  ['cl1','cl2','cl3','cl4'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.className = (step.highlightLines && step.highlightLines.includes(id)) ? 'hl' : '';
+  });
+
+  // Progress bar
+  const pct = steps.length > 1 ? (curStep / (steps.length - 1)) * 100 : 0;
+  document.getElementById('progress-fill').style.width = pct + '%';
+
+  // Step counter
+  document.getElementById('cur-step').textContent = curStep;
+  document.getElementById('total-steps').textContent = steps.length - 1;
+
+  // Buttons
+  document.getElementById('btn-prev').disabled = curStep <= 0;
+  document.getElementById('btn-next').disabled = curStep >= steps.length - 1;
+}
+
+// ─── Controls ────────────────────────────────────────────────────────────────
+function nextStep() {
+  if (curStep < steps.length - 1) {
+    curStep++;
+    render(steps[curStep]);
+  }
+}
+
+function prevStep() {
+  if (curStep > 0) {
+    curStep--;
+    render(steps[curStep]);
+  }
+}
+
+function togglePlay() {
+  if (playing) {
+    playing = false;
+    clearTimeout(playTimer);
+    document.getElementById('btn-play').innerHTML = '<span class="btn-icon">&#9654;&#9654;</span> 播放';
+  } else {
+    playing = true;
+    document.getElementById('btn-play').innerHTML = '<span class="btn-icon">&#9646;&#9646;</span> 暂停';
+    playNext();
+  }
+}
+
+function playNext() {
+  if (!playing) return;
+  if (curStep >= steps.length - 1) {
+    playing = false;
+    document.getElementById('btn-play').innerHTML = '<span class="btn-icon">&#9654;&#9654;</span> 播放';
+    return;
+  }
+  nextStep();
+  const speed = parseInt(document.getElementById('speed-select').value);
+  playTimer = setTimeout(playNext, speed);
+}
+
+function resetWithInput() {
+  if (playing) { playing = false; clearTimeout(playTimer); document.getElementById('btn-play').innerHTML = '<span class="btn-icon">&#9654;&#9654;</span> 播放'; }
+  const raw = document.getElementById('arr-input').value;
+  const arr = raw.split(/[,\s]+/).map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+  if (arr.length < 1) { alert('请输入有效数组'); return; }
+  steps = buildSteps(arr);
+  curStep = 0;
+  render(steps[0]);
+}
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+(function init() {
+  const defaultArr = [10, 9, 2, 5, 3, 7, 101, 18];
+  steps = buildSteps(defaultArr);
+  curStep = 0;
+  render(steps[0]);
+})();
+</script>
+</body>
+</html>

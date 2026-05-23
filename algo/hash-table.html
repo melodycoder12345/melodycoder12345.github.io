@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>哈希表 - 算法可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.badge.time{background:rgba(56,189,248,0.15);color:var(--blue);}.badge.space{background:rgba(196,132,252,0.15);color:var(--purple);}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.op-bar{display:flex;gap:8px;padding:8px 16px;border-bottom:1px solid var(--border);flex-shrink:0;align-items:center;flex-wrap:wrap;}
+.op-btn{background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.3);color:var(--blue);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:0.82rem;}
+.op-btn:hover{background:rgba(56,189,248,0.2);}
+.op-btn.red{background:rgba(248,113,113,0.1);border-color:rgba(248,113,113,0.3);color:var(--red);}
+.op-btn.red:hover{background:rgba(248,113,113,0.2);}
+.op-btn.green{background:rgba(74,222,128,0.1);border-color:rgba(74,222,128,0.3);color:var(--green);}
+.op-input{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:6px;width:70px;font-size:0.82rem;outline:none;}
+.op-input.wide{width:110px;}
+.op-input:focus{border-color:rgba(56,189,248,0.5);}
+.op-label{font-size:0.8rem;color:var(--dim);}
+.viz-area{flex:1;overflow-y:auto;padding:16px 24px;}
+.hash-grid{display:flex;flex-direction:column;gap:4px;}
+.hash-slot{display:flex;align-items:center;gap:8px;min-height:44px;}
+.slot-idx{width:36px;font-size:0.78rem;font-family:monospace;color:var(--dim);text-align:right;flex-shrink:0;}
+.slot-box{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:6px;padding:4px 10px;min-width:60px;font-family:monospace;font-size:0.85rem;display:flex;align-items:center;gap:4px;transition:background 0.2s,border-color 0.2s,box-shadow 0.2s;}
+.slot-empty{color:var(--border);font-size:0.75rem;}
+.chain-arrow{color:var(--border);font-size:1rem;flex-shrink:0;}
+.chain-node{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-family:monospace;font-size:0.85rem;display:flex;align-items:center;gap:4px;transition:all 0.2s;}
+.kv-key{color:var(--blue);}
+.kv-sep{color:var(--dim);}
+.kv-val{color:var(--green);}
+.deleted-mark{color:var(--red);font-size:0.7rem;}
+.desc-box{padding:10px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.9rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.hash-info{background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.2);border-radius:8px;padding:8px 14px;font-size:0.8rem;color:var(--blue);font-family:monospace;flex-shrink:0;margin:0 24px 8px;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.op{color:#ff7b72;}.id{color:#e6edf3;}.cm{color:#8b949e;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.3);color:var(--blue);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
+.stats{display:flex;gap:16px;padding:0 8px;}.stat{font-size:0.78rem;color:var(--dim);font-family:monospace;}.stat span{color:var(--text);font-weight:600;}
+.legend{display:flex;gap:12px;padding:8px 24px;border-bottom:1px solid var(--border);flex-wrap:wrap;flex-shrink:0;}
+.leg{display:flex;align-items:center;gap:4px;font-size:0.72rem;color:var(--dim);}
+.leg-dot{width:8px;height:8px;border-radius:2px;}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>哈希表 Hash Table</h1>
+  <div class="complexity">
+    <span class="badge time">平均 O(1)</span>
+    <span class="badge time">最坏 O(n)</span>
+    <span class="badge space">空间 O(n)</span>
+  </div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="legend">
+      <div class="leg"><div class="leg-dot" style="background:#334155"></div>空桶</div>
+      <div class="leg"><div class="leg-dot" style="background:#38bdf8"></div>已存储</div>
+      <div class="leg"><div class="leg-dot" style="background:#fbbf24"></div>哈希计算中</div>
+      <div class="leg"><div class="leg-dot" style="background:#4ade80"></div>找到/插入成功</div>
+      <div class="leg"><div class="leg-dot" style="background:#f87171"></div>冲突</div>
+    </div>
+    <div class="op-bar">
+      <span class="op-label">键:</span>
+      <input class="op-input wide" type="text" id="keyInput" placeholder="key" value="name">
+      <span class="op-label">值:</span>
+      <input class="op-input wide" type="text" id="valInput" placeholder="value" value="Alice">
+      <button class="op-btn" onclick="doPut()">Put</button>
+      <button class="op-btn green" onclick="doGet()">Get</button>
+      <button class="op-btn red" onclick="doDelete()">Delete</button>
+      <button class="op-btn" style="margin-left:8px" onclick="doReset()">重置</button>
+    </div>
+    <div id="hashInfo" class="hash-info" style="display:none"></div>
+    <div class="viz-area">
+      <div class="hash-grid" id="hashGrid"></div>
+    </div>
+    <div class="desc-box">
+      <span id="descText">选择操作开始演示（链地址法处理冲突，容量=8）</span>
+      <div class="stats">
+        <div class="stat">容量 <span id="capCount">8</span></div>
+        <div class="stat">大小 <span id="sizeCount">0</span></div>
+        <div class="stat">负载因子 <span id="loadFactor">0.00</span></div>
+      </div>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px">hash_table.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+const CODE_LINES = [
+  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
+  {html:``},
+  {html:`<span class="kw">const</span> <span class="id">CAPACITY</span> = <span class="num">8</span>`},
+  {html:``},
+  {html:`<span class="kw">type</span> <span class="id">Entry</span> <span class="kw">struct</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">Key</span>, <span class="id">Value</span> <span class="kw">string</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">Next</span>        *<span class="id">Entry</span>`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">type</span> <span class="id">HashMap</span> <span class="kw">struct</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">buckets</span> [<span class="id">CAPACITY</span>]*<span class="id">Entry</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">size</span>    <span class="kw">int</span>`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> (<span class="id">m</span> *<span class="id">HashMap</span>) <span class="fn">hash</span>(key <span class="kw">string</span>) <span class="kw">int</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;h := <span class="num">0</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> _, c := <span class="kw">range</span> key {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;h = (h*<span class="num">31</span> + <span class="kw">int</span>(c)) % <span class="id">CAPACITY</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> h`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> (<span class="id">m</span> *<span class="id">HashMap</span>) <span class="fn">Put</span>(key, value <span class="kw">string</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;idx := <span class="id">m</span>.<span class="fn">hash</span>(key)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;cur := <span class="id">m</span>.<span class="id">buckets</span>[idx]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> cur != <span class="kw">nil</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> cur.<span class="id">Key</span> == key {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;cur.<span class="id">Value</span> = value  <span class="cm">// 更新已有 key</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;cur = cur.<span class="id">Next</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 链头插入新节点</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;entry := &amp;<span class="id">Entry</span>{key, value, <span class="id">m</span>.<span class="id">buckets</span>[idx]}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">m</span>.<span class="id">buckets</span>[idx] = entry`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">m</span>.<span class="id">size</span><span class="op">++</span>`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> (<span class="id">m</span> *<span class="id">HashMap</span>) <span class="fn">Get</span>(key <span class="kw">string</span>) (<span class="kw">string</span>, <span class="kw">bool</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;idx := <span class="id">m</span>.<span class="fn">hash</span>(key)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;cur := <span class="id">m</span>.<span class="id">buckets</span>[idx]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> cur != <span class="kw">nil</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> cur.<span class="id">Key</span> == key {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> cur.<span class="id">Value</span>, <span class="kw">true</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;cur = cur.<span class="id">Next</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="st">""</span>, <span class="kw">false</span>`},
+  {html:`}`},
+];
+
+const CAPACITY = 8;
+// buckets: array of [{key,val}]  (simulating chaining)
+let buckets = Array.from({length: CAPACITY}, () => []);
+let totalSize = 0;
+let steps = [], cur = 0, playing = false, timer = null;
+const SPEED = [800,500,300,180,80];
+
+function hashFn(key) {
+  let h = 0;
+  for (const c of key) h = (h * 31 + c.charCodeAt(0)) % CAPACITY;
+  return h;
+}
+
+function cloneBuckets(b) { return b.map(chain => chain.map(e => ({...e}))); }
+
+function mkStep(b, activeIdx, highlightChain, foundIdx, description, lines, hashCalc) {
+  return { buckets: cloneBuckets(b), activeIdx: activeIdx ?? -1, highlightChain: highlightChain ?? -1, foundIdx: foundIdx ?? -1, description, highlightLines: lines, hashCalc: hashCalc || '' };
+}
+
+function generatePutSteps(key, value) {
+  const steps = [];
+  const b = cloneBuckets(buckets);
+  steps.push(mkStep(b, -1, -1, -1, `Put("${key}", "${value}")：开始计算哈希`, [22], ''));
+  const idx = hashFn(key);
+  steps.push(mkStep(b, idx, -1, -1, `hash("${key}") = ${idx}，定位到桶 ${idx}`, [14, 15, 16, 17, 18, 19], `hash("${key}") = ${idx}`));
+
+  // Check for existing key
+  let existingPos = b[idx].findIndex(e => e.key === key);
+  if (existingPos >= 0) {
+    steps.push(mkStep(b, idx, idx, existingPos, `在桶 ${idx} 找到已有 key="${key}"，更新值`, [25, 26, 27], `hash("${key}") = ${idx}`));
+    b[idx][existingPos].val = value;
+    steps.push(mkStep(b, idx, idx, existingPos, `更新成功: "${key}" → "${value}"`, [25, 26, 27], `hash("${key}") = ${idx}`));
+  } else {
+    if (b[idx].length > 0) {
+      steps.push(mkStep(b, idx, idx, -1, `桶 ${idx} 已有 ${b[idx].length} 个元素（哈希冲突），头插新节点`, [24, 25, 30, 31, 32, 33], `hash("${key}") = ${idx}`));
+    } else {
+      steps.push(mkStep(b, idx, idx, -1, `桶 ${idx} 为空，直接插入`, [24, 31, 32, 33], `hash("${key}") = ${idx}`));
+    }
+    b[idx].unshift({ key, val: value });
+    totalSize++;
+    steps.push(mkStep(b, idx, idx, 0, `插入成功: "${key}" → "${value}"，桶 ${idx} 现有 ${b[idx].length} 个`, [32, 33, 34], `hash("${key}") = ${idx}`));
+  }
+  return { steps, finalBuckets: b };
+}
+
+function generateGetSteps(key) {
+  const steps = [];
+  const b = cloneBuckets(buckets);
+  steps.push(mkStep(b, -1, -1, -1, `Get("${key}")：开始计算哈希`, [37], ''));
+  const idx = hashFn(key);
+  steps.push(mkStep(b, idx, -1, -1, `hash("${key}") = ${idx}，定位到桶 ${idx}`, [14, 15, 16, 17, 18, 19], `hash("${key}") = ${idx}`));
+  const chain = b[idx];
+  if (chain.length === 0) {
+    steps.push(mkStep(b, idx, idx, -1, `桶 ${idx} 为空，key 不存在，返回 false`, [40, 47], `hash("${key}") = ${idx}`));
+  } else {
+    steps.push(mkStep(b, idx, idx, -1, `在桶 ${idx} 中遍历链表查找 "${key}"`, [38, 39, 40], `hash("${key}") = ${idx}`));
+    let found = false;
+    for (let i = 0; i < chain.length; i++) {
+      steps.push(mkStep(b, idx, idx, i, `检查节点 "${chain[i].key}": ${chain[i].key === key ? '匹配!' : '不匹配，继续'}`, [41, 42], `hash("${key}") = ${idx}`));
+      if (chain[i].key === key) {
+        steps.push(mkStep(b, idx, idx, i, `找到！"${key}" → "${chain[i].val}"，返回 true`, [43], `hash("${key}") = ${idx}`));
+        found = true; break;
+      }
+    }
+    if (!found) steps.push(mkStep(b, idx, idx, -1, `遍历完毕，未找到 "${key}"，返回 false`, [45, 47], `hash("${key}") = ${idx}`));
+  }
+  return { steps, finalBuckets: b };
+}
+
+function generateDeleteSteps(key) {
+  const steps = [];
+  const b = cloneBuckets(buckets);
+  steps.push(mkStep(b, -1, -1, -1, `Delete("${key}")：计算哈希`, [], ''));
+  const idx = hashFn(key);
+  steps.push(mkStep(b, idx, -1, -1, `hash("${key}") = ${idx}，定位桶 ${idx}`, [14, 15, 16, 17, 18, 19], `hash("${key}") = ${idx}`));
+  const pos = b[idx].findIndex(e => e.key === key);
+  if (pos < 0) {
+    steps.push(mkStep(b, idx, idx, -1, `未找到 "${key}"，无需删除`, [], `hash("${key}") = ${idx}`));
+  } else {
+    steps.push(mkStep(b, idx, idx, pos, `找到 "${key}" 在桶 ${idx} 位置 ${pos}，删除`, [], `hash("${key}") = ${idx}`));
+    b[idx].splice(pos, 1);
+    totalSize--;
+    steps.push(mkStep(b, idx, idx, -1, `删除成功，桶 ${idx} 现有 ${b[idx].length} 个元素`, [], `hash("${key}") = ${idx}`));
+  }
+  return { steps, finalBuckets: b };
+}
+
+function doPut() {
+  pause();
+  const key = document.getElementById('keyInput').value.trim() || 'key';
+  const val = document.getElementById('valInput').value.trim() || 'val';
+  const res = generatePutSteps(key, val);
+  steps = res.steps; buckets = res.finalBuckets; cur = 0; render();
+}
+function doGet() {
+  pause();
+  const key = document.getElementById('keyInput').value.trim() || 'key';
+  const res = generateGetSteps(key);
+  steps = res.steps; cur = 0; render();
+}
+function doDelete() {
+  pause();
+  const key = document.getElementById('keyInput').value.trim() || 'key';
+  const res = generateDeleteSteps(key);
+  steps = res.steps; buckets = res.finalBuckets; cur = 0; render();
+}
+function doReset() {
+  pause(); buckets = Array.from({length: CAPACITY}, () => []); totalSize = 0; steps = []; cur = 0; render();
+}
+
+const hashGrid = document.getElementById('hashGrid');
+const descText = document.getElementById('descText');
+const stepCounter = document.getElementById('stepCounter');
+const sizeCount = document.getElementById('sizeCount');
+const loadFactor = document.getElementById('loadFactor');
+const hashInfo = document.getElementById('hashInfo');
+const codeBody = document.getElementById('codeBody');
+const speedRange = document.getElementById('speedRange');
+const btnPlay = document.getElementById('btnPlay');
+const btnPrev = document.getElementById('btnPrev');
+const btnNext = document.getElementById('btnNext');
+const btnReset = document.getElementById('btnReset');
+
+function renderGrid(s) {
+  const b = s ? s.buckets : buckets;
+  const activeIdx = s ? s.activeIdx : -1;
+  const highlightChain = s ? s.highlightChain : -1;
+  const foundIdx = s ? s.foundIdx : -1;
+  hashGrid.innerHTML = '';
+  b.forEach((chain, i) => {
+    const row = document.createElement('div');
+    row.className = 'hash-slot';
+    const idxEl = document.createElement('div');
+    idxEl.className = 'slot-idx';
+    idxEl.textContent = i;
+    row.appendChild(idxEl);
+    const isActive = i === activeIdx;
+    const isHighlight = i === highlightChain;
+    let boxColor = 'var(--border)';
+    if (isActive && !isHighlight) boxColor = 'var(--yellow)';
+    if (isHighlight) boxColor = chain.length > 0 && activeIdx === i ? 'var(--blue)' : 'var(--border)';
+    const slotBox = document.createElement('div');
+    slotBox.className = 'slot-box';
+    slotBox.style.borderColor = isActive ? '#fbbf24' : 'var(--border)';
+    if (isActive) slotBox.style.boxShadow = '0 0 8px #fbbf2488';
+    if (chain.length === 0) {
+      slotBox.innerHTML = `<span class="slot-empty">nil</span>`;
+    } else {
+      slotBox.innerHTML = `<span style="color:#94a3b8;font-size:0.75rem">[${chain.length}]</span>`;
+    }
+    row.appendChild(slotBox);
+    chain.forEach((entry, j) => {
+      const arrow = document.createElement('span');
+      arrow.className = 'chain-arrow';
+      arrow.textContent = '→';
+      row.appendChild(arrow);
+      const node = document.createElement('div');
+      node.className = 'chain-node';
+      const isFound = isHighlight && j === foundIdx;
+      const isConflict = isHighlight && j > 0 && foundIdx === -1 && isActive;
+      node.style.borderColor = isFound ? '#4ade80' : (isConflict ? '#f87171' : (isHighlight ? '#38bdf8' : 'var(--border)'));
+      if (isFound) node.style.boxShadow = '0 0 8px #4ade8088';
+      else if (isHighlight) node.style.boxShadow = '0 0 6px #38bdf844';
+      node.innerHTML = `<span class="kv-key">"${entry.key}"</span><span class="kv-sep">:</span><span class="kv-val">"${entry.val}"</span>`;
+      row.appendChild(node);
+    });
+    hashGrid.appendChild(row);
+  });
+}
+
+function render() {
+  if (steps.length === 0) {
+    renderGrid(null);
+    descText.textContent = '选择操作开始演示（链地址法处理冲突，容量=8）';
+    sizeCount.textContent = totalSize;
+    loadFactor.textContent = (totalSize / CAPACITY).toFixed(2);
+    stepCounter.textContent = '0 / 0';
+    hashInfo.style.display = 'none';
+    return;
+  }
+  const s = steps[cur];
+  renderGrid(s);
+  highlightLines(s.highlightLines);
+  descText.textContent = s.description;
+  stepCounter.textContent = `${cur + 1} / ${steps.length}`;
+  const sz = s.buckets.reduce((acc, c) => acc + c.length, 0);
+  sizeCount.textContent = sz;
+  loadFactor.textContent = (sz / CAPACITY).toFixed(2);
+  if (s.hashCalc) { hashInfo.style.display = 'block'; hashInfo.textContent = s.hashCalc; }
+  else hashInfo.style.display = 'none';
+  btnPrev.disabled = cur === 0;
+  btnNext.disabled = cur === steps.length - 1;
+}
+
+function buildCode() {
+  codeBody.innerHTML = CODE_LINES.map((l, i) => `<div class="code-line" data-line="${i}"><span class="ln">${i + 1}</span><span class="lc">${l.html || '&nbsp;'}</span></div>`).join('');
+  codeBody.querySelectorAll('.code-line').forEach(el => el.addEventListener('click', () => jumpToLine(parseInt(el.dataset.line))));
+}
+function highlightLines(lines) {
+  codeBody.querySelectorAll('.code-line').forEach(el => el.classList.remove('active'));
+  (lines || []).forEach(ln => { const el = codeBody.querySelector(`[data-line="${ln}"]`); if (el) el.classList.add('active'); });
+  if (lines && lines.length > 0) { const f = codeBody.querySelector(`[data-line="${lines[0]}"]`); if (f) f.scrollIntoView({ block: 'nearest' }); }
+}
+function jumpToLine(ln) {
+  if (steps.length === 0) return;
+  let t = cur, b = Infinity;
+  steps.forEach((s, i) => { if (s.highlightLines.includes(ln)) { const d = Math.abs(i - cur); if (d < b) { b = d; t = i; } } });
+  cur = t; render();
+}
+
+function play() { if (cur >= steps.length - 1) cur = 0; playing = true; btnPlay.innerHTML = '⏸ 暂停'; tick(); }
+function pause() { playing = false; clearTimeout(timer); btnPlay.innerHTML = '▶ 播放'; }
+function tick() { if (!playing) return; if (cur < steps.length - 1) { cur++; render(); timer = setTimeout(tick, SPEED[parseInt(speedRange.value) - 1]); } else pause(); }
+
+btnPlay.addEventListener('click', () => playing ? pause() : play());
+btnPrev.addEventListener('click', () => { pause(); if (cur > 0) { cur--; render(); } });
+btnNext.addEventListener('click', () => { pause(); if (cur < steps.length - 1) { cur++; render(); } });
+btnReset.addEventListener('click', () => doReset());
+
+buildCode();
+// Initialize with some data
+const initPairs = [['name','Alice'],['age','25'],['city','Beijing'],['lang','Go'],['score','95']];
+for (const [k,v] of initPairs) {
+  const res = generatePutSteps(k, v);
+  buckets = res.finalBuckets;
+}
+totalSize = initPairs.length;
+render();
+</script>
+</body>
+</html>

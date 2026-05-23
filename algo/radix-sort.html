@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>基数排序 - 算法可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.badge.time{background:rgba(56,189,248,0.15);color:var(--blue);}.badge.space{background:rgba(196,132,252,0.15);color:var(--purple);}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:12px 20px;gap:10px;}
+
+/* Phase indicator */
+.phase-bar{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.phase-label{font-size:0.75rem;color:var(--dim);font-family:monospace;}
+.phase-pill{padding:3px 12px;border-radius:100px;font-size:0.78rem;font-family:monospace;font-weight:600;transition:all 0.25s;}
+.phase-pill.active{background:rgba(251,191,36,0.2);color:var(--yellow);border:1px solid rgba(251,191,36,0.4);box-shadow:0 0 8px rgba(251,191,36,0.25);}
+.phase-pill.done{background:rgba(74,222,128,0.12);color:var(--green);border:1px solid rgba(74,222,128,0.3);}
+.phase-pill.pending{background:rgba(255,255,255,0.04);color:var(--dim);border:1px solid var(--border);}
+
+/* Current array */
+.arr-section{flex-shrink:0;}
+.arr-section-label{font-size:0.7rem;color:var(--dim);font-family:monospace;margin-bottom:4px;}
+.arr-cells{display:flex;gap:4px;flex-wrap:nowrap;}
+.cell{display:flex;flex-direction:column;align-items:center;gap:2px;}
+.cell-box{width:52px;height:40px;border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:monospace;font-weight:700;transition:background 0.25s,box-shadow 0.25s,border-color 0.25s;position:relative;}
+.cell-main{font-size:0.9rem;line-height:1;}
+.cell-digit{font-size:0.65rem;margin-top:2px;}
+.cell-idx{font-size:0.62rem;color:var(--dim);font-family:monospace;}
+
+/* Buckets */
+.buckets-section{flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0;}
+.buckets-label{font-size:0.7rem;color:var(--dim);font-family:monospace;margin-bottom:4px;flex-shrink:0;}
+.buckets-grid{display:flex;gap:4px;flex:1;min-height:0;overflow:hidden;}
+.bucket{display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;min-width:0;}
+.bucket-head{font-size:0.7rem;font-family:monospace;font-weight:700;color:var(--dim);padding:3px 0;border-radius:5px 5px 0 0;width:100%;text-align:center;flex-shrink:0;}
+.bucket-body{flex:1;border:1px solid var(--border);border-radius:0 0 6px 6px;background:rgba(255,255,255,0.02);display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px;padding:4px 2px;min-height:0;overflow:hidden;width:100%;transition:border-color 0.25s,background 0.25s,box-shadow 0.25s;}
+.bucket-body.active{border-color:var(--yellow);background:rgba(251,191,36,0.06);box-shadow:0 0 8px rgba(251,191,36,0.2);}
+.bucket-item{font-size:0.7rem;font-family:monospace;font-weight:600;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.25);color:var(--blue);border-radius:4px;padding:2px 4px;width:100%;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bucket-item.newest{background:rgba(251,191,36,0.2);border-color:rgba(251,191,36,0.5);color:var(--yellow);}
+
+.desc-box{padding:10px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:42px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.op{color:#ff7b72;}.id{color:#e6edf3;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.3);color:var(--blue);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>基数排序 Radix Sort (LSD)</h1>
+  <div class="complexity"><span class="badge time">时间 O(d·(n+k))</span><span class="badge space">空间 O(n+k)</span></div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="viz-area" id="vizArea"></div>
+    <div class="desc-box">
+      <span id="descText">点击播放开始演示</span>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px">radix_sort.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">&#9198; 重置</button>
+  <button class="btn" id="btnPrev">&#9664; 上一步</button>
+  <button class="btn primary" id="btnPlay">&#9654; 播放</button>
+  <button class="btn" id="btnNext">下一步 &#9654;</button>
+  <div class="speed-wrap"><span>&#x1F422;</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>&#x1F407;</span></div>
+</div>
+<script>
+const CODE_LINES = [
+  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
+  {html:``},
+  {html:`<span class="kw">import</span> <span class="st">"fmt"</span>`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">radixSort</span>(arr []<span class="kw">int</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;max := arr[<span class="num">0</span>]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> _, v := <span class="kw">range</span> arr {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> v <span class="op">&gt;</span> max { max = v }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> exp := <span class="num">1</span>; max<span class="op">/</span>exp <span class="op">&gt;</span> <span class="num">0</span>; exp <span class="op">*=</span> <span class="num">10</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">countingSortByDigit</span>(arr, exp)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">countingSortByDigit</span>(arr []<span class="kw">int</span>, exp <span class="kw">int</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;n := <span class="fn">len</span>(arr)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;output := <span class="fn">make</span>([]<span class="kw">int</span>, n)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;count := <span class="fn">make</span>([]<span class="kw">int</span>, <span class="num">10</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> _, v := <span class="kw">range</span> arr {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;count[(v<span class="op">/</span>exp)<span class="op">%</span><span class="num">10</span>]<span class="op">++</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> i := <span class="num">1</span>; i <span class="op">&lt;</span> <span class="num">10</span>; i<span class="op">++</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;count[i] <span class="op">+=</span> count[i<span class="op">-</span><span class="num">1</span>]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> i := n<span class="op">-</span><span class="num">1</span>; i <span class="op">&gt;=</span> <span class="num">0</span>; i<span class="op">--</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;digit := (arr[i] <span class="op">/</span> exp) <span class="op">%</span> <span class="num">10</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;output[count[digit]<span class="op">-</span><span class="num">1</span>] = arr[i]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;count[digit]<span class="op">--</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">copy</span>(arr, output)`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">main</span>() {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;arr := []<span class="kw">int</span>{<span class="num">170</span>, <span class="num">45</span>, <span class="num">75</span>, <span class="num">90</span>, <span class="num">802</span>, <span class="num">24</span>, <span class="num">2</span>, <span class="num">66</span>}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">radixSort</span>(arr)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">fmt</span>.<span class="fn">Println</span>(arr)`},
+  {html:`}`},
+];
+
+const INITIAL = [170, 45, 75, 90, 802, 24, 2, 66];
+const DIGIT_NAMES = ['个位', '十位', '百位'];
+const EXPS = [1, 10, 100];
+
+// Digit color palette: index 0-9 → distinct colors
+const DIGIT_COLORS = [
+  '#38bdf8','#c084fc','#fb923c','#4ade80','#fbbf24',
+  '#f472b6','#60a5fa','#a3e635','#f87171','#34d399'
+];
+
+function getDigit(n, exp) { return Math.floor(n / exp) % 10; }
+
+function generateSteps() {
+  const steps = [];
+  let arr = [...INITIAL];
+  const n = arr.length;
+
+  // Helper to build empty buckets
+  function emptyBuckets() {
+    return Array.from({length:10}, () => []);
+  }
+
+  steps.push({
+    arr:[...arr], buckets:emptyBuckets(),
+    currentDigit:-1, activeEl:-1, activeBucket:-1, newestBucket:-1,
+    phaseStatus:[-1,-1,-1], // -1=pending, 0=active, 1=done
+    description:'初始数组，基数排序从最低位（个位）开始，依次向高位排序',
+    highlightLines:[31,32]
+  });
+
+  steps.push({
+    arr:[...arr], buckets:emptyBuckets(),
+    currentDigit:-1, activeEl:-1, activeBucket:-1, newestBucket:-1,
+    phaseStatus:[-1,-1,-1],
+    description:'找最大值 max=802，需要处理 3 位数字（个位/十位/百位）',
+    highlightLines:[5,6,7,8,9]
+  });
+
+  for (let pass = 0; pass < 3; pass++) {
+    const exp = EXPS[pass];
+    const dname = DIGIT_NAMES[pass];
+
+    const phaseStatus = EXPS.map((_,pi) => pi < pass ? 1 : (pi === pass ? 0 : -1));
+
+    // Announce pass
+    steps.push({
+      arr:[...arr], buckets:emptyBuckets(),
+      currentDigit:pass, activeEl:-1, activeBucket:-1, newestBucket:-1,
+      phaseStatus:[...phaseStatus],
+      description:`第 ${pass+1} 轮：按${dname}排序（exp=${exp}），调用 countingSortByDigit`,
+      highlightLines:[10,11]
+    });
+
+    // Init structures
+    let count = new Array(10).fill(0);
+    let buckets = emptyBuckets();
+
+    steps.push({
+      arr:[...arr], buckets:emptyBuckets(),
+      currentDigit:pass, activeEl:-1, activeBucket:-1, newestBucket:-1,
+      phaseStatus:[...phaseStatus],
+      description:`初始化 count[0..9] 全0，准备统计${dname}频次`,
+      highlightLines:[14,15,16,17]
+    });
+
+    // Count frequencies - show bucket filling visually
+    steps.push({
+      arr:[...arr], buckets:emptyBuckets(),
+      currentDigit:pass, activeEl:-1, activeBucket:-1, newestBucket:-1,
+      phaseStatus:[...phaseStatus],
+      description:`遍历数组，将每个元素按${dname}放入对应桶`,
+      highlightLines:[18]
+    });
+
+    for (let i = 0; i < n; i++) {
+      const v = arr[i];
+      const d = getDigit(v, exp);
+      const bucketsSnap = buckets.map(b => [...b]);
+      steps.push({
+        arr:[...arr], buckets:bucketsSnap,
+        currentDigit:pass, activeEl:i, activeBucket:d, newestBucket:-1,
+        phaseStatus:[...phaseStatus],
+        description:`arr[${i}]=${v}，${dname}=${d}，放入桶 ${d}`,
+        highlightLines:[19]
+      });
+      buckets[d].push(v);
+      count[d]++;
+      const bucketsAfter = buckets.map(b => [...b]);
+      steps.push({
+        arr:[...arr], buckets:bucketsAfter,
+        currentDigit:pass, activeEl:i, activeBucket:d, newestBucket:d,
+        phaseStatus:[...phaseStatus],
+        description:`${v} → 桶[${d}]，桶[${d}] 现有 ${buckets[d].length} 个元素`,
+        highlightLines:[19]
+      });
+    }
+
+    // Prefix sum (count step, shown as context)
+    steps.push({
+      arr:[...arr], buckets:buckets.map(b=>[...b]),
+      currentDigit:pass, activeEl:-1, activeBucket:-1, newestBucket:-1,
+      phaseStatus:[...phaseStatus],
+      description:'所有元素分桶完毕，计算前缀和以确定输出位置',
+      highlightLines:[21,22,23]
+    });
+
+    // Collect from buckets
+    steps.push({
+      arr:[...arr], buckets:buckets.map(b=>[...b]),
+      currentDigit:pass, activeEl:-1, activeBucket:-1, newestBucket:-1,
+      phaseStatus:[...phaseStatus],
+      description:`按桶顺序 0→9 收集元素，从右往左构建 output 数组`,
+      highlightLines:[24,25,26,27,28]
+    });
+
+    // Perform actual sort
+    const newArr = [];
+    for (let d = 0; d < 10; d++) {
+      for (const v of buckets[d]) {
+        newArr.push(v);
+      }
+    }
+    arr = newArr;
+
+    const donePhase = EXPS.map((_,pi) => pi <= pass ? 1 : -1);
+
+    steps.push({
+      arr:[...arr], buckets:emptyBuckets(),
+      currentDigit:pass, activeEl:-1, activeBucket:-1, newestBucket:-1,
+      phaseStatus:[...donePhase],
+      description:`${dname}排序完成，数组更新为：[${arr.join(', ')}]`,
+      highlightLines:[29]
+    });
+  }
+
+  steps.push({
+    arr:[...arr], buckets:emptyBuckets(),
+    currentDigit:-1, activeEl:-1, activeBucket:-1, newestBucket:-1,
+    phaseStatus:[1,1,1],
+    description:'基数排序完成！三轮排序后数组已完全有序',
+    highlightLines:[34,35]
+  });
+
+  return steps;
+}
+
+let steps = generateSteps();
+let cur = 0, playing = false, timer = null;
+const SPEED = [900,550,320,180,70];
+
+const vizArea = document.getElementById('vizArea');
+const codeBody = document.getElementById('codeBody');
+const descText = document.getElementById('descText');
+const stepCounter = document.getElementById('stepCounter');
+const btnPlay = document.getElementById('btnPlay');
+const btnPrev = document.getElementById('btnPrev');
+const btnNext = document.getElementById('btnNext');
+const btnReset = document.getElementById('btnReset');
+const speedRange = document.getElementById('speedRange');
+
+function buildCode() {
+  codeBody.innerHTML = CODE_LINES.map((l,i) =>
+    `<div class="code-line" data-line="${i}"><span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
+  ).join('');
+  codeBody.querySelectorAll('.code-line').forEach(el =>
+    el.addEventListener('click', () => jumpToLine(parseInt(el.dataset.line)))
+  );
+}
+
+function highlightLines(lines) {
+  codeBody.querySelectorAll('.code-line').forEach(el => el.classList.remove('active'));
+  lines.forEach(ln => {
+    const el = codeBody.querySelector(`[data-line="${ln}"]`);
+    if (el) el.classList.add('active');
+  });
+  if (lines.length > 0) {
+    const f = codeBody.querySelector(`[data-line="${lines[0]}"]`);
+    if (f) f.scrollIntoView({block:'nearest'});
+  }
+}
+
+function jumpToLine(ln) {
+  let t = cur, b = Infinity;
+  steps.forEach((s,i) => {
+    if (s.highlightLines.includes(ln)) {
+      const d = Math.abs(i-cur);
+      if (d < b) { b = d; t = i; }
+    }
+  });
+  cur = t;
+  render();
+}
+
+function render() {
+  const s = steps[cur];
+  vizArea.innerHTML = '';
+
+  // 1. Phase indicator
+  const phaseBar = document.createElement('div');
+  phaseBar.className = 'phase-bar';
+  const phaseBarLabel = document.createElement('div');
+  phaseBarLabel.className = 'phase-label';
+  phaseBarLabel.textContent = '排序轮次：';
+  phaseBar.appendChild(phaseBarLabel);
+  DIGIT_NAMES.forEach((dn, pi) => {
+    const pill = document.createElement('div');
+    pill.className = 'phase-pill';
+    const st = s.phaseStatus[pi];
+    if (st === 0) pill.classList.add('active');
+    else if (st === 1) pill.classList.add('done');
+    else pill.classList.add('pending');
+    pill.textContent = (st === 1 ? '✓ ' : '') + dn;
+    phaseBar.appendChild(pill);
+  });
+  vizArea.appendChild(phaseBar);
+
+  // 2. Current array
+  const arrSection = document.createElement('div');
+  arrSection.className = 'arr-section';
+  const arrLabel = document.createElement('div');
+  arrLabel.className = 'arr-section-label';
+  arrLabel.textContent = '当前数组';
+  const arrCells = document.createElement('div');
+  arrCells.className = 'arr-cells';
+
+  s.arr.forEach((v, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    const box = document.createElement('div');
+    box.className = 'cell-box';
+    const isActive = i === s.activeEl;
+
+    // Determine current digit for color
+    const digit = s.currentDigit >= 0 ? getDigit(v, EXPS[s.currentDigit]) : -1;
+    const dColor = digit >= 0 ? DIGIT_COLORS[digit] : '#38bdf8';
+
+    if (isActive) {
+      box.style.background = `rgba(251,191,36,0.22)`;
+      box.style.border = `2px solid var(--yellow)`;
+      box.style.boxShadow = '0 0 12px rgba(251,191,36,0.4)';
+    } else {
+      box.style.background = digit >= 0 ? `${dColor}18` : 'rgba(56,189,248,0.08)';
+      box.style.border = `2px solid ${digit >= 0 ? dColor + '44' : 'var(--border)'}`;
+    }
+
+    const mainSpan = document.createElement('div');
+    mainSpan.className = 'cell-main';
+    mainSpan.style.color = isActive ? 'var(--yellow)' : (digit >= 0 ? dColor : 'var(--text)');
+    mainSpan.textContent = v;
+
+    const digitSpan = document.createElement('div');
+    digitSpan.className = 'cell-digit';
+    if (s.currentDigit >= 0) {
+      digitSpan.style.color = isActive ? 'var(--yellow)' : dColor;
+      digitSpan.textContent = DIGIT_NAMES[s.currentDigit][0] + ':' + digit;
+    } else {
+      digitSpan.textContent = '';
+    }
+
+    box.appendChild(mainSpan);
+    box.appendChild(digitSpan);
+
+    const idx = document.createElement('div');
+    idx.className = 'cell-idx';
+    idx.textContent = i;
+
+    cell.appendChild(box);
+    cell.appendChild(idx);
+    arrCells.appendChild(cell);
+  });
+
+  arrSection.appendChild(arrLabel);
+  arrSection.appendChild(arrCells);
+  vizArea.appendChild(arrSection);
+
+  // 3. Buckets
+  const bucketsSection = document.createElement('div');
+  bucketsSection.className = 'buckets-section';
+  const bucketsLabel = document.createElement('div');
+  bucketsLabel.className = 'buckets-label';
+  bucketsLabel.textContent = s.currentDigit >= 0
+    ? `桶（按${DIGIT_NAMES[s.currentDigit]}分配）`
+    : '桶（0–9）';
+  const bucketsGrid = document.createElement('div');
+  bucketsGrid.className = 'buckets-grid';
+
+  for (let d = 0; d < 10; d++) {
+    const bucket = document.createElement('div');
+    bucket.className = 'bucket';
+
+    const head = document.createElement('div');
+    head.className = 'bucket-head';
+    head.style.background = d === s.activeBucket ? 'rgba(251,191,36,0.18)' : 'rgba(255,255,255,0.04)';
+    head.style.color = d === s.activeBucket ? 'var(--yellow)' : DIGIT_COLORS[d];
+    head.textContent = d;
+
+    const body = document.createElement('div');
+    body.className = 'bucket-body' + (d === s.activeBucket ? ' active' : '');
+
+    const items = s.buckets[d] || [];
+    items.forEach((v, vi) => {
+      const item = document.createElement('div');
+      item.className = 'bucket-item' + (d === s.newestBucket && vi === items.length-1 ? ' newest' : '');
+      item.textContent = v;
+      body.appendChild(item);
+    });
+
+    bucket.appendChild(head);
+    bucket.appendChild(body);
+    bucketsGrid.appendChild(bucket);
+  }
+
+  bucketsSection.appendChild(bucketsLabel);
+  bucketsSection.appendChild(bucketsGrid);
+  vizArea.appendChild(bucketsSection);
+
+  highlightLines(s.highlightLines);
+  descText.textContent = s.description;
+  stepCounter.textContent = `${cur+1} / ${steps.length}`;
+  btnPrev.disabled = cur === 0;
+  btnNext.disabled = cur === steps.length - 1;
+}
+
+function getDigit(n, exp) { return Math.floor(n / exp) % 10; }
+
+function play() {
+  if (cur >= steps.length - 1) cur = 0;
+  playing = true;
+  btnPlay.innerHTML = '&#9646;&#9646; 暂停';
+  tick();
+}
+function pause() {
+  playing = false;
+  clearTimeout(timer);
+  btnPlay.innerHTML = '&#9654; 播放';
+}
+function tick() {
+  if (!playing) return;
+  if (cur < steps.length - 1) {
+    cur++;
+    render();
+    timer = setTimeout(tick, SPEED[parseInt(speedRange.value)-1]);
+  } else {
+    pause();
+  }
+}
+
+btnPlay.addEventListener('click', () => playing ? pause() : play());
+btnPrev.addEventListener('click', () => { pause(); if (cur > 0) { cur--; render(); } });
+btnNext.addEventListener('click', () => { pause(); if (cur < steps.length-1) { cur++; render(); } });
+btnReset.addEventListener('click', () => { pause(); cur = 0; render(); });
+
+buildCode();
+render();
+</script>
+</body>
+</html>

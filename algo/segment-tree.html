@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Segment Tree 线段树可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;padding:1.5rem;}
+h1{text-align:center;font-size:1.5rem;font-weight:700;margin-bottom:0.25rem;color:var(--blue);}
+.subtitle{text-align:center;color:var(--dim);font-size:0.85rem;margin-bottom:1.25rem;}
+.badge-row{display:flex;justify-content:center;gap:0.75rem;margin-bottom:1.25rem;flex-wrap:wrap;}
+.badge{background:var(--panel);border:1px solid var(--border);border-radius:9999px;padding:0.25rem 0.85rem;font-size:0.78rem;color:var(--purple);}
+.badge span{color:var(--dim);}
+
+.op-bar{background:var(--panel);border:1px solid var(--border);border-radius:0.75rem;padding:0.85rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;}
+.op-bar label{color:var(--dim);font-size:0.82rem;}
+input[type=number]{background:#0f172a;border:1px solid var(--border);color:var(--text);border-radius:0.4rem;padding:0.3rem 0.5rem;font-size:0.9rem;width:3.2rem;}
+input[type=number]:focus{outline:1px solid var(--blue);}
+.btn{border:none;border-radius:0.45rem;padding:0.35rem 0.9rem;font-size:0.85rem;font-weight:600;cursor:pointer;transition:opacity 0.15s;}
+.btn-blue{background:var(--blue);color:#0f172a;}
+.btn-green{background:var(--green);color:#0f172a;}
+.btn-dim{background:var(--border);color:var(--text);}
+.btn:hover{opacity:0.85;}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.sep{width:1px;height:1.5rem;background:var(--border);}
+
+.arr-section{background:var(--panel);border:1px solid var(--border);border-radius:0.75rem;padding:0.85rem 1rem;margin-bottom:1rem;}
+.arr-section h3{font-size:0.82rem;color:var(--dim);margin-bottom:0.6rem;text-transform:uppercase;letter-spacing:0.05em;}
+.arr-cells{display:flex;gap:0.5rem;flex-wrap:wrap;align-items:flex-end;}
+.arr-cell{display:flex;flex-direction:column;align-items:center;gap:0.2rem;}
+.arr-cell .cidx{font-size:0.62rem;color:var(--dim);}
+.arr-val{width:2.8rem;height:2.8rem;background:#0f172a;border:1.5px solid var(--border);border-radius:0.4rem;display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:700;font-family:monospace;cursor:pointer;transition:all 0.25s;color:var(--text);}
+.arr-val:hover{border-color:var(--blue);background:#0c2340;}
+.arr-val.hl-update{border-color:var(--orange);background:#431407;color:var(--orange);}
+.arr-val.hl-query{border-color:var(--yellow);background:#2a1a00;color:var(--yellow);}
+.arr-val.editing{border-color:var(--blue);background:#0c2340;}
+
+.svg-wrap{background:var(--panel);border:1px solid var(--border);border-radius:0.75rem;padding:0.75rem 1rem;margin-bottom:1rem;overflow-x:auto;}
+svg{display:block;margin:auto;}
+
+.result-bar{background:var(--panel);border:1px solid var(--border);border-radius:0.75rem;padding:0.65rem 1rem;margin-bottom:1rem;min-height:2.5rem;display:flex;align-items:center;gap:0.75rem;}
+.result-label{font-size:0.82rem;color:var(--dim);}
+.result-val{font-size:1.1rem;font-weight:700;font-family:monospace;color:var(--green);}
+.result-steps{font-size:0.8rem;color:var(--dim);margin-left:auto;}
+
+.log-section{background:var(--panel);border:1px solid var(--border);border-radius:0.75rem;padding:0.75rem 1rem;max-height:8rem;overflow-y:auto;margin-bottom:1rem;}
+.log-section h3{font-size:0.82rem;color:var(--dim);margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.05em;}
+.log-entry{font-size:0.79rem;padding:0.18rem 0;border-bottom:1px solid #1e293b;color:var(--text);}
+.log-entry:last-child{border:none;}
+.tag{color:var(--blue);font-weight:600;}
+.tag-green{color:var(--green);}
+.tag-orange{color:var(--orange);}
+.tag-yellow{color:var(--yellow);}
+
+.code-section{background:var(--panel);border:1px solid var(--border);border-radius:0.75rem;padding:0.75rem 1rem;}
+.code-section h3{font-size:0.82rem;color:var(--dim);margin-bottom:0.6rem;text-transform:uppercase;letter-spacing:0.05em;}
+pre{font-size:0.78rem;color:#a5f3fc;overflow-x:auto;line-height:1.65;}
+.kw{color:var(--purple);}
+.fn{color:var(--yellow);}
+.cm{color:var(--dim);}
+.nm{color:var(--orange);}
+
+.st-node{font-family:monospace;font-size:0.8rem;transition:all 0.2s;}
+</style>
+</head>
+<body>
+<h1>Segment Tree 线段树</h1>
+<div class="subtitle">区间求和查询 + 单点更新 &nbsp;|&nbsp; O(log n) 查询与更新，O(n) 建树</div>
+<div class="badge-row">
+  <div class="badge"><span>查询/更新：</span>O(log n)</div>
+  <div class="badge"><span>建树：</span>O(n)</div>
+  <div class="badge"><span>空间：</span>O(n)</div>
+</div>
+
+<div class="op-bar">
+  <label>Query</label>
+  <label>[</label>
+  <input type="number" id="ql" value="1" min="0" max="5" style="width:2.8rem;">
+  <label>,</label>
+  <input type="number" id="qr" value="4" min="0" max="5" style="width:2.8rem;">
+  <label>]</label>
+  <button class="btn btn-blue" id="btnQuery" onclick="doQuery()">Query</button>
+  <div class="sep"></div>
+  <label>Update idx</label>
+  <input type="number" id="uidx" value="2" min="0" max="5" style="width:2.8rem;">
+  <label>val</label>
+  <input type="number" id="uval" value="10" style="width:3.4rem;">
+  <button class="btn btn-green" id="btnUpdate" onclick="doUpdate()">Update</button>
+  <div class="sep"></div>
+  <button class="btn btn-dim" onclick="doReset()">重置</button>
+</div>
+
+<div class="arr-section">
+  <h3>原始数组 &nbsp;<span style="color:var(--dim);font-size:0.75rem;">（点击格子可修改值）</span></h3>
+  <div class="arr-cells" id="arrCells"></div>
+</div>
+
+<div class="svg-wrap">
+  <svg id="mainSvg" width="780" height="340"></svg>
+</div>
+
+<div class="result-bar">
+  <span class="result-label">查询结果：</span>
+  <span class="result-val" id="resultVal">—</span>
+  <span class="result-steps" id="resultSteps"></span>
+</div>
+
+<div class="log-section">
+  <h3>操作日志</h3>
+  <div id="logContainer"></div>
+</div>
+
+<div class="code-section">
+  <h3>Go 代码</h3>
+<pre><span class="kw">package</span> main
+<span class="kw">import</span> <span class="nm">"fmt"</span>
+
+<span class="kw">type</span> <span class="fn">SegTree</span> <span class="kw">struct</span> {
+    tree []<span class="kw">int</span>
+    n    <span class="kw">int</span>
+}
+
+<span class="kw">func</span> <span class="fn">Build</span>(arr []<span class="kw">int</span>) *<span class="fn">SegTree</span> {
+    n := len(arr)
+    tree := make([]<span class="kw">int</span>, <span class="nm">4</span>*n)
+    <span class="kw">var</span> build <span class="kw">func</span>(node, l, r <span class="kw">int</span>)
+    build = <span class="kw">func</span>(node, l, r <span class="kw">int</span>) {
+        <span class="kw">if</span> l == r { tree[node] = arr[l]; <span class="kw">return</span> }
+        mid := (l + r) / <span class="nm">2</span>
+        build(<span class="nm">2</span>*node, l, mid)
+        build(<span class="nm">2</span>*node+<span class="nm">1</span>, mid+<span class="nm">1</span>, r)
+        tree[node] = tree[<span class="nm">2</span>*node] + tree[<span class="nm">2</span>*node+<span class="nm">1</span>]
+    }
+    build(<span class="nm">1</span>, <span class="nm">0</span>, n-<span class="nm">1</span>)
+    <span class="kw">return</span> &<span class="fn">SegTree</span>{tree, n}
+}
+
+<span class="kw">func</span> (st *<span class="fn">SegTree</span>) <span class="fn">Query</span>(node, l, r, ql, qr <span class="kw">int</span>) <span class="kw">int</span> {
+    <span class="kw">if</span> ql <= l && r <= qr { <span class="kw">return</span> st.tree[node] }  <span class="cm">// 完全覆盖</span>
+    <span class="kw">if</span> qr < l || r < ql  { <span class="kw">return</span> <span class="nm">0</span> }               <span class="cm">// 不相交</span>
+    mid := (l + r) / <span class="nm">2</span>
+    <span class="kw">return</span> st.<span class="fn">Query</span>(<span class="nm">2</span>*node, l, mid, ql, qr) +
+           st.<span class="fn">Query</span>(<span class="nm">2</span>*node+<span class="nm">1</span>, mid+<span class="nm">1</span>, r, ql, qr)
+}
+
+<span class="kw">func</span> (st *<span class="fn">SegTree</span>) <span class="fn">Update</span>(node, l, r, idx, val <span class="kw">int</span>) {
+    <span class="kw">if</span> l == r { st.tree[node] = val; <span class="kw">return</span> }
+    mid := (l + r) / <span class="nm">2</span>
+    <span class="kw">if</span> idx <= mid { st.<span class="fn">Update</span>(<span class="nm">2</span>*node, l, mid, idx, val) } <span class="kw">else</span>
+                  { st.<span class="fn">Update</span>(<span class="nm">2</span>*node+<span class="nm">1</span>, mid+<span class="nm">1</span>, r, idx, val) }
+    st.tree[node] = st.tree[<span class="nm">2</span>*node] + st.tree[<span class="nm">2</span>*node+<span class="nm">1</span>]
+}
+
+<span class="kw">func</span> <span class="fn">main</span>() {
+    arr := []<span class="kw">int</span>{<span class="nm">1</span>, <span class="nm">3</span>, <span class="nm">5</span>, <span class="nm">7</span>, <span class="nm">9</span>, <span class="nm">11</span>}
+    st := <span class="fn">Build</span>(arr)
+    fmt.<span class="fn">Println</span>(st.<span class="fn">Query</span>(<span class="nm">1</span>, <span class="nm">0</span>, <span class="nm">5</span>, <span class="nm">1</span>, <span class="nm">4</span>))  <span class="cm">// 24</span>
+    st.<span class="fn">Update</span>(<span class="nm">1</span>, <span class="nm">0</span>, <span class="nm">5</span>, <span class="nm">2</span>, <span class="nm">10</span>)
+    fmt.<span class="fn">Println</span>(st.<span class="fn">Query</span>(<span class="nm">1</span>, <span class="nm">0</span>, <span class="nm">5</span>, <span class="nm">0</span>, <span class="nm">5</span>))  <span class="cm">// 46</span>
+}</pre>
+</div>
+
+<script>
+const INIT_ARR = [1,3,5,7,9,11];
+const N = INIT_ARR.length;
+let arr = [...INIT_ARR];
+let tree = new Array(4*N).fill(0);
+let nodeStates = {}; // node index -> 'default'|'yellow'|'green'|'orange'|'gray'
+let isAnimating = false;
+let editingIdx = -1;
+
+// Build tree
+function buildTree() {
+  tree = new Array(4*N).fill(0);
+  function build(node, l, r) {
+    if (l === r) { tree[node] = arr[l]; return; }
+    const mid = (l+r)>>1;
+    build(2*node, l, mid);
+    build(2*node+1, mid+1, r);
+    tree[node] = tree[2*node] + tree[2*node+1];
+  }
+  build(1, 0, N-1);
+}
+
+// Compute node positions for SVG
+// Tree has up to 4 levels for n=6
+const SVG_W = 780, SVG_H = 340;
+const LEVELS = 4;
+const LEVEL_H = 75;
+const START_Y = 36;
+
+function getNodeLayout(node, l, r) {
+  // DFS to compute positions
+  let positions = {};
+  let levelNodes = {};
+  function dfs(nd, lv, lo, ro) {
+    if (!levelNodes[lv]) levelNodes[lv] = [];
+    levelNodes[lv].push({nd, lo, ro});
+    if (lo === ro) return;
+    const mid = (lo+ro)>>1;
+    dfs(2*nd, lv+1, lo, mid);
+    dfs(2*nd+1, lv+1, mid+1, ro);
+  }
+  dfs(1, 0, 0, N-1);
+  // Assign x by leaf order
+  const leafOrder = {};
+  let leafIdx = 0;
+  function assignLeaf(nd, lo, ro) {
+    if (lo===ro) { leafOrder[nd] = leafIdx++; return; }
+    const mid=(lo+ro)>>1;
+    assignLeaf(2*nd,lo,mid);
+    assignLeaf(2*nd+1,mid+1,ro);
+  }
+  assignLeaf(1,0,N-1);
+  const totalLeaves = N;
+  const leafSpacing = (SVG_W-80) / totalLeaves;
+  const leafStart = 40 + leafSpacing/2;
+  function assignPos(nd, lo, ro, lv) {
+    if (lo===ro) {
+      positions[nd] = {x: leafStart + leafOrder[nd]*leafSpacing, y: START_Y + lv*LEVEL_H, l:lo, r:ro, lv};
+      return;
+    }
+    const mid=(lo+ro)>>1;
+    assignPos(2*nd,lo,mid,lv+1);
+    assignPos(2*nd+1,mid+1,ro,lv+1);
+    const lx=positions[2*nd].x, rx=positions[2*nd+1].x;
+    positions[nd]={x:(lx+rx)/2, y:START_Y+lv*LEVEL_H, l:lo, r:ro, lv};
+  }
+  assignPos(1,0,N-1,0);
+  return positions;
+}
+
+let nodePositions = {};
+
+function getNodeColor(nd) {
+  const state = nodeStates[nd] || 'default';
+  if (state==='yellow') return {fill:'#2a1a00',stroke:'#fbbf24',text:'#fbbf24'};
+  if (state==='green') return {fill:'#052e16',stroke:'#4ade80',text:'#4ade80'};
+  if (state==='orange') return {fill:'#431407',stroke:'#fb923c',text:'#fb923c'};
+  if (state==='gray') return {fill:'#1e293b',stroke:'#475569',text:'#475569'};
+  return {fill:'#1e293b',stroke:'#38bdf8',text:'#e2e8f0'};
+}
+
+function renderSVG() {
+  const svg = document.getElementById('mainSvg');
+  svg.innerHTML = '';
+
+  nodePositions = getNodeLayout();
+
+  // Draw edges first
+  function drawEdges(nd, lo, ro) {
+    if (lo===ro) return;
+    const mid=(lo+ro)>>1;
+    const {x:px,y:py} = nodePositions[nd];
+    const {x:lx,y:ly} = nodePositions[2*nd];
+    const {x:rx,y:ry} = nodePositions[2*nd+1];
+    [lx,rx].forEach((cx,i)=>{
+      const cy = [ly,ry][i];
+      const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+      const lnd = i===0?2*nd:2*nd+1;
+      const isHL = (nodeStates[nd]&&nodeStates[nd]!=='default') || (nodeStates[lnd]&&nodeStates[lnd]!=='default');
+      line.setAttribute('x1',px); line.setAttribute('y1',py+18);
+      line.setAttribute('x2',cx); line.setAttribute('y2',cy-18);
+      line.setAttribute('stroke', isHL ? '#475569' : '#334155');
+      line.setAttribute('stroke-width','1.5');
+      svg.appendChild(line);
+    });
+    drawEdges(2*nd,lo,mid);
+    drawEdges(2*nd+1,mid+1,ro);
+  }
+  drawEdges(1,0,N-1);
+
+  // Draw nodes
+  function drawNodes(nd, lo, ro) {
+    const {x,y,l,r,lv} = nodePositions[nd];
+    const isLeaf = lo===ro;
+    const colors = getNodeColor(nd);
+    const W = isLeaf ? 42 : 62;
+    const H = isLeaf ? 42 : 34;
+    const CR = isLeaf ? 4 : 8;
+
+    const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('x', x-W/2); rect.setAttribute('y', y-H/2);
+    rect.setAttribute('width',W); rect.setAttribute('height',H);
+    rect.setAttribute('rx',isLeaf?4:CR);
+    rect.setAttribute('fill', colors.fill);
+    rect.setAttribute('stroke', colors.stroke);
+    rect.setAttribute('stroke-width', nodeStates[nd]&&nodeStates[nd]!=='default' ? '2.5' : '1.5');
+    rect.setAttribute('class','st-node');
+    svg.appendChild(rect);
+
+    if (!isLeaf) {
+      const rangeT = document.createElementNS('http://www.w3.org/2000/svg','text');
+      rangeT.setAttribute('x',x); rangeT.setAttribute('y',y-5);
+      rangeT.setAttribute('text-anchor','middle');
+      rangeT.setAttribute('fill','#94a3b8'); rangeT.setAttribute('font-size','0.6rem');
+      rangeT.setAttribute('font-family','monospace');
+      rangeT.textContent = `[${l},${r}]`;
+      svg.appendChild(rangeT);
+
+      const valT = document.createElementNS('http://www.w3.org/2000/svg','text');
+      valT.setAttribute('x',x); valT.setAttribute('y',y+9);
+      valT.setAttribute('text-anchor','middle');
+      valT.setAttribute('fill', colors.text); valT.setAttribute('font-size','0.85rem');
+      valT.setAttribute('font-weight','700'); valT.setAttribute('font-family','monospace');
+      valT.textContent = tree[nd];
+      svg.appendChild(valT);
+    } else {
+      const rangeT = document.createElementNS('http://www.w3.org/2000/svg','text');
+      rangeT.setAttribute('x',x); rangeT.setAttribute('y',y-8);
+      rangeT.setAttribute('text-anchor','middle');
+      rangeT.setAttribute('fill','#94a3b8'); rangeT.setAttribute('font-size','0.58rem');
+      rangeT.setAttribute('font-family','monospace');
+      rangeT.textContent = `[${l}]`;
+      svg.appendChild(rangeT);
+
+      const valT = document.createElementNS('http://www.w3.org/2000/svg','text');
+      valT.setAttribute('x',x); valT.setAttribute('y',y+7);
+      valT.setAttribute('text-anchor','middle');
+      valT.setAttribute('fill', colors.text); valT.setAttribute('font-size','0.9rem');
+      valT.setAttribute('font-weight','700'); valT.setAttribute('font-family','monospace');
+      valT.textContent = tree[nd];
+      svg.appendChild(valT);
+    }
+
+    if (lo!==ro) {
+      const mid=(lo+ro)>>1;
+      drawNodes(2*nd,lo,mid);
+      drawNodes(2*nd+1,mid+1,ro);
+    }
+  }
+  drawNodes(1,0,N-1);
+}
+
+function renderArr(hlIdx=-1, hlType='default') {
+  const cells = document.getElementById('arrCells');
+  cells.innerHTML = '';
+  for (let i=0;i<N;i++) {
+    const wrap = document.createElement('div');
+    wrap.className = 'arr-cell';
+    const cidx = document.createElement('div');
+    cidx.className = 'cidx';
+    cidx.textContent = i;
+    const cell = document.createElement('div');
+    cell.className = 'arr-val' + (i===hlIdx && hlType==='update' ? ' hl-update' : '') + (i===hlIdx && hlType==='query' ? ' hl-query' : '');
+    if (i===editingIdx) {
+      const inp = document.createElement('input');
+      inp.type='number'; inp.value=arr[i];
+      inp.style.cssText='width:2.6rem;height:2.4rem;background:#0c2340;border:none;color:var(--blue);font-size:0.9rem;font-weight:700;text-align:center;font-family:monospace;';
+      inp.onblur = ()=>{ const v=parseInt(inp.value); if(!isNaN(v)){arr[i]=v; buildTree();} editingIdx=-1; render(); };
+      inp.onkeydown = (e)=>{ if(e.key==='Enter'||e.key==='Escape') inp.blur(); };
+      cell.className='arr-val editing';
+      cell.appendChild(inp);
+      setTimeout(()=>inp.focus(),0);
+    } else {
+      cell.textContent = arr[i];
+      cell.onclick = ()=>{ if(isAnimating) return; editingIdx=i; renderArr(); };
+    }
+    wrap.appendChild(cidx);
+    wrap.appendChild(cell);
+    cells.appendChild(wrap);
+  }
+}
+
+function render(hlIdx=-1, hlType='default') {
+  renderArr(hlIdx, hlType);
+  renderSVG();
+}
+
+function addLog(msg) {
+  const c = document.getElementById('logContainer');
+  const d = document.createElement('div');
+  d.className = 'log-entry';
+  d.innerHTML = msg;
+  c.insertBefore(d, c.firstChild);
+  if (c.children.length > 60) c.removeChild(c.lastChild);
+}
+
+function setButtons(disabled) {
+  ['btnQuery','btnUpdate'].forEach(id=>document.getElementById(id).disabled=disabled);
+}
+
+async function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+function setNodeState(nd, state) { nodeStates[nd]=state; }
+function clearNodeStates() { nodeStates={}; }
+
+async function doQuery() {
+  if (isAnimating) return;
+  isAnimating = true;
+  setButtons(true);
+  clearNodeStates();
+  const ql = parseInt(document.getElementById('ql').value);
+  const qr = parseInt(document.getElementById('qr').value);
+
+  if (isNaN(ql)||isNaN(qr)||ql<0||qr>=N||ql>qr) {
+    addLog(`<span class="tag-orange">无效范围，请输入 0-${N-1} 之间且 l ≤ r</span>`);
+    isAnimating=false; setButtons(false); return;
+  }
+
+  document.getElementById('resultVal').textContent = '...';
+  document.getElementById('resultSteps').textContent = '';
+  addLog(`<span class="tag">Query [${ql}, ${qr}]</span> 开始查询...`);
+
+  let totalSum = 0;
+  let steps = [];
+
+  async function query(nd, l, r) {
+    setNodeState(nd,'yellow');
+    renderSVG();
+    await sleep(280);
+
+    if (ql<=l && r<=qr) {
+      setNodeState(nd,'green');
+      renderSVG();
+      steps.push(`节点[${l},${r}]完全覆盖→+${tree[nd]}`);
+      addLog(`<span class="tag-green">[${l},${r}] 完全覆盖，返回 ${tree[nd]}</span>`);
+      await sleep(220);
+      return tree[nd];
+    }
+    if (qr<l || r<ql) {
+      setNodeState(nd,'gray');
+      renderSVG();
+      addLog(`<span class="tag" style="color:var(--dim)">[${l},${r}] 不相交，跳过</span>`);
+      await sleep(160);
+      return 0;
+    }
+    setNodeState(nd,'orange');
+    renderSVG();
+    addLog(`<span class="tag-orange">[${l},${r}] 部分覆盖，拆分...</span>`);
+    await sleep(200);
+    const mid=(l+r)>>1;
+    const lv = await query(2*nd,l,mid);
+    const rv = await query(2*nd+1,mid+1,r);
+    return lv+rv;
+  }
+
+  totalSum = await query(1,0,N-1);
+  document.getElementById('resultVal').textContent = totalSum;
+  document.getElementById('resultSteps').textContent = `Query[${ql},${qr}] = ${totalSum}`;
+  addLog(`<span class="tag-green">查询结果：Sum[${ql},${qr}] = ${totalSum}</span>`);
+
+  // Highlight query range in arr
+  renderArr(-1,'default');
+
+  await sleep(600);
+  clearNodeStates();
+  renderSVG();
+  isAnimating=false;
+  setButtons(false);
+}
+
+async function doUpdate() {
+  if (isAnimating) return;
+  isAnimating = true;
+  setButtons(true);
+  clearNodeStates();
+  const idx = parseInt(document.getElementById('uidx').value);
+  const val = parseInt(document.getElementById('uval').value);
+
+  if (isNaN(idx)||isNaN(val)||idx<0||idx>=N) {
+    addLog(`<span class="tag-orange">无效索引，请输入 0-${N-1}</span>`);
+    isAnimating=false; setButtons(false); return;
+  }
+
+  addLog(`<span class="tag">Update(${idx}, ${val})</span> 开始更新 arr[${idx}] = ${val}...`);
+  document.getElementById('resultVal').textContent = '—';
+  document.getElementById('resultSteps').textContent = '';
+
+  arr[idx] = val;
+
+  const pathNodes = [];
+  async function update(nd, l, r) {
+    setNodeState(nd,'yellow');
+    pathNodes.push(nd);
+    renderSVG();
+    await sleep(270);
+
+    if (l===r) {
+      tree[nd] = val;
+      setNodeState(nd,'orange');
+      renderSVG();
+      addLog(`<span class="tag-orange">叶节点 [${l}] 更新为 ${val}</span>`);
+      await sleep(280);
+      return;
+    }
+    const mid=(l+r)>>1;
+    if (idx<=mid) await update(2*nd,l,mid);
+    else await update(2*nd+1,mid+1,r);
+
+    tree[nd] = tree[2*nd]+tree[2*nd+1];
+    setNodeState(nd,'green');
+    renderSVG();
+    addLog(`<span class="tag-green">节点 [${l},${r}] 重新计算 sum = ${tree[nd]}</span>`);
+    await sleep(250);
+  }
+
+  await update(1,0,N-1);
+  renderArr(idx,'update');
+  addLog(`<span class="tag-green">更新完成，arr[${idx}] = ${val}，根节点 sum = ${tree[1]}</span>`);
+  document.getElementById('resultSteps').textContent = `arr[${idx}] 更新为 ${val}，总和 = ${tree[1]}`;
+
+  await sleep(700);
+  clearNodeStates();
+  render();
+  isAnimating=false;
+  setButtons(false);
+}
+
+async function doBuildAnim() {
+  clearNodeStates();
+  // Show build bottom-up
+  const order = [];
+  function collectPostOrder(nd,l,r) {
+    if(l===r){order.push({nd,l,r}); return;}
+    const mid=(l+r)>>1;
+    collectPostOrder(2*nd,l,mid);
+    collectPostOrder(2*nd+1,mid+1,r);
+    order.push({nd,l,r});
+  }
+  collectPostOrder(1,0,N-1);
+  for (const {nd,l,r} of order) {
+    setNodeState(nd,'green');
+    renderSVG();
+    await sleep(90);
+  }
+  await sleep(300);
+  clearNodeStates();
+  renderSVG();
+}
+
+function doReset() {
+  arr = [...INIT_ARR];
+  buildTree();
+  clearNodeStates();
+  editingIdx=-1;
+  document.getElementById('logContainer').innerHTML='';
+  document.getElementById('resultVal').textContent='—';
+  document.getElementById('resultSteps').textContent='';
+  render();
+  addLog('<span class="tag">重置</span> 数组恢复为 [1,3,5,7,9,11]');
+}
+
+// Init
+buildTree();
+nodePositions = getNodeLayout();
+render();
+addLog('<span class="tag">初始化</span> 数组 [1,3,5,7,9,11]，线段树构建完成，根节点 sum = 36');
+doBuildAnim();
+</script>
+</body>
+</html>

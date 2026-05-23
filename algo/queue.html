@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>队列 - 算法可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.badge.time{background:rgba(74,222,128,0.15);color:var(--green);}.badge.space{background:rgba(196,132,252,0.15);color:var(--purple);}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.op-row{display:flex;gap:8px;padding:12px 24px;border-bottom:1px solid var(--border);align-items:center;}
+.op-btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.82rem;transition:all 0.15s;}
+.op-btn:hover{background:rgba(255,255,255,0.12);}.op-btn.active-op{background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.4);color:var(--blue);}
+.op-input{background:var(--panel);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:6px;font-size:0.82rem;width:70px;outline:none;}
+.op-input:focus{border-color:var(--blue);}
+.go-btn{background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.3);color:var(--blue);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.82rem;}
+.go-btn:hover{background:rgba(56,189,248,0.25);}
+.viz-area{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 40px;gap:24px;}
+.queue-labels{display:flex;gap:8px;font-size:0.75rem;color:var(--dim);font-family:monospace;justify-content:space-between;width:100%;max-width:600px;}
+.queue-direction{display:flex;align-items:center;gap:8px;font-size:0.8rem;color:var(--dim);}
+.queue-wrap{position:relative;width:100%;max-width:600px;}
+.queue-row{display:flex;gap:6px;min-height:72px;align-items:center;border:2px solid var(--border);border-radius:10px;padding:8px;background:rgba(255,255,255,0.02);}
+.q-cell{width:72px;height:52px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:700;font-family:monospace;transition:all 0.3s;flex-shrink:0;position:relative;}
+.q-cell .q-idx{position:absolute;bottom:3px;right:5px;font-size:0.6rem;color:var(--dim);}
+.q-arrow{font-size:1.2rem;color:var(--border);flex-shrink:0;}
+.pointer-labels{display:flex;width:100%;max-width:600px;position:relative;height:24px;}
+.ptr-label{position:absolute;font-size:0.7rem;font-family:monospace;font-weight:600;white-space:nowrap;transform:translateX(-50%);top:0;}
+.queue-info{display:flex;gap:16px;}
+.info-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 16px;min-width:110px;}
+.info-label{font-size:0.7rem;color:var(--dim);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em;}
+.info-val{font-size:1.1rem;font-weight:700;font-family:monospace;color:var(--text);}
+.info-val.empty{color:var(--dim);font-size:0.85rem;}
+.desc-box{padding:12px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.9rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.op{color:#ff7b72;}.id{color:#e6edf3;}.cm{color:#8b949e;font-style:italic;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.3);color:var(--blue);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>队列 Queue（FIFO 先进先出）</h1>
+  <div class="complexity"><span class="badge time">操作 O(1)</span><span class="badge space">空间 O(n)</span></div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="op-row">
+      <button class="op-btn active-op" id="opEnq">Enqueue 入队</button>
+      <button class="op-btn" id="opDeq">Dequeue 出队</button>
+      <button class="op-btn" id="opFront">Front 查看队首</button>
+      <input type="number" class="op-input" id="opVal" value="42" placeholder="值">
+      <button class="go-btn" id="goBtn">执行 ▶</button>
+    </div>
+    <div class="viz-area">
+      <div class="queue-labels">
+        <span style="color:var(--orange)">← 出队方向 (Dequeue / Front)</span>
+        <span style="color:var(--green)">入队方向 (Enqueue) →</span>
+      </div>
+      <div class="queue-wrap">
+        <div class="queue-row" id="queueRow"></div>
+      </div>
+      <div class="pointer-labels" id="ptrLabels"></div>
+      <div class="queue-info">
+        <div class="info-card">
+          <div class="info-label">队首 (Front)</div>
+          <div class="info-val" id="infoFront"><span class="empty">空</span></div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">队尾 (Back)</div>
+          <div class="info-val" id="infoBack"><span class="empty">空</span></div>
+        </div>
+        <div class="info-card">
+          <div class="info-label">大小</div>
+          <div class="info-val" id="infoSize">0</div>
+        </div>
+      </div>
+    </div>
+    <div class="desc-box">
+      <span id="descText">选择操作并点击执行</span>
+      <span class="step-counter" id="stepCounter"></span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px">queue.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+const CODE_LINES = [
+  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
+  {html:``},
+  {html:`<span class="kw">type</span> <span class="id">Queue</span> <span class="kw">struct</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;items []<span class="kw">int</span>`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="cm">// Enqueue: 入队，加到队尾</span>`},
+  {html:`<span class="kw">func</span> (q *<span class="id">Queue</span>) <span class="fn">Enqueue</span>(val <span class="kw">int</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;q.items = <span class="fn">append</span>(q.items, val)`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="cm">// Dequeue: 出队，从队首取出</span>`},
+  {html:`<span class="kw">func</span> (q *<span class="id">Queue</span>) <span class="fn">Dequeue</span>() (<span class="kw">int</span>, <span class="kw">bool</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> <span class="fn">len</span>(q.items) == <span class="num">0</span> { <span class="kw">return</span> <span class="num">0</span>, <span class="kw">false</span> }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;front := q.items[<span class="num">0</span>]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;q.items = q.items[<span class="num">1</span>:]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> front, <span class="kw">true</span>`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="cm">// Front: 查看队首，不移除</span>`},
+  {html:`<span class="kw">func</span> (q *<span class="id">Queue</span>) <span class="fn">Front</span>() (<span class="kw">int</span>, <span class="kw">bool</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> <span class="fn">len</span>(q.items) == <span class="num">0</span> { <span class="kw">return</span> <span class="num">0</span>, <span class="kw">false</span> }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> q.items[<span class="num">0</span>], <span class="kw">true</span>`},
+  {html:`}`},
+];
+
+let queueData = [10, 20, 30, 40];
+let steps = [];
+let cur = 0, playing = false, timer = null;
+const SPEED = [800,500,300,180,80];
+let currentOp = 'enqueue';
+
+const queueRow=document.getElementById('queueRow'),ptrLabels=document.getElementById('ptrLabels'),
+  codeBody=document.getElementById('codeBody'),descText=document.getElementById('descText'),
+  stepCounter=document.getElementById('stepCounter'),infoFront=document.getElementById('infoFront'),
+  infoBack=document.getElementById('infoBack'),infoSize=document.getElementById('infoSize'),
+  btnPlay=document.getElementById('btnPlay'),btnPrev=document.getElementById('btnPrev'),
+  btnNext=document.getElementById('btnNext'),btnReset=document.getElementById('btnReset'),
+  speedRange=document.getElementById('speedRange'),goBtn=document.getElementById('goBtn'),
+  opVal=document.getElementById('opVal');
+
+const opBtns={enqueue:document.getElementById('opEnq'),dequeue:document.getElementById('opDeq'),front:document.getElementById('opFront')};
+Object.entries(opBtns).forEach(([op,btn])=>{
+  btn.addEventListener('click',()=>{
+    currentOp=op;
+    Object.values(opBtns).forEach(b=>b.classList.remove('active-op'));
+    btn.classList.add('active-op');
+    opVal.style.display=op==='enqueue'?'inline-block':'none';
+  });
+});
+
+function genEnqSteps(q, val){
+  const s=[];
+  s.push({q:[...q],hl:-1,adding:-1,lines:[7],desc:`Enqueue(${val}): 准备入队`});
+  s.push({q:[...q],hl:-1,adding:-1,lines:[8],desc:`q.items = append(q.items, ${val})，加到队尾`});
+  const nq=[...q,val];
+  s.push({q:nq,hl:nq.length-1,adding:nq.length-1,lines:[8],desc:`${val} 已加入队尾，size=${nq.length}`});
+  return s;
+}
+function genDeqSteps(q){
+  const s=[];
+  if(q.length===0){s.push({q:[],hl:-1,adding:-1,lines:[13],desc:'队列为空，Dequeue 失败'});return s;}
+  s.push({q:[...q],hl:-1,adding:-1,lines:[12],desc:'Dequeue(): 准备出队'});
+  s.push({q:[...q],hl:0,adding:-1,lines:[13,14],desc:`front = items[0] = ${q[0]}`});
+  s.push({q:[...q],hl:0,adding:-1,lines:[15],desc:`移除 items[0]，队列前移`});
+  const nq=q.slice(1);
+  s.push({q:nq,hl:-1,adding:-1,lines:[16],desc:`返回 (${q[0]}, true)，size=${nq.length}`});
+  return s;
+}
+function genFrontSteps(q){
+  const s=[];
+  if(q.length===0){s.push({q:[],hl:-1,adding:-1,lines:[21],desc:'队列为空，Front 失败'});return s;}
+  s.push({q:[...q],hl:-1,adding:-1,lines:[20],desc:'Front(): 查看队首，不移除'});
+  s.push({q:[...q],hl:0,adding:-1,lines:[21,22],desc:`返回 items[0] = ${q[0]}，队列不变`});
+  return s;
+}
+
+goBtn.addEventListener('click',()=>{
+  pause();
+  const val=parseInt(opVal.value);
+  let ns=[];
+  if(currentOp==='enqueue'){if(isNaN(val))return;ns=genEnqSteps(queueData,val);queueData=[...queueData,val];}
+  else if(currentOp==='dequeue'){ns=genDeqSteps(queueData);if(queueData.length>0)queueData=queueData.slice(1);}
+  else if(currentOp==='front'){ns=genFrontSteps(queueData);}
+  steps=ns;cur=0;render();
+});
+
+function buildCode(){
+  codeBody.innerHTML=CODE_LINES.map((l,i)=>`<div class="code-line" data-line="${i}"><span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`).join('');
+  codeBody.querySelectorAll('.code-line').forEach(el=>el.addEventListener('click',()=>jumpToLine(parseInt(el.dataset.line))));
+}
+function highlightLines(lines){
+  codeBody.querySelectorAll('.code-line').forEach(el=>el.classList.remove('active'));
+  lines.forEach(ln=>{const el=codeBody.querySelector(`[data-line="${ln}"]`);if(el)el.classList.add('active');});
+  if(lines.length>0){const f=codeBody.querySelector(`[data-line="${lines[0]}"]`);if(f)f.scrollIntoView({block:'nearest'});}
+}
+function jumpToLine(ln){let t=cur,b=Infinity;steps.forEach((s,i)=>{if(s.lines&&s.lines.includes(ln)){const d=Math.abs(i-cur);if(d<b){b=d;t=i;}}});cur=t;render();}
+
+const COLORS=['#38bdf8','#818cf8','#fb923c','#4ade80','#c084fc','#fbbf24'];
+function renderQueue(q, hl, adding){
+  queueRow.innerHTML='';
+  q.forEach((val,i)=>{
+    const cell=document.createElement('div');
+    cell.className='q-cell';
+    const isHL=hl===i;
+    const isAdd=adding===i;
+    if(isAdd){cell.style.background='rgba(74,222,128,0.2)';cell.style.color='#4ade80';cell.style.border='1.5px solid #4ade80';cell.style.boxShadow='0 0 14px rgba(74,222,128,0.4)';}
+    else if(isHL){cell.style.background='rgba(196,132,252,0.2)';cell.style.color='#c084fc';cell.style.border='1.5px solid #c084fc';cell.style.boxShadow='0 0 14px rgba(196,132,252,0.4)';}
+    else{cell.style.background=`${COLORS[i%COLORS.length]}18`;cell.style.color=COLORS[i%COLORS.length];cell.style.border=`1.5px solid ${COLORS[i%COLORS.length]}40`;}
+    cell.textContent=val;
+    const idx=document.createElement('span');idx.className='q-idx';idx.textContent=`[${i}]`;
+    cell.appendChild(idx);
+    queueRow.appendChild(cell);
+    if(i<q.length-1){const a=document.createElement('div');a.className='q-arrow';a.textContent='→';queueRow.appendChild(a);}
+  });
+  if(q.length===0){const em=document.createElement('div');em.style.cssText='color:#475569;font-size:0.9rem;font-family:monospace;padding:10px';em.textContent='（空队列）';queueRow.appendChild(em);}
+  if(q.length>0){
+    infoFront.innerHTML=`<span style="color:var(--orange)">${q[0]}</span>`;
+    infoBack.innerHTML=`<span style="color:var(--green)">${q[q.length-1]}</span>`;
+  }else{infoFront.innerHTML='<span class="empty">空</span>';infoBack.innerHTML='<span class="empty">空</span>';}
+  infoSize.textContent=q.length;
+}
+function render(){
+  if(steps.length===0){renderQueue(queueData,-1,-1);descText.textContent='选择操作并点击执行';stepCounter.textContent='';return;}
+  const s=steps[cur];
+  renderQueue(s.q,s.hl,s.adding);
+  if(s.lines)highlightLines(s.lines);
+  descText.textContent=s.desc;
+  stepCounter.textContent=`${cur+1} / ${steps.length}`;
+  btnPrev.disabled=cur===0;btnNext.disabled=cur===steps.length-1;
+}
+function play(){if(cur>=steps.length-1)cur=0;playing=true;btnPlay.innerHTML='⏸ 暂停';tick();}
+function pause(){playing=false;clearTimeout(timer);btnPlay.innerHTML='▶ 播放';}
+function tick(){if(!playing)return;if(cur<steps.length-1){cur++;render();timer=setTimeout(tick,SPEED[parseInt(speedRange.value)-1]);}else pause();}
+btnPlay.addEventListener('click',()=>playing?pause():play());
+btnPrev.addEventListener('click',()=>{pause();if(cur>0){cur--;render();}});
+btnNext.addEventListener('click',()=>{pause();if(cur<steps.length-1){cur++;render();}});
+btnReset.addEventListener('click',()=>{pause();cur=0;render();});
+buildCode();renderQueue(queueData,-1,-1);
+</script>
+</body>
+</html>

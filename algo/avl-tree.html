@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AVL 树 - 算法可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.badge.time{background:rgba(56,189,248,0.15);color:var(--blue);}.badge.space{background:rgba(196,132,252,0.15);color:var(--purple);}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.op-bar{display:flex;gap:8px;padding:8px 16px;border-bottom:1px solid var(--border);flex-shrink:0;align-items:center;flex-wrap:wrap;}
+.op-btn{background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.3);color:var(--blue);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:0.82rem;}
+.op-btn:hover{background:rgba(56,189,248,0.2);}
+.op-input{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:6px;width:70px;font-size:0.82rem;outline:none;}
+.op-input:focus{border-color:rgba(56,189,248,0.5);}
+.op-label{font-size:0.8rem;color:var(--dim);}
+.viz-area{flex:1;overflow:hidden;}
+svg.tree-svg{width:100%;height:100%;}
+.desc-box{padding:10px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.9rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.op{color:#ff7b72;}.id{color:#e6edf3;}.cm{color:#8b949e;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.3);color:var(--blue);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
+.legend{display:flex;gap:12px;padding:8px 24px;border-bottom:1px solid var(--border);flex-wrap:wrap;flex-shrink:0;}
+.leg{display:flex;align-items:center;gap:4px;font-size:0.72rem;color:var(--dim);}
+.leg-dot{width:8px;height:8px;border-radius:2px;}
+.stats{display:flex;gap:16px;padding:0 8px;}.stat{font-size:0.78rem;color:var(--dim);font-family:monospace;}.stat span{color:var(--text);font-weight:600;}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>AVL 树 AVL Tree</h1>
+  <div class="complexity">
+    <span class="badge time">插入/删除/查找 O(log n)</span>
+    <span class="badge space">空间 O(n)</span>
+  </div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="legend">
+      <div class="leg"><div class="leg-dot" style="background:#38bdf8"></div>普通节点</div>
+      <div class="leg"><div class="leg-dot" style="background:#fbbf24"></div>插入/当前节点</div>
+      <div class="leg"><div class="leg-dot" style="background:#f87171"></div>失衡节点(|bf|>1)</div>
+      <div class="leg"><div class="leg-dot" style="background:#fb923c"></div>旋转节点</div>
+      <div class="leg"><div class="leg-dot" style="background:#4ade80"></div>旋转完成/平衡</div>
+    </div>
+    <div class="op-bar">
+      <span class="op-label">插入值:</span>
+      <input class="op-input" type="number" id="insertVal" placeholder="值" min="1" max="99" value="15">
+      <button class="op-btn" onclick="doInsert()">Insert</button>
+      <span class="op-label" style="margin-left:16px">预设序列:</span>
+      <button class="op-btn" onclick="doPreset([10,20,30])">右旋示例</button>
+      <button class="op-btn" onclick="doPreset([30,20,10])">左旋示例</button>
+      <button class="op-btn" onclick="doPreset([10,30,20])">左右旋</button>
+      <button class="op-btn" onclick="doPreset([30,10,20])">右左旋</button>
+    </div>
+    <div class="viz-area">
+      <svg class="tree-svg" id="treeSvg"></svg>
+    </div>
+    <div class="desc-box">
+      <span id="descText">选择插入操作开始演示</span>
+      <div class="stats">
+        <div class="stat">节点数 <span id="nodeCount">0</span></div>
+        <div class="stat">高度 <span id="treeHeight">0</span></div>
+      </div>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px">avl_tree.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+const CODE_LINES = [
+  {html:`<span class="kw">type</span> <span class="id">Node</span> <span class="kw">struct</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">Val</span>         <span class="kw">int</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">Left</span>, <span class="id">Right</span> *<span class="id">Node</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">Height</span>      <span class="kw">int</span>`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">height</span>(n *<span class="id">Node</span>) <span class="kw">int</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> n == <span class="kw">nil</span> { <span class="kw">return</span> <span class="num">0</span> }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> n.<span class="id">Height</span>`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">bf</span>(n *<span class="id">Node</span>) <span class="kw">int</span> {  <span class="cm">// balance factor</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="fn">height</span>(n.<span class="id">Left</span>) <span class="op">-</span> <span class="fn">height</span>(n.<span class="id">Right</span>)`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">rotateRight</span>(y *<span class="id">Node</span>) *<span class="id">Node</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;x := y.<span class="id">Left</span>          <span class="cm">// x 成为新根</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;y.<span class="id">Left</span> = x.<span class="id">Right</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;x.<span class="id">Right</span> = y`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 更新高度</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;y.<span class="id">Height</span> = <span class="fn">max</span>(<span class="fn">height</span>(y.<span class="id">Left</span>), <span class="fn">height</span>(y.<span class="id">Right</span>)) <span class="op">+</span> <span class="num">1</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;x.<span class="id">Height</span> = <span class="fn">max</span>(<span class="fn">height</span>(x.<span class="id">Left</span>), <span class="fn">height</span>(x.<span class="id">Right</span>)) <span class="op">+</span> <span class="num">1</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> x`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">rotateLeft</span>(x *<span class="id">Node</span>) *<span class="id">Node</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;y := x.<span class="id">Right</span>         <span class="cm">// y 成为新根</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;x.<span class="id">Right</span> = y.<span class="id">Left</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;y.<span class="id">Left</span> = x`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;x.<span class="id">Height</span> = <span class="fn">max</span>(<span class="fn">height</span>(x.<span class="id">Left</span>), <span class="fn">height</span>(x.<span class="id">Right</span>)) <span class="op">+</span> <span class="num">1</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;y.<span class="id">Height</span> = <span class="fn">max</span>(<span class="fn">height</span>(y.<span class="id">Left</span>), <span class="fn">height</span>(y.<span class="id">Right</span>)) <span class="op">+</span> <span class="num">1</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> y`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">insert</span>(node *<span class="id">Node</span>, val <span class="kw">int</span>) *<span class="id">Node</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> node == <span class="kw">nil</span> { <span class="kw">return</span> &amp;<span class="id">Node</span>{<span class="id">Val</span>: val, <span class="id">Height</span>: <span class="num">1</span>} }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> val <span class="op"><</span> node.<span class="id">Val</span> { node.<span class="id">Left</span> = <span class="fn">insert</span>(node.<span class="id">Left</span>, val) }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">else</span> { node.<span class="id">Right</span> = <span class="fn">insert</span>(node.<span class="id">Right</span>, val) }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;node.<span class="id">Height</span> = <span class="fn">max</span>(<span class="fn">height</span>(node.<span class="id">Left</span>), <span class="fn">height</span>(node.<span class="id">Right</span>)) <span class="op">+</span> <span class="num">1</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;b := <span class="fn">bf</span>(node)             <span class="cm">// 检查平衡因子</span>`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> b <span class="op">></span> <span class="num">1</span> &amp;&amp; val <span class="op"><</span> node.<span class="id">Left</span>.<span class="id">Val</span> {  <span class="cm">// LL 右旋</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="fn">rotateRight</span>(node)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> b <span class="op"><</span> <span class="op">-</span><span class="num">1</span> &amp;&amp; val <span class="op">></span> node.<span class="id">Right</span>.<span class="id">Val</span> {  <span class="cm">// RR 左旋</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="fn">rotateLeft</span>(node)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> b <span class="op">></span> <span class="num">1</span> &amp;&amp; val <span class="op">></span> node.<span class="id">Left</span>.<span class="id">Val</span> {  <span class="cm">// LR 先左旋再右旋</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;node.<span class="id">Left</span> = <span class="fn">rotateLeft</span>(node.<span class="id">Left</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="fn">rotateRight</span>(node)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> b <span class="op"><</span> <span class="op">-</span><span class="num">1</span> &amp;&amp; val <span class="op"><</span> node.<span class="id">Right</span>.<span class="id">Val</span> {  <span class="cm">// RL 先右旋再左旋</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;node.<span class="id">Right</span> = <span class="fn">rotateRight</span>(node.<span class="id">Right</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="fn">rotateLeft</span>(node)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> node`},
+  {html:`}`},
+];
+
+// AVL tree node
+class AVLNode {
+  constructor(val) { this.val = val; this.left = null; this.right = null; this.height = 1; }
+}
+
+function nodeHeight(n) { return n ? n.height : 0; }
+function bf(n) { return n ? nodeHeight(n.left) - nodeHeight(n.right) : 0; }
+function updateHeight(n) { if (n) n.height = Math.max(nodeHeight(n.left), nodeHeight(n.right)) + 1; }
+function treeSize(n) { return n ? 1 + treeSize(n.left) + treeSize(n.right) : 0; }
+
+function cloneTree(n) {
+  if (!n) return null;
+  const c = new AVLNode(n.val);
+  c.height = n.height;
+  c.left = cloneTree(n.left);
+  c.right = cloneTree(n.right);
+  return c;
+}
+
+let avlRoot = null;
+let steps = [], cur = 0, playing = false, timer = null;
+const SPEED = [800,500,300,180,80];
+
+function generateInsertSteps(root, val) {
+  const steps = [];
+
+  function mkStep(r, highlight, rotate, settled, desc, lines) {
+    return { root: cloneTree(r), highlight: highlight || [], rotate: rotate || [], settled: settled || [], description: desc, highlightLines: lines };
+  }
+
+  steps.push(mkStep(root, [], [], [], `准备插入 ${val} 到 AVL 树`, [34]));
+
+  function insert(node, val) {
+    if (!node) {
+      const newNode = new AVLNode(val);
+      steps.push(mkStep(insert._tmpRoot, [val], [], [], `插入新节点 ${val}（叶子节点，高度=1）`, [35]));
+      return newNode;
+    }
+    steps.push(mkStep(insert._tmpRoot, [node.val], [], [], `访问节点 ${node.val}，${val} ${val < node.val ? '< ' + node.val + ' 走左子树' : '> ' + node.val + ' 走右子树'}`, [36, 37]));
+    if (val < node.val) node.left = insert(node.left, val);
+    else node.right = insert(node.right, val);
+    updateHeight(node);
+    const b = bf(node);
+    steps.push(mkStep(insert._tmpRoot, [node.val], [], [], `节点 ${node.val}：高度=${node.height}，平衡因子 bf=${b}`, [38, 39], ));
+    if (Math.abs(b) > 1) {
+      steps.push(mkStep(insert._tmpRoot, [], [node.val], [], `节点 ${node.val} 失衡！bf=${b}，需要旋转`, [41, 44, 47, 51]));
+    }
+    if (b > 1 && val < node.left.val) {
+      steps.push(mkStep(insert._tmpRoot, [], [node.val, node.left.val], [], `LL 型失衡：对 ${node.val} 右旋`, [41, 42]));
+      const res = rotateRight(node);
+      steps.push(mkStep(insert._tmpRoot, [], [], [res.val], `右旋完成，新根 ${res.val}，子树平衡`, [15, 16, 17, 18, 19, 20, 21, 22]));
+      return res;
+    }
+    if (b < -1 && val > node.right.val) {
+      steps.push(mkStep(insert._tmpRoot, [], [node.val, node.right.val], [], `RR 型失衡：对 ${node.val} 左旋`, [44, 45]));
+      const res = rotateLeft(node);
+      steps.push(mkStep(insert._tmpRoot, [], [], [res.val], `左旋完成，新根 ${res.val}，子树平衡`, [25, 26, 27, 28, 29, 30, 31]));
+      return res;
+    }
+    if (b > 1 && val > node.left.val) {
+      steps.push(mkStep(insert._tmpRoot, [], [node.left.val, node.val], [], `LR 型失衡：先对 ${node.left.val} 左旋，再对 ${node.val} 右旋`, [47, 48, 49]));
+      node.left = rotateLeft(node.left);
+      const res = rotateRight(node);
+      steps.push(mkStep(insert._tmpRoot, [], [], [res.val], `LR 旋转完成，新根 ${res.val}，子树平衡`, [47, 48, 49]));
+      return res;
+    }
+    if (b < -1 && val < node.right.val) {
+      steps.push(mkStep(insert._tmpRoot, [], [node.right.val, node.val], [], `RL 型失衡：先对 ${node.right.val} 右旋，再对 ${node.val} 左旋`, [51, 52, 53]));
+      node.right = rotateRight(node.right);
+      const res = rotateLeft(node);
+      steps.push(mkStep(insert._tmpRoot, [], [], [res.val], `RL 旋转完成，新根 ${res.val}，子树平衡`, [51, 52, 53]));
+      return res;
+    }
+    return node;
+  }
+
+  function rotateRight(y) {
+    const x = y.left;
+    y.left = x.right;
+    x.right = y;
+    updateHeight(y); updateHeight(x);
+    return x;
+  }
+  function rotateLeft(x) {
+    const y = x.right;
+    x.right = y.left;
+    y.left = x;
+    updateHeight(x); updateHeight(y);
+    return y;
+  }
+
+  const tmpRoot = { _ref: cloneTree(root) };
+  insert._tmpRoot = tmpRoot._ref;
+  const newRoot = insert(tmpRoot._ref, val);
+  avlRoot = newRoot;
+  steps.push(mkStep(newRoot, [], [], [], `插入 ${val} 完成，AVL 树保持平衡`, [34]));
+  return { steps, finalRoot: newRoot };
+}
+
+function doInsert() {
+  pause();
+  const val = parseInt(document.getElementById('insertVal').value) || 15;
+  const res = generateInsertSteps(avlRoot, val);
+  steps = res.steps;
+  avlRoot = res.finalRoot;
+  cur = 0; render();
+}
+
+function doPreset(vals) {
+  pause();
+  avlRoot = null; steps = []; cur = 0;
+  for (const v of vals) {
+    const res = generateInsertSteps(avlRoot, v);
+    for (const s of res.steps) steps.push(s);
+    avlRoot = res.finalRoot;
+  }
+  cur = 0; render();
+}
+
+const treeSvg = document.getElementById('treeSvg');
+const descText = document.getElementById('descText');
+const stepCounter = document.getElementById('stepCounter');
+const nodeCount = document.getElementById('nodeCount');
+const treeHeightEl = document.getElementById('treeHeight');
+const codeBody = document.getElementById('codeBody');
+const speedRange = document.getElementById('speedRange');
+const btnPlay = document.getElementById('btnPlay');
+const btnPrev = document.getElementById('btnPrev');
+const btnNext = document.getElementById('btnNext');
+const btnReset = document.getElementById('btnReset');
+
+function computePositions(root) {
+  const positions = {};
+  let idx = 0;
+  function inorder(n, depth) {
+    if (!n) return;
+    inorder(n.left, depth + 1);
+    positions[n.val] = { x: idx++, y: depth };
+    inorder(n.right, depth + 1);
+  }
+  inorder(root, 0);
+  return positions;
+}
+
+function renderTree(s) {
+  const root = s ? s.root : avlRoot;
+  const highlight = s ? s.highlight : [];
+  const rotate = s ? s.rotate : [];
+  const settled = s ? s.settled : [];
+
+  const rect = treeSvg.parentElement.getBoundingClientRect();
+  const W = rect.width || 500, H = rect.height || 300;
+  treeSvg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  treeSvg.innerHTML = '';
+
+  if (!root) {
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('x', W/2); t.setAttribute('y', H/2);
+    t.setAttribute('text-anchor', 'middle'); t.setAttribute('fill', '#94a3b8'); t.setAttribute('font-size', '14');
+    t.textContent = '树为空，请插入节点';
+    treeSvg.appendChild(t); return;
+  }
+
+  const pos = computePositions(root);
+  const count = Object.keys(pos).length;
+  const R = Math.min(22, Math.max(14, 200 / count));
+  const xScale = (W - R * 2) / Math.max(count - 1, 1);
+  const maxDepth = Math.max(...Object.values(pos).map(p => p.y));
+  const yScale = maxDepth > 0 ? (H - R * 3) / maxDepth : H / 2;
+
+  function getXY(val) {
+    const p = pos[val];
+    return { x: R + p.x * xScale, y: R * 1.5 + p.y * yScale };
+  }
+
+  function getColor(val) {
+    if (rotate.includes(val)) return '#fb923c';
+    if (highlight.includes(val)) return '#fbbf24';
+    if (settled.includes(val)) return '#4ade80';
+    const b = bf(findNode(root, val));
+    if (Math.abs(b) > 1) return '#f87171';
+    return '#38bdf8';
+  }
+
+  function findNode(n, val) {
+    if (!n) return null;
+    if (n.val === val) return n;
+    return findNode(n.left, val) || findNode(n.right, val);
+  }
+
+  // Draw edges first
+  function drawEdges(n) {
+    if (!n) return;
+    if (n.left) {
+      const p1 = getXY(n.val), p2 = getXY(n.left.val);
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y);
+      line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y);
+      line.setAttribute('stroke', '#334155'); line.setAttribute('stroke-width', '1.5');
+      treeSvg.appendChild(line);
+    }
+    if (n.right) {
+      const p1 = getXY(n.val), p2 = getXY(n.right.val);
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y);
+      line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y);
+      line.setAttribute('stroke', '#334155'); line.setAttribute('stroke-width', '1.5');
+      treeSvg.appendChild(line);
+    }
+    drawEdges(n.left); drawEdges(n.right);
+  }
+  drawEdges(root);
+
+  // Draw nodes
+  function drawNodes(n) {
+    if (!n) return;
+    const color = getColor(n.val);
+    const { x, y } = getXY(n.val);
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', x); circle.setAttribute('cy', y); circle.setAttribute('r', R);
+    circle.setAttribute('fill', color + '33'); circle.setAttribute('stroke', color);
+    circle.setAttribute('stroke-width', rotate.includes(n.val) || highlight.includes(n.val) ? '3' : '2');
+    if (rotate.includes(n.val) || highlight.includes(n.val)) circle.setAttribute('filter', `drop-shadow(0 0 6px ${color})`);
+    treeSvg.appendChild(circle);
+
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', x); text.setAttribute('y', y + 1);
+    text.setAttribute('text-anchor', 'middle'); text.setAttribute('dominant-baseline', 'middle');
+    text.setAttribute('fill', color); text.setAttribute('font-size', Math.min(14, R)); text.setAttribute('font-weight', '600');
+    text.textContent = n.val;
+    treeSvg.appendChild(text);
+
+    // BF label
+    const bfVal = bf(n);
+    const bfLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    bfLabel.setAttribute('x', x + R + 3); bfLabel.setAttribute('y', y - R + 6);
+    bfLabel.setAttribute('fill', Math.abs(bfVal) > 1 ? '#f87171' : '#64748b');
+    bfLabel.setAttribute('font-size', '10'); bfLabel.setAttribute('font-family', 'monospace');
+    bfLabel.textContent = bfVal;
+    treeSvg.appendChild(bfLabel);
+
+    drawNodes(n.left); drawNodes(n.right);
+  }
+  drawNodes(root);
+}
+
+function render() {
+  if (steps.length === 0) {
+    renderTree(null);
+    descText.textContent = '选择插入操作开始演示';
+    nodeCount.textContent = treeSize(avlRoot);
+    treeHeightEl.textContent = nodeHeight(avlRoot);
+    stepCounter.textContent = '0 / 0';
+    return;
+  }
+  const s = steps[cur];
+  renderTree(s);
+  highlightLines(s.highlightLines);
+  descText.textContent = s.description;
+  stepCounter.textContent = `${cur + 1} / ${steps.length}`;
+  nodeCount.textContent = treeSize(s.root);
+  treeHeightEl.textContent = nodeHeight(s.root);
+  btnPrev.disabled = cur === 0;
+  btnNext.disabled = cur === steps.length - 1;
+}
+
+function buildCode() {
+  codeBody.innerHTML = CODE_LINES.map((l, i) => `<div class="code-line" data-line="${i}"><span class="ln">${i + 1}</span><span class="lc">${l.html || '&nbsp;'}</span></div>`).join('');
+  codeBody.querySelectorAll('.code-line').forEach(el => el.addEventListener('click', () => jumpToLine(parseInt(el.dataset.line))));
+}
+function highlightLines(lines) {
+  codeBody.querySelectorAll('.code-line').forEach(el => el.classList.remove('active'));
+  (lines || []).forEach(ln => { const el = codeBody.querySelector(`[data-line="${ln}"]`); if (el) el.classList.add('active'); });
+  if (lines && lines.length > 0) { const f = codeBody.querySelector(`[data-line="${lines[0]}"]`); if (f) f.scrollIntoView({ block: 'nearest' }); }
+}
+function jumpToLine(ln) {
+  if (steps.length === 0) return;
+  let t = cur, b2 = Infinity;
+  steps.forEach((s, i) => { if (s.highlightLines && s.highlightLines.includes(ln)) { const d = Math.abs(i - cur); if (d < b2) { b2 = d; t = i; } } });
+  cur = t; render();
+}
+
+function play() { if (cur >= steps.length - 1) cur = 0; playing = true; btnPlay.innerHTML = '⏸ 暂停'; tick(); }
+function pause() { playing = false; clearTimeout(timer); btnPlay.innerHTML = '▶ 播放'; }
+function tick() { if (!playing) return; if (cur < steps.length - 1) { cur++; render(); timer = setTimeout(tick, SPEED[parseInt(speedRange.value) - 1]); } else pause(); }
+
+btnPlay.addEventListener('click', () => playing ? pause() : play());
+btnPrev.addEventListener('click', () => { pause(); if (cur > 0) { cur--; render(); } });
+btnNext.addEventListener('click', () => { pause(); if (cur < steps.length - 1) { cur++; render(); } });
+btnReset.addEventListener('click', () => { pause(); avlRoot = null; steps = []; cur = 0; render(); });
+
+buildCode();
+// Initialize with a balanced tree
+doPreset([50, 30, 70, 20, 40, 60, 80]);
+</script>
+</body>
+</html>

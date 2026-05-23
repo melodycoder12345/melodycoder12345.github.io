@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>链表 - 算法可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.badge.time{background:rgba(74,222,128,0.15);color:var(--green);}.badge.space{background:rgba(196,132,252,0.15);color:var(--purple);}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.op-row{display:flex;gap:8px;padding:12px 24px;border-bottom:1px solid var(--border);flex-wrap:wrap;align-items:center;}
+.op-btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.82rem;transition:all 0.15s;display:flex;align-items:center;gap:5px;}
+.op-btn:hover{background:rgba(255,255,255,0.12);}.op-btn.active-op{background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.4);color:var(--blue);}
+.op-input{background:var(--panel);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:6px;font-size:0.82rem;width:60px;outline:none;}
+.op-input:focus{border-color:var(--blue);}
+.go-btn{background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.3);color:var(--blue);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.82rem;}
+.go-btn:hover{background:rgba(56,189,248,0.25);}
+.viz-area{flex:1;display:flex;align-items:center;justify-content:center;padding:20px 40px;overflow:hidden;}
+svg#listSvg{width:100%;height:100%;overflow:visible;}
+.desc-box{padding:12px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.9rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.op{color:#ff7b72;}.id{color:#e6edf3;}.cm{color:#8b949e;font-style:italic;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.3);color:var(--blue);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>链表 Linked List</h1>
+  <div class="complexity"><span class="badge time">插入/删除 O(1)</span><span class="badge space">空间 O(n)</span></div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="op-row">
+      <button class="op-btn active-op" id="opInsertHead">在头部插入</button>
+      <button class="op-btn" id="opInsertTail">在尾部插入</button>
+      <button class="op-btn" id="opInsertAt">在位置插入</button>
+      <button class="op-btn" id="opDelete">删除节点</button>
+      <button class="op-btn" id="opSearch">搜索值</button>
+      <input type="number" class="op-input" id="opVal" value="42" placeholder="值">
+      <input type="number" class="op-input" id="opPos" value="1" placeholder="位置" style="display:none">
+      <button class="go-btn" id="goBtn">执行 ▶</button>
+    </div>
+    <div class="viz-area">
+      <svg id="listSvg"></svg>
+    </div>
+    <div class="desc-box">
+      <span id="descText">选择操作并点击执行</span>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px">linked_list.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+const CODE_LINES = [
+  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
+  {html:``},
+  {html:`<span class="kw">type</span> <span class="id">Node</span> <span class="kw">struct</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;Val  <span class="kw">int</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;Next *<span class="id">Node</span>`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="cm">// 在头部插入节点</span>`},
+  {html:`<span class="kw">func</span> <span class="fn">insertHead</span>(head **<span class="id">Node</span>, val <span class="kw">int</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;newNode := &amp;<span class="id">Node</span>{Val: val}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;newNode.Next = *head`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;*head = newNode`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="cm">// 在尾部插入节点</span>`},
+  {html:`<span class="kw">func</span> <span class="fn">insertTail</span>(head **<span class="id">Node</span>, val <span class="kw">int</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;newNode := &amp;<span class="id">Node</span>{Val: val}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> *head == <span class="kw">nil</span> { *head = newNode; <span class="kw">return</span> }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;curr := *head`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> curr.Next != <span class="kw">nil</span> { curr = curr.Next }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;curr.Next = newNode`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="cm">// 删除第一个值为 val 的节点</span>`},
+  {html:`<span class="kw">func</span> <span class="fn">deleteNode</span>(head **<span class="id">Node</span>, val <span class="kw">int</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;dummy := &amp;<span class="id">Node</span>{Next: *head}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;prev := dummy`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> prev.Next != <span class="kw">nil</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> prev.Next.Val == val {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;prev.Next = prev.Next.Next`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">break</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;prev = prev.Next`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;*head = dummy.Next`},
+  {html:`}`},
+];
+
+// Linked list state: array of values
+let listData = [10, 20, 30, 40, 50];
+let steps = [];
+let cur = 0, playing = false, timer = null;
+const SPEED = [800,500,300,180,80];
+let currentOp = 'insertHead';
+
+const svg = document.getElementById('listSvg');
+const codeBody = document.getElementById('codeBody');
+const descText = document.getElementById('descText');
+const stepCounter = document.getElementById('stepCounter');
+const btnPlay = document.getElementById('btnPlay');
+const btnPrev = document.getElementById('btnPrev');
+const btnNext = document.getElementById('btnNext');
+const btnReset = document.getElementById('btnReset');
+const speedRange = document.getElementById('speedRange');
+const goBtn = document.getElementById('goBtn');
+const opVal = document.getElementById('opVal');
+const opPos = document.getElementById('opPos');
+
+// Op button selection
+const opBtns = {
+  insertHead: document.getElementById('opInsertHead'),
+  insertTail: document.getElementById('opInsertTail'),
+  insertAt: document.getElementById('opInsertAt'),
+  delete: document.getElementById('opDelete'),
+  search: document.getElementById('opSearch'),
+};
+Object.entries(opBtns).forEach(([op, btn]) => {
+  btn.addEventListener('click', () => {
+    currentOp = op;
+    Object.values(opBtns).forEach(b => b.classList.remove('active-op'));
+    btn.classList.add('active-op');
+    opPos.style.display = op === 'insertAt' ? 'inline-block' : 'none';
+    updateCodeView();
+  });
+});
+
+function updateCodeView() {
+  const lineMap = {insertHead:[8,9,10,11],insertTail:[15,16,17,18,19,20],insertAt:[8,9,10,11],delete:[24,25,26,27,28,29,30,31,32,33],search:[27,28]};
+  highlightLines(lineMap[currentOp]||[]);
+}
+
+function generateInsertHeadSteps(list, val) {
+  const steps = [];
+  const snap = (nodes, highlight, active, lines, desc) =>
+    steps.push({nodes:[...nodes],highlight:[...highlight],active:[...active],highlightLines:lines,description:desc});
+  snap(list,[-1],[],  [8], `insertHead: 插入值 ${val}`);
+  snap(list,[-1],[],  [9], `创建新节点 {Val:${val}}`);
+  snap(list,[-1,[...list]],[],  [10], `新节点.Next = head (当前头节点 ${list[0]??'nil'})`);
+  const newList = [val, ...list];
+  snap(newList,[0],[0], [11], `head = 新节点，插入完成`);
+  return steps;
+}
+function generateInsertTailSteps(list, val) {
+  const steps = [];
+  const snap = (nodes, highlight, active, lines, desc) =>
+    steps.push({nodes:[...nodes],highlight:[...highlight],active:[...active],highlightLines:lines,description:desc});
+  snap(list,[],[],[15],`insertTail: 插入值 ${val}`);
+  snap(list,[],[],[16],`创建新节点 {Val:${val}}`);
+  for (let i = 0; i < list.length; i++) {
+    snap(list,[i],[],[19],`curr = ${list[i]}，curr.Next ${list[i+1]!==undefined?`= ${list[i+1]}`:'= nil，到达尾部'}`);
+  }
+  const newList = [...list, val];
+  snap(newList,[newList.length-1],[newList.length-1],[20],`curr.Next = 新节点，插入完成`);
+  return steps;
+}
+function generateDeleteSteps(list, val) {
+  const steps = [];
+  const snap = (nodes, highlight, active, crossed, lines, desc) =>
+    steps.push({nodes:[...nodes],highlight:[...highlight],active:[...active],crossed:[...crossed],highlightLines:lines,description:desc});
+  snap(list,[],[],[],[24],`deleteNode: 删除值 ${val}`);
+  snap(list,[],[],[],[25,26],`创建 dummy 节点，prev = dummy`);
+  let found = -1;
+  for (let i = 0; i < list.length; i++) {
+    snap(list,[i],[],[],[27,28],`检查 prev.Next.Val = ${list[i]} == ${val}?`);
+    if (list[i] === val) {
+      found = i;
+      snap(list,[i],[],[i],[29,30],`找到！跳过节点 ${list[i]}`);
+      break;
+    }
+    snap(list,[],[i],[],[32],`不匹配，prev = prev.Next`);
+  }
+  if (found >= 0) {
+    const newList = list.filter((_,i)=>i!==found);
+    snap(newList,[],[],[],[34],`删除完成，链表更新`);
+    return {steps, newList};
+  }
+  snap(list,[],[],[],[27],`链表中未找到值 ${val}`);
+  return {steps, newList:list};
+}
+function generateSearchSteps(list, val) {
+  const steps = [];
+  const snap = (nodes, highlight, active, lines, desc) =>
+    steps.push({nodes:[...nodes],highlight:[...highlight],active:[...active],crossed:[],highlightLines:lines,description:desc});
+  snap(list,[],[],[19],`遍历链表，搜索值 ${val}`);
+  let found = false;
+  for (let i = 0; i < list.length; i++) {
+    snap(list,[i],[],[27,28],`检查节点 ${list[i]} == ${val}?`);
+    if (list[i] === val) {
+      snap(list,[i],[i],[28],`找到值 ${val}，位于索引 ${i}`);
+      found = true; break;
+    }
+  }
+  if (!found) snap(list,[],[],[27],`未找到值 ${val}`);
+  return steps;
+}
+
+goBtn.addEventListener('click', () => {
+  pause();
+  const val = parseInt(opVal.value);
+  const pos = parseInt(opPos.value)||0;
+  if (isNaN(val)) return;
+  let newList = [...listData];
+  let newSteps = [];
+  if (currentOp === 'insertHead') { newSteps = generateInsertHeadSteps(listData, val); newList=[val,...listData]; }
+  else if (currentOp === 'insertTail') { newSteps = generateInsertTailSteps(listData, val); newList=[...listData,val]; }
+  else if (currentOp === 'insertAt') { const p=Math.min(Math.max(pos,0),listData.length); newList=[...listData.slice(0,p),val,...listData.slice(p)]; newSteps=generateInsertHeadSteps(listData,val);}
+  else if (currentOp === 'delete') { const r=generateDeleteSteps(listData,val); newSteps=r.steps; newList=r.newList; }
+  else if (currentOp === 'search') { newSteps=generateSearchSteps(listData,val); }
+  steps = newSteps;
+  cur = 0;
+  const lastStep = steps[steps.length-1];
+  if (lastStep) listData = lastStep.nodes;
+  render();
+});
+
+function buildCode(){
+  codeBody.innerHTML=CODE_LINES.map((l,i)=>`<div class="code-line" data-line="${i}"><span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`).join('');
+  codeBody.querySelectorAll('.code-line').forEach(el=>el.addEventListener('click',()=>jumpToLine(parseInt(el.dataset.line))));
+}
+function highlightLines(lines){
+  codeBody.querySelectorAll('.code-line').forEach(el=>el.classList.remove('active'));
+  lines.forEach(ln=>{const el=codeBody.querySelector(`[data-line="${ln}"]`);if(el)el.classList.add('active');});
+  if(lines.length>0){const f=codeBody.querySelector(`[data-line="${lines[0]}"]`);if(f)f.scrollIntoView({block:'nearest'});}
+}
+function jumpToLine(ln){let t=cur,b=Infinity;steps.forEach((s,i)=>{if(s.highlightLines&&s.highlightLines.includes(ln)){const d=Math.abs(i-cur);if(d<b){b=d;t=i;}}});cur=t;render();}
+
+const NW=72, NH=44, GAP=40, ARROW=24;
+function render(){
+  if(steps.length===0){renderList(listData,[],[],[]); descText.textContent='选择操作并点击执行'; stepCounter.textContent=''; return;}
+  const s=steps[cur];
+  renderList(s.nodes,s.highlight||[],s.active||[],s.crossed||[]);
+  if(s.highlightLines)highlightLines(s.highlightLines);
+  descText.textContent=s.description;
+  stepCounter.textContent=`${cur+1} / ${steps.length}`;
+  btnPrev.disabled=cur===0;btnNext.disabled=cur===steps.length-1;
+}
+function renderList(nodes,highlight,active,crossed){
+  svg.innerHTML='';
+  const svgRect=svg.getBoundingClientRect();
+  const totalW=nodes.length*(NW+GAP+ARROW)+80;
+  const cy=svgRect.height/2||80;
+  const startX=Math.max(20,(svgRect.width-totalW)/2);
+  // Draw HEAD label
+  if(nodes.length>0){
+    const hl=document.createElementNS('http://www.w3.org/2000/svg','text');
+    hl.setAttribute('x',startX);hl.setAttribute('y',cy-NH/2-10);
+    hl.setAttribute('fill','#94a3b8');hl.setAttribute('font-size','12');hl.setAttribute('font-family','monospace');
+    hl.textContent='HEAD';svg.appendChild(hl);
+  }
+  nodes.forEach((val,i)=>{
+    const x=startX+i*(NW+GAP+ARROW);
+    const isHL=highlight.includes(i);
+    const isActive=active.includes(i);
+    const isCrossed=crossed&&crossed.includes(i);
+    let fill='#1e293b',stroke='#334155',textCol='#e2e8f0';
+    if(isHL){fill='rgba(196,132,252,0.2)';stroke='#c084fc';}
+    if(isActive){fill='rgba(74,222,128,0.2)';stroke='#4ade80';}
+    if(isCrossed){fill='rgba(248,113,113,0.15)';stroke='#f87171';}
+    // Node box
+    const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('x',x);rect.setAttribute('y',cy-NH/2);
+    rect.setAttribute('width',NW);rect.setAttribute('height',NH);
+    rect.setAttribute('rx','8');rect.setAttribute('fill',fill);
+    rect.setAttribute('stroke',stroke);rect.setAttribute('stroke-width','1.5');
+    if(isHL||isActive)rect.setAttribute('filter','url(#glow)');
+    svg.appendChild(rect);
+    // Value
+    const vt=document.createElementNS('http://www.w3.org/2000/svg','text');
+    vt.setAttribute('x',x+NW*0.38);vt.setAttribute('y',cy+5);
+    vt.setAttribute('fill',isActive?'#4ade80':isHL?'#c084fc':textCol);
+    vt.setAttribute('font-size','16');vt.setAttribute('font-weight','700');vt.setAttribute('font-family','monospace');
+    vt.textContent=val;svg.appendChild(vt);
+    // Divider
+    const dv=document.createElementNS('http://www.w3.org/2000/svg','line');
+    dv.setAttribute('x1',x+NW*0.62);dv.setAttribute('y1',cy-NH/2+4);
+    dv.setAttribute('x2',x+NW*0.62);dv.setAttribute('y2',cy+NH/2-4);
+    dv.setAttribute('stroke',stroke);dv.setAttribute('stroke-width','1');
+    svg.appendChild(dv);
+    // Next label
+    const nt=document.createElementNS('http://www.w3.org/2000/svg','text');
+    nt.setAttribute('x',x+NW*0.72);nt.setAttribute('y',cy+4);
+    nt.setAttribute('fill','#64748b');nt.setAttribute('font-size','9');nt.setAttribute('font-family','monospace');
+    nt.textContent='next';svg.appendChild(nt);
+    // Arrow to next
+    if(i<nodes.length-1){
+      const ax=x+NW;const ay=cy;
+      const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1',ax);line.setAttribute('y1',ay);
+      line.setAttribute('x2',ax+ARROW-4);line.setAttribute('y2',ay);
+      line.setAttribute('stroke','#475569');line.setAttribute('stroke-width','1.5');
+      line.setAttribute('marker-end','url(#arrowhead)');svg.appendChild(line);
+    } else {
+      // NULL indicator
+      const nt2=document.createElementNS('http://www.w3.org/2000/svg','text');
+      nt2.setAttribute('x',x+NW+8);nt2.setAttribute('y',cy+5);
+      nt2.setAttribute('fill','#64748b');nt2.setAttribute('font-size','11');nt2.setAttribute('font-family','monospace');
+      nt2.textContent='nil';svg.appendChild(nt2);
+    }
+    // Cross out if deleted
+    if(isCrossed){
+      const c1=document.createElementNS('http://www.w3.org/2000/svg','line');
+      c1.setAttribute('x1',x+4);c1.setAttribute('y1',cy-NH/2+4);
+      c1.setAttribute('x2',x+NW-4);c1.setAttribute('y2',cy+NH/2-4);
+      c1.setAttribute('stroke','#f87171');c1.setAttribute('stroke-width','2');svg.appendChild(c1);
+    }
+  });
+  if(nodes.length===0){
+    const et=document.createElementNS('http://www.w3.org/2000/svg','text');
+    et.setAttribute('x',svgRect.width/2||200);et.setAttribute('y',cy);
+    et.setAttribute('fill','#475569');et.setAttribute('font-size','16');
+    et.setAttribute('text-anchor','middle');et.setAttribute('font-family','monospace');
+    et.textContent='HEAD → nil （空链表）';svg.appendChild(et);
+  }
+  // Defs
+  const defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
+  defs.innerHTML=`<marker id="arrowhead" markerWidth="8" markerHeight="6" refX="6" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#475569"/></marker><filter id="glow"><feGaussianBlur stdDeviation="3" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+  svg.insertBefore(defs,svg.firstChild);
+}
+function play(){if(cur>=steps.length-1)cur=0;playing=true;btnPlay.innerHTML='⏸ 暂停';tick();}
+function pause(){playing=false;clearTimeout(timer);btnPlay.innerHTML='▶ 播放';}
+function tick(){if(!playing)return;if(cur<steps.length-1){cur++;render();timer=setTimeout(tick,SPEED[parseInt(speedRange.value)-1]);}else pause();}
+btnPlay.addEventListener('click',()=>playing?pause():play());
+btnPrev.addEventListener('click',()=>{pause();if(cur>0){cur--;render();}});
+btnNext.addEventListener('click',()=>{pause();if(cur<steps.length-1){cur++;render();}});
+btnReset.addEventListener('click',()=>{pause();cur=0;if(steps.length>0)render();else{renderList(listData,[],[],[]);descText.textContent='选择操作并点击执行';}});
+buildCode();
+steps=generateInsertHeadSteps(listData,99);
+// Don't commit that - start with just showing the initial state
+steps=[];
+renderList(listData,[],[],[]);
+window.addEventListener('resize',()=>render());
+</script>
+</body>
+</html>

@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trie 前缀树 - 算法可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.badge.time{background:rgba(196,132,252,0.15);color:var(--purple);}.badge.space{background:rgba(56,189,248,0.15);color:var(--blue);}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.op-row{display:flex;gap:8px;padding:10px 24px;border-bottom:1px solid var(--border);align-items:center;flex-wrap:wrap;}
+.op-btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;transition:all 0.15s;}
+.op-btn:hover{background:rgba(255,255,255,0.12);}.op-btn.active-op{background:rgba(196,132,252,0.15);border-color:rgba(196,132,252,0.4);color:var(--purple);}
+.op-input{background:var(--panel);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:6px;font-size:0.82rem;width:100px;outline:none;font-family:monospace;}
+.op-input:focus{border-color:var(--purple);}
+.go-btn{background:rgba(196,132,252,0.15);border:1px solid rgba(196,132,252,0.3);color:var(--purple);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;}
+.go-btn:hover{background:rgba(196,132,252,0.25);}
+.result-badge{font-size:0.82rem;padding:4px 10px;border-radius:6px;font-family:monospace;font-weight:700;display:none;}
+.result-badge.true{background:rgba(74,222,128,0.2);color:var(--green);border:1px solid rgba(74,222,128,0.4);}
+.result-badge.false{background:rgba(248,113,113,0.2);color:var(--red);border:1px solid rgba(248,113,113,0.4);}
+.reset-tree-btn{background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--dim);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;margin-left:auto;}
+.viz-area{flex:1;overflow:hidden;}
+svg#trieSvg{width:100%;height:100%;}
+.desc-box{padding:10px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.9rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.op{color:#ff7b72;}.id{color:#e6edf3;}.cm{color:#8b949e;font-style:italic;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(196,132,252,0.15);border-color:rgba(196,132,252,0.3);color:var(--purple);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--purple);cursor:pointer;}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>Trie 前缀树</h1>
+  <div class="complexity"><span class="badge time">时间 O(m)</span><span class="badge space">空间 O(26n)</span></div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="op-row">
+      <button class="op-btn active-op" id="opInsert">Insert</button>
+      <button class="op-btn" id="opSearch">Search</button>
+      <button class="op-btn" id="opStartsWith">StartsWith</button>
+      <input type="text" class="op-input" id="opWord" value="apple" placeholder="单词/前缀">
+      <button class="go-btn" id="goBtn">执行 ▶</button>
+      <span class="result-badge" id="resultBadge"></span>
+      <button class="reset-tree-btn" id="resetTreeBtn">重置</button>
+    </div>
+    <div class="viz-area"><svg id="trieSvg"></svg></div>
+    <div class="desc-box">
+      <span id="descText">初始 Trie：app, apple, apply, apt, bat, ball, band, ban</span>
+      <span class="step-counter" id="stepCounter"></span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px">trie.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+const CODE_LINES = [
+  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
+  {html:`<span class="kw">import</span> <span class="st">"fmt"</span>`},
+  {html:``},
+  {html:`<span class="kw">type</span> <span class="id">TrieNode</span> <span class="kw">struct</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;children [<span class="num">26</span>]*<span class="id">TrieNode</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;isEnd    <span class="kw">bool</span>`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">type</span> <span class="id">Trie</span> <span class="kw">struct</span>{ root *<span class="id">TrieNode</span> }`},
+  {html:``},
+  {html:`<span class="kw">func</span> (t *<span class="id">Trie</span>) <span class="fn">Insert</span>(word <span class="kw">string</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;node := t.root`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> _, ch := <span class="kw">range</span> word {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;idx := ch - <span class="st">'a'</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> node.children[idx] == <span class="kw">nil</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;node.children[idx] = &amp;<span class="id">TrieNode</span>{}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;node = node.children[idx]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;node.isEnd = <span class="kw">true</span>`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> (t *<span class="id">Trie</span>) <span class="fn">Search</span>(word <span class="kw">string</span>) <span class="kw">bool</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;node := t.root`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> _, ch := <span class="kw">range</span> word {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;idx := ch - <span class="st">'a'</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> node.children[idx] == <span class="kw">nil</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return false</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;node = node.children[idx]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> node.isEnd`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> (t *<span class="id">Trie</span>) <span class="fn">StartsWith</span>(prefix <span class="kw">string</span>) <span class="kw">bool</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;node := t.root`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> _, ch := <span class="kw">range</span> prefix {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;idx := ch - <span class="st">'a'</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> node.children[idx] == <span class="kw">nil</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return false</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;node = node.children[idx]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return true</span>`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">main</span>() {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;t := &amp;<span class="id">Trie</span>{root: &amp;<span class="id">TrieNode</span>{}}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;words := []<span class="kw">string</span>{<span class="st">"app"</span>,<span class="st">"apple"</span>,<span class="st">"apply"</span>,<span class="st">"apt"</span>,`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"bat"</span>,<span class="st">"ball"</span>,<span class="st">"band"</span>,<span class="st">"ban"</span>}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> _, w := <span class="kw">range</span> words { t.<span class="fn">Insert</span>(w) }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;fmt.<span class="fn">Println</span>(t.<span class="fn">Search</span>(<span class="st">"apple"</span>))    <span class="cm">// true</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;fmt.<span class="fn">Println</span>(t.<span class="fn">StartsWith</span>(<span class="st">"ap"</span>))   <span class="cm">// true</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;fmt.<span class="fn">Println</span>(t.<span class="fn">Search</span>(<span class="st">"ap"</span>))       <span class="cm">// false</span>`},
+  {html:`}`},
+];
+
+// ---- Trie Data Structure ----
+class TrieNode {
+  constructor(char = '') {
+    this.char = char;
+    this.children = {};
+    this.isEnd = false;
+    this.id = TrieNode._id++;
+  }
+}
+TrieNode._id = 0;
+
+function newTrie() {
+  return new TrieNode('');
+}
+
+function trieInsert(root, word) {
+  let node = root;
+  for (const ch of word) {
+    if (!node.children[ch]) {
+      node.children[ch] = new TrieNode(ch);
+    }
+    node = node.children[ch];
+  }
+  node.isEnd = true;
+}
+
+function buildInitialTrie() {
+  TrieNode._id = 0;
+  const root = newTrie();
+  const words = ["app","apple","apply","apt","bat","ball","band","ban"];
+  for (const w of words) trieInsert(root, w);
+  return root;
+}
+
+// Deep clone trie
+function cloneTrie(node) {
+  if (!node) return null;
+  const n = new TrieNode(node.char);
+  n.id = node.id;
+  n.isEnd = node.isEnd;
+  for (const [ch, child] of Object.entries(node.children)) {
+    n.children[ch] = cloneTrie(child);
+  }
+  return n;
+}
+
+// Find node by id
+function findById(root, id) {
+  if (!root) return null;
+  if (root.id === id) return root;
+  for (const child of Object.values(root.children)) {
+    const r = findById(child, id);
+    if (r) return r;
+  }
+  return null;
+}
+
+// ---- Layout ----
+// Returns {id -> {x, y, char, isEnd}} using centroid-based n-ary layout
+function computeLayout(root) {
+  const pos = {};
+  // First pass: count leaves per subtree to assign x positions
+  function countLeaves(node) {
+    const keys = Object.keys(node.children).sort();
+    if (keys.length === 0) return 1;
+    let total = 0;
+    for (const k of keys) total += countLeaves(node.children[k]);
+    return total;
+  }
+  // Second pass: assign positions
+  let leafIdx = 0;
+  function assign(node, depth) {
+    const keys = Object.keys(node.children).sort();
+    if (keys.length === 0) {
+      pos[node.id] = { x: leafIdx++, y: depth, char: node.char, isEnd: node.isEnd };
+      return;
+    }
+    const startLeaf = leafIdx;
+    for (const k of keys) assign(node.children[k], depth + 1);
+    const endLeaf = leafIdx - 1;
+    pos[node.id] = { x: (startLeaf + endLeaf) / 2, y: depth, char: node.char, isEnd: node.isEnd };
+  }
+  assign(root, 0);
+  return pos;
+}
+
+// ---- Step Generation ----
+function generateInsertSteps(root, word) {
+  const steps = [];
+  // We work on a REAL copy so insertions are visible
+  const workRoot = cloneTrie(root);
+
+  function snap(highlightIds, currentId, newIds, desc, lines) {
+    steps.push({
+      root: cloneTrie(workRoot),
+      highlightIds: [...highlightIds],
+      currentId,
+      newIds: [...newIds],
+      failIds: [],
+      desc,
+      lines
+    });
+  }
+
+  snap([], workRoot.id, [], `Insert("${word}"): 从根节点出发`, [10, 11]);
+
+  let node = workRoot;
+  const visited = [node.id];
+  for (let i = 0; i < word.length; i++) {
+    const ch = word[i];
+    snap(visited, node.id, [], `检查字符 '${ch}'：子节点存在？`, [12, 13]);
+    if (!node.children[ch]) {
+      // Create new node
+      node.children[ch] = new TrieNode(ch);
+      const newId = node.children[ch].id;
+      visited.push(newId);
+      snap(visited, newId, [newId], `字符 '${ch}' 不存在，创建新节点`, [14, 15, 16]);
+      node = node.children[ch];
+    } else {
+      node = node.children[ch];
+      visited.push(node.id);
+      snap(visited, node.id, [], `字符 '${ch}' 已存在，沿边前进`, [16, 17]);
+    }
+  }
+  node.isEnd = true;
+  snap(visited, node.id, [], `到达末尾，标记 isEnd=true（绿色节点）`, [18, 19]);
+  return steps;
+}
+
+function generateSearchSteps(root, word) {
+  const steps = [];
+  function snap(highlightIds, currentId, failIds, desc, lines) {
+    steps.push({
+      root: cloneTrie(root),
+      highlightIds: [...highlightIds],
+      currentId,
+      newIds: [],
+      failIds: [...failIds],
+      desc,
+      lines
+    });
+  }
+
+  snap([], root.id, [], `Search("${word}"): 从根节点出发`, [22, 23]);
+
+  let node = root;
+  const visited = [node.id];
+  for (let i = 0; i < word.length; i++) {
+    const ch = word[i];
+    snap(visited, node.id, [], `检查字符 '${ch}'：子节点存在？`, [24, 25]);
+    if (!node.children[ch]) {
+      snap(visited, node.id, [node.id], `字符 '${ch}' 不存在 → 返回 false`, [26, 27]);
+      return { steps, result: false };
+    }
+    node = node.children[ch];
+    visited.push(node.id);
+    snap(visited, node.id, [], `找到 '${ch}'，继续前进`, [28, 29]);
+  }
+  // Check isEnd
+  if (node.isEnd) {
+    snap(visited, node.id, [], `到达末尾，isEnd=true → 返回 true`, [30, 31]);
+    return { steps, result: true };
+  } else {
+    snap(visited, node.id, [node.id], `到达末尾，isEnd=false → 返回 false`, [30, 31]);
+    return { steps, result: false };
+  }
+}
+
+function generateStartsWithSteps(root, prefix) {
+  const steps = [];
+  function snap(highlightIds, currentId, failIds, desc, lines) {
+    steps.push({
+      root: cloneTrie(root),
+      highlightIds: [...highlightIds],
+      currentId,
+      newIds: [],
+      failIds: [...failIds],
+      desc,
+      lines
+    });
+  }
+
+  snap([], root.id, [], `StartsWith("${prefix}"): 从根节点出发`, [34, 35]);
+
+  let node = root;
+  const visited = [node.id];
+  for (let i = 0; i < prefix.length; i++) {
+    const ch = prefix[i];
+    snap(visited, node.id, [], `检查前缀字符 '${ch}'：子节点存在？`, [36, 37]);
+    if (!node.children[ch]) {
+      snap(visited, node.id, [node.id], `字符 '${ch}' 不存在 → 返回 false`, [38, 39]);
+      return { steps, result: false };
+    }
+    node = node.children[ch];
+    visited.push(node.id);
+    snap(visited, node.id, [], `找到 '${ch}'，继续前进`, [40, 41]);
+  }
+  snap(visited, node.id, [], `前缀完整匹配 → 返回 true`, [42, 43]);
+  return { steps, result: true };
+}
+
+// ---- State ----
+let trie = buildInitialTrie();
+let steps = [];
+let cur = 0, playing = false, timer = null;
+const SPEED = [800, 500, 300, 180, 80];
+let currentOp = 'insert';
+let lastResult = null;
+
+const svg = document.getElementById('trieSvg');
+const codeBody = document.getElementById('codeBody');
+const descText = document.getElementById('descText');
+const stepCounter = document.getElementById('stepCounter');
+const btnPlay = document.getElementById('btnPlay');
+const btnPrev = document.getElementById('btnPrev');
+const btnNext = document.getElementById('btnNext');
+const btnReset = document.getElementById('btnReset');
+const speedRange = document.getElementById('speedRange');
+const goBtn = document.getElementById('goBtn');
+const opWord = document.getElementById('opWord');
+const resetTreeBtn = document.getElementById('resetTreeBtn');
+const resultBadge = document.getElementById('resultBadge');
+
+const opBtns = {
+  insert: document.getElementById('opInsert'),
+  search: document.getElementById('opSearch'),
+  startsWith: document.getElementById('opStartsWith'),
+};
+Object.entries(opBtns).forEach(([op, btn]) => btn.addEventListener('click', () => {
+  currentOp = op;
+  Object.values(opBtns).forEach(b => b.classList.remove('active-op'));
+  btn.classList.add('active-op');
+  resultBadge.style.display = 'none';
+}));
+
+// ---- SVG Rendering ----
+const NR = 20; // node radius
+const PAD_X = 40;
+const PAD_Y = 48;
+const DY = 72;
+
+function ns(tag) { return document.createElementNS('http://www.w3.org/2000/svg', tag); }
+
+function renderTrie(trieRoot, highlightIds, currentId, newIds, failIds) {
+  svg.innerHTML = '';
+  if (!trieRoot) return;
+
+  const pos = computeLayout(trieRoot);
+  const rect = svg.getBoundingClientRect();
+  const totalW = rect.width || 700;
+
+  // Find x range
+  const xs = Object.values(pos).map(p => p.x);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const spanX = Math.max(maxX - minX, 1);
+  const availW = totalW - PAD_X * 2;
+  const cellW = Math.min(availW / spanX, 60);
+
+  const xScale = x => PAD_X + (x - minX) * cellW + cellW / 2;
+  const yScale = d => PAD_Y + d * DY;
+
+  // Defs (glow filter)
+  const defs = ns('defs');
+  defs.innerHTML = `<filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+  svg.appendChild(defs);
+
+  const highlightSet = new Set(highlightIds);
+  const newSet = new Set(newIds);
+  const failSet = new Set(failIds);
+
+  // Draw edges + edge labels
+  function drawEdges(node) {
+    const p = pos[node.id];
+    if (!p) return;
+    const px = xScale(p.x), py = yScale(p.y);
+    const sortedKeys = Object.keys(node.children).sort();
+    for (const k of sortedKeys) {
+      const child = node.children[k];
+      const cp = pos[child.id];
+      if (!cp) continue;
+      const cx = xScale(cp.x), cy = yScale(cp.y);
+
+      // Edge line
+      const isPathEdge = highlightSet.has(node.id) && highlightSet.has(child.id);
+      const isNewEdge = newSet.has(child.id);
+      const isFailEdge = failSet.has(child.id) || failSet.has(node.id);
+
+      const line = ns('line');
+      line.setAttribute('x1', px);
+      line.setAttribute('y1', py + NR);
+      line.setAttribute('x2', cx);
+      line.setAttribute('y2', cy - NR);
+      let edgeColor = '#334155';
+      if (isNewEdge) edgeColor = '#fb923c';
+      else if (isFailEdge) edgeColor = '#f87171';
+      else if (isPathEdge) edgeColor = '#c084fc';
+      line.setAttribute('stroke', edgeColor);
+      line.setAttribute('stroke-width', isPathEdge || isNewEdge ? '2.5' : '1.5');
+      svg.appendChild(line);
+
+      // Edge label (midpoint)
+      const mx = (px + cx) / 2;
+      const my = (py + NR + cy - NR) / 2;
+      const bg = ns('rect');
+      const labelW = 16, labelH = 16;
+      bg.setAttribute('x', mx - labelW / 2);
+      bg.setAttribute('y', my - labelH / 2);
+      bg.setAttribute('width', labelW);
+      bg.setAttribute('height', labelH);
+      bg.setAttribute('rx', '3');
+      bg.setAttribute('fill', '#0f172a');
+      svg.appendChild(bg);
+
+      const label = ns('text');
+      label.setAttribute('x', mx);
+      label.setAttribute('y', my + 5);
+      label.setAttribute('fill', edgeColor === '#334155' ? '#64748b' : edgeColor);
+      label.setAttribute('font-size', '11');
+      label.setAttribute('font-weight', '600');
+      label.setAttribute('text-anchor', 'middle');
+      label.setAttribute('font-family', 'monospace');
+      label.textContent = k;
+      svg.appendChild(label);
+
+      drawEdges(child);
+    }
+  }
+  drawEdges(trieRoot);
+
+  // Draw nodes
+  function drawNodes(node) {
+    const p = pos[node.id];
+    if (!p) return;
+    const x = xScale(p.x), y = yScale(p.y);
+
+    const isHighlight = highlightSet.has(node.id);
+    const isCurrent = node.id === currentId;
+    const isNew = newSet.has(node.id);
+    const isFail = failSet.has(node.id);
+
+    let fill = '#1e293b', stroke = '#334155', textCol = '#e2e8f0';
+
+    // Priority: fail > current > new > isEnd > highlight > normal
+    if (node.isEnd && !isCurrent && !isNew && !isFail) {
+      fill = 'rgba(74,222,128,0.2)'; stroke = '#4ade80'; textCol = '#4ade80';
+    }
+    if (isHighlight && !isCurrent && !isNew && !isFail) {
+      fill = 'rgba(192,132,252,0.15)'; stroke = '#c084fc'; textCol = '#c084fc';
+    }
+    if (isCurrent) {
+      fill = 'rgba(251,191,36,0.2)'; stroke = '#fbbf24'; textCol = '#fbbf24';
+    }
+    if (isNew) {
+      fill = 'rgba(251,146,60,0.2)'; stroke = '#fb923c'; textCol = '#fb923c';
+    }
+    if (isFail) {
+      fill = 'rgba(248,113,113,0.2)'; stroke = '#f87171'; textCol = '#f87171';
+    }
+    // If it's a green end node AND also currently traversed, keep current color but add glow
+    if (node.isEnd && isCurrent && !isNew && !isFail) {
+      fill = 'rgba(74,222,128,0.3)'; stroke = '#4ade80'; textCol = '#fbbf24';
+    }
+
+    const circle = ns('circle');
+    circle.setAttribute('cx', x);
+    circle.setAttribute('cy', y);
+    circle.setAttribute('r', NR);
+    circle.setAttribute('fill', fill);
+    circle.setAttribute('stroke', stroke);
+    circle.setAttribute('stroke-width', '2');
+    if (isCurrent || isNew || isFail) circle.setAttribute('filter', 'url(#glow)');
+    svg.appendChild(circle);
+
+    const t = ns('text');
+    t.setAttribute('x', x);
+    t.setAttribute('y', y + 5);
+    t.setAttribute('fill', textCol);
+    t.setAttribute('font-size', node.char === '' ? '16' : '13');
+    t.setAttribute('font-weight', '700');
+    t.setAttribute('text-anchor', 'middle');
+    t.setAttribute('font-family', 'monospace');
+    t.textContent = node.char === '' ? '*' : node.char;
+    svg.appendChild(t);
+
+    // isEnd indicator dot
+    if (node.isEnd) {
+      const dot = ns('circle');
+      dot.setAttribute('cx', x + NR - 4);
+      dot.setAttribute('cy', y - NR + 4);
+      dot.setAttribute('r', '4');
+      dot.setAttribute('fill', '#4ade80');
+      dot.setAttribute('stroke', '#0f172a');
+      dot.setAttribute('stroke-width', '1.5');
+      svg.appendChild(dot);
+    }
+
+    const sortedKeys = Object.keys(node.children).sort();
+    for (const k of sortedKeys) drawNodes(node.children[k]);
+  }
+  drawNodes(trieRoot);
+}
+
+function render() {
+  if (steps.length === 0) {
+    renderTrie(trie, [], null, [], []);
+    descText.textContent = '初始 Trie：app, apple, apply, apt, bat, ball, band, ban';
+    stepCounter.textContent = '';
+    resultBadge.style.display = 'none';
+    return;
+  }
+  const s = steps[cur];
+  renderTrie(s.root, s.highlightIds || [], s.currentId, s.newIds || [], s.failIds || []);
+  if (s.lines) highlightLines(s.lines);
+  descText.textContent = s.desc;
+  stepCounter.textContent = `${cur + 1} / ${steps.length}`;
+  btnPrev.disabled = cur === 0;
+  btnNext.disabled = cur === steps.length - 1;
+
+  // Show result at last step
+  if (cur === steps.length - 1 && lastResult !== null) {
+    resultBadge.textContent = lastResult ? 'true' : 'false';
+    resultBadge.className = 'result-badge ' + (lastResult ? 'true' : 'false');
+    resultBadge.style.display = 'inline-block';
+  } else {
+    resultBadge.style.display = 'none';
+  }
+}
+
+// ---- Controls ----
+goBtn.addEventListener('click', () => {
+  pause();
+  const word = opWord.value.trim();
+  if (!word) return;
+  resultBadge.style.display = 'none';
+  lastResult = null;
+
+  if (currentOp === 'insert') {
+    const newSteps = generateInsertSteps(trie, word);
+    // Actually insert into trie after generating steps
+    trieInsert(trie, word);
+    steps = newSteps;
+    lastResult = null;
+  } else if (currentOp === 'search') {
+    const { steps: newSteps, result } = generateSearchSteps(trie, word);
+    steps = newSteps;
+    lastResult = result;
+  } else if (currentOp === 'startsWith') {
+    const { steps: newSteps, result } = generateStartsWithSteps(trie, word);
+    steps = newSteps;
+    lastResult = result;
+  }
+  cur = 0;
+  render();
+});
+
+resetTreeBtn.addEventListener('click', () => {
+  pause();
+  trie = buildInitialTrie();
+  steps = [];
+  cur = 0;
+  lastResult = null;
+  resultBadge.style.display = 'none';
+  render();
+  descText.textContent = '树已重置：app, apple, apply, apt, bat, ball, band, ban';
+});
+
+// ---- Code Panel ----
+function buildCode() {
+  codeBody.innerHTML = CODE_LINES.map((l, i) =>
+    `<div class="code-line" data-line="${i}"><span class="ln">${i + 1}</span><span class="lc">${l.html || '&nbsp;'}</span></div>`
+  ).join('');
+  codeBody.querySelectorAll('.code-line').forEach(el =>
+    el.addEventListener('click', () => jumpToLine(parseInt(el.dataset.line)))
+  );
+}
+function highlightLines(lines) {
+  codeBody.querySelectorAll('.code-line').forEach(el => el.classList.remove('active'));
+  lines.forEach(ln => {
+    const el = codeBody.querySelector(`[data-line="${ln}"]`);
+    if (el) el.classList.add('active');
+  });
+  if (lines.length > 0) {
+    const f = codeBody.querySelector(`[data-line="${lines[0]}"]`);
+    if (f) f.scrollIntoView({ block: 'nearest' });
+  }
+}
+function jumpToLine(ln) {
+  let t = cur, best = Infinity;
+  steps.forEach((s, i) => {
+    if (s.lines && s.lines.includes(ln)) {
+      const d = Math.abs(i - cur);
+      if (d < best) { best = d; t = i; }
+    }
+  });
+  cur = t;
+  render();
+}
+
+// ---- Playback ----
+function play() {
+  if (cur >= steps.length - 1) cur = 0;
+  playing = true;
+  btnPlay.innerHTML = '⏸ 暂停';
+  tick();
+}
+function pause() {
+  playing = false;
+  clearTimeout(timer);
+  btnPlay.innerHTML = '▶ 播放';
+}
+function tick() {
+  if (!playing) return;
+  if (cur < steps.length - 1) {
+    cur++;
+    render();
+    timer = setTimeout(tick, SPEED[parseInt(speedRange.value) - 1]);
+  } else {
+    pause();
+  }
+}
+btnPlay.addEventListener('click', () => playing ? pause() : play());
+btnPrev.addEventListener('click', () => { pause(); if (cur > 0) { cur--; render(); } });
+btnNext.addEventListener('click', () => { pause(); if (cur < steps.length - 1) { cur++; render(); } });
+btnReset.addEventListener('click', () => { pause(); cur = 0; render(); });
+
+window.addEventListener('resize', () => render());
+
+buildCode();
+render();
+</script>
+</body>
+</html>

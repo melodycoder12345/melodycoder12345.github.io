@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>树的遍历 - 算法可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.badge.time{background:rgba(196,132,252,0.15);color:var(--purple);}.badge.space{background:rgba(56,189,248,0.15);color:var(--blue);}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.op-row{display:flex;gap:8px;padding:10px 24px;border-bottom:1px solid var(--border);align-items:center;}
+.op-btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.82rem;transition:all 0.15s;}
+.op-btn:hover{background:rgba(255,255,255,0.12);}.op-btn.active-op{background:rgba(196,132,252,0.15);border-color:rgba(196,132,252,0.4);color:var(--purple);}
+.go-btn{background:rgba(196,132,252,0.15);border:1px solid rgba(196,132,252,0.3);color:var(--purple);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.82rem;}
+.go-btn:hover{background:rgba(196,132,252,0.25);}
+.viz-area{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+svg#treeSvg{flex:1;width:100%;}
+.result-row{padding:8px 24px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;font-size:0.85rem;min-height:40px;}
+.result-label{color:var(--dim);font-size:0.8rem;}
+.result-items{display:flex;gap:4px;flex-wrap:wrap;}
+.result-item{padding:2px 8px;border-radius:4px;font-family:monospace;font-size:0.8rem;font-weight:600;transition:all 0.2s;}
+.result-item.done{background:rgba(74,222,128,0.15);color:var(--green);}
+.result-item.current{background:rgba(251,191,36,0.2);color:var(--yellow);box-shadow:0 0 8px rgba(251,191,36,0.4);}
+.result-item.pending{background:rgba(255,255,255,0.05);color:var(--dim);}
+.desc-box{padding:10px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.9rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.op{color:#ff7b72;}.id{color:#e6edf3;}.cm{color:#8b949e;font-style:italic;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(196,132,252,0.15);border-color:rgba(196,132,252,0.3);color:var(--purple);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--purple);cursor:pointer;}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>树的遍历 Tree Traversal</h1>
+  <div class="complexity"><span class="badge time">O(n)</span><span class="badge space">空间 O(h)</span></div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="op-row">
+      <button class="op-btn active-op" id="opInorder">中序遍历 (左根右)</button>
+      <button class="op-btn" id="opPreorder">前序遍历 (根左右)</button>
+      <button class="op-btn" id="opPostorder">后序遍历 (左右根)</button>
+      <button class="go-btn" id="goBtn" style="margin-left:auto">开始遍历 ▶</button>
+    </div>
+    <div class="viz-area">
+      <svg id="treeSvg"></svg>
+      <div class="result-row">
+        <span class="result-label">遍历结果：</span>
+        <div class="result-items" id="resultItems"></div>
+      </div>
+    </div>
+    <div class="desc-box">
+      <span id="descText">选择遍历方式并点击开始</span>
+      <span class="step-counter" id="stepCounter"></span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px">traversal.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+const CODE_LINES_MAP = {
+  inorder: [
+    {html:`<span class="cm">// 中序遍历：左 → 根 → 右</span>`},
+    {html:`<span class="cm">// 结果是升序序列（BST性质）</span>`},
+    {html:`<span class="kw">func</span> <span class="fn">inorder</span>(root *<span class="id">TreeNode</span>, result *[]<span class="kw">int</span>) {`},
+    {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> root == <span class="kw">nil</span> { <span class="kw">return</span> }`},
+    {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">inorder</span>(root.Left, result)   <span class="cm">// 先递归左子树</span>`},
+    {html:`&nbsp;&nbsp;&nbsp;&nbsp;*result = <span class="fn">append</span>(*result, root.Val) <span class="cm">// 访问根</span>`},
+    {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">inorder</span>(root.Right, result)  <span class="cm">// 再递归右子树</span>`},
+    {html:`}`},
+  ],
+  preorder: [
+    {html:`<span class="cm">// 前序遍历：根 → 左 → 右</span>`},
+    {html:`<span class="cm">// 常用于复制、序列化树</span>`},
+    {html:`<span class="kw">func</span> <span class="fn">preorder</span>(root *<span class="id">TreeNode</span>, result *[]<span class="kw">int</span>) {`},
+    {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> root == <span class="kw">nil</span> { <span class="kw">return</span> }`},
+    {html:`&nbsp;&nbsp;&nbsp;&nbsp;*result = <span class="fn">append</span>(*result, root.Val) <span class="cm">// 先访问根</span>`},
+    {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">preorder</span>(root.Left, result)  <span class="cm">// 递归左子树</span>`},
+    {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">preorder</span>(root.Right, result) <span class="cm">// 递归右子树</span>`},
+    {html:`}`},
+  ],
+  postorder: [
+    {html:`<span class="cm">// 后序遍历：左 → 右 → 根</span>`},
+    {html:`<span class="cm">// 常用于删除树、计算目录大小</span>`},
+    {html:`<span class="kw">func</span> <span class="fn">postorder</span>(root *<span class="id">TreeNode</span>, result *[]<span class="kw">int</span>) {`},
+    {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> root == <span class="kw">nil</span> { <span class="kw">return</span> }`},
+    {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">postorder</span>(root.Left, result)  <span class="cm">// 先递归左子树</span>`},
+    {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">postorder</span>(root.Right, result) <span class="cm">// 再递归右子树</span>`},
+    {html:`&nbsp;&nbsp;&nbsp;&nbsp;*result = <span class="fn">append</span>(*result, root.Val) <span class="cm">// 最后访问根</span>`},
+    {html:`}`},
+  ],
+};
+
+// Line index for "visit root" in each traversal
+const VISIT_LINE = {inorder:5, preorder:4, postorder:6};
+const RECURSE_LEFT = {inorder:4, preorder:5, postorder:4};
+const RECURSE_RIGHT = {inorder:6, preorder:6, postorder:5};
+
+function buildTree(){
+  function n(v,l,r){return{val:v,left:l,right:r};}
+  return n(1, n(2,n(4,null,null),n(5,null,null)), n(3,n(6,null,null),n(7,null,null)));
+}
+const TREE = buildTree();
+
+function getOrder(mode) {
+  const result = [];
+  function inorder(node){if(!node)return;inorder(node.left);result.push(node.val);inorder(node.right);}
+  function preorder(node){if(!node)return;result.push(node.val);preorder(node.left);preorder(node.right);}
+  function postorder(node){if(!node)return;postorder(node.left);postorder(node.right);result.push(node.val);}
+  if(mode==='inorder')inorder(TREE);
+  else if(mode==='preorder')preorder(TREE);
+  else postorder(TREE);
+  return result;
+}
+
+function generateTraversalSteps(mode) {
+  const steps = [];
+  const visited = [];
+  const vl = VISIT_LINE[mode], rl = RECURSE_LEFT[mode], rr = RECURSE_RIGHT[mode];
+  function snap(current, visited, lines, desc) {
+    steps.push({current, visited:[...visited], highlightLines:lines, description:desc});
+  }
+  function traverse(node) {
+    if (!node) { snap(null, visited, [3], `到达空节点，返回`); return; }
+    snap(node.val, visited, [2,3], `进入节点 ${node.val}`);
+    if (mode === 'inorder') {
+      snap(node.val, visited, [rl], `先遍历 ${node.val} 的左子树`); traverse(node.left);
+      snap(node.val, visited, [vl], `访问节点 ${node.val}`); visited.push(node.val);
+      snap(node.val, visited, [rr], `再遍历 ${node.val} 的右子树`); traverse(node.right);
+    } else if (mode === 'preorder') {
+      snap(node.val, visited, [vl], `访问节点 ${node.val}`); visited.push(node.val);
+      snap(node.val, visited, [rl], `遍历 ${node.val} 的左子树`); traverse(node.left);
+      snap(node.val, visited, [rr], `遍历 ${node.val} 的右子树`); traverse(node.right);
+    } else {
+      snap(node.val, visited, [rl], `先遍历 ${node.val} 的左子树`); traverse(node.left);
+      snap(node.val, visited, [rr], `再遍历 ${node.val} 的右子树`); traverse(node.right);
+      snap(node.val, visited, [vl], `访问节点 ${node.val}`); visited.push(node.val);
+    }
+  }
+  traverse(TREE);
+  snap(null, visited, [2], `遍历完成，结果: [${visited.join(', ')}]`);
+  return steps;
+}
+
+let steps = [];
+let cur = 0, playing = false, timer = null;
+const SPEED = [800,500,300,180,80];
+let currentMode = 'inorder';
+
+const svg=document.getElementById('treeSvg'),codeBody=document.getElementById('codeBody'),
+  descText=document.getElementById('descText'),stepCounter=document.getElementById('stepCounter'),
+  resultItems=document.getElementById('resultItems'),btnPlay=document.getElementById('btnPlay'),
+  btnPrev=document.getElementById('btnPrev'),btnNext=document.getElementById('btnNext'),
+  btnReset=document.getElementById('btnReset'),speedRange=document.getElementById('speedRange'),
+  goBtn=document.getElementById('goBtn');
+
+const opBtns={inorder:document.getElementById('opInorder'),preorder:document.getElementById('opPreorder'),postorder:document.getElementById('opPostorder')};
+Object.entries(opBtns).forEach(([m,btn])=>btn.addEventListener('click',()=>{currentMode=m;Object.values(opBtns).forEach(b=>b.classList.remove('active-op'));btn.classList.add('active-op');buildCode();}));
+goBtn.addEventListener('click',()=>{pause();steps=generateTraversalSteps(currentMode);cur=0;render();});
+
+function buildCode(){
+  const lines = CODE_LINES_MAP[currentMode];
+  codeBody.innerHTML=lines.map((l,i)=>`<div class="code-line" data-line="${i}"><span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`).join('');
+  codeBody.querySelectorAll('.code-line').forEach(el=>el.addEventListener('click',()=>jumpToLine(parseInt(el.dataset.line))));
+}
+function highlightLines(lines){
+  codeBody.querySelectorAll('.code-line').forEach(el=>el.classList.remove('active'));
+  lines.forEach(ln=>{const el=codeBody.querySelector(`[data-line="${ln}"]`);if(el)el.classList.add('active');});
+  if(lines.length>0){const f=codeBody.querySelector(`[data-line="${lines[0]}"]`);if(f)f.scrollIntoView({block:'nearest'});}
+}
+function jumpToLine(ln){let t=cur,b=Infinity;steps.forEach((s,i)=>{if(s.highlightLines&&s.highlightLines.includes(ln)){const d=Math.abs(i-cur);if(d<b){b=d;t=i;}}});cur=t;render();}
+
+// Tree layout: fixed for this tree
+const POSITIONS = {1:{x:3,y:0},2:{x:1,y:1},3:{x:5,y:1},4:{x:0,y:2},5:{x:2,y:2},6:{x:4,y:2},7:{x:6,y:2}};
+const NR=24,PAD=60,DY=70;
+function drawTree(current, visited) {
+  svg.innerHTML='';
+  const rect=svg.getBoundingClientRect();
+  const totalW=rect.width||600;
+  const cellW=(totalW-PAD*2)/6;
+  const xScale=i=>PAD+i*cellW;const yScale=d=>PAD+d*DY+NR;
+  const defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
+  defs.innerHTML=`<filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+  svg.appendChild(defs);
+  const edges=[[1,2],[1,3],[2,4],[2,5],[3,6],[3,7]];
+  edges.forEach(([p,c])=>{
+    const pp=POSITIONS[p],cp=POSITIONS[c];
+    const px=xScale(pp.x),py=yScale(pp.y),cx=xScale(cp.x),cy=yScale(cp.y);
+    const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',px);l.setAttribute('y1',py+NR);l.setAttribute('x2',cx);l.setAttribute('y2',cy-NR);
+    l.setAttribute('stroke','#334155');l.setAttribute('stroke-width','1.5');svg.appendChild(l);
+  });
+  [1,2,3,4,5,6,7].forEach(v=>{
+    const p=POSITIONS[v];const x=xScale(p.x),y=yScale(p.y);
+    const isDone=visited.includes(v);const isCur=current===v;
+    let fill='#1e293b',stroke='#334155',textCol='#e2e8f0';
+    if(isDone){fill='rgba(74,222,128,0.2)';stroke='#4ade80';}
+    if(isCur){fill='rgba(251,191,36,0.25)';stroke='#fbbf24';textCol='#fbbf24';}
+    const c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx',x);c.setAttribute('cy',y);c.setAttribute('r',NR);
+    c.setAttribute('fill',fill);c.setAttribute('stroke',stroke);c.setAttribute('stroke-width','2');
+    if(isCur)c.setAttribute('filter','url(#glow)');
+    svg.appendChild(c);
+    const t=document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x',x);t.setAttribute('y',y+5);
+    t.setAttribute('fill',textCol);t.setAttribute('font-size','15');t.setAttribute('font-weight','700');
+    t.setAttribute('text-anchor','middle');t.setAttribute('font-family','monospace');
+    t.textContent=v;svg.appendChild(t);
+  });
+}
+function renderResultItems(visited){
+  const order = getOrder(currentMode);
+  resultItems.innerHTML = order.map(v => {
+    const idx = visited.indexOf(v);
+    const cls = idx >= 0 ? (idx === visited.length-1 ? 'current' : 'done') : 'pending';
+    return `<span class="result-item ${cls}">${v}</span>`;
+  }).join('');
+}
+function render(){
+  if(steps.length===0){drawTree(null,[]);renderResultItems([]);descText.textContent='选择遍历方式并点击开始';stepCounter.textContent='';return;}
+  const s=steps[cur];
+  drawTree(s.current,s.visited);
+  renderResultItems(s.visited);
+  if(s.highlightLines)highlightLines(s.highlightLines);
+  descText.textContent=s.description;
+  stepCounter.textContent=`${cur+1} / ${steps.length}`;
+  btnPrev.disabled=cur===0;btnNext.disabled=cur===steps.length-1;
+}
+function play(){if(cur>=steps.length-1)cur=0;playing=true;btnPlay.innerHTML='⏸ 暂停';tick();}
+function pause(){playing=false;clearTimeout(timer);btnPlay.innerHTML='▶ 播放';}
+function tick(){if(!playing)return;if(cur<steps.length-1){cur++;render();timer=setTimeout(tick,SPEED[parseInt(speedRange.value)-1]);}else pause();}
+btnPlay.addEventListener('click',()=>playing?pause():play());
+btnPrev.addEventListener('click',()=>{pause();if(cur>0){cur--;render();}});
+btnNext.addEventListener('click',()=>{pause();if(cur<steps.length-1){cur++;render();}});
+btnReset.addEventListener('click',()=>{pause();cur=0;render();});
+buildCode();drawTree(null,[]);renderResultItems([]);descText.textContent='二叉树：1为根，2,3为子节点，4,5,6,7为叶节点';
+window.addEventListener('resize',()=>render());
+</script>
+</body>
+</html>

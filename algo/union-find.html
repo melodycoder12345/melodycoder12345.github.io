@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Union-Find 并查集可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;padding:1.5rem;}
+h1{text-align:center;font-size:1.5rem;font-weight:700;margin-bottom:0.25rem;color:var(--blue);}
+.subtitle{text-align:center;color:var(--dim);font-size:0.85rem;margin-bottom:1.25rem;}
+.badge-row{display:flex;justify-content:center;gap:0.75rem;margin-bottom:1.25rem;flex-wrap:wrap;}
+.badge{background:var(--panel);border:1px solid var(--border);border-radius:9999px;padding:0.25rem 0.85rem;font-size:0.78rem;color:var(--purple);}
+.badge span{color:var(--dim);}
+
+.op-bar{background:var(--panel);border:1px solid var(--border);border-radius:0.75rem;padding:0.85rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;}
+.op-bar label{color:var(--dim);font-size:0.82rem;}
+select,input[type=number]{background:#0f172a;border:1px solid var(--border);color:var(--text);border-radius:0.4rem;padding:0.3rem 0.55rem;font-size:0.9rem;width:3.5rem;}
+select:focus,input:focus{outline:1px solid var(--blue);}
+.btn{border:none;border-radius:0.45rem;padding:0.35rem 0.9rem;font-size:0.85rem;font-weight:600;cursor:pointer;transition:opacity 0.15s;}
+.btn-blue{background:var(--blue);color:#0f172a;}
+.btn-orange{background:var(--orange);color:#0f172a;}
+.btn-dim{background:var(--border);color:var(--text);}
+.btn:hover{opacity:0.85;}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.sep{width:1px;height:1.5rem;background:var(--border);}
+
+.svg-wrap{background:var(--panel);border:1px solid var(--border);border-radius:0.75rem;padding:1rem;margin-bottom:1rem;overflow-x:auto;}
+svg{display:block;margin:auto;}
+
+.arrays-section{background:var(--panel);border:1px solid var(--border);border-radius:0.75rem;padding:0.9rem 1rem;margin-bottom:1rem;}
+.arrays-section h3{font-size:0.82rem;color:var(--dim);margin-bottom:0.6rem;text-transform:uppercase;letter-spacing:0.05em;}
+.array-row{display:flex;gap:0.15rem;align-items:center;margin-bottom:0.45rem;flex-wrap:wrap;}
+.array-label{font-size:0.8rem;color:var(--dim);width:4.5rem;flex-shrink:0;}
+.cell{width:2.4rem;height:2.4rem;background:#0f172a;border:1px solid var(--border);border-radius:0.3rem;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.75rem;font-family:monospace;transition:all 0.3s;}
+.cell .idx{color:var(--dim);font-size:0.62rem;}
+.cell .val{color:var(--text);}
+.cell.highlight-path{border-color:var(--orange);background:#431407;}
+.cell.highlight-root{border-color:var(--green);background:#052e16;}
+
+.sets-section{background:var(--panel);border:1px solid var(--border);border-radius:0.75rem;padding:0.9rem 1rem;margin-bottom:1rem;}
+.sets-section h3{font-size:0.82rem;color:var(--dim);margin-bottom:0.6rem;text-transform:uppercase;letter-spacing:0.05em;}
+.sets-row{display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;}
+.set-chip{border-radius:0.4rem;padding:0.2rem 0.6rem;font-size:0.82rem;border:1px solid;}
+
+.log-section{background:var(--panel);border:1px solid var(--border);border-radius:0.75rem;padding:0.75rem 1rem;max-height:9rem;overflow-y:auto;}
+.log-section h3{font-size:0.82rem;color:var(--dim);margin-bottom:0.5rem;text-transform:uppercase;letter-spacing:0.05em;}
+.log-entry{font-size:0.8rem;padding:0.18rem 0;border-bottom:1px solid #1e293b;color:var(--text);}
+.log-entry:last-child{border:none;}
+.log-entry .tag{color:var(--blue);font-weight:600;}
+.log-entry .tag-orange{color:var(--orange);}
+.log-entry .tag-green{color:var(--green);}
+
+.code-section{background:var(--panel);border:1px solid var(--border);border-radius:0.75rem;padding:0.75rem 1rem;margin-top:1rem;}
+.code-section h3{font-size:0.82rem;color:var(--dim);margin-bottom:0.6rem;text-transform:uppercase;letter-spacing:0.05em;}
+pre{font-size:0.78rem;color:#a5f3fc;overflow-x:auto;line-height:1.6;}
+.kw{color:var(--purple);}
+.fn{color:var(--yellow);}
+.cm{color:var(--dim);}
+.nm{color:var(--orange);}
+</style>
+</head>
+<body>
+<h1>Union-Find 并查集</h1>
+<div class="subtitle">路径压缩 + 按秩合并 &nbsp;|&nbsp; 均摊时间复杂度 O(α(n))</div>
+<div class="badge-row">
+  <div class="badge"><span>时间复杂度：</span>均摊 O(α(n))</div>
+  <div class="badge"><span>空间复杂度：</span>O(n)</div>
+  <div class="badge"><span>算法：</span>路径压缩 + 按秩合并</div>
+</div>
+
+<div class="op-bar">
+  <label>Union</label>
+  <select id="ua">
+    <option>0</option><option>1</option><option>2</option><option>3</option><option>4</option>
+    <option>5</option><option>6</option><option>7</option><option>8</option><option>9</option>
+  </select>
+  <label>,</label>
+  <select id="ub">
+    <option>1</option><option>0</option><option>2</option><option>3</option><option>4</option>
+    <option>5</option><option>6</option><option>7</option><option>8</option><option>9</option>
+  </select>
+  <button class="btn btn-blue" id="btnUnion" onclick="doUnion()">Union(a,b)</button>
+  <div class="sep"></div>
+  <label>Find</label>
+  <select id="fx">
+    <option>0</option><option>1</option><option>2</option><option>3</option><option>4</option>
+    <option>5</option><option>6</option><option>7</option><option>8</option><option>9</option>
+  </select>
+  <button class="btn btn-orange" id="btnFind" onclick="doFind()">Find(x)</button>
+  <div class="sep"></div>
+  <button class="btn btn-dim" onclick="doReset()">重置</button>
+</div>
+
+<div class="svg-wrap">
+  <svg id="mainSvg" width="700" height="320"></svg>
+</div>
+
+<div class="arrays-section">
+  <h3>数组状态</h3>
+  <div class="array-row">
+    <div class="array-label">parent[]</div>
+    <div id="parentCells"></div>
+  </div>
+  <div class="array-row">
+    <div class="array-label">rank[]</div>
+    <div id="rankCells"></div>
+  </div>
+</div>
+
+<div class="sets-section">
+  <h3>集合状态 &nbsp;<span id="setCount" style="color:var(--blue)"></span></h3>
+  <div class="sets-row" id="setsRow"></div>
+</div>
+
+<div class="log-section">
+  <h3>操作日志</h3>
+  <div id="logContainer"></div>
+</div>
+
+<div class="code-section">
+  <h3>Go 代码</h3>
+<pre><span class="kw">package</span> main
+<span class="kw">import</span> <span class="nm">"fmt"</span>
+
+<span class="kw">type</span> <span class="fn">UnionFind</span> <span class="kw">struct</span> {
+    parent []<span class="kw">int</span>
+    rank   []<span class="kw">int</span>
+    count  <span class="kw">int</span>
+}
+
+<span class="kw">func</span> <span class="fn">NewUF</span>(n <span class="kw">int</span>) *<span class="fn">UnionFind</span> {
+    p := make([]<span class="kw">int</span>, n)
+    r := make([]<span class="kw">int</span>, n)
+    <span class="kw">for</span> i := <span class="kw">range</span> p { p[i] = i }
+    <span class="kw">return</span> &<span class="fn">UnionFind</span>{p, r, n}
+}
+
+<span class="kw">func</span> (uf *<span class="fn">UnionFind</span>) <span class="fn">Find</span>(x <span class="kw">int</span>) <span class="kw">int</span> {
+    <span class="kw">if</span> uf.parent[x] != x {
+        uf.parent[x] = uf.<span class="fn">Find</span>(uf.parent[x])  <span class="cm">// 路径压缩</span>
+    }
+    <span class="kw">return</span> uf.parent[x]
+}
+
+<span class="kw">func</span> (uf *<span class="fn">UnionFind</span>) <span class="fn">Union</span>(x, y <span class="kw">int</span>) <span class="kw">bool</span> {
+    px, py := uf.<span class="fn">Find</span>(x), uf.<span class="fn">Find</span>(y)
+    <span class="kw">if</span> px == py { <span class="kw">return false</span> }
+    <span class="kw">if</span> uf.rank[px] < uf.rank[py] { px, py = py, px }
+    uf.parent[py] = px                          <span class="cm">// 按秩合并</span>
+    <span class="kw">if</span> uf.rank[px] == uf.rank[py] { uf.rank[px]++ }
+    uf.count--
+    <span class="kw">return true</span>
+}
+
+<span class="kw">func</span> <span class="fn">main</span>() {
+    uf := <span class="fn">NewUF</span>(<span class="nm">10</span>)
+    uf.<span class="fn">Union</span>(<span class="nm">0</span>, <span class="nm">1</span>); uf.<span class="fn">Union</span>(<span class="nm">2</span>, <span class="nm">3</span>); uf.<span class="fn">Union</span>(<span class="nm">0</span>, <span class="nm">2</span>)
+    fmt.<span class="fn">Println</span>(uf.<span class="fn">Find</span>(<span class="nm">3</span>))  <span class="cm">// 0 或 1（按秩合并结果）</span>
+    fmt.<span class="fn">Println</span>(uf.count)    <span class="cm">// 7</span>
+}</pre>
+</div>
+
+<script>
+const N = 10;
+const COLORS = ['#38bdf8','#4ade80','#fb923c','#c084fc','#fbbf24','#f87171','#34d399','#a78bfa','#f472b6','#60a5fa'];
+
+let parent = Array.from({length:N},(_,i)=>i);
+let rank = new Array(N).fill(0);
+let count = N;
+let highlighted = [];
+let isAnimating = false;
+
+const SVG_W = 700, SVG_H = 320;
+const ROW1_Y = 90, ROW2_Y = 230;
+const ROW1_X = [70,175,280,385,490];
+const ROW2_X = [70,175,280,385,490];
+const R = 28;
+
+function findRoot(x) {
+  while (parent[x] !== x) x = parent[x];
+  return x;
+}
+
+function findPath(x) {
+  let path = [x];
+  while (parent[x] !== x) { x = parent[x]; path.push(x); }
+  return path;
+}
+
+function getNodePos(i) {
+  if (i < 5) return {x: ROW1_X[i], y: ROW1_Y};
+  return {x: ROW2_X[i-5], y: ROW2_Y};
+}
+
+function getColor(i) {
+  return COLORS[findRoot(i) % COLORS.length];
+}
+
+function renderSVG(hlPath=[], hlRoot=-1) {
+  const svg = document.getElementById('mainSvg');
+  svg.innerHTML = '';
+
+  // Draw edges (parent arrows)
+  for (let i = 0; i < N; i++) {
+    const p = parent[i];
+    const {x:x1,y:y1} = getNodePos(i);
+    const {x:x2,y:y2} = getNodePos(p);
+    if (p === i) {
+      // self-loop for root
+      const arc = `M${x1-R},${y1} a${R},${R*0.6} 0 1,1 ${R*2},0`;
+      const el = document.createElementNS('http://www.w3.org/2000/svg','path');
+      el.setAttribute('d', arc);
+      el.setAttribute('fill','none');
+      el.setAttribute('stroke', COLORS[i % COLORS.length]);
+      el.setAttribute('stroke-width','1.5');
+      el.setAttribute('stroke-dasharray','4 2');
+      el.setAttribute('opacity','0.45');
+      svg.appendChild(el);
+    } else {
+      // arrow from i to parent
+      const dx = x2-x1, dy = y2-y1;
+      const dist = Math.sqrt(dx*dx+dy*dy);
+      const ux = dx/dist, uy = dy/dist;
+      const sx = x1+ux*R, sy = y1+uy*R;
+      const ex = x2-ux*(R+6), ey = y2-uy*(R+6);
+      const isHL = hlPath.includes(i);
+      const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1',sx); line.setAttribute('y1',sy);
+      line.setAttribute('x2',ex); line.setAttribute('y2',ey);
+      line.setAttribute('stroke', isHL ? '#fb923c' : '#334155');
+      line.setAttribute('stroke-width', isHL ? '2.5' : '1.5');
+      line.setAttribute('marker-end','url(#arr)');
+      svg.appendChild(line);
+    }
+  }
+
+  // Arrow marker
+  const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+  const marker = document.createElementNS('http://www.w3.org/2000/svg','marker');
+  marker.setAttribute('id','arr'); marker.setAttribute('markerWidth','8');
+  marker.setAttribute('markerHeight','8'); marker.setAttribute('refX','6');
+  marker.setAttribute('refY','3'); marker.setAttribute('orient','auto');
+  const poly = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+  poly.setAttribute('points','0 0, 6 3, 0 6'); poly.setAttribute('fill','#64748b');
+  marker.appendChild(poly); defs.appendChild(marker); svg.insertBefore(defs,svg.firstChild);
+
+  // Draw nodes
+  for (let i = 0; i < N; i++) {
+    const {x,y} = getNodePos(i);
+    const color = COLORS[findRoot(i) % COLORS.length];
+    const isRoot = parent[i] === i;
+    const isHL = hlPath.includes(i);
+    const isHLRoot = i === hlRoot;
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+
+    // Double circle for root
+    if (isRoot) {
+      const outer = document.createElementNS('http://www.w3.org/2000/svg','circle');
+      outer.setAttribute('cx',x); outer.setAttribute('cy',y); outer.setAttribute('r',R+5);
+      outer.setAttribute('fill','none');
+      outer.setAttribute('stroke', isHLRoot ? '#4ade80' : color);
+      outer.setAttribute('stroke-width','1.5'); outer.setAttribute('opacity','0.5');
+      g.appendChild(outer);
+    }
+
+    const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circle.setAttribute('cx',x); circle.setAttribute('cy',y); circle.setAttribute('r',R);
+    circle.setAttribute('fill', isHL ? '#431407' : '#1e293b');
+    circle.setAttribute('stroke', isHL ? '#fb923c' : isHLRoot ? '#4ade80' : color);
+    circle.setAttribute('stroke-width', isHL || isHLRoot ? '2.5' : '2');
+    g.appendChild(circle);
+
+    const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+    txt.setAttribute('x',x); txt.setAttribute('y',y+1);
+    txt.setAttribute('text-anchor','middle'); txt.setAttribute('dominant-baseline','middle');
+    txt.setAttribute('fill', color); txt.setAttribute('font-size','1.05rem');
+    txt.setAttribute('font-weight','700'); txt.setAttribute('font-family','monospace');
+    txt.textContent = i;
+    g.appendChild(txt);
+
+    // parent label
+    const ptxt = document.createElementNS('http://www.w3.org/2000/svg','text');
+    ptxt.setAttribute('x',x+R*0.62); ptxt.setAttribute('y',y+R*0.62);
+    ptxt.setAttribute('text-anchor','middle'); ptxt.setAttribute('dominant-baseline','middle');
+    ptxt.setAttribute('fill','#94a3b8'); ptxt.setAttribute('font-size','0.6rem');
+    ptxt.setAttribute('font-family','monospace');
+    ptxt.textContent = 'p:'+parent[i];
+    g.appendChild(ptxt);
+
+    svg.appendChild(g);
+  }
+
+  // rank labels below nodes
+  for (let i = 0; i < N; i++) {
+    const {x,y} = getNodePos(i);
+    if (rank[i] > 0) {
+      const rt = document.createElementNS('http://www.w3.org/2000/svg','text');
+      rt.setAttribute('x',x); rt.setAttribute('y',y+R+14);
+      rt.setAttribute('text-anchor','middle');
+      rt.setAttribute('fill','#c084fc'); rt.setAttribute('font-size','0.65rem');
+      rt.textContent = 'r:'+rank[i];
+      svg.appendChild(rt);
+    }
+  }
+}
+
+function renderArrays(hlPath=[], hlRoot=-1) {
+  const pc = document.getElementById('parentCells');
+  const rc = document.getElementById('rankCells');
+  pc.innerHTML = '';
+  rc.innerHTML = '';
+  for (let i = 0; i < N; i++) {
+    const c1 = document.createElement('div');
+    c1.style.cssText = 'display:inline-flex;flex-direction:column;align-items:center;margin-right:2px;';
+    const cell = document.createElement('div');
+    cell.className = 'cell' + (hlPath.includes(i) ? ' highlight-path' : '') + (i===hlRoot ? ' highlight-root' : '');
+    cell.innerHTML = `<span class="idx">${i}</span><span class="val">${parent[i]}</span>`;
+    c1.appendChild(cell);
+    pc.appendChild(c1);
+
+    const c2 = document.createElement('div');
+    c2.style.cssText = 'display:inline-flex;flex-direction:column;align-items:center;margin-right:2px;';
+    const cell2 = document.createElement('div');
+    cell2.className = 'cell';
+    cell2.innerHTML = `<span class="idx">${i}</span><span class="val">${rank[i]}</span>`;
+    c2.appendChild(cell2);
+    rc.appendChild(c2);
+  }
+}
+
+function renderSets() {
+  const row = document.getElementById('setsRow');
+  row.innerHTML = '';
+  const sets = {};
+  for (let i = 0; i < N; i++) {
+    const r = findRoot(i);
+    if (!sets[r]) sets[r] = [];
+    sets[r].push(i);
+  }
+  document.getElementById('setCount').textContent = `共 ${Object.keys(sets).length} 个集合`;
+  Object.entries(sets).forEach(([root, members]) => {
+    const chip = document.createElement('div');
+    chip.className = 'set-chip';
+    const color = COLORS[parseInt(root) % COLORS.length];
+    chip.style.background = color + '22';
+    chip.style.borderColor = color;
+    chip.style.color = color;
+    chip.textContent = `{${members.join(',')}}`;
+    row.appendChild(chip);
+  });
+}
+
+function addLog(msg, cls='') {
+  const c = document.getElementById('logContainer');
+  const d = document.createElement('div');
+  d.className = 'log-entry';
+  d.innerHTML = msg;
+  c.insertBefore(d, c.firstChild);
+  if (c.children.length > 50) c.removeChild(c.lastChild);
+}
+
+function render(hlPath=[], hlRoot=-1) {
+  renderSVG(hlPath, hlRoot);
+  renderArrays(hlPath, hlRoot);
+  renderSets();
+}
+
+function setButtons(disabled) {
+  ['btnUnion','btnFind'].forEach(id => document.getElementById(id).disabled = disabled);
+}
+
+async function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
+
+async function doFind() {
+  if (isAnimating) return;
+  isAnimating = true;
+  setButtons(true);
+  const x = parseInt(document.getElementById('fx').value);
+  addLog(`<span class="tag">Find(${x})</span> 开始路径追溯...`);
+
+  // Find path to root
+  const path = findPath(x);
+  const root = path[path.length-1];
+
+  // Animate path highlight
+  for (let i = 0; i < path.length; i++) {
+    render(path.slice(0,i+1), root);
+    await sleep(350);
+  }
+  addLog(`<span class="tag-orange">路径：${path.join(' → ')}</span>，根节点 = ${root}`);
+
+  await sleep(400);
+
+  // Path compression
+  const before = path.slice();
+  for (const node of path) { if (node !== root) parent[node] = root; }
+  addLog(`<span class="tag-green">路径压缩：${before.filter(n=>n!==root).join(', ')} → 直接指向 ${root}</span>`);
+
+  render([], root);
+  await sleep(200);
+  render();
+  isAnimating = false;
+  setButtons(false);
+}
+
+async function doUnion() {
+  if (isAnimating) return;
+  isAnimating = true;
+  setButtons(true);
+  const a = parseInt(document.getElementById('ua').value);
+  const b = parseInt(document.getElementById('ub').value);
+  addLog(`<span class="tag">Union(${a},${b})</span> 开始...`);
+
+  // Find roots with path animation
+  const pathA = findPath(a);
+  const rootA = pathA[pathA.length-1];
+  for (let i = 0; i < pathA.length; i++) {
+    render(pathA.slice(0,i+1));
+    await sleep(280);
+  }
+  addLog(`Find(${a}) → 路径 ${pathA.join('→')} → 根 ${rootA}`);
+  for (const node of pathA) { if (node !== rootA) parent[node] = rootA; }
+
+  await sleep(350);
+
+  const pathB = findPath(b);
+  const rootB = pathB[pathB.length-1];
+  for (let i = 0; i < pathB.length; i++) {
+    render(pathB.slice(0,i+1));
+    await sleep(280);
+  }
+  addLog(`Find(${b}) → 路径 ${pathB.join('→')} → 根 ${rootB}`);
+  for (const node of pathB) { if (node !== rootB) parent[node] = rootB; }
+
+  render();
+  await sleep(350);
+
+  if (rootA === rootB) {
+    addLog(`<span class="tag-orange">${a} 和 ${b} 已在同一集合，无需合并</span>`);
+  } else {
+    let rx = rootA, ry = rootB;
+    if (rank[rx] < rank[ry]) [rx,ry] = [ry,rx];
+    parent[ry] = rx;
+    if (rank[rx] === rank[ry]) rank[rx]++;
+    count--;
+    addLog(`<span class="tag-green">按秩合并：rank[${rx}]=${rank[rx]} ≥ rank[${ry}]，parent[${ry}]=${rx}</span>`);
+    render([], rx);
+    await sleep(400);
+    render();
+  }
+
+  isAnimating = false;
+  setButtons(false);
+}
+
+function doReset() {
+  parent = Array.from({length:N},(_,i)=>i);
+  rank = new Array(N).fill(0);
+  count = N;
+  document.getElementById('logContainer').innerHTML = '';
+  render();
+  addLog('<span class="tag">重置</span> 所有节点恢复为独立集合');
+}
+
+render();
+addLog('<span class="tag">初始化</span> 10 个独立节点，每个节点为独立集合');
+</script>
+</body>
+</html>

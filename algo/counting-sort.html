@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>计数排序 - 算法可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.badge.time{background:rgba(56,189,248,0.15);color:var(--blue);}.badge.space{background:rgba(196,132,252,0.15);color:var(--purple);}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;display:flex;flex-direction:column;justify-content:center;gap:20px;padding:20px 32px;}
+.arr-row{display:flex;flex-direction:column;gap:6px;}
+.arr-row-label{font-size:0.72rem;color:var(--dim);font-family:monospace;letter-spacing:0.05em;}
+.arr-cells{display:flex;gap:5px;flex-wrap:nowrap;}
+.cell{display:flex;flex-direction:column;align-items:center;gap:3px;}
+.cell-box{width:46px;height:46px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:1rem;font-weight:600;transition:background 0.25s,box-shadow 0.25s,height 0.25s;}
+.cell-idx{font-size:0.65rem;color:var(--dim);font-family:monospace;}
+.count-box{border-radius:7px 7px 0 0;display:flex;align-items:flex-end;justify-content:center;font-family:monospace;font-size:0.85rem;font-weight:600;transition:background 0.25s,height 0.25s,box-shadow 0.25s;width:46px;min-height:24px;}
+.count-cell{display:flex;flex-direction:column;align-items:center;gap:3px;}
+.count-val-label{font-size:0.72rem;color:var(--dim);font-family:monospace;min-height:14px;}
+.desc-box{padding:12px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.9rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.op{color:#ff7b72;}.id{color:#e6edf3;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.3);color:var(--blue);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
+.phase-badge{display:inline-block;padding:2px 10px;border-radius:100px;font-size:0.72rem;font-family:monospace;background:rgba(56,189,248,0.12);color:var(--blue);margin-right:6px;white-space:nowrap;}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>计数排序 Counting Sort</h1>
+  <div class="complexity"><span class="badge time">时间 O(n+k)</span><span class="badge space">空间 O(k)</span></div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="viz-area" id="vizArea"></div>
+    <div class="desc-box">
+      <span id="descText">点击播放开始演示</span>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px">counting_sort.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">&#9198; 重置</button>
+  <button class="btn" id="btnPrev">&#9664; 上一步</button>
+  <button class="btn primary" id="btnPlay">&#9654; 播放</button>
+  <button class="btn" id="btnNext">下一步 &#9654;</button>
+  <div class="speed-wrap"><span>&#x1F422;</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>&#x1F407;</span></div>
+</div>
+<script>
+const CODE_LINES = [
+  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
+  {html:``},
+  {html:`<span class="kw">import</span> <span class="st">"fmt"</span>`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">countingSort</span>(arr []<span class="kw">int</span>, k <span class="kw">int</span>) []<span class="kw">int</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;count := <span class="fn">make</span>([]<span class="kw">int</span>, k<span class="op">+</span><span class="num">1</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> _, v := <span class="kw">range</span> arr {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;count[v]<span class="op">++</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="id">// 统计频次</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> i := <span class="num">1</span>; i &lt;<span class="op">=</span> k; i<span class="op">++</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;count[i] <span class="op">+=</span> count[i<span class="op">-</span><span class="num">1</span>] <span class="id">// 前缀和</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;output := <span class="fn">make</span>([]<span class="kw">int</span>, <span class="fn">len</span>(arr))`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> i := <span class="fn">len</span>(arr)<span class="op">-</span><span class="num">1</span>; i &gt;<span class="op">=</span> <span class="num">0</span>; i<span class="op">--</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;output[count[arr[i]]<span class="op">-</span><span class="num">1</span>] = arr[i]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;count[arr[i]]<span class="op">--</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> output`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">main</span>() {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;arr := []<span class="kw">int</span>{<span class="num">4</span>, <span class="num">2</span>, <span class="num">2</span>, <span class="num">8</span>, <span class="num">3</span>, <span class="num">3</span>, <span class="num">1</span>, <span class="num">6</span>, <span class="num">4</span>, <span class="num">9</span>}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;result := <span class="fn">countingSort</span>(arr, <span class="num">9</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">fmt</span>.<span class="fn">Println</span>(result)`},
+  {html:`}`},
+];
+
+const INITIAL = [4,2,2,8,3,3,1,6,4,9];
+const K = 9;
+
+function generateSteps() {
+  const steps = [];
+  const arr = [...INITIAL];
+  const n = arr.length;
+  let count = new Array(K+1).fill(0);
+  let output = new Array(n).fill(null);
+
+  // Phase 0: show initial
+  steps.push({
+    arr:[...arr], count:[...count], output:[...output],
+    activeInput:-1, activeCount:-1, activeOutput:-1,
+    description:'初始数组，准备开始计数排序',
+    highlightLines:[20,21]
+  });
+
+  // Phase 1: init count array
+  steps.push({
+    arr:[...arr], count:[...count], output:[...output],
+    activeInput:-1, activeCount:-1, activeOutput:-1,
+    description:'初始化 count 数组，全部置 0',
+    highlightLines:[5]
+  });
+
+  // Phase 2: count frequencies
+  steps.push({
+    arr:[...arr], count:[...count], output:[...output],
+    activeInput:-1, activeCount:-1, activeOutput:-1,
+    description:'遍历输入数组，统计每个元素的频次',
+    highlightLines:[6]
+  });
+  for (let i = 0; i < n; i++) {
+    const v = arr[i];
+    steps.push({
+      arr:[...arr], count:[...count], output:[...output],
+      activeInput:i, activeCount:v, activeOutput:-1,
+      description:`arr[${i}] = ${v}，count[${v}]++ → count[${v}] 变为 ${count[v]+1}`,
+      highlightLines:[7]
+    });
+    count[v]++;
+  }
+  steps.push({
+    arr:[...arr], count:[...count], output:[...output],
+    activeInput:-1, activeCount:-1, activeOutput:-1,
+    description:'频次统计完成',
+    highlightLines:[8]
+  });
+
+  // Phase 3: prefix sum
+  steps.push({
+    arr:[...arr], count:[...count], output:[...output],
+    activeInput:-1, activeCount:-1, activeOutput:-1,
+    description:'计算前缀和，count[i] 表示 ≤i 的元素个数（即位置上界）',
+    highlightLines:[9]
+  });
+  for (let i = 1; i <= K; i++) {
+    const prev = count[i-1];
+    const cur = count[i];
+    steps.push({
+      arr:[...arr], count:[...count], output:[...output],
+      activeInput:-1, activeCount:i, activeOutput:-1,
+      description:`count[${i}] += count[${i-1}]：${cur} + ${prev} = ${cur+prev}`,
+      highlightLines:[10]
+    });
+    count[i] += count[i-1];
+  }
+  steps.push({
+    arr:[...arr], count:[...count], output:[...output],
+    activeInput:-1, activeCount:-1, activeOutput:-1,
+    description:'前缀和计算完成，准备从右往左构建输出数组',
+    highlightLines:[11,12]
+  });
+
+  // Phase 4: build output right-to-left
+  steps.push({
+    arr:[...arr], count:[...count], output:[...output],
+    activeInput:-1, activeCount:-1, activeOutput:-1,
+    description:'从右往左遍历输入数组，稳定地填入输出数组',
+    highlightLines:[13]
+  });
+  for (let i = n-1; i >= 0; i--) {
+    const v = arr[i];
+    const pos = count[v] - 1;
+    steps.push({
+      arr:[...arr], count:[...count], output:[...output],
+      activeInput:i, activeCount:v, activeOutput:pos,
+      description:`arr[${i}]=${v}，count[${v}]-1=${pos}，output[${pos}] = ${v}`,
+      highlightLines:[14]
+    });
+    output[pos] = v;
+    count[v]--;
+    steps.push({
+      arr:[...arr], count:[...count], output:[...output],
+      activeInput:i, activeCount:v, activeOutput:pos,
+      description:`output[${pos}] = ${v} 已放置，count[${v}]-- → ${count[v]}`,
+      highlightLines:[15]
+    });
+  }
+
+  // Phase 5: done
+  steps.push({
+    arr:[...arr], count:[...count], output:[...output],
+    activeInput:-1, activeCount:-1, activeOutput:-1,
+    description:'排序完成！输出数组为升序排列',
+    highlightLines:[17,18,22,23]
+  });
+  return steps;
+}
+
+let steps = generateSteps();
+let cur = 0, playing = false, timer = null;
+const SPEED = [900,550,320,180,70];
+
+const vizArea = document.getElementById('vizArea');
+const codeBody = document.getElementById('codeBody');
+const descText = document.getElementById('descText');
+const stepCounter = document.getElementById('stepCounter');
+const btnPlay = document.getElementById('btnPlay');
+const btnPrev = document.getElementById('btnPrev');
+const btnNext = document.getElementById('btnNext');
+const btnReset = document.getElementById('btnReset');
+const speedRange = document.getElementById('speedRange');
+
+function buildCode() {
+  codeBody.innerHTML = CODE_LINES.map((l,i) =>
+    `<div class="code-line" data-line="${i}"><span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
+  ).join('');
+  codeBody.querySelectorAll('.code-line').forEach(el =>
+    el.addEventListener('click', () => jumpToLine(parseInt(el.dataset.line)))
+  );
+}
+
+function highlightLines(lines) {
+  codeBody.querySelectorAll('.code-line').forEach(el => el.classList.remove('active'));
+  lines.forEach(ln => {
+    const el = codeBody.querySelector(`[data-line="${ln}"]`);
+    if (el) el.classList.add('active');
+  });
+  if (lines.length > 0) {
+    const f = codeBody.querySelector(`[data-line="${lines[0]}"]`);
+    if (f) f.scrollIntoView({block:'nearest'});
+  }
+}
+
+function jumpToLine(ln) {
+  let t = cur, b = Infinity;
+  steps.forEach((s,i) => {
+    if (s.highlightLines.includes(ln)) {
+      const d = Math.abs(i-cur);
+      if (d < b) { b = d; t = i; }
+    }
+  });
+  cur = t;
+  render();
+}
+
+function cellColor(base, active) {
+  if (active) return base;
+  return 'rgba(255,255,255,0.06)';
+}
+
+function render() {
+  const s = steps[cur];
+  vizArea.innerHTML = '';
+
+  // Row 1: input array
+  const inputRow = document.createElement('div');
+  inputRow.className = 'arr-row';
+  const inputLabel = document.createElement('div');
+  inputLabel.className = 'arr-row-label';
+  inputLabel.textContent = '输入数组 arr[]';
+  const inputCells = document.createElement('div');
+  inputCells.className = 'arr-cells';
+  s.arr.forEach((v, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    const box = document.createElement('div');
+    box.className = 'cell-box';
+    const isActive = i === s.activeInput;
+    box.style.background = isActive ? 'rgba(251,191,36,0.22)' : 'rgba(56,189,248,0.10)';
+    box.style.border = `2px solid ${isActive ? 'var(--yellow)' : 'var(--border)'}`;
+    box.style.color = isActive ? 'var(--yellow)' : 'var(--text)';
+    if (isActive) box.style.boxShadow = '0 0 12px rgba(251,191,36,0.4)';
+    box.textContent = v;
+    const idx = document.createElement('div');
+    idx.className = 'cell-idx';
+    idx.textContent = i;
+    cell.appendChild(box);
+    cell.appendChild(idx);
+    inputCells.appendChild(cell);
+  });
+  inputRow.appendChild(inputLabel);
+  inputRow.appendChild(inputCells);
+  vizArea.appendChild(inputRow);
+
+  // Row 2: count array
+  const maxCount = Math.max(...s.count, 1);
+  const countRow = document.createElement('div');
+  countRow.className = 'arr-row';
+  const countLabel = document.createElement('div');
+  countLabel.className = 'arr-row-label';
+  countLabel.textContent = 'count[0..9]（颜色深浅随值变化）';
+  const countCells = document.createElement('div');
+  countCells.className = 'arr-cells';
+  s.count.forEach((v, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'count-cell';
+    const isActive = i === s.activeCount;
+    const fillRatio = v / (maxCount || 1);
+    const h = Math.max(24, Math.round(24 + fillRatio * 52));
+    const box = document.createElement('div');
+    box.className = 'count-box';
+    box.style.height = h + 'px';
+    box.style.width = '46px';
+    if (isActive) {
+      box.style.background = 'rgba(251,191,36,0.28)';
+      box.style.border = '2px solid var(--yellow)';
+      box.style.color = 'var(--yellow)';
+      box.style.boxShadow = '0 0 10px rgba(251,191,36,0.4)';
+    } else if (v > 0) {
+      const alpha = 0.1 + fillRatio * 0.35;
+      box.style.background = `rgba(56,189,248,${alpha.toFixed(2)})`;
+      box.style.border = '2px solid rgba(56,189,248,0.3)';
+      box.style.color = 'var(--blue)';
+    } else {
+      box.style.background = 'rgba(255,255,255,0.04)';
+      box.style.border = '2px solid var(--border)';
+      box.style.color = 'var(--dim)';
+    }
+    box.style.display = 'flex';
+    box.style.alignItems = 'center';
+    box.style.justifyContent = 'center';
+    box.style.borderRadius = '7px 7px 0 0';
+    box.style.fontFamily = 'monospace';
+    box.style.fontWeight = '600';
+    box.style.fontSize = '0.85rem';
+    box.style.transition = 'all 0.25s';
+    box.textContent = v;
+    const valLbl = document.createElement('div');
+    valLbl.className = 'count-val-label';
+    valLbl.style.fontSize = '0.65rem';
+    valLbl.style.color = 'var(--dim)';
+    valLbl.style.fontFamily = 'monospace';
+    valLbl.textContent = i;
+    cell.appendChild(box);
+    cell.appendChild(valLbl);
+    countCells.appendChild(cell);
+  });
+  countRow.appendChild(countLabel);
+  countRow.appendChild(countCells);
+  vizArea.appendChild(countRow);
+
+  // Row 3: output array
+  const outputRow = document.createElement('div');
+  outputRow.className = 'arr-row';
+  const outputLabel = document.createElement('div');
+  outputLabel.className = 'arr-row-label';
+  outputLabel.textContent = '输出数组 output[]（绿色 = 已填入）';
+  const outputCells = document.createElement('div');
+  outputCells.className = 'arr-cells';
+  s.output.forEach((v, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    const box = document.createElement('div');
+    box.className = 'cell-box';
+    const isActive = i === s.activeOutput;
+    const isFilled = v !== null;
+    if (isActive) {
+      box.style.background = 'rgba(74,222,128,0.22)';
+      box.style.border = '2px solid var(--green)';
+      box.style.color = 'var(--green)';
+      box.style.boxShadow = '0 0 12px rgba(74,222,128,0.4)';
+    } else if (isFilled) {
+      box.style.background = 'rgba(74,222,128,0.10)';
+      box.style.border = '2px solid rgba(74,222,128,0.4)';
+      box.style.color = 'var(--green)';
+    } else {
+      box.style.background = 'rgba(255,255,255,0.03)';
+      box.style.border = '2px dashed var(--border)';
+      box.style.color = 'var(--dim)';
+    }
+    box.textContent = isFilled ? v : '';
+    const idx = document.createElement('div');
+    idx.className = 'cell-idx';
+    idx.textContent = i;
+    cell.appendChild(box);
+    cell.appendChild(idx);
+    outputCells.appendChild(cell);
+  });
+  outputRow.appendChild(outputLabel);
+  outputRow.appendChild(outputCells);
+  vizArea.appendChild(outputRow);
+
+  highlightLines(s.highlightLines);
+  descText.textContent = s.description;
+  stepCounter.textContent = `${cur+1} / ${steps.length}`;
+  btnPrev.disabled = cur === 0;
+  btnNext.disabled = cur === steps.length - 1;
+}
+
+function play() {
+  if (cur >= steps.length - 1) cur = 0;
+  playing = true;
+  btnPlay.innerHTML = '&#9646;&#9646; 暂停';
+  tick();
+}
+function pause() {
+  playing = false;
+  clearTimeout(timer);
+  btnPlay.innerHTML = '&#9654; 播放';
+}
+function tick() {
+  if (!playing) return;
+  if (cur < steps.length - 1) {
+    cur++;
+    render();
+    timer = setTimeout(tick, SPEED[parseInt(speedRange.value)-1]);
+  } else {
+    pause();
+  }
+}
+
+btnPlay.addEventListener('click', () => playing ? pause() : play());
+btnPrev.addEventListener('click', () => { pause(); if (cur > 0) { cur--; render(); } });
+btnNext.addEventListener('click', () => { pause(); if (cur < steps.length-1) { cur++; render(); } });
+btnReset.addEventListener('click', () => { pause(); cur = 0; render(); });
+
+buildCode();
+render();
+</script>
+</body>
+</html>

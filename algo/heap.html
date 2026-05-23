@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>堆 / 优先队列 - 算法可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.badge.time{background:rgba(56,189,248,0.15);color:var(--blue);}.badge.space{background:rgba(196,132,252,0.15);color:var(--purple);}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.op-bar{display:flex;gap:8px;padding:8px 16px;border-bottom:1px solid var(--border);flex-shrink:0;align-items:center;flex-wrap:wrap;}
+.op-btn{background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.3);color:var(--blue);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:0.82rem;}
+.op-btn:hover{background:rgba(56,189,248,0.2);}
+.op-btn.red{background:rgba(248,113,113,0.1);border-color:rgba(248,113,113,0.3);color:var(--red);}
+.op-btn.red:hover{background:rgba(248,113,113,0.2);}
+.op-input{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:6px;width:70px;font-size:0.82rem;outline:none;}
+.op-input:focus{border-color:rgba(56,189,248,0.5);}
+.op-label{font-size:0.8rem;color:var(--dim);}
+.viz-area{flex:1;display:flex;flex-direction:column;align-items:center;padding:16px;overflow:hidden;gap:16px;}
+svg.tree-svg{flex:1;width:100%;min-height:0;}
+.arr-row{display:flex;gap:4px;align-items:center;flex-shrink:0;padding-bottom:8px;}
+.arr-cell{width:40px;height:40px;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.85rem;font-family:monospace;font-weight:600;transition:background 0.2s,box-shadow 0.2s;position:relative;border:2px solid transparent;}
+.arr-idx{font-size:0.6rem;font-weight:400;color:var(--dim);position:absolute;bottom:2px;right:4px;}
+.desc-box{padding:10px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.9rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.op{color:#ff7b72;}.id{color:#e6edf3;}.cm{color:#8b949e;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.3);color:var(--blue);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
+.legend{display:flex;gap:12px;padding:8px 24px;border-bottom:1px solid var(--border);flex-wrap:wrap;flex-shrink:0;}
+.leg{display:flex;align-items:center;gap:4px;font-size:0.72rem;color:var(--dim);}
+.leg-dot{width:8px;height:8px;border-radius:2px;}
+.stats{display:flex;gap:16px;padding:0 8px;}.stat{font-size:0.78rem;color:var(--dim);font-family:monospace;}.stat span{color:var(--text);font-weight:600;}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>堆 / 优先队列 Heap</h1>
+  <div class="complexity">
+    <span class="badge time">插入 O(log n)</span>
+    <span class="badge time">取顶 O(log n)</span>
+    <span class="badge space">空间 O(n)</span>
+  </div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="legend">
+      <div class="leg"><div class="leg-dot" style="background:#38bdf8"></div>普通节点</div>
+      <div class="leg"><div class="leg-dot" style="background:#fbbf24"></div>比较中</div>
+      <div class="leg"><div class="leg-dot" style="background:#fb923c"></div>交换中</div>
+      <div class="leg"><div class="leg-dot" style="background:#4ade80"></div>已就位</div>
+      <div class="leg"><div class="leg-dot" style="background:#f87171"></div>堆顶(最大值)</div>
+    </div>
+    <div class="op-bar">
+      <span class="op-label">插入:</span>
+      <input class="op-input" type="number" id="insertVal" placeholder="值" min="1" max="99" value="50">
+      <button class="op-btn" onclick="doInsert()">Insert</button>
+      <button class="op-btn red" onclick="doExtractMax()">ExtractMax</button>
+      <button class="op-btn" style="margin-left:16px" onclick="doBuildHeap()">BuildHeap 重建</button>
+    </div>
+    <div class="viz-area">
+      <svg class="tree-svg" id="treeSvg"></svg>
+      <div class="arr-row" id="arrRow"></div>
+    </div>
+    <div class="desc-box">
+      <span id="descText">选择操作开始演示（最大堆）</span>
+      <div class="stats">
+        <div class="stat">大小 <span id="sizeCount">0</span></div>
+        <div class="stat">高度 <span id="heightCount">0</span></div>
+      </div>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px">heap.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+const CODE_LINES = [
+  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
+  {html:``},
+  {html:`<span class="cm">// MaxHeap 最大堆（数组实现）</span>`},
+  {html:`<span class="kw">type</span> <span class="id">MaxHeap</span> <span class="kw">struct</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">data</span> []<span class="kw">int</span>`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> (<span class="id">h</span> *<span class="id">MaxHeap</span>) <span class="fn">parent</span>(i <span class="kw">int</span>) <span class="kw">int</span> { <span class="kw">return</span> (i<span class="op">-</span><span class="num">1</span>) / <span class="num">2</span> }`},
+  {html:`<span class="kw">func</span> (<span class="id">h</span> *<span class="id">MaxHeap</span>) <span class="fn">left</span>(i <span class="kw">int</span>)   <span class="kw">int</span> { <span class="kw">return</span> <span class="num">2</span>*i <span class="op">+</span> <span class="num">1</span> }`},
+  {html:`<span class="kw">func</span> (<span class="id">h</span> *<span class="id">MaxHeap</span>) <span class="fn">right</span>(i <span class="kw">int</span>)  <span class="kw">int</span> { <span class="kw">return</span> <span class="num">2</span>*i <span class="op">+</span> <span class="num">2</span> }`},
+  {html:``},
+  {html:`<span class="kw">func</span> (<span class="id">h</span> *<span class="id">MaxHeap</span>) <span class="fn">Insert</span>(val <span class="kw">int</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">h</span>.<span class="id">data</span> = <span class="fn">append</span>(<span class="id">h</span>.<span class="id">data</span>, val)  <span class="cm">// 末尾插入</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;i := <span class="fn">len</span>(<span class="id">h</span>.<span class="id">data</span>) <span class="op">-</span> <span class="num">1</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">h</span>.<span class="fn">siftUp</span>(i)              <span class="cm">// 上浮</span>`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> (<span class="id">h</span> *<span class="id">MaxHeap</span>) <span class="fn">siftUp</span>(i <span class="kw">int</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> i <span class="op">></span> <span class="num">0</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;p := <span class="id">h</span>.<span class="fn">parent</span>(i)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> <span class="id">h</span>.<span class="id">data</span>[i] <span class="op"><=</span> <span class="id">h</span>.<span class="id">data</span>[p] { <span class="kw">break</span> }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">h</span>.<span class="id">data</span>[i], <span class="id">h</span>.<span class="id">data</span>[p] = <span class="id">h</span>.<span class="id">data</span>[p], <span class="id">h</span>.<span class="id">data</span>[i]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;i = p`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> (<span class="id">h</span> *<span class="id">MaxHeap</span>) <span class="fn">ExtractMax</span>() <span class="kw">int</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;max := <span class="id">h</span>.<span class="id">data</span>[<span class="num">0</span>]              <span class="cm">// 保存堆顶</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;n := <span class="fn">len</span>(<span class="id">h</span>.<span class="id">data</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">h</span>.<span class="id">data</span>[<span class="num">0</span>] = <span class="id">h</span>.<span class="id">data</span>[n<span class="op">-</span><span class="num">1</span>]     <span class="cm">// 末尾移到顶部</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">h</span>.<span class="id">data</span> = <span class="id">h</span>.<span class="id">data</span>[:<span class="id">n</span><span class="op">-</span><span class="num">1</span>]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">h</span>.<span class="fn">siftDown</span>(<span class="num">0</span>)            <span class="cm">// 下沉</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> max`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> (<span class="id">h</span> *<span class="id">MaxHeap</span>) <span class="fn">siftDown</span>(i <span class="kw">int</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;n := <span class="fn">len</span>(<span class="id">h</span>.<span class="id">data</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;largest := i`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;l, r := <span class="id">h</span>.<span class="fn">left</span>(i), <span class="id">h</span>.<span class="fn">right</span>(i)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> l <span class="op"><</span> n &amp;&amp; <span class="id">h</span>.<span class="id">data</span>[l] <span class="op">></span> <span class="id">h</span>.<span class="id">data</span>[largest] { largest = l }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> r <span class="op"><</span> n &amp;&amp; <span class="id">h</span>.<span class="id">data</span>[r] <span class="op">></span> <span class="id">h</span>.<span class="id">data</span>[largest] { largest = r }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> largest <span class="op">==</span> i { <span class="kw">break</span> }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">h</span>.<span class="id">data</span>[i], <span class="id">h</span>.<span class="id">data</span>[largest] = <span class="id">h</span>.<span class="id">data</span>[largest], <span class="id">h</span>.<span class="id">data</span>[i]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;i = largest`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`}`},
+];
+
+// Heap state
+let heapData = [80, 60, 70, 30, 40, 50, 20];
+let steps = [], cur = 0, playing = false, timer = null;
+const SPEED = [800,500,300,180,80];
+
+function heapHeight(n) { return n <= 0 ? 0 : Math.floor(Math.log2(n)) + 1; }
+
+function cloneState(data, comparing, swapping, settled, description, lines) {
+  return { data: [...data], comparing: [...(comparing||[])], swapping: [...(swapping||[])], settled: [...(settled||[])], description, highlightLines: lines };
+}
+
+function generateInsertSteps(initData, val) {
+  const steps = [];
+  const a = [...initData];
+  steps.push(cloneState(a, [], [], [], `准备插入 ${val} 到堆末尾`, [11]));
+  a.push(val);
+  let i = a.length - 1;
+  steps.push(cloneState(a, [i], [], [], `将 ${val} 插入到末尾位置 ${i}`, [12, 13]));
+  steps.push(cloneState(a, [i], [], [], `开始 siftUp，从位置 ${i} 上浮`, [14]));
+  while (i > 0) {
+    const p = Math.floor((i - 1) / 2);
+    steps.push(cloneState(a, [i, p], [], [], `比较 arr[${i}]=${a[i]} 与父节点 arr[${p}]=${a[p]}`, [17, 18, 19]));
+    if (a[i] <= a[p]) {
+      steps.push(cloneState(a, [], [], [i], `${a[i]} ≤ ${a[p]}，无需上浮，结束`, [20]));
+      break;
+    }
+    [a[i], a[p]] = [a[p], a[i]];
+    steps.push(cloneState(a, [], [i, p], [], `${a[p]} > ${a[i]}（交换前），交换位置 ${i} 和 ${p}`, [21, 22]));
+    i = p;
+  }
+  if (i === 0) steps.push(cloneState(a, [], [], [0], `已到达根节点，siftUp 结束`, [23]));
+  steps.push(cloneState(a, [], [], [], `插入完成，堆顶最大值为 ${a[0]}`, [11]));
+  return { steps, finalData: a };
+}
+
+function generateExtractSteps(initData) {
+  const steps = [];
+  const a = [...initData];
+  if (a.length === 0) return { steps: [cloneState([], [], [], [], '堆为空', [])], finalData: [] };
+  const maxVal = a[0];
+  steps.push(cloneState(a, [], [], [], `准备取出堆顶最大值 ${maxVal}`, [26]));
+  steps.push(cloneState(a, [0], [], [], `记录堆顶 max = ${maxVal}`, [27]));
+  const last = a[a.length - 1];
+  a[0] = a[a.length - 1];
+  a.pop();
+  steps.push(cloneState(a, [0], [], [], `将末尾元素 ${last} 移到堆顶，删除末尾`, [28, 29, 30]));
+  steps.push(cloneState(a, [], [], [], `开始 siftDown，从顶部下沉`, [31]));
+  let i = 0;
+  while (true) {
+    const n = a.length;
+    let largest = i;
+    const l = 2 * i + 1, r = 2 * i + 2;
+    steps.push(cloneState(a, [i, l < n ? l : -1, r < n ? r : -1].filter(x => x >= 0), [], [], `检查 i=${i} 的左右子节点，找最大者`, [35, 36, 37, 38]));
+    if (l < n && a[l] > a[largest]) largest = l;
+    if (r < n && a[r] > a[largest]) largest = r;
+    if (largest === i) {
+      steps.push(cloneState(a, [], [], [i], `arr[${i}]=${a[i]} 已是局部最大，下沉结束`, [39]));
+      break;
+    }
+    [a[i], a[largest]] = [a[largest], a[i]];
+    steps.push(cloneState(a, [], [i, largest], [], `arr[${largest}]=${a[i]} 更大（交换前），交换 ${i} 和 ${largest}`, [40, 41]));
+    i = largest;
+  }
+  steps.push(cloneState(a, [], [], [], `ExtractMax 完成，返回 ${maxVal}，新堆顶 ${a[0] || '-'}`, [26]));
+  return { steps, finalData: a };
+}
+
+function generateBuildSteps(initData) {
+  const steps = [];
+  const a = [...initData];
+  const n = a.length;
+  steps.push(cloneState(a, [], [], [], `BuildHeap：对 [${a.join(',')}] 原地建堆`, []));
+  for (let i = Math.floor(n / 2) - 1; i >= 0; i--) {
+    steps.push(cloneState(a, [i], [], [], `对节点 ${i} 执行 siftDown`, []));
+    let cur2 = i;
+    while (true) {
+      let largest = cur2;
+      const l = 2 * cur2 + 1, r = 2 * cur2 + 2;
+      if (l < n && a[l] > a[largest]) largest = l;
+      if (r < n && a[r] > a[largest]) largest = r;
+      if (largest === cur2) break;
+      steps.push(cloneState(a, [], [cur2, largest], [], `交换 arr[${cur2}]=${a[cur2]} 和 arr[${largest}]=${a[largest]}`, [40]));
+      [a[cur2], a[largest]] = [a[largest], a[cur2]];
+      cur2 = largest;
+    }
+  }
+  steps.push(cloneState(a, [], [], [], `BuildHeap 完成，最大堆已建立，堆顶 = ${a[0]}`, []));
+  return { steps, finalData: a };
+}
+
+function doInsert() {
+  pause();
+  const val = parseInt(document.getElementById('insertVal').value) || 50;
+  const res = generateInsertSteps(heapData, val);
+  steps = res.steps;
+  heapData = res.finalData;
+  cur = 0; render();
+}
+function doExtractMax() {
+  pause();
+  const res = generateExtractSteps(heapData);
+  steps = res.steps;
+  heapData = res.finalData;
+  cur = 0; render();
+}
+function doBuildHeap() {
+  pause();
+  heapData = [80, 60, 70, 30, 40, 50, 20];
+  const res = generateBuildSteps([45, 20, 65, 10, 30, 55, 80]);
+  steps = res.steps;
+  heapData = res.finalData;
+  cur = 0; render();
+}
+
+const vizArea = document.getElementById('treeSvg');
+const arrRow = document.getElementById('arrRow');
+const descText = document.getElementById('descText');
+const stepCounter = document.getElementById('stepCounter');
+const sizeCount = document.getElementById('sizeCount');
+const heightCount = document.getElementById('heightCount');
+const codeBody = document.getElementById('codeBody');
+const speedRange = document.getElementById('speedRange');
+const btnPlay = document.getElementById('btnPlay');
+const btnPrev = document.getElementById('btnPrev');
+const btnNext = document.getElementById('btnNext');
+const btnReset = document.getElementById('btnReset');
+
+const COLORS = { default:'#38bdf8', compare:'#fbbf24', swap:'#fb923c', settled:'#4ade80', root:'#f87171' };
+
+function getNodeColor(s, i) {
+  if (s.swapping.includes(i)) return COLORS.swap;
+  if (s.comparing.includes(i)) return COLORS.compare;
+  if (s.settled.includes(i)) return COLORS.settled;
+  if (i === 0 && s.data.length > 0) return COLORS.root;
+  return COLORS.default;
+}
+
+function renderTree(s) {
+  const data = s.data;
+  const n = data.length;
+  const W = vizArea.parentElement.clientWidth || 500;
+  const H = vizArea.parentElement.clientHeight * 0.65 || 200;
+  vizArea.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  vizArea.innerHTML = '';
+  if (n === 0) { vizArea.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#94a3b8" font-size="14">堆为空</text>'; return; }
+
+  const R = 22;
+  const levels = Math.floor(Math.log2(n)) + 1;
+  const nodePos = [];
+  for (let i = 0; i < n; i++) {
+    const level = Math.floor(Math.log2(i + 1));
+    const levelStart = Math.pow(2, level) - 1;
+    const levelCount = Math.min(Math.pow(2, level), n - levelStart);
+    const totalInLevel = Math.pow(2, level);
+    const posInLevel = i - levelStart;
+    const xFraction = (posInLevel + 0.5) / totalInLevel;
+    const x = xFraction * W;
+    const y = (level + 0.5) * (H / (levels + 0.3));
+    nodePos[i] = { x, y };
+  }
+
+  // Draw edges
+  for (let i = 1; i < n; i++) {
+    const p = Math.floor((i - 1) / 2);
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', nodePos[p].x); line.setAttribute('y1', nodePos[p].y);
+    line.setAttribute('x2', nodePos[i].x); line.setAttribute('y2', nodePos[i].y);
+    line.setAttribute('stroke', '#334155'); line.setAttribute('stroke-width', '2');
+    vizArea.appendChild(line);
+  }
+
+  // Draw nodes
+  for (let i = 0; i < n; i++) {
+    const color = getNodeColor(s, i);
+    const { x, y } = nodePos[i];
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', x); circle.setAttribute('cy', y); circle.setAttribute('r', R);
+    circle.setAttribute('fill', color + '33'); circle.setAttribute('stroke', color); circle.setAttribute('stroke-width', '2');
+    if (s.swapping.includes(i) || s.comparing.includes(i)) circle.setAttribute('filter', `drop-shadow(0 0 6px ${color})`);
+    vizArea.appendChild(circle);
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', x); text.setAttribute('y', y + 1);
+    text.setAttribute('text-anchor', 'middle'); text.setAttribute('dominant-baseline', 'middle');
+    text.setAttribute('fill', color); text.setAttribute('font-size', '14'); text.setAttribute('font-weight', '600');
+    text.setAttribute('font-family', 'monospace');
+    text.textContent = data[i];
+    vizArea.appendChild(text);
+    // index label
+    const idx = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    idx.setAttribute('x', x + R - 4); idx.setAttribute('y', y - R + 4);
+    idx.setAttribute('text-anchor', 'middle'); idx.setAttribute('fill', '#94a3b8'); idx.setAttribute('font-size', '10');
+    idx.textContent = i;
+    vizArea.appendChild(idx);
+  }
+}
+
+function renderArr(s) {
+  arrRow.innerHTML = '';
+  s.data.forEach((val, i) => {
+    const color = getNodeColor(s, i);
+    const cell = document.createElement('div');
+    cell.className = 'arr-cell';
+    cell.style.background = color + '22';
+    cell.style.borderColor = color;
+    cell.style.color = color;
+    if (s.swapping.includes(i) || s.comparing.includes(i)) cell.style.boxShadow = `0 0 10px ${color}88`;
+    cell.innerHTML = `${val}<span class="arr-idx">${i}</span>`;
+    arrRow.appendChild(cell);
+  });
+}
+
+function render() {
+  if (steps.length === 0) {
+    const state = { data: [...heapData], comparing: [], swapping: [], settled: [], highlightLines: [] };
+    renderTree(state); renderArr(state);
+    descText.textContent = '选择操作开始演示';
+    sizeCount.textContent = heapData.length;
+    heightCount.textContent = heapHeight(heapData.length);
+    stepCounter.textContent = '0 / 0';
+    return;
+  }
+  const s = steps[cur];
+  renderTree(s); renderArr(s);
+  highlightLines(s.highlightLines);
+  descText.textContent = s.description;
+  stepCounter.textContent = `${cur + 1} / ${steps.length}`;
+  sizeCount.textContent = s.data.length;
+  heightCount.textContent = heapHeight(s.data.length);
+  btnPrev.disabled = cur === 0;
+  btnNext.disabled = cur === steps.length - 1;
+}
+
+function buildCode() {
+  codeBody.innerHTML = CODE_LINES.map((l, i) => `<div class="code-line" data-line="${i}"><span class="ln">${i + 1}</span><span class="lc">${l.html || '&nbsp;'}</span></div>`).join('');
+  codeBody.querySelectorAll('.code-line').forEach(el => el.addEventListener('click', () => jumpToLine(parseInt(el.dataset.line))));
+}
+function highlightLines(lines) {
+  codeBody.querySelectorAll('.code-line').forEach(el => el.classList.remove('active'));
+  (lines || []).forEach(ln => { const el = codeBody.querySelector(`[data-line="${ln}"]`); if (el) el.classList.add('active'); });
+  if (lines && lines.length > 0) { const f = codeBody.querySelector(`[data-line="${lines[0]}"]`); if (f) f.scrollIntoView({ block: 'nearest' }); }
+}
+function jumpToLine(ln) {
+  if (steps.length === 0) return;
+  let t = cur, b = Infinity;
+  steps.forEach((s, i) => { if (s.highlightLines.includes(ln)) { const d = Math.abs(i - cur); if (d < b) { b = d; t = i; } } });
+  cur = t; render();
+}
+
+function play() { if (cur >= steps.length - 1) cur = 0; playing = true; btnPlay.innerHTML = '⏸ 暂停'; tick(); }
+function pause() { playing = false; clearTimeout(timer); btnPlay.innerHTML = '▶ 播放'; }
+function tick() { if (!playing) return; if (cur < steps.length - 1) { cur++; render(); timer = setTimeout(tick, SPEED[parseInt(speedRange.value) - 1]); } else pause(); }
+
+btnPlay.addEventListener('click', () => playing ? pause() : play());
+btnPrev.addEventListener('click', () => { pause(); if (cur > 0) { cur--; render(); } });
+btnNext.addEventListener('click', () => { pause(); if (cur < steps.length - 1) { cur++; render(); } });
+btnReset.addEventListener('click', () => { pause(); heapData = [80, 60, 70, 30, 40, 50, 20]; steps = []; cur = 0; render(); });
+
+buildCode();
+// Initialize with build-heap demo
+const initRes = generateBuildSteps([45, 20, 65, 10, 30, 55, 80]);
+steps = initRes.steps;
+heapData = initRes.finalData;
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B 树 - 算法可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.badge.time{background:rgba(56,189,248,0.15);color:var(--blue);}.badge.space{background:rgba(196,132,252,0.15);color:var(--purple);}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.op-bar{display:flex;gap:8px;padding:8px 16px;border-bottom:1px solid var(--border);flex-shrink:0;align-items:center;flex-wrap:wrap;}
+.op-btn{background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.3);color:var(--blue);padding:5px 14px;border-radius:6px;cursor:pointer;font-size:0.82rem;}
+.op-btn:hover{background:rgba(56,189,248,0.2);}
+.op-input{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:6px;width:70px;font-size:0.82rem;outline:none;}
+.op-input:focus{border-color:rgba(56,189,248,0.5);}
+.op-label{font-size:0.8rem;color:var(--dim);}
+.viz-area{flex:1;overflow:hidden;padding:16px;}
+svg.tree-svg{width:100%;height:100%;}
+.desc-box{padding:10px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.9rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.op{color:#ff7b72;}.id{color:#e6edf3;}.cm{color:#8b949e;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.3);color:var(--blue);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
+.legend{display:flex;gap:12px;padding:8px 24px;border-bottom:1px solid var(--border);flex-wrap:wrap;flex-shrink:0;}
+.leg{display:flex;align-items:center;gap:4px;font-size:0.72rem;color:var(--dim);}
+.leg-dot{width:8px;height:8px;border-radius:2px;}
+.stats{display:flex;gap:16px;padding:0 8px;}.stat{font-size:0.78rem;color:var(--dim);font-family:monospace;}.stat span{color:var(--text);font-weight:600;}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>B 树 B-Tree (阶数 t=2)</h1>
+  <div class="complexity">
+    <span class="badge time">查找/插入 O(log n)</span>
+    <span class="badge time">每节点最多 3 个键</span>
+    <span class="badge space">空间 O(n)</span>
+  </div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="legend">
+      <div class="leg"><div class="leg-dot" style="background:#38bdf8"></div>普通节点</div>
+      <div class="leg"><div class="leg-dot" style="background:#fbbf24"></div>当前访问</div>
+      <div class="leg"><div class="leg-dot" style="background:#f87171"></div>满节点（需分裂）</div>
+      <div class="leg"><div class="leg-dot" style="background:#fb923c"></div>分裂中</div>
+      <div class="leg"><div class="leg-dot" style="background:#4ade80"></div>插入成功</div>
+    </div>
+    <div class="op-bar">
+      <span class="op-label">插入值:</span>
+      <input class="op-input" type="number" id="insertVal" placeholder="值" min="1" max="99" value="25">
+      <button class="op-btn" onclick="doInsert()">Insert</button>
+      <button class="op-btn" onclick="doSearch()">Search</button>
+      <button class="op-btn" style="margin-left:8px" onclick="doPreset()">重置并加载示例</button>
+    </div>
+    <div class="viz-area">
+      <svg class="tree-svg" id="treeSvg"></svg>
+    </div>
+    <div class="desc-box">
+      <span id="descText">B 树（t=2），每节点最多 3 个键，最少 1 个键（根可为0）</span>
+      <div class="stats">
+        <div class="stat">键总数 <span id="keyCount">0</span></div>
+        <div class="stat">高度 <span id="treeHeight">0</span></div>
+      </div>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px">b_tree.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+const CODE_LINES = [
+  {html:`<span class="cm">// B 树，阶数 t=2（最小度数）</span>`},
+  {html:`<span class="cm">// 每个非根节点：t-1 ≤ keys ≤ 2t-1，即 1 ≤ keys ≤ 3</span>`},
+  {html:`<span class="kw">const</span> T = <span class="num">2</span>`},
+  {html:``},
+  {html:`<span class="kw">type</span> <span class="id">BNode</span> <span class="kw">struct</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">keys</span>     []<span class="kw">int</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">children</span> []*<span class="id">BNode</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">isLeaf</span>   <span class="kw">bool</span>`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> (<span class="id">t</span> *<span class="id">BTree</span>) <span class="fn">Insert</span>(k <span class="kw">int</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;r := <span class="id">t</span>.<span class="id">root</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> <span class="fn">len</span>(r.<span class="id">keys</span>) == <span class="num">2</span>*T<span class="op">-</span><span class="num">1</span> {  <span class="cm">// 根节点满了</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;s := &amp;<span class="id">BNode</span>{}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;s.<span class="id">children</span> = []*<span class="id">BNode</span>{r}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">splitChild</span>(s, <span class="num">0</span>)   <span class="cm">// 分裂旧根</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">insertNonFull</span>(s, k)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">t</span>.<span class="id">root</span> = s`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;} <span class="kw">else</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">insertNonFull</span>(r, k)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">splitChild</span>(parent *<span class="id">BNode</span>, i <span class="kw">int</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;full := parent.<span class="id">children</span>[i]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;mid := full.<span class="id">keys</span>[T<span class="op">-</span><span class="num">1</span>]         <span class="cm">// 中间键上升</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 创建右半节点</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;right := &amp;<span class="id">BNode</span>{keys: full.<span class="id">keys</span>[T:]}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;full.<span class="id">keys</span> = full.<span class="id">keys</span>[:<span class="id">T</span><span class="op">-</span><span class="num">1</span>]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 将 mid 插入父节点</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;parent.<span class="id">keys</span> = <span class="fn">insertAt</span>(parent.<span class="id">keys</span>, i, mid)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;parent.<span class="id">children</span> = <span class="fn">insertChild</span>(parent.<span class="id">children</span>, i<span class="op">+</span><span class="num">1</span>, right)`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">insertNonFull</span>(node *<span class="id">BNode</span>, k <span class="kw">int</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;i := <span class="fn">findPos</span>(node.<span class="id">keys</span>, k)   <span class="cm">// 找插入位置</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> node.<span class="id">isLeaf</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;node.<span class="id">keys</span> = <span class="fn">insertAt</span>(node.<span class="id">keys</span>, i, k)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> <span class="fn">len</span>(node.<span class="id">children</span>[i].<span class="id">keys</span>) == <span class="num">2</span>*T<span class="op">-</span><span class="num">1</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">splitChild</span>(node, i)    <span class="cm">// 子节点满，先分裂</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> k <span class="op">></span> node.<span class="id">keys</span>[i] { i<span class="op">++</span> }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">insertNonFull</span>(node.<span class="id">children</span>[i], k)`},
+  {html:`}`},
+];
+
+const T = 2; // minimum degree
+const MAX_KEYS = 2 * T - 1; // 3
+
+class BNode {
+  constructor(isLeaf = true) {
+    this.keys = [];
+    this.children = [];
+    this.isLeaf = isLeaf;
+    this.id = BNode._id++;
+  }
+}
+BNode._id = 0;
+
+function cloneNode(n) {
+  if (!n) return null;
+  const c = new BNode(n.isLeaf);
+  c.keys = [...n.keys];
+  c.id = n.id;
+  c.children = n.children.map(cloneNode);
+  return c;
+}
+
+let btRoot = new BNode(true);
+let steps = [], cur = 0, playing = false, timer = null;
+const SPEED = [800,500,300,180,80];
+
+function treeKeyCount(n) { return n ? n.keys.length + n.children.reduce((a, c) => a + treeKeyCount(c), 0) : 0; }
+function treeHeight(n) { return n ? 1 + (n.children.length ? Math.max(...n.children.map(treeHeight)) : 0) : 0; }
+
+function splitChild(parent, i, steps, root) {
+  const full = parent.children[i];
+  const mid = full.keys[T - 1];
+  steps.push(mkStep(cloneNode(root), [full.id], [full.id], [], `节点 [${full.keys.join(',')}] 已满（3 键），中间键 ${mid} 上升到父节点`, [24, 25, 26, 27, 28, 29, 30, 31]));
+  const right = new BNode(full.isLeaf);
+  right.keys = full.keys.slice(T);
+  right.children = full.children.slice(T);
+  full.keys = full.keys.slice(0, T - 1);
+  full.children = full.children.slice(0, T);
+  const pos = parent.keys.findIndex(k => k > mid);
+  const insertPos = pos < 0 ? parent.keys.length : pos;
+  parent.keys.splice(insertPos, 0, mid);
+  parent.children.splice(insertPos + 1, 0, right);
+  steps.push(mkStep(cloneNode(root), [parent.id], [], [mid], `分裂完成：${mid} 上升，左 [${full.keys.join(',')}]，右 [${right.keys.join(',')}]`, [28, 29, 30, 31]));
+}
+
+function mkStep(root, highlight, splitting, settled, description, lines) {
+  return { root: cloneNode(root), highlight: highlight || [], splitting: splitting || [], settled: settled || [], description, highlightLines: lines };
+}
+
+function generateInsertSteps(val) {
+  const stepsArr = [];
+  const root = cloneNode(btRoot);
+  stepsArr.push(mkStep(root, [], [], [], `准备插入 ${val}`, [10]));
+
+  function insertNonFull(node, k) {
+    stepsArr.push(mkStep(root, [node.id], [], [], `访问节点 [${node.keys.join(',')}]，${node.isLeaf ? '是叶节点' : '是内部节点'}`, [34]));
+    if (node.isLeaf) {
+      const pos = node.keys.findIndex(x => x > k);
+      node.keys.splice(pos < 0 ? node.keys.length : pos, 0, k);
+      stepsArr.push(mkStep(root, [node.id], [], [k], `叶节点直接插入 ${k}，现在为 [${node.keys.join(',')}]`, [35, 36, 37]));
+      return;
+    }
+    let i = node.keys.findIndex(x => x > k);
+    if (i < 0) i = node.keys.length;
+    const child = node.children[i];
+    stepsArr.push(mkStep(root, [child.id], [], [], `向第 ${i} 个子节点下探：[${child.keys.join(',')}]`, [34]));
+    if (child.keys.length === MAX_KEYS) {
+      stepsArr.push(mkStep(root, [child.id], [child.id], [], `子节点 [${child.keys.join(',')}] 已满，需要先分裂`, [40, 41]));
+      splitChild(node, i, stepsArr, root);
+      if (k > node.keys[i]) i++;
+    }
+    insertNonFull(node.children[i], k);
+  }
+
+  if (root.keys.length === MAX_KEYS) {
+    stepsArr.push(mkStep(root, [root.id], [root.id], [], `根节点 [${root.keys.join(',')}] 已满，需要分裂`, [12, 13, 14, 15, 16]));
+    const s = new BNode(false);
+    s.children = [root];
+    splitChild(s, 0, stepsArr, s);
+    insertNonFull(s, val);
+    stepsArr.push(mkStep(s, [], [], [val], `插入 ${val} 完成！`, []));
+    btRoot = s;
+    return { steps: stepsArr, finalRoot: s };
+  }
+
+  insertNonFull(root, val);
+  stepsArr.push(mkStep(root, [], [], [val], `插入 ${val} 完成！`, []));
+  btRoot = root;
+  return { steps: stepsArr, finalRoot: root };
+}
+
+function generateSearchSteps(val) {
+  const stepsArr = [];
+  const root = cloneNode(btRoot);
+
+  function search(node) {
+    stepsArr.push(mkStep(root, [node.id], [], [], `在节点 [${node.keys.join(',')}] 中查找 ${val}`, []));
+    const pos = node.keys.indexOf(val);
+    if (pos >= 0) {
+      stepsArr.push(mkStep(root, [node.id], [], [val], `找到 ${val}！`, []));
+      return;
+    }
+    if (node.isLeaf) {
+      stepsArr.push(mkStep(root, [node.id], [], [], `叶节点中没有 ${val}，查找失败`, []));
+      return;
+    }
+    let i = node.keys.findIndex(x => x > val);
+    if (i < 0) i = node.keys.length;
+    stepsArr.push(mkStep(root, [node.children[i].id], [], [], `${val} 在第 ${i} 个指针范围，进入子节点`, []));
+    search(node.children[i]);
+  }
+
+  stepsArr.push(mkStep(root, [], [], [], `查找 ${val}`, []));
+  search(root);
+  return { steps: stepsArr, finalRoot: root };
+}
+
+function doInsert() {
+  pause();
+  const val = parseInt(document.getElementById('insertVal').value) || 25;
+  const res = generateInsertSteps(val);
+  steps = res.steps; cur = 0; render();
+}
+function doSearch() {
+  pause();
+  const val = parseInt(document.getElementById('insertVal').value) || 25;
+  const res = generateSearchSteps(val);
+  steps = res.steps; cur = 0; render();
+}
+function doPreset() {
+  pause();
+  btRoot = new BNode(true); BNode._id = 0;
+  steps = []; cur = 0;
+  for (const v of [10, 20, 5, 30, 15, 25, 35, 40, 45, 50]) {
+    const res = generateInsertSteps(v);
+    steps.push(...res.steps);
+  }
+  cur = 0; render();
+}
+
+const treeSvg = document.getElementById('treeSvg');
+const descText = document.getElementById('descText');
+const stepCounter = document.getElementById('stepCounter');
+const keyCount = document.getElementById('keyCount');
+const treeHeightEl = document.getElementById('treeHeight');
+const codeBody = document.getElementById('codeBody');
+const speedRange = document.getElementById('speedRange');
+const btnPlay = document.getElementById('btnPlay');
+const btnPrev = document.getElementById('btnPrev');
+const btnNext = document.getElementById('btnNext');
+const btnReset = document.getElementById('btnReset');
+
+function layoutTree(root) {
+  if (!root) return { positions: {}, width: 0, height: 0 };
+  const positions = {};
+  const nodeWidths = {};
+
+  function computeWidth(node) {
+    if (!node) return 0;
+    const kw = node.keys.length * 36 + 20;
+    nodeWidths[node.id] = kw;
+    if (node.isLeaf) return kw;
+    return Math.max(kw, node.children.reduce((s, c) => s + computeWidth(c) + 12, -12));
+  }
+
+  const levelHeight = 80;
+  let xCounter = 0;
+
+  function place(node, depth) {
+    if (!node) return 0;
+    if (node.isLeaf) {
+      const cx = xCounter + nodeWidths[node.id] / 2;
+      positions[node.id] = { x: cx, y: depth * levelHeight + 30 };
+      xCounter += nodeWidths[node.id] + 16;
+      return cx;
+    }
+    const startX = xCounter;
+    const childCenters = node.children.map(c => place(c, depth + 1));
+    const cx = (childCenters[0] + childCenters[childCenters.length - 1]) / 2;
+    positions[node.id] = { x: cx, y: depth * levelHeight + 30 };
+    return cx;
+  }
+
+  computeWidth(root);
+  place(root, 0);
+  return positions;
+}
+
+function getNodeColor(id, s) {
+  if (!s) return '#38bdf8';
+  if (s.splitting.includes(id)) return '#fb923c';
+  if (s.highlight.includes(id)) return '#fbbf24';
+  if (s.settled.length > 0) return '#4ade80';
+  return '#38bdf8';
+}
+
+function renderBTree(s) {
+  const root = s ? s.root : btRoot;
+  const rect = treeSvg.parentElement.getBoundingClientRect();
+  const W = rect.width || 600, H = rect.height || 300;
+  treeSvg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  treeSvg.innerHTML = '';
+
+  if (!root || root.keys.length === 0) {
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('x', W / 2); t.setAttribute('y', H / 2);
+    t.setAttribute('text-anchor', 'middle'); t.setAttribute('fill', '#94a3b8'); t.setAttribute('font-size', '14');
+    t.textContent = '树为空';
+    treeSvg.appendChild(t); return;
+  }
+
+  const positions = layoutTree(root);
+  // Scale to fit
+  const allX = Object.values(positions).map(p => p.x);
+  const allY = Object.values(positions).map(p => p.y);
+  const minX = Math.min(...allX), maxX = Math.max(...allX);
+  const minY = Math.min(...allY), maxY = Math.max(...allY);
+  const scaleX = (W - 80) / Math.max(maxX - minX + 80, 1);
+  const scaleY = Math.min((H - 60) / Math.max(maxY - minY + 40, 1), 1);
+
+  function tx(x) { return 40 + (x - minX + 40) * scaleX; }
+  function ty(y) { return 20 + (y - minY) * scaleY; }
+
+  const NH = 36, KW = 32;
+
+  function drawEdges(node) {
+    if (!node || node.isLeaf) return;
+    const { x, y } = positions[node.id];
+    node.children.forEach(c => {
+      const { x: cx, y: cy } = positions[c.id];
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', tx(x)); line.setAttribute('y1', ty(y) + NH / 2);
+      line.setAttribute('x2', tx(cx)); line.setAttribute('y2', ty(cy) - NH / 2);
+      line.setAttribute('stroke', '#334155'); line.setAttribute('stroke-width', '1.5');
+      treeSvg.appendChild(line);
+      drawEdges(c);
+    });
+  }
+  drawEdges(root);
+
+  function drawNode(node) {
+    if (!node) return;
+    const color = getNodeColor(node.id, s);
+    const { x, y } = positions[node.id];
+    const nkeys = node.keys.length;
+    const totalW = nkeys * KW + 8;
+    const rx = tx(x) - totalW / 2;
+    const ry = ty(y) - NH / 2;
+    const isOverflow = node.keys.length >= MAX_KEYS;
+
+    const rect2 = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect2.setAttribute('x', rx); rect2.setAttribute('y', ry);
+    rect2.setAttribute('width', totalW); rect2.setAttribute('height', NH);
+    rect2.setAttribute('rx', '6');
+    rect2.setAttribute('fill', isOverflow ? 'rgba(248,113,113,0.15)' : color + '15');
+    rect2.setAttribute('stroke', isOverflow ? '#f87171' : color);
+    rect2.setAttribute('stroke-width', '1.5');
+    treeSvg.appendChild(rect2);
+
+    node.keys.forEach((k, i) => {
+      if (i > 0) {
+        const sep = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        sep.setAttribute('x1', rx + i * KW + 4); sep.setAttribute('y1', ry + 4);
+        sep.setAttribute('x2', rx + i * KW + 4); sep.setAttribute('y2', ry + NH - 4);
+        sep.setAttribute('stroke', isOverflow ? '#f87171' : color + '55');
+        sep.setAttribute('stroke-width', '1');
+        treeSvg.appendChild(sep);
+      }
+      const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      txt.setAttribute('x', rx + i * KW + KW / 2 + 4);
+      txt.setAttribute('y', ry + NH / 2 + 1);
+      txt.setAttribute('text-anchor', 'middle'); txt.setAttribute('dominant-baseline', 'middle');
+      txt.setAttribute('fill', s && s.settled.includes(k) ? '#4ade80' : color);
+      txt.setAttribute('font-size', '13'); txt.setAttribute('font-weight', '600');
+      txt.setAttribute('font-family', 'monospace');
+      txt.textContent = k;
+      treeSvg.appendChild(txt);
+    });
+
+    node.children.forEach(c => drawNode(c));
+  }
+  drawNode(root);
+}
+
+function render() {
+  if (steps.length === 0) {
+    renderBTree(null);
+    descText.textContent = 'B 树（t=2），每节点最多 3 个键';
+    keyCount.textContent = treeKeyCount(btRoot);
+    treeHeightEl.textContent = treeHeight(btRoot);
+    stepCounter.textContent = '0 / 0';
+    return;
+  }
+  const s = steps[cur];
+  renderBTree(s);
+  highlightLines(s.highlightLines);
+  descText.textContent = s.description;
+  stepCounter.textContent = `${cur + 1} / ${steps.length}`;
+  keyCount.textContent = s.root ? treeKeyCount(s.root) : 0;
+  treeHeightEl.textContent = s.root ? treeHeight(s.root) : 0;
+  btnPrev.disabled = cur === 0;
+  btnNext.disabled = cur === steps.length - 1;
+}
+
+function buildCode() {
+  codeBody.innerHTML = CODE_LINES.map((l, i) => `<div class="code-line" data-line="${i}"><span class="ln">${i + 1}</span><span class="lc">${l.html || '&nbsp;'}</span></div>`).join('');
+  codeBody.querySelectorAll('.code-line').forEach(el => el.addEventListener('click', () => jumpToLine(parseInt(el.dataset.line))));
+}
+function highlightLines(lines) {
+  codeBody.querySelectorAll('.code-line').forEach(el => el.classList.remove('active'));
+  (lines || []).forEach(ln => { const el = codeBody.querySelector(`[data-line="${ln}"]`); if (el) el.classList.add('active'); });
+  if (lines && lines.length > 0) { const f = codeBody.querySelector(`[data-line="${lines[0]}"]`); if (f) f.scrollIntoView({ block: 'nearest' }); }
+}
+function jumpToLine(ln) {
+  if (steps.length === 0) return;
+  let t2 = cur, b = Infinity;
+  steps.forEach((s, i) => { if (s.highlightLines && s.highlightLines.includes(ln)) { const d = Math.abs(i - cur); if (d < b) { b = d; t2 = i; } } });
+  cur = t2; render();
+}
+
+function play() { if (cur >= steps.length - 1) cur = 0; playing = true; btnPlay.innerHTML = '⏸ 暂停'; tick(); }
+function pause() { playing = false; clearTimeout(timer); btnPlay.innerHTML = '▶ 播放'; }
+function tick() { if (!playing) return; if (cur < steps.length - 1) { cur++; render(); timer = setTimeout(tick, SPEED[parseInt(speedRange.value) - 1]); } else pause(); }
+
+btnPlay.addEventListener('click', () => playing ? pause() : play());
+btnPrev.addEventListener('click', () => { pause(); if (cur > 0) { cur--; render(); } });
+btnNext.addEventListener('click', () => { pause(); if (cur < steps.length - 1) { cur++; render(); } });
+btnReset.addEventListener('click', () => { pause(); btRoot = new BNode(true); BNode._id = 0; steps = []; cur = 0; render(); });
+
+buildCode();
+doPreset();
+</script>
+</body>
+</html>

@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>0/1 背包问题 — 动态规划可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;padding:24px;}
+h1{font-size:1.5rem;font-weight:700;color:var(--blue);margin-bottom:4px;}
+.subtitle{color:var(--dim);font-size:0.875rem;margin-bottom:20px;}
+.badge{display:inline-block;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:2px 10px;font-size:0.78rem;color:var(--dim);margin-right:8px;margin-bottom:16px;}
+.badge span{color:var(--yellow);}
+.layout{display:grid;grid-template-columns:1fr 380px;gap:20px;}
+@media(max-width:900px){.layout{grid-template-columns:1fr;}}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px;}
+.section-title{font-size:0.8rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--dim);margin-bottom:12px;font-weight:600;}
+
+/* Controls */
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:20px;}
+.ctrl-group{display:flex;flex-direction:column;gap:4px;}
+.ctrl-group label{font-size:0.75rem;color:var(--dim);}
+.ctrl-group input{background:#0f172a;border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:0.85rem;width:100%;}
+.ctrl-group input:focus{outline:none;border-color:var(--blue);}
+.btn{padding:8px 18px;border-radius:8px;border:none;cursor:pointer;font-size:0.875rem;font-weight:600;transition:opacity 0.15s;}
+.btn-primary{background:var(--blue);color:#0f172a;}
+.btn-primary:hover{opacity:0.85;}
+.btn-sec{background:var(--border);color:var(--text);}
+.btn-sec:hover{opacity:0.7;}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+
+/* Items display */
+.items-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;}
+.item-badge{background:#0f172a;border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:0.8rem;}
+.item-badge .item-idx{color:var(--blue);font-weight:700;margin-right:4px;}
+.item-badge .item-w{color:var(--purple);}
+.item-badge .item-v{color:var(--green);}
+
+/* Table */
+.table-wrap{overflow:auto;padding:4px 0 8px;}
+.dp-table{border-collapse:collapse;font-family:monospace;font-size:0.82rem;}
+.dp-cell{width:38px;height:38px;text-align:center;vertical-align:middle;border:1px solid var(--border);transition:background 0.15s,color 0.15s;cursor:default;}
+.dp-cell.cur{background:rgba(251,191,36,0.25);color:var(--yellow);}
+.dp-cell.dep{background:rgba(196,132,252,0.2);color:var(--purple);}
+.dp-cell.match{background:rgba(74,222,128,0.2);color:var(--green);}
+.dp-cell.path{background:rgba(251,146,60,0.25);color:var(--orange);}
+.dp-header{color:var(--dim);font-size:0.72rem;padding:0 4px;text-align:center;}
+.dp-char{color:var(--blue);font-weight:700;}
+.row-header{color:var(--dim);font-size:0.72rem;padding:0 8px;text-align:right;white-space:nowrap;}
+.row-done td:not(.row-header){background:rgba(74,222,128,0.05);}
+
+/* Step info */
+.step-info{margin-top:16px;}
+.step-counter{font-size:0.8rem;color:var(--dim);margin-bottom:8px;}
+.step-desc{background:#0f172a;border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-size:0.85rem;line-height:1.6;min-height:72px;}
+.step-desc .tag-yellow{color:var(--yellow);}
+.step-desc .tag-purple{color:var(--purple);}
+.step-desc .tag-green{color:var(--green);}
+.step-desc .tag-orange{color:var(--orange);}
+.playback{display:flex;gap:8px;margin-top:12px;align-items:center;}
+.speed-label{font-size:0.78rem;color:var(--dim);margin-left:8px;}
+.speed-select{background:#0f172a;border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:6px;font-size:0.8rem;}
+
+/* Result */
+.result-box{margin-top:14px;background:#0f172a;border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-size:0.85rem;}
+.result-title{font-size:0.75rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--dim);margin-bottom:6px;}
+.result-val{font-size:1.4rem;font-weight:700;color:var(--green);}
+.result-items{margin-top:6px;font-size:0.82rem;color:var(--orange);}
+
+/* Code panel */
+.code-block{background:#0f172a;border:1px solid var(--border);border-radius:8px;padding:16px;font-family:monospace;font-size:0.78rem;line-height:1.7;overflow-x:auto;white-space:pre;}
+.code-block .kw{color:var(--blue);}
+.code-block .fn{color:var(--yellow);}
+.code-block .cm{color:#475569;}
+.code-block .str{color:var(--green);}
+.code-block .num{color:var(--purple);}
+
+/* Legend */
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:0.75rem;color:var(--dim);}
+.legend-dot{width:12px;height:12px;border-radius:3px;flex-shrink:0;}
+.ld-cur{background:rgba(251,191,36,0.4);}
+.ld-dep{background:rgba(196,132,252,0.3);}
+.ld-done{background:rgba(74,222,128,0.15);border:1px solid rgba(74,222,128,0.3);}
+.ld-path{background:rgba(251,146,60,0.35);}
+</style>
+</head>
+<body>
+<h1>0/1 背包问题</h1>
+<div class="subtitle">动态规划 · 二维 DP 表格可视化</div>
+<div>
+  <span class="badge">时间复杂度 <span>O(nW)</span></span>
+  <span class="badge">空间复杂度 <span>O(nW)</span></span>
+</div>
+
+<div class="layout">
+  <!-- Left: table + controls -->
+  <div>
+    <!-- Input controls -->
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="section-title">参数配置</div>
+      <div class="controls">
+        <div class="ctrl-group" style="flex:1;min-width:160px;">
+          <label>物品重量（逗号分隔）</label>
+          <input type="text" id="inp-weights" value="2,3,4,5">
+        </div>
+        <div class="ctrl-group" style="flex:1;min-width:160px;">
+          <label>物品价值（逗号分隔）</label>
+          <input type="text" id="inp-values" value="3,4,5,6">
+        </div>
+        <div class="ctrl-group" style="width:90px;">
+          <label>背包容量 W</label>
+          <input type="number" id="inp-W" value="8" min="1" max="20">
+        </div>
+        <button class="btn btn-primary" onclick="initAll()">运行</button>
+      </div>
+      <div class="items-row" id="items-display"></div>
+    </div>
+
+    <!-- DP Table -->
+    <div class="panel">
+      <div class="section-title">DP 表格</div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot ld-cur"></div>当前计算格</div>
+        <div class="legend-item"><div class="legend-dot ld-dep"></div>依赖格（紫色）</div>
+        <div class="legend-item"><div class="legend-dot ld-done"></div>已完成行</div>
+        <div class="legend-item"><div class="legend-dot ld-path"></div>最优路径</div>
+      </div>
+      <div class="table-wrap" id="table-wrap"></div>
+
+      <!-- Step info -->
+      <div class="step-info">
+        <div class="step-counter" id="step-counter">步骤 0 / 0</div>
+        <div class="step-desc" id="step-desc">点击「运行」开始可视化演示。</div>
+        <div class="playback">
+          <button class="btn btn-sec" id="btn-prev" onclick="prevStep()" disabled>&#9664; 上一步</button>
+          <button class="btn btn-primary" id="btn-play" onclick="togglePlay()">▶ 播放</button>
+          <button class="btn btn-sec" id="btn-next" onclick="nextStep()" disabled>下一步 &#9654;</button>
+          <span class="speed-label">速度</span>
+          <select class="speed-select" id="speed-select">
+            <option value="800">慢</option>
+            <option value="400" selected>中</option>
+            <option value="150">快</option>
+            <option value="50">极快</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Result -->
+      <div class="result-box" id="result-box" style="display:none;">
+        <div class="result-title">最优解</div>
+        <div class="result-val" id="result-val"></div>
+        <div class="result-items" id="result-items"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: info + code -->
+  <div>
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="section-title">递推公式</div>
+      <div class="code-block" style="font-size:0.82rem;line-height:1.9;">
+<span class="cm">// i: 物品编号，j: 当前容量</span>
+<span class="kw">if</span> j &lt; w[i]:
+  dp[i][j] = dp[i-1][j]   <span class="cm">// 放不下，不选</span>
+<span class="kw">else</span>:
+  dp[i][j] = max(
+    dp[i-1][j],           <span class="cm">// 不选第 i 件</span>
+    dp[i-1][j-w[i]] + v[i] <span class="cm">// 选第 i 件</span>
+  )</div>
+    </div>
+
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="section-title">Go 实现</div>
+      <div class="code-block"><span class="kw">package</span> main
+<span class="kw">import</span> <span class="str">"fmt"</span>
+
+<span class="kw">func</span> <span class="fn">knapsack</span>(weights, values []<span class="kw">int</span>, W <span class="kw">int</span>) <span class="kw">int</span> {
+    n := len(weights)
+    dp := make([][]<span class="kw">int</span>, n+<span class="num">1</span>)
+    <span class="kw">for</span> i := <span class="kw">range</span> dp {
+        dp[i] = make([]<span class="kw">int</span>, W+<span class="num">1</span>)
+    }
+
+    <span class="kw">for</span> i := <span class="num">1</span>; i &lt;= n; i++ {
+        w, v := weights[i-<span class="num">1</span>], values[i-<span class="num">1</span>]
+        <span class="kw">for</span> j := <span class="num">0</span>; j &lt;= W; j++ {
+            dp[i][j] = dp[i-<span class="num">1</span>][j] <span class="cm">// 不选第 i 件</span>
+            <span class="kw">if</span> j &gt;= w &amp;&amp;
+               dp[i-<span class="num">1</span>][j-w]+v &gt; dp[i][j] {
+                dp[i][j] = dp[i-<span class="num">1</span>][j-w] + v
+            }
+        }
+    }
+    <span class="kw">return</span> dp[n][W]
+}
+
+<span class="kw">func</span> <span class="fn">main</span>() {
+    weights := []<span class="kw">int</span>{<span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>, <span class="num">5</span>}
+    values  := []<span class="kw">int</span>{<span class="num">3</span>, <span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>}
+    fmt.<span class="fn">Println</span>(<span class="fn">knapsack</span>(weights, values, <span class="num">8</span>))
+    <span class="cm">// 输出: 10</span>
+}</div>
+    </div>
+
+    <div class="panel">
+      <div class="section-title">算法说明</div>
+      <div style="font-size:0.82rem;line-height:1.8;color:var(--dim);">
+        <p style="margin-bottom:8px;"><span style="color:var(--text);">0/1 背包</span>：每件物品只能选或不选，不可拆分。</p>
+        <p style="margin-bottom:8px;"><span style="color:var(--text);">dp[i][j]</span> = 前 i 件物品、容量为 j 时的最大价值。</p>
+        <p style="margin-bottom:8px;"><span style="color:var(--text);">初始化</span>：dp[0][*] = 0，dp[*][0] = 0。</p>
+        <p style="margin-bottom:8px;"><span style="color:var(--text);">回溯路径</span>：从 dp[n][W] 出发，若 dp[i][j] != dp[i-1][j] 则选了物品 i。</p>
+        <p><span style="color:var(--text);">优化</span>：空间可压缩到 O(W)（滚动数组，逆序遍历 j）。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let weights = [], values = [], W = 0, n = 0;
+let dp = [], steps = [], stepIdx = 0;
+let playTimer = null;
+let pathSet = new Set();
+
+function parseInputs() {
+  const ws = document.getElementById('inp-weights').value.split(',').map(x => parseInt(x.trim())).filter(x => !isNaN(x) && x > 0);
+  const vs = document.getElementById('inp-values').value.split(',').map(x => parseInt(x.trim())).filter(x => !isNaN(x) && x > 0);
+  const cap = parseInt(document.getElementById('inp-W').value);
+  if (ws.length === 0 || vs.length === 0 || isNaN(cap) || cap < 1) return false;
+  const len = Math.min(ws.length, vs.length);
+  weights = ws.slice(0, len);
+  values = vs.slice(0, len);
+  W = Math.min(cap, 20);
+  n = len;
+  return true;
+}
+
+function buildDP() {
+  dp = [];
+  for (let i = 0; i <= n; i++) {
+    dp[i] = new Array(W + 1).fill(0);
+  }
+  for (let i = 1; i <= n; i++) {
+    const wi = weights[i - 1], vi = values[i - 1];
+    for (let j = 0; j <= W; j++) {
+      dp[i][j] = dp[i - 1][j];
+      if (j >= wi && dp[i - 1][j - wi] + vi > dp[i][j]) {
+        dp[i][j] = dp[i - 1][j - wi] + vi;
+      }
+    }
+  }
+}
+
+function buildPath() {
+  pathSet = new Set();
+  let i = n, j = W;
+  while (i > 0 && j >= 0) {
+    if (dp[i][j] !== dp[i - 1][j]) {
+      pathSet.add(`${i},${j}`);
+      j -= weights[i - 1];
+    }
+    i--;
+  }
+}
+
+function buildSteps() {
+  steps = [];
+  // Step: init
+  steps.push({ type: 'init', desc: '<span class="tag-green">初始化</span>：第 0 行（无物品）和第 0 列（容量为 0）全部填 0。', cur: null, deps: [], doneRows: [] });
+
+  const doneRows = [0];
+  for (let i = 1; i <= n; i++) {
+    const wi = weights[i - 1], vi = values[i - 1];
+    for (let j = 0; j <= W; j++) {
+      const notTake = dp[i - 1][j];
+      const canTake = j >= wi;
+      const takePrev = canTake ? dp[i - 1][j - wi] + vi : -Infinity;
+      let deps = [[i - 1, j]];
+      let descText = '';
+      if (!canTake) {
+        descText = `物品 ${i}（w=${wi}, v=${vi}），容量 j=${j} &lt; w=${wi}，<span class="tag-purple">放不下</span>，dp[${i}][${j}] = dp[${i-1}][${j}] = <span class="tag-yellow">${dp[i][j]}</span>`;
+      } else {
+        deps = [[i - 1, j], [i - 1, j - wi]];
+        if (takePrev > notTake) {
+          descText = `物品 ${i}（w=${wi}, v=${vi}），j=${j}，<span class="tag-green">选物品 ${i}</span>：dp[${i-1}][${j-wi}]+${vi} = ${takePrev} &gt; dp[${i-1}][${j}] = ${notTake}，dp[${i}][${j}] = <span class="tag-yellow">${dp[i][j]}</span>`;
+        } else if (takePrev === notTake) {
+          descText = `物品 ${i}（w=${wi}, v=${vi}），j=${j}，选或不选结果相同：dp[${i}][${j}] = <span class="tag-yellow">${dp[i][j]}</span>`;
+        } else {
+          descText = `物品 ${i}（w=${wi}, v=${vi}），j=${j}，<span class="tag-purple">不选物品 ${i}</span>：dp[${i-1}][${j}] = ${notTake} &gt;= 选后的 ${takePrev}，dp[${i}][${j}] = <span class="tag-yellow">${dp[i][j]}</span>`;
+        }
+      }
+      steps.push({ type: 'fill', cur: [i, j], deps, doneRows: [...doneRows], desc: descText });
+    }
+    doneRows.push(i);
+  }
+
+  // Traceback
+  steps.push({ type: 'traceback', doneRows: [...Array(n + 1).keys()], desc: `<span class="tag-orange">回溯最优路径</span>：从 dp[${n}][${W}] = <span class="tag-yellow">${dp[n][W]}</span> 出发，标出所选物品（橙色）。最大价值 = <span class="tag-green">${dp[n][W]}</span>`, cur: null, deps: [] });
+}
+
+function renderItems() {
+  const el = document.getElementById('items-display');
+  el.innerHTML = '';
+  for (let i = 0; i < n; i++) {
+    el.innerHTML += `<div class="item-badge"><span class="item-idx">物品${i + 1}</span> <span class="item-w">w=${weights[i]}</span> <span class="item-v"> v=${values[i]}</span></div>`;
+  }
+  el.innerHTML += `<div class="item-badge"><span style="color:var(--orange)">W=${W}</span></div>`;
+}
+
+function renderTable(step) {
+  const wrap = document.getElementById('table-wrap');
+  const table = document.createElement('table');
+  table.className = 'dp-table';
+
+  const isTraceback = step && step.type === 'traceback';
+  const curSet = new Set(step && step.cur ? [`${step.cur[0]},${step.cur[1]}`] : []);
+  const depSet = new Set(step && step.deps ? step.deps.map(d => `${d[0]},${d[1]}`) : []);
+  const doneSet = new Set(step && step.doneRows ? step.doneRows : []);
+
+  // Header row
+  const thead = document.createElement('thead');
+  const hrow = document.createElement('tr');
+  const cornerTh = document.createElement('th');
+  cornerTh.className = 'dp-header';
+  cornerTh.textContent = 'i \\ j';
+  hrow.appendChild(cornerTh);
+  for (let j = 0; j <= W; j++) {
+    const th = document.createElement('th');
+    th.className = 'dp-header';
+    th.textContent = j;
+    hrow.appendChild(th);
+  }
+  thead.appendChild(hrow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  for (let i = 0; i <= n; i++) {
+    const tr = document.createElement('tr');
+    if (doneSet.has(i) && !isTraceback && (!step || !step.cur || step.cur[0] !== i)) {
+      tr.className = 'row-done';
+    }
+
+    // Row header
+    const rh = document.createElement('td');
+    rh.className = 'row-header';
+    if (i === 0) {
+      rh.textContent = '∅';
+    } else {
+      rh.innerHTML = `<span style="color:var(--dim);font-size:0.7rem;">${i}(w=${weights[i-1]},v=${values[i-1]})</span>`;
+    }
+    tr.appendChild(rh);
+
+    for (let j = 0; j <= W; j++) {
+      const td = document.createElement('td');
+      td.className = 'dp-cell';
+      const key = `${i},${j}`;
+      if (isTraceback && pathSet.has(key)) {
+        td.classList.add('path');
+      } else if (curSet.has(key)) {
+        td.classList.add('cur');
+      } else if (depSet.has(key)) {
+        td.classList.add('dep');
+      }
+
+      // Show value if computed
+      let showVal = false;
+      if (step) {
+        if (step.type === 'init') {
+          if (i === 0 || j === 0) { showVal = true; }
+        } else if (step.type === 'traceback') {
+          showVal = true;
+        } else {
+          const [ci, cj] = step.cur;
+          if (i < ci || (i === ci && j <= cj) || i === 0) {
+            showVal = true;
+          }
+        }
+      }
+      td.textContent = showVal ? dp[i][j] : '';
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  wrap.innerHTML = '';
+  wrap.appendChild(table);
+}
+
+function applyStep(idx) {
+  if (idx < 0 || idx >= steps.length) return;
+  stepIdx = idx;
+  const step = steps[idx];
+  document.getElementById('step-counter').textContent = `步骤 ${idx + 1} / ${steps.length}`;
+  document.getElementById('step-desc').innerHTML = step.desc;
+  renderTable(step);
+  document.getElementById('btn-prev').disabled = idx === 0;
+  document.getElementById('btn-next').disabled = idx === steps.length - 1;
+
+  if (step.type === 'traceback') {
+    document.getElementById('result-box').style.display = '';
+    document.getElementById('result-val').textContent = `最大价值：${dp[n][W]}`;
+    // Find items in path
+    let chosen = [];
+    let ci = n, cj = W;
+    while (ci > 0) {
+      if (dp[ci][cj] !== dp[ci - 1][cj]) {
+        chosen.push(`物品${ci}(w=${weights[ci-1]},v=${values[ci-1]})`);
+        cj -= weights[ci - 1];
+      }
+      ci--;
+    }
+    document.getElementById('result-items').textContent = '选中：' + (chosen.length ? chosen.reverse().join(' + ') : '无');
+  } else {
+    document.getElementById('result-box').style.display = 'none';
+  }
+}
+
+function prevStep() {
+  if (stepIdx > 0) applyStep(stepIdx - 1);
+}
+
+function nextStep() {
+  if (stepIdx < steps.length - 1) applyStep(stepIdx + 1);
+  else stopPlay();
+}
+
+function togglePlay() {
+  if (playTimer) {
+    stopPlay();
+  } else {
+    startPlay();
+  }
+}
+
+function startPlay() {
+  document.getElementById('btn-play').textContent = '⏸ 暂停';
+  const speed = parseInt(document.getElementById('speed-select').value);
+  playTimer = setInterval(() => {
+    if (stepIdx >= steps.length - 1) {
+      stopPlay();
+    } else {
+      applyStep(stepIdx + 1);
+    }
+  }, speed);
+}
+
+function stopPlay() {
+  if (playTimer) { clearInterval(playTimer); playTimer = null; }
+  document.getElementById('btn-play').textContent = '▶ 播放';
+}
+
+function initAll() {
+  stopPlay();
+  if (!parseInputs()) {
+    alert('请检查输入：重量和价值需为正整数，容量 W 需 >= 1');
+    return;
+  }
+  buildDP();
+  buildPath();
+  buildSteps();
+  renderItems();
+  applyStep(0);
+  document.getElementById('btn-prev').disabled = true;
+  document.getElementById('btn-next').disabled = false;
+}
+
+// Init on load
+initAll();
+</script>
+</body>
+</html>

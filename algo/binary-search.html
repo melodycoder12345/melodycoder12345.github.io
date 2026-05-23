@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>二分搜索 - 算法可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.badge.time{background:rgba(251,191,36,0.15);color:var(--yellow);}.badge.space{background:rgba(196,132,252,0.15);color:var(--purple);}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;gap:32px;}
+.search-input-row{display:flex;align-items:center;gap:12px;font-size:0.9rem;color:var(--dim);}
+.search-input{background:var(--panel);border:1px solid var(--border);color:var(--text);padding:6px 12px;border-radius:6px;font-size:0.9rem;width:80px;outline:none;}
+.search-input:focus{border-color:var(--blue);}
+.search-btn{background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.3);color:var(--blue);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.85rem;}
+.search-btn:hover{background:rgba(56,189,248,0.25);}
+.arr-container{position:relative;width:100%;max-width:700px;}
+.arr-row{display:flex;gap:4px;justify-content:center;}
+.cell{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:52px;}
+.cell-box{width:52px;height:52px;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:1rem;font-weight:700;font-family:monospace;transition:all 0.25s;border:2px solid transparent;position:relative;}
+.cell-idx{font-size:0.7rem;font-family:monospace;color:var(--dim);}
+.pointer-row{display:flex;gap:4px;justify-content:center;height:28px;position:relative;}
+.ptr{display:flex;flex-direction:column;align-items:center;min-width:52px;font-size:0.65rem;font-family:monospace;font-weight:600;}
+.ptr-arrow{font-size:0.8rem;}
+.range-indicator{position:absolute;height:3px;border-radius:2px;bottom:0;transition:all 0.25s;}
+.result-badge{padding:10px 20px;border-radius:8px;font-size:0.95rem;font-weight:600;font-family:monospace;}
+.desc-box{padding:12px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.9rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.op{color:#ff7b72;}.id{color:#e6edf3;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.3);color:var(--blue);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--yellow);cursor:pointer;}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>二分搜索 Binary Search</h1>
+  <div class="complexity"><span class="badge time">时间 O(log n)</span><span class="badge space">空间 O(1)</span></div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="viz-area">
+      <div class="search-input-row">
+        <span>搜索目标值：</span>
+        <input type="number" class="search-input" id="targetInput" value="7">
+        <button class="search-btn" id="searchBtn">重新搜索</button>
+      </div>
+      <div class="arr-container">
+        <div class="arr-row" id="arrRow"></div>
+        <div class="pointer-row" id="ptrRow"></div>
+      </div>
+      <div id="resultBadge" style="visibility:hidden" class="result-badge"></div>
+    </div>
+    <div class="desc-box">
+      <span id="descText">点击播放开始演示</span>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px">binary_search.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+const CODE_LINES = [
+  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
+  {html:``},
+  {html:`<span class="kw">import</span> <span class="st">"fmt"</span>`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">binarySearch</span>(arr []<span class="kw">int</span>, target <span class="kw">int</span>) <span class="kw">int</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;left, right := <span class="num">0</span>, <span class="fn">len</span>(arr)<span class="op">-</span><span class="num">1</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> left &lt;= right {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;mid := left <span class="op">+</span> (right<span class="op">-</span>left)/<span class="num">2</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> arr[mid] <span class="op">==</span> target {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> mid`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;} <span class="kw">else if</span> arr[mid] &lt; target {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;left = mid <span class="op">+</span> <span class="num">1</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;} <span class="kw">else</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;right = mid <span class="op">-</span> <span class="num">1</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="op">-</span><span class="num">1</span>`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">main</span>() {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;arr := []<span class="kw">int</span>{<span class="num">1</span>,<span class="num">3</span>,<span class="num">5</span>,<span class="num">7</span>,<span class="num">9</span>,<span class="num">11</span>,<span class="num">13</span>,<span class="num">15</span>,<span class="num">17</span>,<span class="num">19</span>}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;idx := <span class="fn">binarySearch</span>(arr, <span class="num">7</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="st">"Found at index:"</span>, idx)`},
+  {html:`}`},
+];
+
+const ARR = [1,3,5,7,9,11,13,15,17,19];
+
+function generateSteps(arr, target) {
+  const steps = [];
+  function snap(left, right, mid, state, lines, desc) {
+    steps.push({arr:[...arr], left, right, mid, state, highlightLines:lines, description:desc});
+  }
+  snap(0, arr.length-1, -1, 'init', [19,20,21], `在数组中搜索 target = ${target}`);
+  snap(0, arr.length-1, -1, 'init', [5], `left=0, right=${arr.length-1}`);
+  let left = 0, right = arr.length - 1;
+  while (left <= right) {
+    snap(left, right, -1, 'loop', [6], `检查 left(${left}) <= right(${right})`);
+    const mid = left + Math.floor((right - left) / 2);
+    snap(left, right, mid, 'mid', [7], `mid = ${left} + (${right}-${left})/2 = ${mid}`);
+    snap(left, right, mid, 'compare', [8], `比较 arr[${mid}]=${arr[mid]} 与 target=${target}`);
+    if (arr[mid] === target) {
+      snap(left, right, mid, 'found', [9], `找到了！arr[${mid}] = ${target}，返回 ${mid}`);
+      return steps;
+    } else if (arr[mid] < target) {
+      snap(left, right, mid, 'right', [10,11], `arr[${mid}]=${arr[mid]} < ${target}，目标在右半，left = ${mid+1}`);
+      left = mid + 1;
+    } else {
+      snap(left, right, mid, 'left', [12,13], `arr[${mid}]=${arr[mid]} > ${target}，目标在左半，right = ${mid-1}`);
+      right = mid - 1;
+    }
+  }
+  snap(left, right, -1, 'notfound', [16], `left(${left}) > right(${right})，未找到，返回 -1`);
+  return steps;
+}
+
+let target = 7;
+let steps = generateSteps(ARR, target);
+let cur = 0, playing = false, timer = null;
+const SPEED = [800,500,300,180,80];
+
+const arrRow=document.getElementById('arrRow'),ptrRow=document.getElementById('ptrRow'),
+  codeBody=document.getElementById('codeBody'),descText=document.getElementById('descText'),
+  stepCounter=document.getElementById('stepCounter'),resultBadge=document.getElementById('resultBadge'),
+  btnPlay=document.getElementById('btnPlay'),btnPrev=document.getElementById('btnPrev'),
+  btnNext=document.getElementById('btnNext'),btnReset=document.getElementById('btnReset'),
+  speedRange=document.getElementById('speedRange'),targetInput=document.getElementById('targetInput'),
+  searchBtn=document.getElementById('searchBtn');
+
+function buildCode(){
+  codeBody.innerHTML=CODE_LINES.map((l,i)=>`<div class="code-line" data-line="${i}"><span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`).join('');
+  codeBody.querySelectorAll('.code-line').forEach(el=>el.addEventListener('click',()=>jumpToLine(parseInt(el.dataset.line))));
+}
+function highlightLines(lines){
+  codeBody.querySelectorAll('.code-line').forEach(el=>el.classList.remove('active'));
+  lines.forEach(ln=>{const el=codeBody.querySelector(`[data-line="${ln}"]`);if(el)el.classList.add('active');});
+  if(lines.length>0){const f=codeBody.querySelector(`[data-line="${lines[0]}"]`);if(f)f.scrollIntoView({block:'nearest'});}
+}
+function jumpToLine(ln){let t=cur,b=Infinity;steps.forEach((s,i)=>{if(s.highlightLines.includes(ln)){const d=Math.abs(i-cur);if(d<b){b=d;t=i;}}});cur=t;render();}
+
+function buildArray(){
+  arrRow.innerHTML=ARR.map((v,i)=>`<div class="cell"><div class="cell-box" id="cell${i}">${v}</div><div class="cell-idx">${i}</div></div>`).join('');
+  ptrRow.innerHTML=ARR.map((_,i)=>`<div class="ptr" id="ptr${i}" style="visibility:hidden"><span class="ptr-arrow">▲</span><span></span></div>`).join('');
+}
+
+function render(){
+  const s=steps[cur];
+  ARR.forEach((v,i)=>{
+    const box=document.getElementById(`cell${i}`);
+    if(!box)return;
+    let bg='#1e293b',border='transparent',color='#e2e8f0';
+    if(s.left!==undefined&&s.right!==undefined&&i>=s.left&&i<=s.right){bg='rgba(56,189,248,0.08)';border='rgba(56,189,248,0.3)';}
+    if(s.mid===i){
+      if(s.state==='found'){bg='rgba(74,222,128,0.2)';border='#4ade80';color='#4ade80';}
+      else{bg='rgba(196,132,252,0.2)';border='#c084fc';color='#c084fc';}
+    }
+    if(s.state==='notfound'&&i<s.arr.length){bg='rgba(248,113,113,0.08)';border='rgba(248,113,113,0.2)';}
+    box.style.background=bg;
+    box.style.borderColor=border;
+    box.style.color=color;
+    box.style.boxShadow=s.mid===i?`0 0 16px ${border}66`:'none';
+  });
+  ARR.forEach((_,i)=>{
+    const ptr=document.getElementById(`ptr${i}`);
+    if(!ptr)return;
+    ptr.style.visibility='hidden';
+    ptr.querySelector('span:last-child').textContent='';
+    if(s.left===i){ptr.style.visibility='visible';ptr.style.color='#38bdf8';ptr.querySelector('span:last-child').textContent='L';}
+    if(s.right===i&&s.right!==s.left){ptr.style.visibility='visible';ptr.style.color='#fb923c';ptr.querySelector('span:last-child').textContent=ptr.querySelector('span:last-child').textContent?ptr.querySelector('span:last-child').textContent+'/R':'R';}
+    if(s.mid===i){ptr.style.visibility='visible';ptr.style.color='#c084fc';const span=ptr.querySelector('span:last-child');span.textContent=span.textContent?span.textContent+'/M':'M';}
+  });
+  if(s.state==='found'){resultBadge.style.visibility='visible';resultBadge.style.background='rgba(74,222,128,0.15)';resultBadge.style.color='#4ade80';resultBadge.textContent=`✓ 找到！arr[${s.mid}] = ${target}`;}
+  else if(s.state==='notfound'){resultBadge.style.visibility='visible';resultBadge.style.background='rgba(248,113,113,0.15)';resultBadge.style.color='#f87171';resultBadge.textContent=`✗ 未找到 ${target}`;}
+  else resultBadge.style.visibility='hidden';
+  highlightLines(s.highlightLines);
+  descText.textContent=s.description;
+  stepCounter.textContent=`${cur+1} / ${steps.length}`;
+  btnPrev.disabled=cur===0;btnNext.disabled=cur===steps.length-1;
+}
+function play(){if(cur>=steps.length-1)cur=0;playing=true;btnPlay.innerHTML='⏸ 暂停';tick();}
+function pause(){playing=false;clearTimeout(timer);btnPlay.innerHTML='▶ 播放';}
+function tick(){if(!playing)return;if(cur<steps.length-1){cur++;render();timer=setTimeout(tick,SPEED[parseInt(speedRange.value)-1]);}else pause();}
+btnPlay.addEventListener('click',()=>playing?pause():play());
+btnPrev.addEventListener('click',()=>{pause();if(cur>0){cur--;render();}});
+btnNext.addEventListener('click',()=>{pause();if(cur<steps.length-1){cur++;render();}});
+btnReset.addEventListener('click',()=>{pause();cur=0;render();});
+searchBtn.addEventListener('click',()=>{
+  const t=parseInt(targetInput.value);
+  if(isNaN(t))return;
+  target=t;pause();steps=generateSteps(ARR,target);cur=0;render();
+});
+buildCode();buildArray();render();
+</script>
+</body>
+</html>

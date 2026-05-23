@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KMP 字符串匹配算法可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;}
+
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;padding:24px 16px;}
+
+h1{text-align:center;font-size:1.5rem;font-weight:700;margin-bottom:4px;color:var(--blue);}
+.subtitle{text-align:center;color:var(--dim);font-size:0.85rem;margin-bottom:20px;}
+
+.op-bar{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 18px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:20px;}
+.op-bar label{color:var(--dim);font-size:0.8rem;margin-right:4px;}
+.op-bar input{background:#0f172a;border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 10px;font-family:monospace;font-size:0.9rem;width:260px;}
+.op-bar input:focus{outline:none;border-color:var(--blue);}
+.btn{padding:7px 18px;border-radius:6px;border:none;cursor:pointer;font-size:0.85rem;font-weight:600;transition:all 0.15s;}
+.btn-primary{background:var(--blue);color:#0f172a;}
+.btn-primary:hover{background:#7dd3fc;}
+.btn-sm{padding:5px 12px;font-size:0.8rem;}
+.btn-secondary{background:var(--border);color:var(--text);}
+.btn-secondary:hover{background:#475569;}
+
+.controls{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+.speed-label{color:var(--dim);font-size:0.8rem;}
+select{background:#0f172a;border:1px solid var(--border);border-radius:6px;color:var(--text);padding:5px 8px;font-size:0.8rem;}
+.step-info{margin-left:auto;color:var(--dim);font-size:0.8rem;}
+
+.viz-area{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;overflow-x:auto;}
+
+.row-label{color:var(--dim);font-size:0.75rem;font-weight:600;letter-spacing:0.05em;margin-bottom:6px;text-transform:uppercase;}
+
+.char-row{display:flex;gap:3px;flex-wrap:nowrap;padding:4px 0;}
+.char-wrap{display:flex;flex-direction:column;align-items:center;}
+.char-cell{width:32px;height:36px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;font-family:monospace;font-size:1rem;font-weight:700;border:2px solid transparent;transition:all 0.15s;cursor:default;flex-shrink:0;background:rgba(255,255,255,0.04);border-color:var(--border);}
+.char-idx{font-size:0.55rem;color:var(--dim);text-align:center;margin-top:2px;font-family:monospace;}
+
+.char-cell.window{border-color:var(--blue);background:rgba(56,189,248,0.08);}
+.char-cell.matching{border-color:var(--yellow);background:rgba(251,191,36,0.18);color:var(--yellow);}
+.char-cell.mismatch{border-color:var(--orange);background:rgba(251,146,60,0.18);color:var(--orange);}
+.char-cell.found{border-color:var(--green);background:rgba(74,222,128,0.18);color:var(--green);box-shadow:0 0 10px rgba(74,222,128,0.4);}
+.char-cell.pat-active{border-color:var(--yellow);background:rgba(251,191,36,0.18);color:var(--yellow);}
+.char-cell.pat-mismatch{border-color:var(--orange);background:rgba(251,146,60,0.18);color:var(--orange);}
+.char-cell.next-active{border-color:var(--purple);background:rgba(192,132,252,0.18);color:var(--purple);}
+.char-cell.next-computed{border-color:var(--border);background:rgba(192,132,252,0.06);color:var(--dim);}
+.char-cell.next-pending{border-color:var(--border);background:rgba(255,255,255,0.02);color:rgba(255,255,255,0.15);}
+
+.arrow-row{position:relative;height:22px;margin-bottom:2px;}
+.arrow-svg{position:absolute;top:0;left:0;overflow:visible;pointer-events:none;}
+
+.section-gap{height:14px;}
+
+.info-bar{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;padding:10px 16px;margin-bottom:16px;display:flex;gap:20px;align-items:center;flex-wrap:wrap;}
+.info-item{font-family:monospace;font-size:0.9rem;}
+.info-item span{color:var(--dim);margin-right:4px;}
+.info-val{font-weight:700;}
+.info-val.blue{color:var(--blue);}
+.info-val.yellow{color:var(--yellow);}
+.info-val.green{color:var(--green);}
+.info-val.orange{color:var(--orange);}
+
+.desc-box{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:16px;min-height:50px;}
+.desc-text{color:var(--text);font-size:0.88rem;line-height:1.5;}
+.desc-phase{font-size:0.75rem;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:4px;}
+.desc-phase.build{color:var(--purple);}
+.desc-phase.match{color:var(--blue);}
+
+.code-block{background:#0a0f1e;border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:16px;overflow-x:auto;}
+.code-block pre{font-family:'Fira Code',monospace;font-size:0.78rem;line-height:1.6;color:#94a3b8;}
+.hl-line{background:rgba(56,189,248,0.12);display:block;margin:0 -16px;padding:0 16px;border-left:2px solid var(--blue);}
+
+.matches-box{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.match-badge{background:rgba(74,222,128,0.15);border:1px solid var(--green);border-radius:4px;padding:2px 8px;font-family:monospace;font-size:0.8rem;color:var(--green);}
+
+.pattern-offset-wrap{position:relative;}
+</style>
+</head>
+<body>
+
+<h1>KMP 字符串匹配算法可视化</h1>
+<p class="subtitle">Knuth-Morris-Pratt · O(n+m) 时间 · O(m) 空间</p>
+
+<div class="op-bar">
+  <div>
+    <label>文本 Text</label>
+    <input id="inp-text" value="ABABDABACDABABCABAB">
+  </div>
+  <div>
+    <label>模式 Pattern</label>
+    <input id="inp-pat" value="ABABCABAB">
+  </div>
+  <button class="btn btn-primary" onclick="initAlgo()">开始 ▶</button>
+</div>
+
+<div class="controls">
+  <button class="btn btn-secondary btn-sm" id="btn-prev" onclick="stepPrev()">◀ 上一步</button>
+  <button class="btn btn-secondary btn-sm" id="btn-next" onclick="stepNext()">下一步 ▶</button>
+  <button class="btn btn-secondary btn-sm" id="btn-play" onclick="togglePlay()">▶ 自动播放</button>
+  <label class="speed-label">速度</label>
+  <select id="sel-speed">
+    <option value="1200">慢</option>
+    <option value="600" selected>中</option>
+    <option value="250">快</option>
+    <option value="80">极快</option>
+  </select>
+  <div class="step-info" id="step-info">步骤 0 / 0</div>
+</div>
+
+<div class="viz-area" id="viz-area">
+  <div id="text-section">
+    <div class="row-label">文本 Text</div>
+    <div class="arrow-row" id="text-arrow-row"></div>
+    <div class="char-row" id="text-row"></div>
+  </div>
+  <div class="section-gap"></div>
+  <div id="pat-section">
+    <div class="row-label">模式 Pattern</div>
+    <div class="arrow-row" id="pat-arrow-row"></div>
+    <div id="pat-offset-wrap" class="pattern-offset-wrap">
+      <div class="char-row" id="pat-row"></div>
+    </div>
+  </div>
+  <div class="section-gap"></div>
+  <div id="next-section">
+    <div class="row-label">next 数组 (Failure Function)</div>
+    <div class="char-row" id="next-row"></div>
+  </div>
+</div>
+
+<div class="info-bar" id="info-bar">
+  <div class="info-item"><span>阶段</span><span class="info-val" id="info-phase">-</span></div>
+  <div class="info-item"><span>i =</span><span class="info-val blue" id="info-i">-</span></div>
+  <div class="info-item"><span>j =</span><span class="info-val yellow" id="info-j">-</span></div>
+  <div class="info-item"><span>已找到</span><span class="info-val green" id="info-matches">0</span> 处匹配</div>
+</div>
+
+<div class="desc-box">
+  <div class="desc-phase" id="desc-phase"></div>
+  <div class="desc-text" id="desc-text">点击「开始」生成步骤，然后逐步查看 KMP 算法执行过程。</div>
+</div>
+
+<div class="code-block">
+  <pre id="code-display"><code class="go">package main
+import "fmt"
+
+func buildNext(pat string) []int {
+    m := len(pat)
+    next := make([]int, m)
+    next[0] = 0
+    k := 0
+    for i := 1; i &lt; m; i++ {
+        for k &gt; 0 &amp;&amp; pat[k] != pat[i] {
+            k = next[k-1]
+        }
+        if pat[k] == pat[i] { k++ }
+        next[i] = k
+    }
+    return next
+}
+
+func kmpSearch(text, pat string) []int {
+    next := buildNext(pat)
+    var matches []int
+    j := 0
+    for i := 0; i &lt; len(text); i++ {
+        for j &gt; 0 &amp;&amp; text[i] != pat[j] {
+            j = next[j-1]  // 利用 next 数组跳转
+        }
+        if text[i] == pat[j] { j++ }
+        if j == len(pat) {
+            matches = append(matches, i-j+1)
+            j = next[j-1]
+        }
+    }
+    return matches
+}
+
+func main() {
+    text := "ABABDABACDABABCABAB"
+    pat  := "ABABCABAB"
+    fmt.Println(kmpSearch(text, pat))
+}</code></pre>
+</div>
+
+<div class="info-bar" style="margin-top:0;">
+  <span style="color:var(--dim);font-size:0.8rem;">已找到匹配位置：</span>
+  <div class="matches-box" id="matches-box"><span style="color:var(--dim);font-size:0.8rem;">（尚未开始）</span></div>
+</div>
+
+<script>
+// ─── Algorithm ────────────────────────────────────────────────────────────────
+
+function buildNextArr(pat) {
+  const m = pat.length;
+  const next = new Array(m).fill(0);
+  let k = 0;
+  for (let i = 1; i < m; i++) {
+    while (k > 0 && pat[k] !== pat[i]) k = next[k - 1];
+    if (pat[k] === pat[i]) k++;
+    next[i] = k;
+  }
+  return next;
+}
+
+// ─── Step Generation ──────────────────────────────────────────────────────────
+
+function generateSteps(text, pat) {
+  const steps = [];
+  const m = pat.length;
+  const n = text.length;
+  if (m === 0 || n === 0) return steps;
+
+  const next = new Array(m).fill(0);
+  const allMatches = [];
+
+  function snap(phase, i, j, desc, textHL, patHL, nextHL, matchFound, highlightLines, extra) {
+    steps.push({
+      text, pat, next: [...next],
+      i, j, phase,
+      textHL: textHL || [],
+      patHL: patHL || [],
+      nextHL: nextHL || [],
+      matchFound: matchFound === undefined ? -1 : matchFound,
+      allMatches: [...allMatches],
+      description: desc,
+      highlightLines: highlightLines || [],
+      nextComputed: extra && extra.nextComputed !== undefined ? extra.nextComputed : (phase === 'match' ? m : -1),
+      ...extra
+    });
+  }
+
+  // Phase 1: build next
+  snap('build_next', -1, -1,
+    `初始化 next 数组：next[0] = 0，k = 0。next[i] 表示 pattern[0..i] 的最长公共前后缀长度。`,
+    [], [], [], -1, [6], { nextComputed: 0, buildK: 0, buildI: 1 });
+
+  let k = 0;
+  for (let i = 1; i < m; i++) {
+    // Before inner while
+    snap('build_next', -1, i,
+      `计算 next[${i}]：当前 k=${k}，比较 pat[${k}]='${pat[k]}' 与 pat[${i}]='${pat[i]}'。`,
+      [], [i], [], -1, [9], { nextComputed: i - 1, buildK: k, buildI: i });
+
+    while (k > 0 && pat[k] !== pat[i]) {
+      snap('build_next', -1, i,
+        `pat[${k}]='${pat[k]}' ≠ pat[${i}]='${pat[i]}'，回退：k = next[${k - 1}] = ${next[k - 1]}。`,
+        [], [i, k], [k - 1], -1, [10], { nextComputed: i - 1, buildK: k, buildI: i });
+      k = next[k - 1];
+      snap('build_next', -1, i,
+        `k 回退后 = ${k}，继续比较 pat[${k}]='${pat[k]}' 与 pat[${i}]='${pat[i]}'。`,
+        [], [i], [], -1, [9], { nextComputed: i - 1, buildK: k, buildI: i });
+    }
+
+    if (pat[k] === pat[i]) {
+      k++;
+      snap('build_next', -1, i,
+        `pat[${k - 1}]='${pat[k - 1]}' = pat[${i}]='${pat[i]}'，k++ → k=${k}。`,
+        [], [i, k - 1], [], -1, [11], { nextComputed: i - 1, buildK: k, buildI: i });
+    }
+    next[i] = k;
+    snap('build_next', -1, i,
+      `next[${i}] = ${k}，pattern[0..${i}] = "${pat.slice(0, i + 1)}" 的最长公共前后缀长度为 ${k}。`,
+      [], [], [], -1, [12], { nextComputed: i, buildK: k, buildI: i + 1 });
+  }
+
+  snap('build_next', -1, -1,
+    `next 数组构建完成：[${next.join(', ')}]。现在进入主匹配阶段。`,
+    [], [], [], -1, [13], { nextComputed: m - 1 });
+
+  // Phase 2: match
+  let j = 0;
+  for (let i = 0; i < n; i++) {
+    snap('match', i, j,
+      `主循环：i=${i}，text[${i}]='${text[i]}'，j=${j}，pat[${j}]='${pat[j]}'，开始比较。`,
+      [i], [j], [], -1, [19], {});
+
+    while (j > 0 && text[i] !== pat[j]) {
+      snap('match', i, j,
+        `失配！text[${i}]='${text[i]}' ≠ pat[${j}]='${pat[j]}'，j>0，利用 next[${j - 1}]=${next[j - 1]} 跳转：j = ${next[j - 1]}。`,
+        [...Array.from({length: j}, (_, x) => i - j + x + (j > i ? i - j : 0)), i],
+        [j],
+        [j - 1],
+        -1, [20], { mismatchI: i, mismatchJ: j });
+      j = next[j - 1];
+      snap('match', i, j,
+        `j 跳转后 = ${j}，text 指针 i 不变（i=${i}），继续比较 text[${i}]='${text[i]}' 与 pat[${j}]='${pat[j]}'。`,
+        [i], [j], [], -1, [19], {});
+    }
+
+    if (text[i] === pat[j]) {
+      j++;
+      snap('match', i, j - 1,
+        `匹配：text[${i}]='${text[i]}' = pat[${j - 1}]='${pat[j - 1]}'，j++ → j=${j}。已连续匹配 ${j} 个字符。`,
+        Array.from({length: j}, (_, x) => i - j + 1 + x),
+        Array.from({length: j}, (_, x) => x),
+        [], -1, [22], { matchedLen: j });
+    } else {
+      snap('match', i, j,
+        `text[${i}]='${text[i]}' ≠ pat[${j}]='${pat[j]}'，j=0 无法回退，i 前进。`,
+        [i], [j], [], -1, [20, 22], { mismatchI: i });
+    }
+
+    if (j === m) {
+      const startPos = i - m + 1;
+      allMatches.push(startPos);
+      snap('match', i, j - 1,
+        `🎉 完整匹配！在 text[${startPos}..${i}] 找到 pattern。已找到 ${allMatches.length} 处匹配，利用 next[${m - 1}]=${next[m - 1]} 继续搜索。`,
+        Array.from({length: m}, (_, x) => startPos + x),
+        Array.from({length: m}, (_, x) => x),
+        [m - 1],
+        startPos, [24, 25], { fullMatch: true });
+      j = next[m - 1];
+    }
+  }
+
+  snap('match', n, j,
+    `搜索完成！共找到 ${allMatches.length} 处匹配${allMatches.length > 0 ? '，位置：' + allMatches.join(', ') : '，未找到匹配'}。`,
+    [], [], [], -1, [], { done: true });
+
+  return steps;
+}
+
+// ─── State ────────────────────────────────────────────────────────────────────
+
+let steps = [];
+let cur = 0;
+let playTimer = null;
+let isPlaying = false;
+
+// ─── Render ───────────────────────────────────────────────────────────────────
+
+const CELL_W = 32, CELL_GAP = 3, CELL_TOTAL = CELL_W + CELL_GAP;
+
+function renderStep(idx) {
+  if (!steps.length) return;
+  idx = Math.max(0, Math.min(steps.length - 1, idx));
+  cur = idx;
+  const s = steps[idx];
+
+  document.getElementById('step-info').textContent = `步骤 ${idx + 1} / ${steps.length}`;
+
+  // Text row
+  const textRow = document.getElementById('text-row');
+  textRow.innerHTML = '';
+  for (let c = 0; c < s.text.length; c++) {
+    const wrap = document.createElement('div');
+    wrap.className = 'char-wrap';
+    const cell = document.createElement('div');
+    cell.className = 'char-cell';
+    cell.textContent = s.text[c];
+
+    const isWindow = s.phase === 'match' && s.j >= 0 && c >= s.i - s.j && c < s.i - s.j + s.pat.length && s.i - s.j >= 0;
+    const inMatched = s.textHL.includes(c);
+    const isFoundRange = s.allMatches.some(pos => c >= pos && c < pos + s.pat.length);
+    const justFound = s.matchFound >= 0 && c >= s.matchFound && c < s.matchFound + s.pat.length;
+
+    if (justFound) {
+      cell.classList.add('found');
+    } else if (isFoundRange && s.phase === 'match') {
+      cell.classList.add('found');
+    } else if (inMatched && s.mismatchI === c) {
+      cell.classList.add('mismatch');
+    } else if (inMatched) {
+      cell.classList.add('matching');
+    } else if (isWindow) {
+      cell.classList.add('window');
+    }
+
+    const idxEl = document.createElement('div');
+    idxEl.className = 'char-idx';
+    idxEl.textContent = c;
+    wrap.appendChild(cell);
+    wrap.appendChild(idxEl);
+    textRow.appendChild(wrap);
+  }
+
+  // Pattern row with offset
+  const patRow = document.getElementById('pat-row');
+  const patOffsetWrap = document.getElementById('pat-offset-wrap');
+  patRow.innerHTML = '';
+
+  let offset = 0;
+  if (s.phase === 'match' && s.i >= 0 && s.j >= 0 && s.i - s.j >= 0) {
+    offset = s.i - s.j;
+  }
+  patOffsetWrap.style.paddingLeft = offset * CELL_TOTAL + 'px';
+
+  for (let c = 0; c < s.pat.length; c++) {
+    const wrap = document.createElement('div');
+    wrap.className = 'char-wrap';
+    const cell = document.createElement('div');
+    cell.className = 'char-cell';
+    cell.textContent = s.pat[c];
+
+    if (s.matchFound >= 0 && c < s.pat.length) {
+      cell.classList.add('found');
+    } else if (s.patHL.includes(c) && s.mismatchJ === c) {
+      cell.classList.add('pat-mismatch');
+    } else if (s.patHL.includes(c)) {
+      cell.classList.add('pat-active');
+    }
+
+    const idxEl = document.createElement('div');
+    idxEl.className = 'char-idx';
+    idxEl.textContent = c;
+    wrap.appendChild(cell);
+    wrap.appendChild(idxEl);
+    patRow.appendChild(wrap);
+  }
+
+  // Next row
+  const nextRow = document.getElementById('next-row');
+  nextRow.innerHTML = '';
+  const nextComputed = s.nextComputed !== undefined ? s.nextComputed : (s.phase === 'match' ? s.pat.length - 1 : -1);
+
+  for (let c = 0; c < s.pat.length; c++) {
+    const wrap = document.createElement('div');
+    wrap.className = 'char-wrap';
+    const cell = document.createElement('div');
+    cell.className = 'char-cell';
+
+    if (c <= nextComputed) {
+      cell.textContent = s.next[c];
+      if (s.nextHL.includes(c)) {
+        cell.classList.add('next-active');
+      } else {
+        cell.classList.add('next-computed');
+      }
+    } else {
+      cell.textContent = '?';
+      cell.classList.add('next-pending');
+    }
+
+    const idxEl = document.createElement('div');
+    idxEl.className = 'char-idx';
+    idxEl.textContent = 'n[' + c + ']';
+    wrap.appendChild(cell);
+    wrap.appendChild(idxEl);
+    nextRow.appendChild(wrap);
+  }
+
+  // Arrows
+  renderArrows(s);
+
+  // Info bar
+  document.getElementById('info-phase').textContent = s.phase === 'build_next' ? '构建 next' : '匹配搜索';
+  document.getElementById('info-phase').style.color = s.phase === 'build_next' ? 'var(--purple)' : 'var(--blue)';
+  document.getElementById('info-i').textContent = s.i >= 0 ? s.i : '-';
+  document.getElementById('info-j').textContent = s.j >= 0 ? s.j : '-';
+  document.getElementById('info-matches').textContent = s.allMatches.length;
+
+  // Description
+  const phaseEl = document.getElementById('desc-phase');
+  phaseEl.textContent = s.phase === 'build_next' ? '阶段：构建 next 数组' : '阶段：主匹配循环';
+  phaseEl.className = 'desc-phase ' + (s.phase === 'build_next' ? 'build' : 'match');
+  document.getElementById('desc-text').textContent = s.description;
+
+  // Code highlight
+  renderCode(s.highlightLines || []);
+
+  // Matches
+  renderMatches(s.allMatches);
+
+  // Buttons
+  document.getElementById('btn-prev').disabled = cur === 0;
+  document.getElementById('btn-next').disabled = cur === steps.length - 1;
+}
+
+function renderArrows(s) {
+  // i arrow on text row
+  const textArrow = document.getElementById('text-arrow-row');
+  textArrow.innerHTML = '';
+  const patArrow = document.getElementById('pat-arrow-row');
+  patArrow.innerHTML = '';
+
+  if (s.phase === 'match' && s.i >= 0 && s.i < s.text.length) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', '22');
+    svg.style.overflow = 'visible';
+    const x = s.i * CELL_TOTAL + CELL_W / 2;
+    // Arrow pointing down
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x); line.setAttribute('y1', 4);
+    line.setAttribute('x2', x); line.setAttribute('y2', 18);
+    line.setAttribute('stroke', 'var(--blue)');
+    line.setAttribute('stroke-width', '2');
+    line.setAttribute('marker-end', 'url(#arrow-blue)');
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', x + 4); label.setAttribute('y', 10);
+    label.setAttribute('fill', 'var(--blue)');
+    label.setAttribute('font-size', '10');
+    label.setAttribute('font-family', 'monospace');
+    label.textContent = 'i=' + s.i;
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    defs.innerHTML = `<marker id="arrow-blue" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="var(--blue)"/></marker>`;
+    svg.appendChild(defs);
+    svg.appendChild(line);
+    svg.appendChild(label);
+    textArrow.appendChild(svg);
+  }
+
+  if (s.phase === 'match' && s.j >= 0 && s.j < s.pat.length) {
+    const offset = (s.i >= 0 && s.j >= 0 && s.i - s.j >= 0) ? s.i - s.j : 0;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', '22');
+    svg.style.overflow = 'visible';
+    const x = (offset + s.j) * CELL_TOTAL + CELL_W / 2;
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x); line.setAttribute('y1', 4);
+    line.setAttribute('x2', x); line.setAttribute('y2', 18);
+    line.setAttribute('stroke', 'var(--yellow)');
+    line.setAttribute('stroke-width', '2');
+    line.setAttribute('marker-end', 'url(#arrow-yellow)');
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', x + 4); label.setAttribute('y', 10);
+    label.setAttribute('fill', 'var(--yellow)');
+    label.setAttribute('font-size', '10');
+    label.setAttribute('font-family', 'monospace');
+    label.textContent = 'j=' + s.j;
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    defs.innerHTML = `<marker id="arrow-yellow" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="var(--yellow)"/></marker>`;
+    svg.appendChild(defs);
+    svg.appendChild(line);
+    svg.appendChild(label);
+    patArrow.appendChild(svg);
+  }
+}
+
+const CODE_LINES = `package main
+import "fmt"
+
+func buildNext(pat string) []int {
+    m := len(pat)
+    next := make([]int, m)
+    next[0] = 0
+    k := 0
+    for i := 1; i < m; i++ {
+        for k > 0 && pat[k] != pat[i] {
+            k = next[k-1]
+        }
+        if pat[k] == pat[i] { k++ }
+        next[i] = k
+    }
+    return next
+}
+
+func kmpSearch(text, pat string) []int {
+    next := buildNext(pat)
+    var matches []int
+    j := 0
+    for i := 0; i < len(text); i++ {
+        for j > 0 && text[i] != pat[j] {
+            j = next[j-1]  // 利用 next 数组跳转
+        }
+        if text[i] == pat[j] { j++ }
+        if j == len(pat) {
+            matches = append(matches, i-j+1)
+            j = next[j-1]
+        }
+    }
+    return matches
+}
+
+func main() {
+    text := "ABABDABACDABABCABAB"
+    pat  := "ABABCABAB"
+    fmt.Println(kmpSearch(text, pat))
+}`.split('\n');
+
+function renderCode(hlLines) {
+  const pre = document.getElementById('code-display');
+  const escaped = CODE_LINES.map((line, idx) => {
+    const lineNum = idx + 1;
+    const esc = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    if (hlLines.includes(lineNum)) {
+      return `<span class="hl-line">${esc}</span>`;
+    }
+    return esc;
+  });
+  pre.innerHTML = '<code class="go">' + escaped.join('\n') + '</code>';
+}
+
+function renderMatches(matches) {
+  const box = document.getElementById('matches-box');
+  if (!matches || matches.length === 0) {
+    box.innerHTML = '<span style="color:var(--dim);font-size:0.8rem;">（尚未找到匹配）</span>';
+    return;
+  }
+  box.innerHTML = matches.map(p => `<span class="match-badge">pos ${p}</span>`).join('');
+}
+
+// ─── Controls ─────────────────────────────────────────────────────────────────
+
+function stepNext() {
+  if (cur < steps.length - 1) renderStep(cur + 1);
+}
+
+function stepPrev() {
+  if (cur > 0) renderStep(cur - 1);
+}
+
+function togglePlay() {
+  if (isPlaying) {
+    clearInterval(playTimer);
+    isPlaying = false;
+    document.getElementById('btn-play').textContent = '▶ 自动播放';
+  } else {
+    isPlaying = true;
+    document.getElementById('btn-play').textContent = '⏸ 暂停';
+    const speed = parseInt(document.getElementById('sel-speed').value);
+    playTimer = setInterval(() => {
+      if (cur >= steps.length - 1) {
+        clearInterval(playTimer);
+        isPlaying = false;
+        document.getElementById('btn-play').textContent = '▶ 自动播放';
+        return;
+      }
+      stepNext();
+    }, speed);
+  }
+}
+
+function initAlgo() {
+  if (isPlaying) {
+    clearInterval(playTimer);
+    isPlaying = false;
+    document.getElementById('btn-play').textContent = '▶ 自动播放';
+  }
+  const text = document.getElementById('inp-text').value.trim().toUpperCase();
+  const pat = document.getElementById('inp-pat').value.trim().toUpperCase();
+  if (!text || !pat) { alert('文本和模式不能为空'); return; }
+  steps = generateSteps(text, pat);
+  cur = 0;
+  renderStep(0);
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  initAlgo();
+});
+</script>
+</body>
+</html>

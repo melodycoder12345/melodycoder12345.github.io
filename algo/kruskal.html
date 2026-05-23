@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kruskal 最小生成树 - 算法可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.badge.time{background:rgba(56,189,248,0.15);color:var(--blue);}.badge.space{background:rgba(196,132,252,0.15);color:var(--purple);}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;display:flex;gap:0;overflow:hidden;}
+.graph-wrap{flex:1;position:relative;}
+svg.graph-svg{width:100%;height:100%;}
+.side-info{width:190px;background:rgba(255,255,255,0.02);border-left:1px solid var(--border);padding:12px;overflow-y:auto;flex-shrink:0;font-size:0.8rem;}
+.info-title{color:var(--dim);margin-bottom:8px;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.05em;}
+.edge-row{display:flex;justify-content:space-between;align-items:center;padding:4px 6px;border-radius:4px;margin-bottom:2px;font-family:monospace;transition:background 0.2s;}
+.edge-row.current{background:rgba(251,191,36,0.18);border:1px solid rgba(251,191,36,0.3);}
+.edge-row.mst{background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.2);}
+.edge-row.skip{background:rgba(248,113,113,0.10);border:1px solid rgba(248,113,113,0.2);}
+.edge-row.pending{border:1px solid transparent;}
+.edge-label{color:var(--dim);}
+.edge-val{font-weight:600;}
+.edge-status{font-size:0.65rem;padding:1px 5px;border-radius:3px;}
+.st-cur{background:rgba(251,191,36,0.2);color:var(--yellow);}
+.st-mst{background:rgba(74,222,128,0.2);color:var(--green);}
+.st-skip{background:rgba(248,113,113,0.2);color:var(--red);}
+.desc-box{padding:10px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.9rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.op{color:#ff7b72;}.id{color:#e6edf3;}.cm{color:#8b949e;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.3);color:var(--blue);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
+.legend{display:flex;gap:12px;padding:8px 24px;border-bottom:1px solid var(--border);flex-wrap:wrap;flex-shrink:0;}
+.leg{display:flex;align-items:center;gap:4px;font-size:0.72rem;color:var(--dim);}
+.leg-dot{width:8px;height:8px;border-radius:2px;}
+.mst-weight{font-size:0.82rem;color:var(--green);font-family:monospace;margin-left:8px;}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>Kruskal 最小生成树</h1>
+  <div class="complexity">
+    <span class="badge time">时间 O(E log E)</span>
+    <span class="badge space">空间 O(V)</span>
+  </div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="legend">
+      <div class="leg"><div class="leg-dot" style="background:#94a3b8"></div>未处理</div>
+      <div class="leg"><div class="leg-dot" style="background:#fbbf24"></div>当前检查边</div>
+      <div class="leg"><div class="leg-dot" style="background:#4ade80"></div>加入MST</div>
+      <div class="leg"><div class="leg-dot" style="background:#f87171;border-radius:0"></div>跳过（成环）</div>
+    </div>
+    <div class="viz-area">
+      <div class="graph-wrap">
+        <svg class="graph-svg" id="graphSvg"></svg>
+      </div>
+      <div class="side-info" id="sideInfo">
+        <div class="info-title">边（按权重排序）</div>
+        <div id="edgeList"></div>
+        <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border);">
+          <div class="info-title">MST 总权重</div>
+          <span class="mst-weight" id="mstWeight">0</span>
+        </div>
+      </div>
+    </div>
+    <div class="desc-box">
+      <span id="descText">点击播放开始 Kruskal 最小生成树演示</span>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px">kruskal.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+const CODE_LINES = [
+  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
+  {html:``},
+  {html:`<span class="kw">import</span> (<br><span class="lc">&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"fmt"</span></span><br><span class="lc">&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"sort"</span></span><br><span class="lc">)</span>`},
+  {html:``},
+  {html:`<span class="kw">type</span> <span class="id">Edge</span> <span class="kw">struct</span> { u, v, w <span class="kw">int</span> }`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">kruskal</span>(n <span class="kw">int</span>, edges []<span class="id">Edge</span>) []<span class="id">Edge</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">sort</span>.<span class="fn">Slice</span>(edges, <span class="kw">func</span>(i, j <span class="kw">int</span>) <span class="kw">bool</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> edges[i].w <span class="op">&lt;</span> edges[j].w`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;})`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;parent := <span class="fn">make</span>([]<span class="kw">int</span>, n)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> i := <span class="kw">range</span> parent { parent[i] = i }`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">var</span> find <span class="kw">func</span>(<span class="kw">int</span>) <span class="kw">int</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;find = <span class="kw">func</span>(x <span class="kw">int</span>) <span class="kw">int</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> parent[x] <span class="op">!=</span> x {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;parent[x] = <span class="fn">find</span>(parent[x]) <span class="cm">// 路径压缩</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> parent[x]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">var</span> mst []<span class="id">Edge</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> _, e := <span class="kw">range</span> edges {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;pu, pv := <span class="fn">find</span>(e.u), <span class="fn">find</span>(e.v)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> pu <span class="op">!=</span> pv {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;parent[pu] = pv  <span class="cm">// 合并</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;mst = <span class="fn">append</span>(mst, e)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> mst`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">main</span>() {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;edges := []<span class="id">Edge</span>{{<span class="num">0</span>,<span class="num">1</span>,<span class="num">4</span>},{<span class="num">0</span>,<span class="num">3</span>,<span class="num">2</span>},{<span class="num">1</span>,<span class="num">2</span>,<span class="num">5</span>},{<span class="num">1</span>,<span class="num">4</span>,<span class="num">3</span>},{<span class="num">1</span>,<span class="num">3</span>,<span class="num">1</span>},`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{<span class="num">2</span>,<span class="num">5</span>,<span class="num">2</span>},{<span class="num">2</span>,<span class="num">4</span>,<span class="num">4</span>},{<span class="num">3</span>,<span class="num">4</span>,<span class="num">6</span>},{<span class="num">3</span>,<span class="num">6</span>,<span class="num">8</span>},{<span class="num">4</span>,<span class="num">5</span>,<span class="num">3</span>},{<span class="num">4</span>,<span class="num">6</span>,<span class="num">2</span>},{<span class="num">5</span>,<span class="num">6</span>,<span class="num">5</span>}}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;mst := <span class="fn">kruskal</span>(<span class="num">7</span>, edges)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">fmt</span>.<span class="fn">Println</span>(mst)`},
+  {html:`}`},
+];
+
+const NODE_NAMES = ['A','B','C','D','E','F','G'];
+const NODE_POS = [
+  {x:0.12,y:0.45}, // A
+  {x:0.32,y:0.15}, // B
+  {x:0.55,y:0.10}, // C
+  {x:0.30,y:0.70}, // D
+  {x:0.55,y:0.55}, // E
+  {x:0.78,y:0.25}, // F
+  {x:0.80,y:0.72}, // G
+];
+// All edges [u, v, w]
+const EDGES_RAW = [
+  [0,1,4],[0,3,2],
+  [1,2,5],[1,4,3],[1,3,1],
+  [2,5,2],[2,4,4],
+  [3,4,6],[3,6,8],
+  [4,5,3],[4,6,2],
+  [5,6,5],
+];
+
+let steps = [], cur = 0, playing = false, timer = null;
+const SPEED = [800,500,300,180,80];
+
+// Union-Find helpers
+function makeUF(n) {
+  const p = Array.from({length:n},(_,i)=>i);
+  const find = x => { while(p[x]!==x){p[x]=p[p[x]];x=p[x];} return x; };
+  const union = (a,b) => { const pa=find(a),pb=find(b); if(pa===pb)return false; p[pa]=pb; return true; };
+  return {p, find, union};
+}
+
+function generateSteps() {
+  const result = [];
+  const sorted = [...EDGES_RAW].sort((a,b)=>a[2]-b[2]);
+  const uf = makeUF(NODE_NAMES.length);
+  // edge state: 'pending','current','mst','skip'
+  const edgeState = sorted.map(()=>'pending');
+  const nodeInMst = Array(NODE_NAMES.length).fill(false);
+  const mstEdges = new Set();
+  let mstWeight = 0;
+
+  // Step 0: initial state - show sorted edges
+  result.push({
+    edgeState: [...edgeState],
+    nodeInMst: [...nodeInMst],
+    mstEdges: new Set(mstEdges),
+    mstWeight,
+    activeEdge: -1,
+    highlightLines: [7,8,9,10,11],
+    desc: '将所有边按权重从小到大排序',
+  });
+
+  const ufState = Array.from({length:NODE_NAMES.length},(_,i)=>i);
+  const findState = x => { while(ufState[x]!==x){ufState[x]=ufState[ufState[x]];x=ufState[x];} return x; };
+
+  for (let i = 0; i < sorted.length; i++) {
+    const [u,v,w] = sorted[i];
+    // Highlight current edge
+    edgeState[i] = 'current';
+    result.push({
+      edgeState: [...edgeState],
+      nodeInMst: [...nodeInMst],
+      mstEdges: new Set(mstEdges),
+      mstWeight,
+      activeEdge: i,
+      highlightLines: [22,23],
+      desc: `检查边 ${NODE_NAMES[u]}-${NODE_NAMES[v]}（权重 ${w}）：查找两端节点所在集合`,
+    });
+
+    const pu = findState(u), pv = findState(v);
+    if (pu !== pv) {
+      // Union
+      ufState[pu] = pv;
+      edgeState[i] = 'mst';
+      nodeInMst[u] = true;
+      nodeInMst[v] = true;
+      mstEdges.add(i);
+      mstWeight += w;
+      result.push({
+        edgeState: [...edgeState],
+        nodeInMst: [...nodeInMst],
+        mstEdges: new Set(mstEdges),
+        mstWeight,
+        activeEdge: i,
+        highlightLines: [24,25,26,27],
+        desc: `${NODE_NAMES[u]} 和 ${NODE_NAMES[v]} 在不同集合 → 加入MST（权重 +${w}，合计 ${mstWeight}）`,
+      });
+    } else {
+      edgeState[i] = 'skip';
+      result.push({
+        edgeState: [...edgeState],
+        nodeInMst: [...nodeInMst],
+        mstEdges: new Set(mstEdges),
+        mstWeight,
+        activeEdge: -1,
+        highlightLines: [24],
+        desc: `${NODE_NAMES[u]} 和 ${NODE_NAMES[v]} 已在同一集合 → 跳过（会形成环）`,
+      });
+    }
+
+    // Check if MST complete
+    if (mstEdges.size === NODE_NAMES.length - 1) {
+      result.push({
+        edgeState: [...edgeState],
+        nodeInMst: [...nodeInMst],
+        mstEdges: new Set(mstEdges),
+        mstWeight,
+        activeEdge: -1,
+        highlightLines: [29,30],
+        desc: `MST 构建完成！共 ${NODE_NAMES.length-1} 条边，总权重 = ${mstWeight}`,
+      });
+      break;
+    }
+  }
+
+  return result;
+}
+
+function renderCode() {
+  const cb = document.getElementById('codeBody');
+  cb.innerHTML = CODE_LINES.map((l,i)=>
+    `<div class="code-line" id="cl${i}"><span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
+  ).join('');
+}
+
+function renderEdgeList(s) {
+  const sorted = [...EDGES_RAW].sort((a,b)=>a[2]-b[2]);
+  const el = document.getElementById('edgeList');
+  el.innerHTML = sorted.map((e,i)=>{
+    const state = s.edgeState[i];
+    let cls = 'edge-row ';
+    let badge = '';
+    if(state==='current'){cls+='current';badge=`<span class="edge-status st-cur">检查</span>`;}
+    else if(state==='mst'){cls+='mst';badge=`<span class="edge-status st-mst">MST</span>`;}
+    else if(state==='skip'){cls+='skip';badge=`<span class="edge-status st-skip">跳过</span>`;}
+    else{cls+='pending';}
+    return `<div class="${cls}">
+      <span class="edge-label">${NODE_NAMES[e[0]]}-${NODE_NAMES[e[1]]}</span>
+      <span class="edge-val" style="color:var(--blue)">${e[2]}</span>
+      ${badge}
+    </div>`;
+  }).join('');
+  document.getElementById('mstWeight').textContent = s.mstWeight;
+}
+
+function renderGraph(s) {
+  const svg = document.getElementById('graphSvg');
+  const W = svg.clientWidth || svg.parentElement.clientWidth;
+  const H = svg.clientHeight || svg.parentElement.clientHeight;
+  const R = 20;
+  const sorted = [...EDGES_RAW].sort((a,b)=>a[2]-b[2]);
+
+  let html = '';
+
+  // Draw edges
+  for (let i = 0; i < EDGES_RAW.length; i++) {
+    const [u,v,w] = EDGES_RAW[i];
+    const x1 = NODE_POS[u].x * W, y1 = NODE_POS[u].y * H;
+    const x2 = NODE_POS[v].x * W, y2 = NODE_POS[v].y * H;
+    const mx = (x1+x2)/2, my = (y1+y2)/2;
+
+    // Find sorted index for this edge
+    const si = sorted.findIndex(e=>e[0]===u&&e[1]===v||(e[0]===v&&e[1]===u&&e[2]===w));
+    const state = s.edgeState[si];
+    const isActive = s.activeEdge === si;
+
+    let stroke = '#334155';
+    let sw = 1.5;
+    let dashArray = '';
+    let opacity = 0.5;
+
+    if(state==='mst'){stroke='#4ade80';sw=3;opacity=1;}
+    else if(state==='skip'){stroke='#f87171';sw=1.5;dashArray='6,4';opacity=0.7;}
+    else if(state==='current'){stroke='#fbbf24';sw=2.5;opacity=1;}
+
+    html += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="${sw}" stroke-dasharray="${dashArray}" opacity="${opacity}" stroke-linecap="round"/>`;
+
+    // Weight label
+    let wColor = '#64748b';
+    if(state==='mst') wColor='#4ade80';
+    else if(state==='current') wColor='#fbbf24';
+    else if(state==='skip') wColor='#f87171';
+    html += `<text x="${mx}" y="${my}" text-anchor="middle" dominant-baseline="middle" font-size="11" font-family="monospace" fill="${wColor}" dy="-7">${w}</text>`;
+  }
+
+  // Draw nodes
+  for (let i = 0; i < NODE_NAMES.length; i++) {
+    const x = NODE_POS[i].x * W, y = NODE_POS[i].y * H;
+    const inMst = s.nodeInMst[i];
+    const fill = inMst ? '#166534' : '#1e293b';
+    const stroke = inMst ? '#4ade80' : '#475569';
+    const textColor = inMst ? '#4ade80' : '#e2e8f0';
+    html += `<circle cx="${x}" cy="${y}" r="${R}" fill="${fill}" stroke="${stroke}" stroke-width="2"/>`;
+    html += `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" font-size="13" font-weight="600" font-family="system-ui" fill="${textColor}">${NODE_NAMES[i]}</text>`;
+  }
+
+  svg.innerHTML = html;
+}
+
+function highlightLines(lines) {
+  document.querySelectorAll('.code-line').forEach(el=>el.classList.remove('active'));
+  (lines||[]).forEach(l=>{
+    const el = document.getElementById(`cl${l}`);
+    if(el) el.classList.add('active');
+  });
+  if(lines && lines.length) {
+    const el = document.getElementById(`cl${lines[0]}`);
+    if(el) el.scrollIntoView({block:'nearest'});
+  }
+}
+
+function render() {
+  if(!steps.length) return;
+  const s = steps[cur];
+  renderGraph(s);
+  renderEdgeList(s);
+  highlightLines(s.highlightLines);
+  document.getElementById('descText').textContent = s.desc;
+  document.getElementById('stepCounter').textContent = `${cur+1} / ${steps.length}`;
+  document.getElementById('btnPrev').disabled = cur === 0;
+  document.getElementById('btnNext').disabled = cur === steps.length-1;
+}
+
+function init() {
+  steps = generateSteps();
+  cur = 0;
+  render();
+}
+
+function reset() {
+  stopPlay();
+  init();
+}
+
+function prev() {
+  if(cur > 0){ cur--; render(); }
+}
+
+function next() {
+  if(cur < steps.length-1){ cur++; render(); }
+}
+
+function stopPlay() {
+  playing = false;
+  clearInterval(timer);
+  timer = null;
+  document.getElementById('btnPlay').textContent = '▶ 播放';
+}
+
+function togglePlay() {
+  if(playing) { stopPlay(); return; }
+  playing = true;
+  document.getElementById('btnPlay').textContent = '⏸ 暂停';
+  const spd = SPEED[parseInt(document.getElementById('speedRange').value)-1];
+  timer = setInterval(()=>{
+    if(cur >= steps.length-1){ stopPlay(); return; }
+    cur++; render();
+  }, spd);
+}
+
+document.getElementById('btnReset').onclick = reset;
+document.getElementById('btnPrev').onclick = prev;
+document.getElementById('btnNext').onclick = next;
+document.getElementById('btnPlay').onclick = togglePlay;
+document.getElementById('speedRange').oninput = () => {
+  if(playing){ stopPlay(); togglePlay(); }
+};
+
+renderCode();
+window.addEventListener('resize', ()=>{ if(steps.length) renderGraph(steps[cur]); });
+init();
+</script>
+</body>
+</html>

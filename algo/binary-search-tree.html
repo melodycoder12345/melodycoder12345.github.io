@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>二叉搜索树 - 算法可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.badge.time{background:rgba(196,132,252,0.15);color:var(--purple);}.badge.space{background:rgba(56,189,248,0.15);color:var(--blue);}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.op-row{display:flex;gap:8px;padding:10px 24px;border-bottom:1px solid var(--border);align-items:center;flex-wrap:wrap;}
+.op-btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;transition:all 0.15s;}
+.op-btn:hover{background:rgba(255,255,255,0.12);}.op-btn.active-op{background:rgba(196,132,252,0.15);border-color:rgba(196,132,252,0.4);color:var(--purple);}
+.op-input{background:var(--panel);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:6px;font-size:0.82rem;width:64px;outline:none;}
+.op-input:focus{border-color:var(--purple);}
+.go-btn{background:rgba(196,132,252,0.15);border:1px solid rgba(196,132,252,0.3);color:var(--purple);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;}
+.go-btn:hover{background:rgba(196,132,252,0.25);}
+.reset-tree-btn{background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--dim);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:0.82rem;margin-left:auto;}
+.viz-area{flex:1;overflow:hidden;}
+svg#treeSvg{width:100%;height:100%;}
+.desc-box{padding:10px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.9rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.op{color:#ff7b72;}.id{color:#e6edf3;}.cm{color:#8b949e;font-style:italic;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(196,132,252,0.15);border-color:rgba(196,132,252,0.3);color:var(--purple);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--purple);cursor:pointer;}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>二叉搜索树 BST</h1>
+  <div class="complexity"><span class="badge time">平均 O(log n)</span><span class="badge space">空间 O(n)</span></div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="op-row">
+      <button class="op-btn active-op" id="opInsert">插入节点</button>
+      <button class="op-btn" id="opSearch">搜索</button>
+      <input type="number" class="op-input" id="opVal" value="35" placeholder="值">
+      <button class="go-btn" id="goBtn">执行 ▶</button>
+      <button class="reset-tree-btn" id="resetTreeBtn">重置树</button>
+    </div>
+    <div class="viz-area"><svg id="treeSvg"></svg></div>
+    <div class="desc-box">
+      <span id="descText">选择操作并执行</span>
+      <span class="step-counter" id="stepCounter"></span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px">bst.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+const CODE_LINES = [
+  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
+  {html:``},
+  {html:`<span class="kw">type</span> <span class="id">TreeNode</span> <span class="kw">struct</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;Val   <span class="kw">int</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;Left  *<span class="id">TreeNode</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;Right *<span class="id">TreeNode</span>`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="cm">// 插入节点</span>`},
+  {html:`<span class="kw">func</span> <span class="fn">insert</span>(root *<span class="id">TreeNode</span>, val <span class="kw">int</span>) *<span class="id">TreeNode</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> root == <span class="kw">nil</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> &amp;<span class="id">TreeNode</span>{Val: val}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> val &lt; root.Val {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;root.Left = <span class="fn">insert</span>(root.Left, val)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;} <span class="kw">else if</span> val &gt; root.Val {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;root.Right = <span class="fn">insert</span>(root.Right, val)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> root`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="cm">// 搜索节点</span>`},
+  {html:`<span class="kw">func</span> <span class="fn">search</span>(root *<span class="id">TreeNode</span>, val <span class="kw">int</span>) *<span class="id">TreeNode</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> root == <span class="kw">nil</span> || root.Val == val {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> root`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> val &lt; root.Val {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="fn">search</span>(root.Left, val)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="fn">search</span>(root.Right, val)`},
+  {html:`}`},
+];
+
+// BST node structure (JS object)
+function newNode(val){return {val,left:null,right:null};}
+function insert(root,val){
+  if(!root)return newNode(val);
+  if(val<root.val)root.left=insert(root.left,val);
+  else if(val>root.val)root.right=insert(root.right,val);
+  return root;
+}
+function buildInitialTree(){
+  let r=null;
+  for(const v of [50,30,70,20,40,60,80])r=insert(r,v);
+  return r;
+}
+
+let tree=buildInitialTree();
+let steps=[];
+let cur=0,playing=false,timer=null;
+const SPEED=[800,500,300,180,80];
+let currentOp='insert';
+
+const svg=document.getElementById('treeSvg'),codeBody=document.getElementById('codeBody'),
+  descText=document.getElementById('descText'),stepCounter=document.getElementById('stepCounter'),
+  btnPlay=document.getElementById('btnPlay'),btnPrev=document.getElementById('btnPrev'),
+  btnNext=document.getElementById('btnNext'),btnReset=document.getElementById('btnReset'),
+  speedRange=document.getElementById('speedRange'),goBtn=document.getElementById('goBtn'),
+  opVal=document.getElementById('opVal'),resetTreeBtn=document.getElementById('resetTreeBtn');
+
+const opBtns={insert:document.getElementById('opInsert'),search:document.getElementById('opSearch')};
+Object.entries(opBtns).forEach(([op,btn])=>btn.addEventListener('click',()=>{
+  currentOp=op;Object.values(opBtns).forEach(b=>b.classList.remove('active-op'));btn.classList.add('active-op');
+}));
+
+function cloneTree(node){if(!node)return null;return{val:node.val,left:cloneTree(node.left),right:cloneTree(node.right)};}
+function generateInsertSteps(tree,val){
+  const s=[];
+  function snap(t,visited,current,newNode,lines,desc){
+    s.push({tree:cloneTree(t),visited:[...visited],current,newNode,lines,desc});
+  }
+  const visited=[];
+  let cur=tree;
+  snap(tree,visited,cur?.val,null,[9,10],`insert(${val}): 从根节点 ${cur?.val} 开始`);
+  while(cur){
+    snap(tree,visited,cur.val,null,[13],`当前节点 ${cur.val}，${val} < ${cur.val}? ${val<cur.val}`);
+    if(val===cur.val){snap(tree,visited,cur.val,null,[17],`${val} 已存在，无需插入`);return s;}
+    visited.push(cur.val);
+    if(val<cur.val){
+      snap(tree,visited,cur.val,null,[14],`${val} < ${cur.val}，向左子树走`);
+      if(!cur.left){
+        const nt=cloneTree(tree);let n=nt;for(const v of visited){if(n.val===v){if(n.left&&n.left.val===cur.val)n=n.left;else if(n.right&&n.right.val===cur.val)n=n.right;else break;}}
+        insert(nt,val);snap(nt,visited,null,val,[10,11,12],`左子树为 nil，创建新节点 {Val:${val}}`);
+        return s;
+      }
+      cur=cur.left;
+    }else{
+      snap(tree,visited,cur.val,null,[15,16],`${val} > ${cur.val}，向右子树走`);
+      if(!cur.right){
+        const nt=cloneTree(tree);insert(nt,val);snap(nt,visited,null,val,[10,11,12],`右子树为 nil，创建新节点 {Val:${val}}`);
+        return s;
+      }
+      cur=cur.right;
+    }
+  }
+  return s;
+}
+function generateSearchSteps(tree,val){
+  const s=[];
+  function snap(visited,current,found,lines,desc){
+    s.push({tree:cloneTree(tree),visited:[...visited],current,newNode:null,found,lines,desc});
+  }
+  snap([],tree?.val,null,[22,23],`search(${val}): 从根节点 ${tree?.val} 开始`);
+  let cur=tree;const visited=[];
+  while(cur){
+    if(cur.val===val){snap(visited,cur.val,cur.val,[23,24],`找到 ${val}！`);return s;}
+    snap(visited,cur.val,null,[26],`${cur.val} != ${val}，${val} < ${cur.val}? ${val<cur.val}`);
+    visited.push(cur.val);
+    if(val<cur.val){snap(visited,cur.val,null,[27],`向左子树搜索`);cur=cur.left;}
+    else{snap(visited,cur.val,null,[29],`向右子树搜索`);cur=cur.right;}
+    if(!cur)snap(visited,null,null,[23],`子树为 nil，未找到 ${val}`);
+  }
+  return s;
+}
+
+goBtn.addEventListener('click',()=>{
+  pause();
+  const val=parseInt(opVal.value);if(isNaN(val))return;
+  let ns=[];
+  if(currentOp==='insert'){ns=generateInsertSteps(tree,val);tree=insert(cloneTree(tree),val);}
+  else if(currentOp==='search'){ns=generateSearchSteps(tree,val);}
+  steps=ns;cur=0;render();
+});
+resetTreeBtn.addEventListener('click',()=>{tree=buildInitialTree();steps=[];cur=0;renderTree(tree,[],null,null,null);descText.textContent='树已重置';stepCounter.textContent='';});
+
+function buildCode(){
+  codeBody.innerHTML=CODE_LINES.map((l,i)=>`<div class="code-line" data-line="${i}"><span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`).join('');
+  codeBody.querySelectorAll('.code-line').forEach(el=>el.addEventListener('click',()=>jumpToLine(parseInt(el.dataset.line))));
+}
+function highlightLines(lines){
+  codeBody.querySelectorAll('.code-line').forEach(el=>el.classList.remove('active'));
+  lines.forEach(ln=>{const el=codeBody.querySelector(`[data-line="${ln}"]`);if(el)el.classList.add('active');});
+  if(lines.length>0){const f=codeBody.querySelector(`[data-line="${lines[0]}"]`);if(f)f.scrollIntoView({block:'nearest'});}
+}
+function jumpToLine(ln){let t=cur,b=Infinity;steps.forEach((s,i)=>{if(s.lines&&s.lines.includes(ln)){const d=Math.abs(i-cur);if(d<b){b=d;t=i;}}});cur=t;render();}
+
+// Tree layout
+function computeLayout(root){
+  const pos={};let idx=0;
+  function inorder(node,depth){if(!node)return;inorder(node.left,depth+1);pos[node.val]={x:idx++,y:depth};inorder(node.right,depth+1);}
+  inorder(root,0);
+  return pos;
+}
+const NR=24,PAD=40,DY=64;
+function renderTree(root,visited,current,newNodeVal,foundVal){
+  svg.innerHTML='';
+  if(!root){const t=document.createElementNS('http://www.w3.org/2000/svg','text');t.setAttribute('x','50%');t.setAttribute('y','50%');t.setAttribute('fill','#475569');t.setAttribute('font-size','14');t.setAttribute('text-anchor','middle');t.setAttribute('font-family','monospace');t.textContent='空树';svg.appendChild(t);return;}
+  const pos=computeLayout(root);
+  const rect=svg.getBoundingClientRect();
+  const n=Object.keys(pos).length;
+  const totalW=rect.width||600;
+  const cellW=Math.min((totalW-PAD*2)/Math.max(n,1),80);
+  const xScale=i=>PAD+i*cellW+cellW/2;
+  const yScale=d=>PAD+d*DY+NR;
+  // Defs
+  const defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
+  defs.innerHTML=`<filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+  svg.appendChild(defs);
+  // Draw edges first
+  function drawEdges(node){
+    if(!node)return;
+    const px=xScale(pos[node.val].x),py=yScale(pos[node.val].y);
+    if(node.left){const cx=xScale(pos[node.left.val].x),cy=yScale(pos[node.left.val].y);const l=document.createElementNS('http://www.w3.org/2000/svg','line');l.setAttribute('x1',px);l.setAttribute('y1',py+NR);l.setAttribute('x2',cx);l.setAttribute('y2',cy-NR);l.setAttribute('stroke','#334155');l.setAttribute('stroke-width','1.5');svg.appendChild(l);}
+    if(node.right){const cx=xScale(pos[node.right.val].x),cy=yScale(pos[node.right.val].y);const l=document.createElementNS('http://www.w3.org/2000/svg','line');l.setAttribute('x1',px);l.setAttribute('y1',py+NR);l.setAttribute('x2',cx);l.setAttribute('y2',cy-NR);l.setAttribute('stroke','#334155');l.setAttribute('stroke-width','1.5');svg.appendChild(l);}
+    drawEdges(node.left);drawEdges(node.right);
+  }
+  drawEdges(root);
+  // Draw nodes
+  function drawNodes(node){
+    if(!node)return;
+    const x=xScale(pos[node.val].x),y=yScale(pos[node.val].y);
+    const isVisited=visited.includes(node.val);
+    const isCurrent=current===node.val;
+    const isNew=newNodeVal===node.val;
+    const isFound=foundVal===node.val;
+    let fill='#1e293b',stroke='#334155',textCol='#e2e8f0';
+    if(isVisited){fill='rgba(56,189,248,0.15)';stroke='#38bdf8';}
+    if(isCurrent){fill='rgba(251,191,36,0.2)';stroke='#fbbf24';textCol='#fbbf24';}
+    if(isNew){fill='rgba(74,222,128,0.25)';stroke='#4ade80';textCol='#4ade80';}
+    if(isFound){fill='rgba(74,222,128,0.25)';stroke='#4ade80';textCol='#4ade80';}
+    const c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx',x);c.setAttribute('cy',y);c.setAttribute('r',NR);
+    c.setAttribute('fill',fill);c.setAttribute('stroke',stroke);c.setAttribute('stroke-width','2');
+    if(isCurrent||isNew||isFound)c.setAttribute('filter','url(#glow)');
+    svg.appendChild(c);
+    const t=document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x',x);t.setAttribute('y',y+5);
+    t.setAttribute('fill',textCol);t.setAttribute('font-size','14');t.setAttribute('font-weight','700');
+    t.setAttribute('text-anchor','middle');t.setAttribute('font-family','monospace');
+    t.textContent=node.val;svg.appendChild(t);
+    drawNodes(node.left);drawNodes(node.right);
+  }
+  drawNodes(root);
+}
+function render(){
+  if(steps.length===0){renderTree(tree,[],null,null,null);descText.textContent='选择操作并执行';stepCounter.textContent='';return;}
+  const s=steps[cur];
+  renderTree(s.tree,s.visited||[],s.current,s.newNode,s.found);
+  if(s.lines)highlightLines(s.lines);
+  descText.textContent=s.desc;
+  stepCounter.textContent=`${cur+1} / ${steps.length}`;
+  btnPrev.disabled=cur===0;btnNext.disabled=cur===steps.length-1;
+}
+function play(){if(cur>=steps.length-1)cur=0;playing=true;btnPlay.innerHTML='⏸ 暂停';tick();}
+function pause(){playing=false;clearTimeout(timer);btnPlay.innerHTML='▶ 播放';}
+function tick(){if(!playing)return;if(cur<steps.length-1){cur++;render();timer=setTimeout(tick,SPEED[parseInt(speedRange.value)-1]);}else pause();}
+btnPlay.addEventListener('click',()=>playing?pause():play());
+btnPrev.addEventListener('click',()=>{pause();if(cur>0){cur--;render();}});
+btnNext.addEventListener('click',()=>{pause();if(cur<steps.length-1){cur++;render();}});
+btnReset.addEventListener('click',()=>{pause();cur=0;render();});
+buildCode();renderTree(tree,[],null,null,null);descText.textContent='初始 BST：50,30,70,20,40,60,80';
+window.addEventListener('resize',()=>render());
+</script>
+</body>
+</html>

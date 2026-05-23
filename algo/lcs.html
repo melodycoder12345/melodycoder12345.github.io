@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>最长公共子序列 (LCS) — 动态规划可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;padding:24px;}
+h1{font-size:1.5rem;font-weight:700;color:var(--blue);margin-bottom:4px;}
+.subtitle{color:var(--dim);font-size:0.875rem;margin-bottom:20px;}
+.badge{display:inline-block;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:2px 10px;font-size:0.78rem;color:var(--dim);margin-right:8px;margin-bottom:16px;}
+.badge span{color:var(--yellow);}
+.layout{display:grid;grid-template-columns:1fr 380px;gap:20px;}
+@media(max-width:900px){.layout{grid-template-columns:1fr;}}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px;}
+.section-title{font-size:0.8rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--dim);margin-bottom:12px;font-weight:600;}
+
+/* Controls */
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:12px;}
+.ctrl-group{display:flex;flex-direction:column;gap:4px;}
+.ctrl-group label{font-size:0.75rem;color:var(--dim);}
+.ctrl-group input{background:#0f172a;border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:0.85rem;font-family:monospace;width:100%;}
+.ctrl-group input:focus{outline:none;border-color:var(--blue);}
+.btn{padding:8px 18px;border-radius:8px;border:none;cursor:pointer;font-size:0.875rem;font-weight:600;transition:opacity 0.15s;}
+.btn-primary{background:var(--blue);color:#0f172a;}
+.btn-primary:hover{opacity:0.85;}
+.btn-sec{background:var(--border);color:var(--text);}
+.btn-sec:hover{opacity:0.7;}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+
+/* Sequence display */
+.seq-display{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
+.seq-box{background:#0f172a;border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-family:monospace;}
+.seq-label{font-size:0.72rem;color:var(--dim);margin-bottom:4px;}
+.seq-chars{display:flex;gap:4px;}
+.seq-char{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:5px;font-weight:700;font-size:0.85rem;}
+
+/* Table */
+.table-wrap{overflow:auto;padding:4px 0 8px;}
+.dp-table{border-collapse:collapse;font-family:monospace;font-size:0.82rem;}
+.dp-cell{width:38px;height:38px;text-align:center;vertical-align:middle;border:1px solid var(--border);transition:background 0.15s,color 0.15s;cursor:default;}
+.dp-cell.cur{background:rgba(251,191,36,0.25);color:var(--yellow);}
+.dp-cell.dep{background:rgba(196,132,252,0.2);color:var(--purple);}
+.dp-cell.match{background:rgba(74,222,128,0.2);color:var(--green);}
+.dp-cell.path{background:rgba(251,146,60,0.3);color:var(--orange);font-weight:700;}
+.dp-header{color:var(--dim);font-size:0.72rem;padding:0 4px;text-align:center;min-width:38px;height:32px;}
+.dp-char{color:var(--blue);font-weight:700;}
+.col-header-char{color:var(--blue);font-weight:700;font-size:0.85rem;}
+.row-header-char{color:var(--orange);font-weight:700;font-size:0.85rem;}
+
+/* Step info */
+.step-info{margin-top:16px;}
+.step-counter{font-size:0.8rem;color:var(--dim);margin-bottom:8px;}
+.step-desc{background:#0f172a;border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-size:0.85rem;line-height:1.6;min-height:72px;}
+.step-desc .tag-yellow{color:var(--yellow);}
+.step-desc .tag-purple{color:var(--purple);}
+.step-desc .tag-green{color:var(--green);}
+.step-desc .tag-orange{color:var(--orange);}
+.step-desc .tag-blue{color:var(--blue);}
+.playback{display:flex;gap:8px;margin-top:12px;align-items:center;}
+.speed-label{font-size:0.78rem;color:var(--dim);margin-left:8px;}
+.speed-select{background:#0f172a;border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:6px;font-size:0.8rem;}
+
+/* Result */
+.result-box{margin-top:14px;background:#0f172a;border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-size:0.85rem;}
+.result-title{font-size:0.75rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--dim);margin-bottom:6px;}
+.result-val{font-size:1.4rem;font-weight:700;color:var(--green);}
+.result-seq{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.result-seq-label{color:var(--dim);font-size:0.8rem;}
+.lcs-char{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:6px;background:rgba(251,146,60,0.25);border:1px solid rgba(251,146,60,0.4);color:var(--orange);font-weight:700;font-family:monospace;font-size:0.9rem;}
+
+/* Code panel */
+.code-block{background:#0f172a;border:1px solid var(--border);border-radius:8px;padding:16px;font-family:monospace;font-size:0.78rem;line-height:1.7;overflow-x:auto;white-space:pre;}
+.code-block .kw{color:var(--blue);}
+.code-block .fn{color:var(--yellow);}
+.code-block .cm{color:#475569;}
+.code-block .str{color:var(--green);}
+.code-block .num{color:var(--purple);}
+
+/* Legend */
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:0.75rem;color:var(--dim);}
+.legend-dot{width:12px;height:12px;border-radius:3px;flex-shrink:0;}
+.ld-cur{background:rgba(251,191,36,0.4);}
+.ld-dep{background:rgba(196,132,252,0.3);}
+.ld-match{background:rgba(74,222,128,0.3);}
+.ld-path{background:rgba(251,146,60,0.35);}
+</style>
+</head>
+<body>
+<h1>最长公共子序列 (LCS)</h1>
+<div class="subtitle">动态规划 · 二维 DP 表格可视化</div>
+<div>
+  <span class="badge">时间复杂度 <span>O(mn)</span></span>
+  <span class="badge">空间复杂度 <span>O(mn)</span></span>
+</div>
+
+<div class="layout">
+  <!-- Left: table + controls -->
+  <div>
+    <!-- Input controls -->
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="section-title">参数配置</div>
+      <div class="controls">
+        <div class="ctrl-group" style="flex:1;min-width:140px;">
+          <label>序列 A</label>
+          <input type="text" id="inp-a" value="ABCBDAB" maxlength="12">
+        </div>
+        <div class="ctrl-group" style="flex:1;min-width:140px;">
+          <label>序列 B</label>
+          <input type="text" id="inp-b" value="BDCAB" maxlength="12">
+        </div>
+        <button class="btn btn-primary" onclick="initAll()">运行</button>
+      </div>
+      <div class="seq-display" id="seq-display"></div>
+    </div>
+
+    <!-- DP Table -->
+    <div class="panel">
+      <div class="section-title">DP 表格</div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot ld-cur"></div>当前格</div>
+        <div class="legend-item"><div class="legend-dot ld-match"></div>字符匹配（对角来源）</div>
+        <div class="legend-item"><div class="legend-dot ld-dep"></div>不匹配依赖格</div>
+        <div class="legend-item"><div class="legend-dot ld-path"></div>LCS 路径</div>
+      </div>
+      <div class="table-wrap" id="table-wrap"></div>
+
+      <!-- Step info -->
+      <div class="step-info">
+        <div class="step-counter" id="step-counter">步骤 0 / 0</div>
+        <div class="step-desc" id="step-desc">点击「运行」开始可视化演示。</div>
+        <div class="playback">
+          <button class="btn btn-sec" id="btn-prev" onclick="prevStep()" disabled>&#9664; 上一步</button>
+          <button class="btn btn-primary" id="btn-play" onclick="togglePlay()">▶ 播放</button>
+          <button class="btn btn-sec" id="btn-next" onclick="nextStep()" disabled>下一步 &#9654;</button>
+          <span class="speed-label">速度</span>
+          <select class="speed-select" id="speed-select">
+            <option value="800">慢</option>
+            <option value="400" selected>中</option>
+            <option value="150">快</option>
+            <option value="50">极快</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Result -->
+      <div class="result-box" id="result-box" style="display:none;">
+        <div class="result-title">最长公共子序列</div>
+        <div class="result-val" id="result-val"></div>
+        <div class="result-seq" id="result-seq"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: info + code -->
+  <div>
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="section-title">递推公式</div>
+      <div class="code-block" style="font-size:0.82rem;line-height:1.9;">
+<span class="cm">// i: A 的下标，j: B 的下标</span>
+<span class="kw">if</span> A[i-1] == B[j-1]:
+  dp[i][j] = dp[i-1][j-1] + 1  <span class="cm">// 字符匹配</span>
+<span class="kw">else</span>:
+  dp[i][j] = max(
+    dp[i-1][j],  <span class="cm">// 跳过 A[i-1]</span>
+    dp[i][j-1]   <span class="cm">// 跳过 B[j-1]</span>
+  )</div>
+    </div>
+
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="section-title">Go 实现</div>
+      <div class="code-block"><span class="kw">package</span> main
+<span class="kw">import</span> <span class="str">"fmt"</span>
+
+<span class="kw">func</span> <span class="fn">lcs</span>(a, b <span class="kw">string</span>) (<span class="kw">int</span>, <span class="kw">string</span>) {
+    m, n := len(a), len(b)
+    dp := make([][]<span class="kw">int</span>, m+<span class="num">1</span>)
+    <span class="kw">for</span> i := <span class="kw">range</span> dp {
+        dp[i] = make([]<span class="kw">int</span>, n+<span class="num">1</span>)
+    }
+
+    <span class="kw">for</span> i := <span class="num">1</span>; i &lt;= m; i++ {
+        <span class="kw">for</span> j := <span class="num">1</span>; j &lt;= n; j++ {
+            <span class="kw">if</span> a[i-<span class="num">1</span>] == b[j-<span class="num">1</span>] {
+                dp[i][j] = dp[i-<span class="num">1</span>][j-<span class="num">1</span>] + <span class="num">1</span>
+            } <span class="kw">else if</span> dp[i-<span class="num">1</span>][j] &gt; dp[i][j-<span class="num">1</span>] {
+                dp[i][j] = dp[i-<span class="num">1</span>][j]
+            } <span class="kw">else</span> {
+                dp[i][j] = dp[i][j-<span class="num">1</span>]
+            }
+        }
+    }
+    <span class="cm">// 回溯 LCS</span>
+    result := []<span class="kw">byte</span>{}
+    i, j := m, n
+    <span class="kw">for</span> i &gt; <span class="num">0</span> &amp;&amp; j &gt; <span class="num">0</span> {
+        <span class="kw">if</span> a[i-<span class="num">1</span>] == b[j-<span class="num">1</span>] {
+            result = append([]<span class="kw">byte</span>{a[i-<span class="num">1</span>]}, result...)
+            i--; j--
+        } <span class="kw">else if</span> dp[i-<span class="num">1</span>][j] &gt; dp[i][j-<span class="num">1</span>] {
+            i--
+        } <span class="kw">else</span> { j-- }
+    }
+    <span class="kw">return</span> dp[m][n], <span class="kw">string</span>(result)
+}
+
+<span class="kw">func</span> <span class="fn">main</span>() {
+    length, seq := <span class="fn">lcs</span>(<span class="str">"ABCBDAB"</span>, <span class="str">"BDCAB"</span>)
+    fmt.<span class="fn">Println</span>(length, seq)
+    <span class="cm">// 输出: 4 BCAB</span>
+}</div>
+    </div>
+
+    <div class="panel">
+      <div class="section-title">算法说明</div>
+      <div style="font-size:0.82rem;line-height:1.8;color:var(--dim);">
+        <p style="margin-bottom:8px;"><span style="color:var(--text);">LCS</span>：两个序列中都出现、且相对顺序一致的最长子序列（不要求连续）。</p>
+        <p style="margin-bottom:8px;"><span style="color:var(--text);">dp[i][j]</span> = A 的前 i 个字符与 B 的前 j 个字符的 LCS 长度。</p>
+        <p style="margin-bottom:8px;"><span style="color:var(--text);">回溯</span>：从 dp[m][n] 出发，字符相等则向左上对角线走，否则走向更大值的方向。</p>
+        <p><span style="color:var(--text);">应用</span>：diff 工具、版本控制、基因序列比对、编辑距离。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let seqA = '', seqB = '';
+let m = 0, n = 0;
+let dp = [], steps = [], stepIdx = 0;
+let playTimer = null;
+let pathSet = new Set();
+let lcsStr = '';
+
+// Color palette for sequence chars
+const CHAR_COLORS = ['#38bdf8','#fb923c','#4ade80','#c084fc','#fbbf24','#f472b6','#34d399','#818cf8','#f87171','#a78bfa'];
+const charColorMap = {};
+
+function getCharColor(ch) {
+  if (!charColorMap[ch]) {
+    const keys = Object.keys(charColorMap);
+    charColorMap[ch] = CHAR_COLORS[keys.length % CHAR_COLORS.length];
+  }
+  return charColorMap[ch];
+}
+
+function resetCharColors() {
+  for (const k of Object.keys(charColorMap)) delete charColorMap[k];
+}
+
+function parseInputs() {
+  const a = document.getElementById('inp-a').value.trim().toUpperCase();
+  const b = document.getElementById('inp-b').value.trim().toUpperCase();
+  if (!a || !b) return false;
+  seqA = a.slice(0, 12);
+  seqB = b.slice(0, 12);
+  m = seqA.length;
+  n = seqB.length;
+  return true;
+}
+
+function buildDP() {
+  dp = [];
+  for (let i = 0; i <= m; i++) {
+    dp[i] = new Array(n + 1).fill(0);
+  }
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (seqA[i - 1] === seqB[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+}
+
+function buildLCS() {
+  let result = '';
+  let i = m, j = n;
+  pathSet = new Set();
+  while (i > 0 && j > 0) {
+    if (seqA[i - 1] === seqB[j - 1]) {
+      result = seqA[i - 1] + result;
+      pathSet.add(`${i},${j}`);
+      i--; j--;
+    } else if (dp[i - 1][j] > dp[i][j - 1]) {
+      i--;
+    } else {
+      j--;
+    }
+  }
+  lcsStr = result;
+}
+
+function buildSteps() {
+  steps = [];
+  steps.push({
+    type: 'init',
+    desc: '<span class="tag-green">初始化</span>：第 0 行（B 为空）和第 0 列（A 为空）全部填 0，LCS 长度为 0。',
+    cur: null, deps: [], matchDep: null
+  });
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const ai = seqA[i - 1], bj = seqB[j - 1];
+      const isMatch = ai === bj;
+      let desc = '';
+      let deps = [];
+      let matchDep = null;
+
+      if (isMatch) {
+        matchDep = [i - 1, j - 1];
+        desc = `A[${i}]='<span class="tag-blue">${ai}</span>' == B[${j}]='<span class="tag-blue">${bj}</span>'，<span class="tag-green">字符匹配！</span>dp[${i}][${j}] = dp[${i-1}][${j-1}]+1 = <span class="tag-yellow">${dp[i][j]}</span>`;
+      } else {
+        deps = [[i - 1, j], [i, j - 1]];
+        const fromUp = dp[i - 1][j] >= dp[i][j - 1];
+        desc = `A[${i}]='<span class="tag-orange">${ai}</span>' ≠ B[${j}]='<span class="tag-orange">${bj}</span>'，不匹配。dp[${i}][${j}] = max(dp[${i-1}][${j}]=${dp[i-1][j]}, dp[${i}][${j-1}]=${dp[i][j-1]}) = <span class="tag-yellow">${dp[i][j]}</span>`;
+      }
+
+      steps.push({ type: 'fill', cur: [i, j], deps, matchDep, desc, isMatch });
+    }
+  }
+
+  steps.push({
+    type: 'traceback',
+    desc: `<span class="tag-orange">回溯 LCS 路径</span>：从 dp[${m}][${n}]=${dp[m][n]} 出发，字符匹配则沿对角线走（橙色），最终 LCS = "<span class="tag-orange">${lcsStr}</span>"，长度 = <span class="tag-green">${dp[m][n]}</span>`,
+    cur: null, deps: [], matchDep: null
+  });
+}
+
+function renderSeqDisplay() {
+  resetCharColors();
+  const el = document.getElementById('seq-display');
+  // Pre-assign colors
+  for (const ch of seqA) getCharColor(ch);
+  for (const ch of seqB) getCharColor(ch);
+
+  let html = '<div class="seq-box"><div class="seq-label">序列 A</div><div class="seq-chars">';
+  for (let i = 0; i < seqA.length; i++) {
+    const c = seqA[i];
+    const col = getCharColor(c);
+    html += `<span class="seq-char" style="background:${col}22;border:1px solid ${col}55;color:${col};">${c}</span>`;
+  }
+  html += '</div></div><div class="seq-box"><div class="seq-label">序列 B</div><div class="seq-chars">';
+  for (let j = 0; j < seqB.length; j++) {
+    const c = seqB[j];
+    const col = getCharColor(c);
+    html += `<span class="seq-char" style="background:${col}22;border:1px solid ${col}55;color:${col};">${c}</span>`;
+  }
+  html += '</div></div>';
+  el.innerHTML = html;
+}
+
+function renderTable(step) {
+  const wrap = document.getElementById('table-wrap');
+  const table = document.createElement('table');
+  table.className = 'dp-table';
+
+  const isTraceback = step && step.type === 'traceback';
+  const curKey = step && step.cur ? `${step.cur[0]},${step.cur[1]}` : null;
+  const depSet = new Set(step && step.deps ? step.deps.map(d => `${d[0]},${d[1]}`) : []);
+  const matchKey = step && step.matchDep ? `${step.matchDep[0]},${step.matchDep[1]}` : null;
+
+  // Header row (B chars)
+  const thead = document.createElement('thead');
+  const hrow = document.createElement('tr');
+  const corner = document.createElement('th');
+  corner.className = 'dp-header';
+  corner.style.cssText = 'min-width:50px;';
+  corner.textContent = 'A \\ B';
+  hrow.appendChild(corner);
+
+  // empty col header
+  const emptyTh = document.createElement('th');
+  emptyTh.className = 'dp-header';
+  emptyTh.textContent = '∅';
+  hrow.appendChild(emptyTh);
+
+  for (let j = 1; j <= n; j++) {
+    const th = document.createElement('th');
+    th.className = 'dp-header';
+    const c = seqB[j - 1];
+    const col = getCharColor(c);
+    th.innerHTML = `<span style="color:${col};font-weight:700;">${c}</span>`;
+    hrow.appendChild(th);
+  }
+  thead.appendChild(hrow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+
+  for (let i = 0; i <= m; i++) {
+    const tr = document.createElement('tr');
+
+    // Row header (A chars)
+    const rh = document.createElement('td');
+    rh.style.cssText = 'padding:0 10px 0 4px;text-align:right;white-space:nowrap;font-size:0.72rem;';
+    if (i === 0) {
+      rh.innerHTML = '<span style="color:var(--dim);">∅</span>';
+    } else {
+      const c = seqA[i - 1];
+      const col = getCharColor(c);
+      rh.innerHTML = `<span style="color:${col};font-weight:700;font-size:0.85rem;">${c}</span>`;
+    }
+    tr.appendChild(rh);
+
+    for (let j = 0; j <= n; j++) {
+      const td = document.createElement('td');
+      td.className = 'dp-cell';
+      const key = `${i},${j}`;
+
+      if (isTraceback && pathSet.has(key)) {
+        td.classList.add('path');
+      } else if (curKey === key) {
+        td.classList.add('cur');
+      } else if (matchKey === key) {
+        td.classList.add('match');
+      } else if (depSet.has(key)) {
+        td.classList.add('dep');
+      }
+
+      // Show value
+      let showVal = false;
+      if (step) {
+        if (step.type === 'init') {
+          if (i === 0 || j === 0) showVal = true;
+        } else if (step.type === 'traceback') {
+          showVal = true;
+        } else {
+          const [ci, cj] = step.cur;
+          if (i === 0 || j === 0) { showVal = true; }
+          else if (i < ci) { showVal = true; }
+          else if (i === ci && j <= cj) { showVal = true; }
+        }
+      }
+      td.textContent = showVal ? dp[i][j] : '';
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  wrap.innerHTML = '';
+  wrap.appendChild(table);
+}
+
+function applyStep(idx) {
+  if (idx < 0 || idx >= steps.length) return;
+  stepIdx = idx;
+  const step = steps[idx];
+  document.getElementById('step-counter').textContent = `步骤 ${idx + 1} / ${steps.length}`;
+  document.getElementById('step-desc').innerHTML = step.desc;
+  renderTable(step);
+  document.getElementById('btn-prev').disabled = idx === 0;
+  document.getElementById('btn-next').disabled = idx === steps.length - 1;
+
+  if (step.type === 'traceback') {
+    document.getElementById('result-box').style.display = '';
+    document.getElementById('result-val').textContent = `长度：${dp[m][n]}`;
+    let seqHtml = '<span class="result-seq-label">LCS：</span>';
+    for (const ch of lcsStr) {
+      const col = getCharColor(ch);
+      seqHtml += `<span class="lcs-char" style="border-color:${col}66;color:${col};background:${col}18;">${ch}</span>`;
+    }
+    document.getElementById('result-seq').innerHTML = seqHtml;
+  } else {
+    document.getElementById('result-box').style.display = 'none';
+  }
+}
+
+function prevStep() {
+  if (stepIdx > 0) applyStep(stepIdx - 1);
+}
+
+function nextStep() {
+  if (stepIdx < steps.length - 1) applyStep(stepIdx + 1);
+  else stopPlay();
+}
+
+function togglePlay() {
+  if (playTimer) stopPlay();
+  else startPlay();
+}
+
+function startPlay() {
+  document.getElementById('btn-play').textContent = '⏸ 暂停';
+  const speed = parseInt(document.getElementById('speed-select').value);
+  playTimer = setInterval(() => {
+    if (stepIdx >= steps.length - 1) stopPlay();
+    else applyStep(stepIdx + 1);
+  }, speed);
+}
+
+function stopPlay() {
+  if (playTimer) { clearInterval(playTimer); playTimer = null; }
+  document.getElementById('btn-play').textContent = '▶ 播放';
+}
+
+function initAll() {
+  stopPlay();
+  if (!parseInputs()) {
+    alert('请输入非空的序列 A 和序列 B（最多 12 个字符）');
+    return;
+  }
+  buildDP();
+  buildLCS();
+  buildSteps();
+  renderSeqDisplay();
+  applyStep(0);
+  document.getElementById('btn-prev').disabled = true;
+  document.getElementById('btn-next').disabled = false;
+}
+
+initAll();
+</script>
+</body>
+</html>

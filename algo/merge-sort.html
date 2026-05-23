@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>归并排序 - 算法可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.badge.time{background:rgba(56,189,248,0.15);color:var(--blue);}.badge.space{background:rgba(196,132,252,0.15);color:var(--purple);}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;display:flex;flex-direction:column;justify-content:flex-end;padding:20px 40px;overflow:hidden;}
+.merge-row{display:flex;align-items:flex-end;gap:4px;margin-bottom:4px;height:60px;justify-content:center;}
+.bar-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;}
+.bar{border-radius:3px 3px 0 0;transition:height 0.25s,background-color 0.2s;min-width:28px;}
+.bar-val{font-size:0.65rem;font-family:monospace;color:var(--dim);}
+.main-bars{display:flex;align-items:flex-end;justify-content:center;gap:6px;flex:1;padding:20px 0 10px;}
+.main-bar-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;max-width:52px;}
+.main-bar{width:100%;border-radius:4px 4px 0 0;transition:height 0.25s,background-color 0.2s;position:relative;}
+.main-bar-label{font-size:0.7rem;font-family:monospace;color:var(--dim);}
+.main-bar-val{font-size:0.68rem;font-family:monospace;color:var(--text);position:absolute;top:-18px;left:50%;transform:translateX(-50%);white-space:nowrap;}
+.desc-box{padding:12px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.9rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.op{color:#ff7b72;}.id{color:#e6edf3;}.cm{color:#8b949e;font-style:italic;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.3);color:var(--blue);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
+.stats{display:flex;gap:16px;padding:0 8px;}.stat{font-size:0.78rem;color:var(--dim);font-family:monospace;}.stat span{color:var(--text);font-weight:600;}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>归并排序 Merge Sort</h1>
+  <div class="complexity"><span class="badge time">时间 O(n log n)</span><span class="badge space">空间 O(n)</span></div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="main-bars" id="mainBars"></div>
+    <div class="desc-box">
+      <span id="descText">点击播放开始演示</span>
+      <div class="stats"><div class="stat">比较 <span id="cmpCount">0</span></div><div class="stat">合并 <span id="swpCount">0</span></div></div>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px">merge_sort.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+const CODE_LINES = [
+  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
+  {html:``},
+  {html:`<span class="kw">import</span> <span class="st">"fmt"</span>`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">mergeSort</span>(arr []<span class="kw">int</span>) []<span class="kw">int</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> <span class="fn">len</span>(arr) &lt;= <span class="num">1</span> { <span class="kw">return</span> arr }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;mid := <span class="fn">len</span>(arr) / <span class="num">2</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;left := <span class="fn">mergeSort</span>(arr[:mid])`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;right := <span class="fn">mergeSort</span>(arr[mid:])`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="fn">merge</span>(left, right)`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">merge</span>(left, right []<span class="kw">int</span>) []<span class="kw">int</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;result := <span class="fn">make</span>([]<span class="kw">int</span>, <span class="num">0</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;i, j := <span class="num">0</span>, <span class="num">0</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> i &lt; <span class="fn">len</span>(left) &amp;&amp; j &lt; <span class="fn">len</span>(right) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> left[i] &lt;= right[j] {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;result = <span class="fn">append</span>(result, left[i]); i<span class="op">++</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;} <span class="kw">else</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;result = <span class="fn">append</span>(result, right[j]); j<span class="op">++</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;result = <span class="fn">append</span>(result, left[i:]...)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;result = <span class="fn">append</span>(result, right[j:]...)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> result`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">main</span>() {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;arr := []<span class="kw">int</span>{<span class="num">38</span>, <span class="num">27</span>, <span class="num">43</span>, <span class="num">3</span>, <span class="num">9</span>, <span class="num">82</span>, <span class="num">10</span>}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;arr = <span class="fn">mergeSort</span>(arr)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">fmt</span>.<span class="fn">Println</span>(arr)`},
+  {html:`}`},
+];
+
+function generateSteps(arr) {
+  const steps = [];
+  let cmps = 0, merges = 0;
+
+  function snap(a, highlighted, active, lines, desc) {
+    steps.push({ arr:[...a], highlighted:[...highlighted], active:[...active], highlightLines:lines, description:desc, cmps, merges });
+  }
+
+  function doMerge(a, lo, mid, hi) {
+    const left = a.slice(lo, mid+1);
+    const right = a.slice(mid+1, hi+1);
+    snap(a, range(lo,hi), [], [12,13,14], `合并 [${lo}..${mid}] 和 [${mid+1}..${hi}]`);
+    let i = 0, j = 0, k = lo;
+    while (i < left.length && j < right.length) {
+      cmps++;
+      snap(a, range(lo,hi), [lo+i, mid+1+j], [15,16], `比较 ${left[i]} 和 ${right[j]}`);
+      if (left[i] <= right[j]) {
+        a[k++] = left[i++];
+        snap(a, range(lo,hi), [], [17], `放入 ${a[k-1]}`);
+      } else {
+        a[k++] = right[j++];
+        snap(a, range(lo,hi), [], [19], `放入 ${a[k-1]}`);
+      }
+    }
+    while (i < left.length) { a[k++] = left[i++]; }
+    while (j < right.length) { a[k++] = right[j++]; }
+    merges++;
+    snap(a, [], range(lo,hi), [22,23], `区间 [${lo}..${hi}] 合并完成`);
+  }
+
+  function doMergeSort(a, lo, hi) {
+    if (lo >= hi) {
+      snap(a, [lo], [], [5], `arr[${lo}]=${a[lo]} 长度为1，无需排序`);
+      return;
+    }
+    const mid = Math.floor((lo + hi) / 2);
+    snap(a, range(lo,hi), [mid], [6], `分割 [${lo}..${hi}]，mid=${mid}`);
+    snap(a, range(lo,mid), [], [7], `递归排序左半 [${lo}..${mid}]`);
+    doMergeSort(a, lo, mid);
+    snap(a, range(mid+1,hi), [], [8], `递归排序右半 [${mid+1}..${hi}]`);
+    doMergeSort(a, mid+1, hi);
+    doMerge(a, lo, mid, hi);
+  }
+
+  function range(lo, hi) { const r=[]; for(let i=lo;i<=hi;i++)r.push(i); return r; }
+
+  const a = [...arr];
+  snap(a, [], [], [28], '初始数组，准备归并排序');
+  doMergeSort(a, 0, a.length-1);
+  snap(a, [], Array.from({length:a.length},(_,i)=>i), [29,30,31], '排序完成！');
+  return steps;
+}
+
+const INITIAL = [38, 27, 43, 3, 9, 82, 10];
+const MAX_VAL = Math.max(...INITIAL);
+let steps = generateSteps(INITIAL);
+let cur = 0, playing = false, timer = null;
+const SPEED = [900,600,350,200,100];
+
+const mainBars=document.getElementById('mainBars'),codeBody=document.getElementById('codeBody'),
+  descText=document.getElementById('descText'),stepCounter=document.getElementById('stepCounter'),
+  cmpCount=document.getElementById('cmpCount'),swpCount=document.getElementById('swpCount'),
+  btnPlay=document.getElementById('btnPlay'),btnPrev=document.getElementById('btnPrev'),
+  btnNext=document.getElementById('btnNext'),btnReset=document.getElementById('btnReset'),
+  speedRange=document.getElementById('speedRange');
+
+function buildCode(){
+  codeBody.innerHTML=CODE_LINES.map((l,i)=>`<div class="code-line" data-line="${i}"><span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`).join('');
+  codeBody.querySelectorAll('.code-line').forEach(el=>el.addEventListener('click',()=>jumpToLine(parseInt(el.dataset.line))));
+}
+function highlightLines(lines){
+  codeBody.querySelectorAll('.code-line').forEach(el=>el.classList.remove('active'));
+  lines.forEach(ln=>{const el=codeBody.querySelector(`[data-line="${ln}"]`);if(el)el.classList.add('active');});
+  if(lines.length>0){const f=codeBody.querySelector(`[data-line="${lines[0]}"]`);if(f)f.scrollIntoView({block:'nearest'});}
+}
+function jumpToLine(ln){let t=cur,b=Infinity;steps.forEach((s,i)=>{if(s.highlightLines.includes(ln)){const d=Math.abs(i-cur);if(d<b){b=d;t=i;}}});cur=t;render();}
+function buildMainBars(n){
+  mainBars.innerHTML='';
+  for(let i=0;i<n;i++){
+    const w=document.createElement('div');w.className='main-bar-wrap';
+    const b=document.createElement('div');b.className='main-bar';
+    const v=document.createElement('div');v.className='main-bar-val';b.appendChild(v);
+    const l=document.createElement('div');l.className='main-bar-label';
+    w.appendChild(b);w.appendChild(l);mainBars.appendChild(w);
+  }
+}
+function render(){
+  const s=steps[cur];
+  if(mainBars.children.length!==s.arr.length)buildMainBars(s.arr.length);
+  mainBars.querySelectorAll('.main-bar-wrap').forEach((wrap,i)=>{
+    const bar=wrap.querySelector('.main-bar'),lbl=wrap.querySelector('.main-bar-label');
+    bar.style.height=`${Math.max(s.arr[i]/MAX_VAL*100,6).toFixed(1)}%`;
+    bar.querySelector('.main-bar-val').textContent=s.arr[i];
+    lbl.textContent=i;
+    let color='#334155';
+    if(s.highlighted.includes(i))color='#38bdf8';
+    if(s.active.includes(i))color='#4ade80';
+    bar.style.background=color;
+    bar.style.boxShadow=s.highlighted.includes(i)?`0 0 12px ${color}66`:'none';
+  });
+  highlightLines(s.highlightLines);
+  descText.textContent=s.description;
+  stepCounter.textContent=`${cur+1} / ${steps.length}`;
+  cmpCount.textContent=s.cmps;
+  swpCount.textContent=s.merges;
+  btnPrev.disabled=cur===0;btnNext.disabled=cur===steps.length-1;
+}
+function play(){if(cur>=steps.length-1)cur=0;playing=true;btnPlay.innerHTML='⏸ 暂停';tick();}
+function pause(){playing=false;clearTimeout(timer);btnPlay.innerHTML='▶ 播放';}
+function tick(){if(!playing)return;if(cur<steps.length-1){cur++;render();timer=setTimeout(tick,SPEED[parseInt(speedRange.value)-1]);}else pause();}
+btnPlay.addEventListener('click',()=>playing?pause():play());
+btnPrev.addEventListener('click',()=>{pause();if(cur>0){cur--;render();}});
+btnNext.addEventListener('click',()=>{pause();if(cur<steps.length-1){cur++;render();}});
+btnReset.addEventListener('click',()=>{pause();cur=0;render();});
+buildCode();buildMainBars(INITIAL.length);render();
+</script>
+</body>
+</html>
