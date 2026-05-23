@@ -32,8 +32,10 @@
   border-bottom:1px solid rgba(255,255,255,0.07);
   font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
 }
-.sn-logo{display:flex;align-items:center;gap:8px;text-decoration:none;color:#e2e8f0;font-size:0.88rem;font-weight:600;letter-spacing:-0.01em;}
+.sn-logo{display:flex;align-items:center;gap:8px;text-decoration:none;font-size:0.92rem;font-weight:700;letter-spacing:0.04em;}
 .sn-logo .sn-dot{width:7px;height:7px;border-radius:50%;background:linear-gradient(135deg,#38bdf8,#c084fc);flex-shrink:0;}
+.sn-logo .sn-title{background:linear-gradient(120deg,#38bdf8 0%,#c084fc 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.sn-motto{font-size:0.68rem;color:#475569;font-style:italic;letter-spacing:0.05em;flex:1;text-align:center;pointer-events:none;}
 .sn-uw{position:relative;}
 .sn-btn{
   display:flex;align-items:center;gap:6px;padding:5px 11px;border-radius:7px;
@@ -72,7 +74,8 @@
   const nav = d.createElement('div');
   nav.id = '__snav';
   nav.innerHTML =
-    '<a href="../index.html" class="sn-logo"><span class="sn-dot"></span>码海拾贝</a>' +
+    '<a href="../index.html" class="sn-logo"><span class="sn-dot"></span><span class="sn-title">码海拾贝</span></a>' +
+    '<span class="sn-motto">Talk is cheap, show me the code.</span>' +
     '<div class="sn-uw">' +
       '<button class="sn-btn" id="snBtn"><span>👤</span><span>游客</span><span class="sn-chev" id="snChev">▾</span></button>' +
       '<div class="sn-panel" id="snPanel">' +
