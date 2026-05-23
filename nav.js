@@ -6,6 +6,7 @@
 
   const H = 44;
   const RKEY = 'recentPages_v2';
+  const HOME = /\/(algo|db)\//.test(window.location.pathname) ? '../index.html' : 'index.html';
 
   // ── Inject body padding IMMEDIATELY (sync, before body renders) ──
   // This prevents the layout-shift flash
@@ -73,7 +74,7 @@
   const nav = d.createElement('div');
   nav.id = '__snav';
   nav.innerHTML =
-    '<a href="../index.html" class="sn-logo"><span class="sn-title">码海拾贝</span><span class="sn-motto">代码有迹可循，算法见微知著</span></a>' +
+    '<a href="' + HOME + '" class="sn-logo"><span class="sn-title">码海拾贝</span><span class="sn-motto">代码有迹可循，算法见微知著</span></a>' +
     '<div class="sn-uw">' +
       '<button class="sn-btn" id="snBtn"><span>👤</span><span>游客</span><span class="sn-chev" id="snChev">▾</span></button>' +
       '<div class="sn-panel" id="snPanel">' +
@@ -120,4 +121,13 @@
   } else {
     init();
   }
+
+  window.NavTracker = {
+    track: function (name, href, icon, cat) {
+      if (!name || !href || href.startsWith('#')) return;
+      var items = loadR().filter(function (r) { return r.href !== href; });
+      items.unshift({ name: name, href: href, icon: icon || '📄', cat: cat || '' });
+      saveR(items.slice(0, 20));
+    }
+  };
 })();
