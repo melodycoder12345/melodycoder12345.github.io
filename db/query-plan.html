@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>查询执行计划（火山模型）</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.1rem;font-weight:600;}
+.ds-tags{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;}
+.ds-tag{font-size:0.72rem;padding:2px 8px;border-radius:4px;font-family:monospace;font-weight:500;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;overflow:auto;padding:16px 20px;position:relative;}
+.desc-box{padding:12px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:44px;display:flex;align-items:center;}
+.step-counter{margin-left:auto;font-family:monospace;font-size:0.8rem;color:var(--dim);}
+.code-panel{width:44%;min-width:360px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background .15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.7;}
+.code-line:hover{background:rgba(255,255,255,.04);}.code-line.active{background:rgba(251,191,36,.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:44px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;}.id{color:#e6edf3;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:.85rem;transition:all .15s;font-family:inherit;}
+.btn:hover{background:rgba(255,255,255,.12);}.btn.primary{background:rgba(56,189,248,.15);border-color:rgba(56,189,248,.3);color:var(--blue);}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:80px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
+
+/* SQL bar */
+.sql-bar{font-family:'JetBrains Mono',monospace;font-size:0.78rem;padding:8px 16px;background:#0d1117;border-bottom:1px solid var(--border);flex-shrink:0;white-space:nowrap;overflow-x:auto;color:#8b949e;line-height:1.6;}
+.sql-kw{color:#ff7b72;}.sql-id{color:#e6edf3;}.sql-st{color:#a5d6ff;}
+
+/* Tree SVG container */
+.tree-container{width:100%;min-height:320px;display:flex;justify-content:center;}
+svg.plan-tree{overflow:visible;}
+
+/* Plan nodes */
+.plan-node{cursor:default;}
+.plan-node rect{transition:all .25s;rx:8;ry:8;}
+.plan-node.active rect{filter:drop-shadow(0 0 8px currentColor);}
+.plan-node.completed rect{stroke-width:2;}
+.node-title{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;}
+.node-detail{font-family:'JetBrains Mono',monospace;font-size:10px;}
+.node-cost{font-family:'JetBrains Mono',monospace;font-size:9px;fill:#64748b;}
+
+/* Flow particles */
+@keyframes flowUp{from{transform:translateY(0);opacity:1;}to{transform:translateY(-40px);opacity:0;}}
+.flow-particle{animation:flowUp .8s ease-out forwards;}
+
+/* Stats panel */
+.stats-row{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;}
+.stat-box{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-size:0.78rem;min-width:120px;}
+.stat-label{color:var(--dim);margin-bottom:3px;font-size:0.72rem;}
+.stat-value{font-family:monospace;font-size:1rem;font-weight:700;}
+
+/* Result table */
+.result-wrap{margin-top:14px;}
+.result-label{font-size:0.78rem;color:var(--green);margin-bottom:6px;font-family:monospace;text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:8px;}
+.result-count{background:rgba(74,222,128,.15);border:1px solid rgba(74,222,128,.3);color:var(--green);padding:1px 8px;border-radius:10px;font-size:0.72rem;}
+.tbl{width:100%;border-collapse:collapse;font-size:0.82rem;max-width:420px;}
+.tbl th{background:rgba(255,255,255,.06);padding:5px 10px;text-align:left;font-size:0.75rem;color:var(--dim);font-weight:500;border:1px solid var(--border);}
+.tbl td{padding:5px 10px;border:1px solid var(--border);font-family:monospace;}
+
+@media(max-width:768px){body{height:auto!important;min-height:100vh;overflow-y:auto!important;}.main{flex-direction:column!important;height:auto!important;flex:none!important;}.viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:auto!important;flex:none!important;min-height:420px;}.code-panel{width:100%!important;min-width:unset!important;height:320px!important;flex:none!important;}.controls{flex-wrap:wrap!important;}.speed-wrap{margin-left:0!important;}}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>查询执行计划（火山模型）</h1>
+  <div class="ds-tags">
+    <span class="ds-tag" style="background:rgba(192,132,252,.12);color:var(--purple);border:1px solid rgba(192,132,252,.25)">算子树 Operator Tree</span>
+    <span class="ds-tag" style="background:rgba(56,189,248,.12);color:var(--blue);border:1px solid rgba(56,189,248,.25)">火山模型 Iterator</span>
+    <span class="ds-tag" style="background:rgba(74,222,128,.12);color:var(--green);border:1px solid rgba(74,222,128,.25)">自底向上执行</span>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="viz-panel">
+    <div class="sql-bar">
+      <span class="sql-kw">SELECT</span> <span class="sql-id">name</span>, <span class="sql-kw">AVG</span>(<span class="sql-id">score</span>)
+      <span class="sql-kw">FROM</span> <span class="sql-id">students</span> s
+      <span class="sql-kw">JOIN</span> <span class="sql-id">scores</span> sc <span class="sql-kw">ON</span> s.id = sc.sid
+      <span class="sql-kw">WHERE</span> s.dept = <span class="sql-st">'CS'</span>
+      <span class="sql-kw">GROUP BY</span> <span class="sql-id">name</span>
+      <span class="sql-kw">ORDER BY</span> avg_score <span class="sql-kw">DESC</span>
+    </div>
+    <div class="viz-area" id="vizArea"></div>
+    <div class="desc-box">
+      <span id="desc">点击播放，观察火山模型自底向上的执行过程</span>
+      <span class="step-counter" id="stepCounter"></span>
+    </div>
+  </div>
+
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <span class="code-dot" style="background:var(--orange)"></span>
+      <span class="code-dot" style="background:var(--yellow)"></span>
+      <span class="code-dot" style="background:var(--green)"></span>
+      <span style="margin-left:4px">query_plan.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="btn" id="btnReset">↺ 重置</button>
+  <button class="btn" id="btnPrev">‹ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ›</button>
+  <div class="speed-wrap">
+    <span>速度</span>
+    <input type="range" id="speedRange" min="1" max="5" value="3">
+    <span>快</span>
+  </div>
+</div>
+
+<script>
+// ─── Node definitions ────────────────────────────────────────────────────────
+// Tree layout (SVG coordinate space: 680 wide)
+//
+//       Sort [0]                   cx=340  cy=50
+//         |
+//      Aggregate [1]               cx=340  cy=140
+//         |
+//       HashJoin [2]               cx=340  cy=230
+//       /        \
+//   Filter[3]  SeqScan(scores)[4]  cx=180,cy=330  cx=500,cy=330
+//      |
+// SeqScan(students)[5]             cx=180  cy=420
+//
+const NODE_DEFS = [
+  { id:'sort',     label:'Sort',            detail:'ORDER BY avg_score DESC', cost:'cost=0.00..28.6 rows=45', color:'#c084fc', cx:340, cy:50  },
+  { id:'agg',      label:'Aggregate',       detail:'GROUP BY name, AVG(score)', cost:'cost=0.00..22.1 rows=45', color:'#2dd4bf', cx:340, cy:148 },
+  { id:'join',     label:'Hash Join',       detail:'s.id = sc.sid',           cost:'cost=8.00..16.4 rows=320', color:'#38bdf8', cx:340, cy:246 },
+  { id:'filter',   label:'Filter',          detail:"dept = 'CS'",             cost:'cost=0.00..4.30 rows=320', color:'#fbbf24', cx:175, cy:344 },
+  { id:'scan_sc',  label:'Seq Scan',        detail:'scores (5000行)',          cost:'cost=0.00..5.50 rows=5000', color:'#64748b', cx:505, cy:344 },
+  { id:'scan_st',  label:'Seq Scan',        detail:'students (1000行)',        cost:'cost=0.00..2.10 rows=1000', color:'#64748b', cx:175, cy:442 },
+];
+// Edges: [parent_idx, child_idx]
+const EDGES = [[0,1],[1,2],[2,3],[2,4],[3,5]];
+
+// ─── Code lines ──────────────────────────────────────────────────────────────
+const codeLines = [
+  {n:1,  h:`<span class="cm">// 火山模型（Volcano Model）：每个算子实现 Next() 接口</span>`},
+  {n:2,  h:`<span class="kw">type</span> <span class="id">Operator</span> <span class="kw">interface</span> {`},
+  {n:3,  h:`    <span class="fn">Open</span>()        <span class="cm">// 初始化</span>`},
+  {n:4,  h:`    <span class="fn">Next</span>() *<span class="id">Row</span>   <span class="cm">// 返回下一行（惰性求值）</span>`},
+  {n:5,  h:`    <span class="fn">Close</span>()       <span class="cm">// 清理</span>`},
+  {n:6,  h:`}`},
+  {n:7,  h:``},
+  {n:8,  h:`<span class="cm">// Sort 算子：需要先缓存所有输入再排序</span>`},
+  {n:9,  h:`<span class="kw">type</span> <span class="id">SortOp</span> <span class="kw">struct</span> {`},
+  {n:10, h:`    child  <span class="id">Operator</span>`},
+  {n:11, h:`    key    <span class="id">string</span>`},
+  {n:12, h:`    buffer []*<span class="id">Row</span>`},
+  {n:13, h:`    idx    <span class="id">int</span>`},
+  {n:14, h:`}`},
+  {n:15, h:`<span class="kw">func</span> (s *<span class="id">SortOp</span>) <span class="fn">Open</span>() {`},
+  {n:16, h:`    s.child.<span class="fn">Open</span>()`},
+  {n:17, h:`    <span class="kw">for</span> r := s.child.<span class="fn">Next</span>(); r != <span class="kw">nil</span>; r = s.child.<span class="fn">Next</span>() {`},
+  {n:18, h:`        s.buffer = <span class="fn">append</span>(s.buffer, r) <span class="cm">// 物化所有行</span>`},
+  {n:19, h:`    }`},
+  {n:20, h:`    sort.<span class="fn">Slice</span>(s.buffer, ...) <span class="cm">// 排序</span>`},
+  {n:21, h:`}`},
+  {n:22, h:`<span class="kw">func</span> (s *<span class="id">SortOp</span>) <span class="fn">Next</span>() *<span class="id">Row</span> {`},
+  {n:23, h:`    <span class="kw">if</span> s.idx >= <span class="fn">len</span>(s.buffer) { <span class="kw">return nil</span> }`},
+  {n:24, h:`    r := s.buffer[s.idx]; s.idx++`},
+  {n:25, h:`    <span class="kw">return</span> r`},
+  {n:26, h:`}`},
+  {n:27, h:``},
+  {n:28, h:`<span class="cm">// HashJoin 算子：Build + Probe 两阶段</span>`},
+  {n:29, h:`<span class="kw">type</span> <span class="id">HashJoinOp</span> <span class="kw">struct</span> {`},
+  {n:30, h:`    build, probe <span class="id">Operator</span>`},
+  {n:31, h:`    ht           <span class="kw">map</span>[<span class="id">int</span>]*<span class="id">Row</span>`},
+  {n:32, h:`}`},
+  {n:33, h:`<span class="kw">func</span> (h *<span class="id">HashJoinOp</span>) <span class="fn">Open</span>() {`},
+  {n:34, h:`    h.build.<span class="fn">Open</span>()`},
+  {n:35, h:`    h.ht = <span class="fn">make</span>(<span class="kw">map</span>[<span class="id">int</span>]*<span class="id">Row</span>)`},
+  {n:36, h:`    <span class="kw">for</span> r := h.build.<span class="fn">Next</span>(); r != <span class="kw">nil</span>; r = h.build.<span class="fn">Next</span>() {`},
+  {n:37, h:`        h.ht[r.id] = r  <span class="cm">// 构建哈希表</span>`},
+  {n:38, h:`    }`},
+  {n:39, h:`    h.probe.<span class="fn">Open</span>()`},
+  {n:40, h:`}`},
+];
+
+function buildCodePanel() {
+  const body = document.getElementById('codeBody');
+  body.innerHTML = codeLines.map(l =>
+    `<div class="code-line" data-ln="${l.n}"><span class="ln">${l.n}</span><span class="lc">${l.h}</span></div>`
+  ).join('');
+  body.querySelectorAll('.code-line').forEach(el => {
+    el.addEventListener('click', () => {
+      const ln = +el.dataset.ln;
+      let best = -1, bd = Infinity;
+      steps.forEach((s, i) => {
+        if (s.highlightLines && s.highlightLines.includes(ln)) {
+          const d = Math.abs(i - cur);
+          if (d < bd) { bd = d; best = i; }
+        }
+      });
+      if (best >= 0) { cur = best; render(); }
+    });
+  });
+}
+
+function highlightLines(lines) {
+  document.querySelectorAll('.code-line').forEach(el => {
+    el.classList.toggle('active', lines && lines.includes(+el.dataset.ln));
+  });
+}
+
+// ─── Steps ───────────────────────────────────────────────────────────────────
+const STEP_DEFS = [
+  {
+    active: null, completed: [],
+    rows: null, cost: null,
+    desc: '查询优化器生成执行计划树（火山模型，自底向上执行）',
+    highlightLines: [1,2,3,4,5,6],
+    showResult: false,
+  },
+  {
+    active: 'scan_st', completed: [],
+    rows: 1000, cost: 2.10,
+    desc: '顺序扫描 students 表 (Seq Scan) — 读取全部 1000 行',
+    highlightLines: [2,3,4,5],
+    showResult: false,
+  },
+  {
+    active: 'filter', completed: ['scan_st'],
+    rows: 320, cost: 4.30,
+    desc: "Filter: 过滤条件 dept='CS'，保留 320 行（淘汰 68%）",
+    highlightLines: [3,4,5],
+    showResult: false,
+  },
+  {
+    active: 'scan_sc', completed: ['scan_st','filter'],
+    rows: 5000, cost: 5.50,
+    desc: '顺序扫描 scores 表 (Seq Scan) — 读取全部 5000 行',
+    highlightLines: [2,3,4,5],
+    showResult: false,
+  },
+  {
+    active: 'join', completed: ['scan_st','filter','scan_sc'],
+    rows: 320, cost: 16.4,
+    desc: 'Hash Join: 先 Build 哈希表（students 320行），再 Probe（scores 5000行）→ 输出 320 行匹配',
+    highlightLines: [28,29,30,31,32,33,34,35,36,37,38,39,40],
+    showResult: false,
+  },
+  {
+    active: 'agg', completed: ['scan_st','filter','scan_sc','join'],
+    rows: 45, cost: 22.1,
+    desc: 'Aggregate: GROUP BY name，计算 AVG(score) → 45 个分组',
+    highlightLines: [2,3,4,5],
+    showResult: false,
+  },
+  {
+    active: 'sort', completed: ['scan_st','filter','scan_sc','join','agg'],
+    rows: 45, cost: 28.6,
+    desc: 'Sort: ORDER BY avg_score DESC — 物化并排序全部 45 行',
+    highlightLines: [8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26],
+    showResult: false,
+  },
+  {
+    active: null, completed: ['scan_st','filter','scan_sc','join','agg','sort'],
+    rows: 45, cost: 28.6,
+    desc: '执行完成！返回结果集（45行，按 avg_score 降序）',
+    highlightLines: [22,23,24,25,26],
+    showResult: true,
+  },
+];
+
+// ─── SVG Tree ────────────────────────────────────────────────────────────────
+const NODE_W = 160, NODE_H = 62;
+
+function nodeColor(nodeId, activeId, completed) {
+  const def = NODE_DEFS.find(n => n.id === nodeId);
+  if (nodeId === activeId) return def.color;
+  if (completed.includes(nodeId)) return '#4ade80';
+  return '#1e293b';
+}
+
+function nodeBorderColor(nodeId, activeId, completed) {
+  const def = NODE_DEFS.find(n => n.id === nodeId);
+  if (nodeId === activeId) return def.color;
+  if (completed.includes(nodeId)) return '#4ade80';
+  return '#334155';
+}
+
+function buildSVG(activeId, completed, animateFlow) {
+  const SVG_W = 700, SVG_H = 510;
+
+  // Edges
+  const edgesHtml = EDGES.map(([pi, ci]) => {
+    const p = NODE_DEFS[pi], c = NODE_DEFS[ci];
+    const x1 = p.cx, y1 = p.cy + NODE_H/2;
+    const x2 = c.cx, y2 = c.cy - NODE_H/2;
+    const isActive = (c.id === activeId || p.id === activeId);
+    const isDone = completed.includes(c.id) && completed.includes(p.id);
+    let stroke = '#334155';
+    if (isDone) stroke = 'rgba(74,222,128,0.4)';
+    else if (isActive) stroke = 'rgba(255,255,255,0.3)';
+    const mid = (y1 + y2) / 2;
+    return `<path d="M${x1},${y1} C${x1},${mid} ${x2},${mid} ${x2},${y2}" fill="none" stroke="${stroke}" stroke-width="${isDone?1.5:1}" stroke-dasharray="${isActive?'none':'none'}"/>`;
+  }).join('');
+
+  // Flow particles (upward from active node)
+  let particlesHtml = '';
+  if (animateFlow && activeId) {
+    const nd = NODE_DEFS.find(n => n.id === activeId);
+    if (nd) {
+      // Find the parent edge
+      const parentEdge = EDGES.find(([pi, ci]) => NODE_DEFS[ci].id === activeId);
+      if (parentEdge) {
+        const parent = NODE_DEFS[parentEdge[0]];
+        const mx = (nd.cx + parent.cx) / 2;
+        const my = nd.cy - NODE_H/2 - 15;
+        [0, 1, 2].forEach(i => {
+          const ox = (i - 1) * 12;
+          particlesHtml += `<circle class="flow-particle" cx="${nd.cx + ox}" cy="${my}" r="3" fill="${nd.color}" opacity="0.9" style="animation-delay:${i*0.2}s"/>`;
+        });
+      }
+    }
+  }
+
+  // Nodes
+  const nodesHtml = NODE_DEFS.map(nd => {
+    const x = nd.cx - NODE_W/2, y = nd.cy - NODE_H/2;
+    const isActive = nd.id === activeId;
+    const isDone = completed.includes(nd.id);
+    const bg = isActive ? `rgba(${hexToRgb(nd.color)},0.15)` : isDone ? 'rgba(74,222,128,0.08)' : 'rgba(15,23,42,0.9)';
+    const border = isActive ? nd.color : isDone ? '#4ade80' : '#334155';
+    const borderWidth = isActive ? 2 : isDone ? 1.5 : 1;
+    const glow = isActive ? `filter:drop-shadow(0 0 6px ${nd.color})` : '';
+    const titleColor = isActive ? nd.color : isDone ? '#4ade80' : '#e2e8f0';
+    const detailColor = isActive ? 'rgba(255,255,255,0.7)' : '#64748b';
+
+    // Operator type icon
+    const icons = { sort:'⇅', agg:'∑', join:'⋈', filter:'σ', scan_st:'▤', scan_sc:'▤' };
+    const icon = icons[nd.id] || '●';
+
+    return `<g class="plan-node ${isActive?'active':''}" style="${glow}">
+      <rect x="${x}" y="${y}" width="${NODE_W}" height="${NODE_H}" rx="8" ry="8" fill="${bg}" stroke="${border}" stroke-width="${borderWidth}"/>
+      <text x="${nd.cx - NODE_W/2 + 12}" y="${nd.cy - 14}" class="node-title" fill="${titleColor}" font-family="'JetBrains Mono',monospace" font-size="13" font-weight="700">${icon} ${nd.label}</text>
+      <text x="${nd.cx - NODE_W/2 + 12}" y="${nd.cy + 4}" class="node-detail" fill="${detailColor}" font-family="'JetBrains Mono',monospace" font-size="10">${nd.detail}</text>
+      <text x="${nd.cx - NODE_W/2 + 12}" y="${nd.cy + 20}" class="node-cost" fill="#475569" font-family="'JetBrains Mono',monospace" font-size="9">${nd.cost}</text>
+    </g>`;
+  }).join('');
+
+  return `<svg class="plan-tree" width="${SVG_W}" height="${SVG_H}" viewBox="0 0 ${SVG_W} ${SVG_H}" style="max-width:100%">
+    ${edgesHtml}
+    ${nodesHtml}
+    ${particlesHtml}
+  </svg>`;
+}
+
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `${r},${g},${b}`;
+}
+
+// ─── Render ──────────────────────────────────────────────────────────────────
+const RESULT_DATA = [
+  {name:'Alice', avg_score:'94.2'},
+  {name:'Bob',   avg_score:'91.0'},
+  {name:'Carol', avg_score:'88.5'},
+  {name:'Dave',  avg_score:'85.1'},
+  {name:'Eve',   avg_score:'82.3'},
+  {name:'Frank', avg_score:'79.8'},
+];
+
+function render() {
+  const st = steps[cur];
+  document.getElementById('desc').textContent = st.desc;
+  document.getElementById('stepCounter').textContent = `${cur + 1} / ${steps.length}`;
+  highlightLines(st.highlightLines || []);
+
+  const viz = document.getElementById('vizArea');
+  const svgHtml = buildSVG(st.active, st.completed, playing || cur > 0);
+
+  let statsHtml = '';
+  if (st.rows !== null) {
+    const nd = st.active ? NODE_DEFS.find(n => n.id === st.active) : null;
+    const color = nd ? nd.color : 'var(--green)';
+    statsHtml = `<div class="stats-row">
+      <div class="stat-box">
+        <div class="stat-label">输出行数</div>
+        <div class="stat-value" style="color:${color}">${st.rows.toLocaleString()}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">累计代价</div>
+        <div class="stat-value" style="color:${color}">${st.cost}</div>
+      </div>
+      <div class="stat-box" style="flex:1">
+        <div class="stat-label">当前算子</div>
+        <div class="stat-value" style="font-size:0.9rem;color:${color}">${st.active ? NODE_DEFS.find(n=>n.id===st.active)?.label : '—'}</div>
+      </div>
+    </div>`;
+  }
+
+  let resultHtml = '';
+  if (st.showResult) {
+    const rows = RESULT_DATA.map(r => `<tr><td>${r.name}</td><td>${r.avg_score}</td></tr>`).join('');
+    resultHtml = `<div class="result-wrap">
+      <div class="result-label">查询结果 <span class="result-count">45 行（示例前6行）</span></div>
+      <table class="tbl">
+        <thead><tr><th>name</th><th>avg_score</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  }
+
+  viz.innerHTML = `<div class="tree-container">${svgHtml}</div>${statsHtml}${resultHtml}`;
+}
+
+// ─── Animation ───────────────────────────────────────────────────────────────
+const steps = STEP_DEFS;
+let cur = 0, playing = false, timer = null;
+const SPEED = [1200, 800, 500, 300, 150];
+const descEl = document.getElementById('desc');
+const stepEl = document.getElementById('stepCounter');
+const btnPlay = document.getElementById('btnPlay');
+const speedRange = document.getElementById('speedRange');
+
+function play() { playing = true; btnPlay.innerHTML = '⏸ 暂停'; tick(); }
+function pause() { playing = false; clearTimeout(timer); btnPlay.innerHTML = '▶ 播放'; }
+function tick() {
+  if (!playing) return;
+  if (cur < steps.length - 1) {
+    cur++;
+    render();
+    timer = setTimeout(tick, SPEED[+speedRange.value - 1]);
+  } else pause();
+}
+
+document.getElementById('btnReset').onclick = () => { pause(); cur = 0; render(); };
+document.getElementById('btnPrev').onclick = () => { pause(); if (cur > 0) { cur--; render(); } };
+document.getElementById('btnPlay').onclick = () => { playing ? pause() : play(); };
+document.getElementById('btnNext').onclick = () => { pause(); if (cur < steps.length - 1) { cur++; render(); } };
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+buildCodePanel();
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>哈希索引可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.1rem;font-weight:600;}
+.ds-tags{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;}
+.ds-tag{font-size:0.72rem;padding:2px 8px;border-radius:4px;font-family:monospace;font-weight:500;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;overflow:auto;padding:20px;position:relative;}
+.desc-box{padding:12px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:44px;display:flex;align-items:center;}
+.step-counter{margin-left:auto;font-family:monospace;font-size:0.8rem;color:var(--dim);}
+.code-panel{width:44%;min-width:360px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background .15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.7;}
+.code-line:hover{background:rgba(255,255,255,.04);}.code-line.active{background:rgba(251,191,36,.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:44px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;}.id{color:#e6edf3;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:.85rem;transition:all .15s;font-family:inherit;}
+.btn:hover{background:rgba(255,255,255,.12);}.btn.primary{background:rgba(56,189,248,.15);border-color:rgba(56,189,248,.3);color:var(--blue);}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:80px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
+@media(max-width:768px){body{height:auto!important;min-height:100vh;overflow-y:auto!important;}.main{flex-direction:column!important;height:auto!important;flex:none!important;}.viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:300px!important;flex:none!important;}.code-panel{width:100%!important;min-width:unset!important;height:320px!important;flex:none!important;}.controls{flex-wrap:wrap!important;height:auto!important;}.speed-wrap{margin-left:0!important;}}
+/* Tabs */
+.tabs{display:flex;gap:8px;padding:12px 20px 0;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.tab-btn{background:transparent;border:1px solid transparent;border-bottom:none;color:var(--dim);padding:6px 14px;border-radius:6px 6px 0 0;cursor:pointer;font-size:0.83rem;font-family:inherit;transition:all .15s;position:relative;bottom:-1px;}
+.tab-btn:hover{color:var(--text);background:rgba(255,255,255,.04);}
+.tab-btn.active{background:var(--bg);border-color:var(--border);color:var(--text);}
+/* Hash viz */
+.hash-viz{display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap;}
+.bucket-column{display:flex;flex-direction:column;gap:6px;flex-shrink:0;}
+.bucket-row{display:flex;align-items:center;gap:0;height:38px;}
+.slot-label{width:28px;text-align:right;font-family:monospace;font-size:0.8rem;color:var(--dim);margin-right:8px;flex-shrink:0;}
+.slot-box{width:54px;height:36px;border:1.5px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:0.82rem;color:var(--dim);background:rgba(30,41,59,.8);transition:all .25s;position:relative;flex-shrink:0;}
+.slot-box.active{border-color:var(--yellow);background:rgba(251,191,36,.15);color:var(--yellow);}
+.slot-box.found{border-color:var(--green);background:rgba(74,222,128,.15);color:var(--green);}
+.slot-box.scanning{border-color:var(--blue);background:rgba(56,189,248,.1);color:var(--blue);}
+.slot-box.range-scan{border-color:var(--orange);background:rgba(251,146,60,.1);color:var(--orange);}
+.chain-arrow{width:20px;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:0.8rem;flex-shrink:0;}
+.chain-box{height:36px;min-width:48px;padding:0 10px;border:1.5px solid var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:0.82rem;background:rgba(30,41,59,.8);transition:all .25s;flex-shrink:0;}
+.chain-box.collision{border-color:var(--orange);color:var(--orange);background:rgba(251,146,60,.1);}
+.chain-box.found{border-color:var(--green);color:var(--green);background:rgba(74,222,128,.15);}
+.chain-box.scanning{border-color:var(--blue);color:var(--blue);background:rgba(56,189,248,.1);}
+.chain-box.range-scan{border-color:var(--orange);color:var(--orange);background:rgba(251,146,60,.1);opacity:0.6;}
+.hash-calc{background:rgba(30,41,59,.9);border:1.5px solid var(--border);border-radius:8px;padding:12px 16px;font-family:monospace;font-size:0.85rem;min-width:200px;transition:all .25s;}
+.hash-calc.active{border-color:var(--yellow);}
+.hash-calc-title{color:var(--dim);font-size:0.78rem;margin-bottom:6px;}
+.hash-calc-expr{color:var(--text);font-size:0.9rem;}
+.hash-calc-result{color:var(--yellow);font-size:1rem;font-weight:600;margin-top:4px;}
+.hash-arrow-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0;margin-top:4px;}
+.hash-arrow-svg{transition:all .3s;}
+.compare-panel{margin-top:16px;background:rgba(30,41,59,.6);border:1px solid var(--border);border-radius:8px;padding:14px 18px;font-size:0.83rem;}
+.compare-panel h3{font-size:0.85rem;color:var(--dim);margin-bottom:10px;}
+.compare-row{display:flex;gap:16px;align-items:flex-start;}
+.compare-col{flex:1;padding:10px 14px;border-radius:6px;border:1px solid var(--border);}
+.compare-col.btree{border-color:rgba(74,222,128,.3);background:rgba(74,222,128,.06);}
+.compare-col.hash{border-color:rgba(251,146,60,.3);background:rgba(251,146,60,.06);}
+.compare-col h4{font-size:0.8rem;margin-bottom:6px;}
+.compare-col ul{padding-left:14px;color:var(--dim);font-size:0.8rem;line-height:1.7;}
+.compare-col li.good{color:var(--green);}
+.compare-col li.bad{color:var(--red);}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>哈希索引</h1>
+  <div class="ds-tags">
+    <span class="ds-tag" style="background:rgba(56,189,248,.15);color:var(--blue)">Hash Table</span>
+    <span class="ds-tag" style="background:rgba(74,222,128,.15);color:var(--green)">O(1) 等值查询</span>
+    <span class="ds-tag" style="background:rgba(251,146,60,.15);color:var(--orange)">链式冲突处理</span>
+  </div>
+</nav>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="0" onclick="switchTab(0)">插入</button>
+  <button class="tab-btn" data-tab="1" onclick="switchTab(1)">查询</button>
+  <button class="tab-btn" data-tab="2" onclick="switchTab(2)">范围查询局限</button>
+</div>
+
+<div class="main">
+  <div class="viz-panel">
+    <div class="viz-area" id="vizArea">
+      <div class="hash-viz" id="hashViz">
+        <div class="bucket-column" id="bucketCol"></div>
+        <div class="hash-arrow-wrap" id="hashArrowWrap" style="display:none">
+          <div class="hash-calc" id="hashCalc">
+            <div class="hash-calc-title">哈希计算</div>
+            <div class="hash-calc-expr" id="hashCalcExpr">-</div>
+            <div class="hash-calc-result" id="hashCalcResult"></div>
+          </div>
+          <svg id="hashArrowSvg" class="hash-arrow-svg" width="40" height="60" style="overflow:visible">
+            <defs><marker id="ah-yellow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#fbbf24"/></marker></defs>
+            <line id="hashArrowLine" x1="20" y1="0" x2="20" y2="50" stroke="#fbbf24" stroke-width="2" marker-end="url(#ah-yellow)" opacity="0"/>
+          </svg>
+        </div>
+      </div>
+      <div id="compareArea"></div>
+    </div>
+    <div class="desc-box">
+      <span id="desc">选择操作场景开始演示</span>
+      <span class="step-counter" id="stepCounter"></span>
+    </div>
+  </div>
+
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <span class="code-dot" style="background:#ef4444"></span>
+      <span class="code-dot" style="background:#f59e0b"></span>
+      <span class="code-dot" style="background:#22c55e"></span>
+      <span style="margin-left:4px">hash_index.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">← 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 →</button>
+  <div class="speed-wrap">
+    <span>速度</span>
+    <input type="range" id="speedRange" min="1" max="5" value="3">
+    <span>快</span>
+  </div>
+</div>
+
+<script>
+// ─── Code lines ──────────────────────────────────────────────────────
+const CODE_LINES=[
+  {ln:1, html:'<span class="cm">// 哈希索引：O(1) 等值查询，不支持范围查询</span>'},
+  {ln:2, html:'<span class="kw">type</span> <span class="id">HashIndex</span> <span class="kw">struct</span> {'},
+  {ln:3, html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">buckets</span> []*<span class="id">Entry</span>  <span class="cm">// 数组 + 链表（拉链法）</span>'},
+  {ln:4, html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">size</span>    <span class="kw">int</span>'},
+  {ln:5, html:'}'},
+  {ln:6, html:'<span class="kw">type</span> <span class="id">Entry</span> <span class="kw">struct</span> {'},
+  {ln:7, html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">key</span>, <span class="id">rowID</span> <span class="kw">int</span>'},
+  {ln:8, html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">next</span>       *<span class="id">Entry</span> <span class="cm">// 冲突链</span>'},
+  {ln:9, html:'}'},
+  {ln:10,html:''},
+  {ln:11,html:'<span class="kw">func</span> <span class="fn">hash</span>(<span class="id">key</span>, <span class="id">size</span> <span class="kw">int</span>) <span class="kw">int</span> {'},
+  {ln:12,html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="id">key</span> % <span class="id">size</span>  <span class="cm">// 哈希函数（取模）</span>'},
+  {ln:13,html:'}'},
+  {ln:14,html:''},
+  {ln:15,html:'<span class="cm">// Insert: O(1) 平均，O(n) 最坏（全冲突）</span>'},
+  {ln:16,html:'<span class="kw">func</span> (<span class="id">h</span> *<span class="id">HashIndex</span>) <span class="fn">Insert</span>(<span class="id">key</span>, <span class="id">rowID</span> <span class="kw">int</span>) {'},
+  {ln:17,html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">slot</span> := <span class="fn">hash</span>(<span class="id">key</span>, <span class="id">h</span>.<span class="id">size</span>)     <span class="cm">// 计算桶位置</span>'},
+  {ln:18,html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">entry</span> := &<span class="id">Entry</span>{<span class="id">key</span>: <span class="id">key</span>, <span class="id">rowID</span>: <span class="id">rowID</span>}'},
+  {ln:19,html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">entry</span>.<span class="id">next</span> = <span class="id">h</span>.<span class="id">buckets</span>[<span class="id">slot</span>]  <span class="cm">// 头插法</span>'},
+  {ln:20,html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">h</span>.<span class="id">buckets</span>[<span class="id">slot</span>] = <span class="id">entry</span>'},
+  {ln:21,html:'}'},
+  {ln:22,html:''},
+  {ln:23,html:'<span class="cm">// Search: O(1) 平均</span>'},
+  {ln:24,html:'<span class="kw">func</span> (<span class="id">h</span> *<span class="id">HashIndex</span>) <span class="fn">Search</span>(<span class="id">key</span> <span class="kw">int</span>) <span class="kw">int</span> {'},
+  {ln:25,html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">slot</span> := <span class="fn">hash</span>(<span class="id">key</span>, <span class="id">h</span>.<span class="id">size</span>)     <span class="cm">// O(1) 定位桶</span>'},
+  {ln:26,html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> <span class="id">e</span> := <span class="id">h</span>.<span class="id">buckets</span>[<span class="id">slot</span>]; <span class="id">e</span> != <span class="num">nil</span>; <span class="id">e</span> = <span class="id">e</span>.<span class="id">next</span> {'},
+  {ln:27,html:'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> <span class="id">e</span>.<span class="id">key</span> == <span class="id">key</span> { <span class="kw">return</span> <span class="id">e</span>.<span class="id">rowID</span> } <span class="cm">// 找到</span>'},
+  {ln:28,html:'&nbsp;&nbsp;&nbsp;&nbsp;}'},
+  {ln:29,html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> -<span class="num">1</span> <span class="cm">// 未找到</span>'},
+  {ln:30,html:'}'},
+  {ln:31,html:'<span class="cm">// ⚠️ 范围查询需要扫描所有桶！O(n)</span>'},
+];
+
+// ─── Bucket state helpers ─────────────────────────────────────────────
+// Each bucket: { slot, chain: [{key, state}] }
+// state: '' | 'collision' | 'found' | 'scanning' | 'range-scan'
+
+function emptyBuckets(){
+  return Array.from({length:8},(_,i)=>({slot:i,chain:[]}));
+}
+
+// ─── Insert steps ─────────────────────────────────────────────────────
+const INSERT_KEYS=[3,7,11,15,3,19,23,5];
+
+function makeInsertSteps(){
+  const steps=[];
+  const buckets=emptyBuckets();
+  // Initial state
+  steps.push({
+    buckets:deepClone(buckets),
+    hashInput:null,hashResult:null,activeSlot:null,
+    highlightLines:[15,16],
+    description:'准备插入 8 个键：[3, 7, 11, 15, 3, 19, 23, 5]（注意：3 出现两次，且 11%8=3 冲突）'
+  });
+  INSERT_KEYS.forEach((key,idx)=>{
+    const slot=key%8;
+    const isCollision=buckets[slot].chain.length>0;
+    // Step: show hash calc
+    steps.push({
+      buckets:deepClone(buckets),
+      hashInput:key,hashResult:null,activeSlot:null,
+      highlightLines:[11,12,17],
+      description:`插入 key=${key}：计算 hash(${key}) = ${key} % 8 = ${slot}`
+    });
+    // Step: flash bucket
+    steps.push({
+      buckets:deepClone(buckets),
+      hashInput:key,hashResult:slot,activeSlot:slot,
+      highlightLines:[17,18],
+      description:isCollision
+        ? `hash(${key})=${slot}，但 slot ${slot} 已有元素！发生哈希冲突 → 头插法追加到链表`
+        : `hash(${key})=${slot}，slot ${slot} 为空 → 直接插入`
+    });
+    // Actually insert (head insert)
+    const newEntry={key,state:isCollision?'collision':''};
+    buckets[slot].chain.unshift(newEntry);
+    steps.push({
+      buckets:deepClone(buckets),
+      hashInput:key,hashResult:slot,activeSlot:slot,
+      highlightLines:[19,20],
+      description:isCollision
+        ? `头插法：新节点 {key:${key}} 插入链表头部，原链表跟在后面`
+        : `key=${key} 插入到 slot ${slot} 完成`
+    });
+  });
+  // Final
+  steps.push({
+    buckets:deepClone(buckets),
+    hashInput:null,hashResult:null,activeSlot:null,
+    highlightLines:[],
+    description:'所有 8 个键插入完成。slot 3 有链：{23→11→3→3}，体现哈希冲突处理'
+  });
+  return steps;
+}
+
+// ─── Search steps ─────────────────────────────────────────────────────
+function makeSearchSteps(){
+  // Build final state (same order as insert)
+  const buckets=emptyBuckets();
+  INSERT_KEYS.forEach(key=>{
+    const slot=key%8;
+    buckets[slot].chain.unshift({key,state:''});
+  });
+  const searchKey=11;
+  const slot=searchKey%8; // 3
+  const steps=[];
+  steps.push({
+    buckets:deepClone(buckets),
+    hashInput:null,hashResult:null,activeSlot:null,
+    highlightLines:[23,24],
+    description:`开始查询：SELECT * FROM employees WHERE id = ${searchKey}`
+  });
+  steps.push({
+    buckets:deepClone(buckets),
+    hashInput:searchKey,hashResult:null,activeSlot:null,
+    highlightLines:[11,12,25],
+    description:`计算 hash(${searchKey}) = ${searchKey} % 8 = ${slot}，O(1) 直接定位到 slot ${slot}`
+  });
+  steps.push({
+    buckets:deepClone(buckets),
+    hashInput:searchKey,hashResult:slot,activeSlot:slot,
+    highlightLines:[25,26],
+    description:`跳到 slot ${slot}，开始遍历冲突链，比较每个 key`
+  });
+  // Traverse chain - mark each as scanning
+  const chain=[...buckets[slot].chain];
+  let found=false;
+  chain.forEach((entry,i)=>{
+    const b2=deepClone(buckets);
+    b2[slot].chain=b2[slot].chain.map((e,j)=>{
+      if(j<i) return {...e,state:'scanning'};
+      if(j===i) return {...e,state:e.key===searchKey?'found':'scanning'};
+      return e;
+    });
+    if(entry.key===searchKey){
+      steps.push({
+        buckets:b2,
+        hashInput:searchKey,hashResult:slot,activeSlot:slot,
+        highlightLines:[26,27],
+        description:`比较：${entry.key} == ${searchKey} ✓ 找到！返回 rowID。总共遍历 ${i+1} 个节点`
+      });
+      found=true;
+    } else {
+      steps.push({
+        buckets:b2,
+        hashInput:searchKey,hashResult:slot,activeSlot:slot,
+        highlightLines:[26,27],
+        description:`比较：${entry.key} ≠ ${searchKey}，继续链表`
+      });
+    }
+  });
+  return steps;
+}
+
+// ─── Range steps ──────────────────────────────────────────────────────
+function makeRangeSteps(){
+  // Build final state
+  const buckets=emptyBuckets();
+  INSERT_KEYS.forEach(key=>{
+    const slot=key%8;
+    buckets[slot].chain.unshift({key,state:''});
+  });
+  const steps=[];
+  steps.push({
+    buckets:deepClone(buckets),
+    hashInput:null,hashResult:null,activeSlot:null,
+    highlightLines:[31],
+    description:'范围查询：SELECT * FROM employees WHERE id BETWEEN 5 AND 15',
+    showCompare:false
+  });
+  steps.push({
+    buckets:deepClone(buckets),
+    hashInput:null,hashResult:null,activeSlot:null,
+    highlightLines:[31],
+    description:'哈希函数打乱了数据顺序！id=5 在 slot 5，id=7 在 slot 7，id=11 在 slot 3，id=15 在 slot 7 → 根本不知道从哪里开始！',
+    showCompare:false
+  });
+  // Scan all slots one by one
+  for(let s=0;s<8;s++){
+    const b2=deepClone(buckets);
+    for(let ss=0;ss<s;ss++) b2[ss].chain=b2[ss].chain.map(e=>({...e,state:'range-scan'}));
+    b2[s].chain=b2[s].chain.map(e=>({...e,state:'range-scan'}));
+    const found=buckets[s].chain.filter(e=>e.key>=5&&e.key<=15).map(e=>e.key);
+    steps.push({
+      buckets:b2,
+      hashInput:null,hashResult:null,activeSlot:s,
+      highlightLines:[31],
+      description:`扫描 slot ${s}：${buckets[s].chain.length===0?'空桶，跳过':found.length>0?`找到 [${found.join(',')}] ∈ [5,15]，但仍需继续扫描其他桶`:'本桶无符合条件的键'}`,
+      showCompare:false
+    });
+  }
+  steps.push({
+    buckets:deepClone(buckets),
+    hashInput:null,hashResult:null,activeSlot:null,
+    highlightLines:[31],
+    description:'必须扫描全部 8 个桶，时间复杂度 O(n)！这就是哈希索引不支持范围查询的原因',
+    showCompare:true
+  });
+  return steps;
+}
+
+// ─── Deep clone ──────────────────────────────────────────────────────
+function deepClone(obj){return JSON.parse(JSON.stringify(obj));}
+
+// ─── State ────────────────────────────────────────────────────────────
+let activeTab=0;
+let steps=[], cur=0, playing=false, timer=null;
+const SPEED=[1200,800,500,300,150];
+let allSteps=[];
+
+// ─── Build code panel ────────────────────────────────────────────────
+function buildCodePanel(){
+  const cb=document.getElementById('codeBody');
+  cb.innerHTML=CODE_LINES.map(l=>`<div class="code-line" data-ln="${l.ln}"><span class="ln">${l.ln}</span><span class="lc">${l.html}</span></div>`).join('');
+}
+
+function highlightLines(lines){
+  document.querySelectorAll('.code-line').forEach(el=>{
+    el.classList.toggle('active',(lines||[]).includes(+el.dataset.ln));
+  });
+  if(lines&&lines.length){
+    const first=document.querySelector(`.code-line[data-ln="${lines[0]}"]`);
+    if(first) first.scrollIntoView({block:'nearest',behavior:'smooth'});
+  }
+}
+
+// ─── Render bucket column ────────────────────────────────────────────
+function renderBuckets(step){
+  const col=document.getElementById('bucketCol');
+  const {buckets,activeSlot}=step;
+  let html='';
+  buckets.forEach(bucket=>{
+    const isActive=activeSlot===bucket.slot;
+    let rowHtml=`<div class="slot-label">${bucket.slot}</div>`;
+    // Empty slot label placeholder
+    let slotState='';
+    if(isActive&&step.hashResult===bucket.slot) slotState='active';
+    else if(isActive&&(step.description||'').includes('扫描')) slotState='range-scan';
+    rowHtml+=`<div class="slot-box${slotState?' '+slotState:''}">${bucket.chain.length===0?'∅':''}</div>`;
+    // Chain
+    bucket.chain.forEach((entry,i)=>{
+      const cls=entry.state?` ${entry.state}`:'';
+      rowHtml+=`<span class="chain-arrow">→</span><div class="chain-box${cls}">${entry.key}</div>`;
+    });
+    html+=`<div class="bucket-row">${rowHtml}</div>`;
+  });
+  col.innerHTML=html;
+}
+
+// ─── Render hash calc panel ──────────────────────────────────────────
+function renderHashCalc(step){
+  const wrap=document.getElementById('hashArrowWrap');
+  const calcEl=document.getElementById('hashCalc');
+  const exprEl=document.getElementById('hashCalcExpr');
+  const resultEl=document.getElementById('hashCalcResult');
+  const arrowLine=document.getElementById('hashArrowLine');
+  if(step.hashInput===null&&step.hashResult===null){
+    wrap.style.display='none';
+    return;
+  }
+  wrap.style.display='flex';
+  if(step.hashInput!==null){
+    exprEl.textContent=`hash(${step.hashInput}) = ${step.hashInput} % 8`;
+    calcEl.className='hash-calc'+(step.hashResult!==null?' active':'');
+  }
+  if(step.hashResult!==null){
+    resultEl.textContent=`= slot ${step.hashResult}`;
+    arrowLine.setAttribute('opacity','1');
+  } else {
+    resultEl.textContent='';
+    arrowLine.setAttribute('opacity','0.3');
+  }
+}
+
+// ─── Render compare panel ────────────────────────────────────────────
+function renderCompare(step){
+  const el=document.getElementById('compareArea');
+  if(!step.showCompare){
+    el.innerHTML='<div style="margin-top:12px;padding:8px 12px;background:rgba(30,41,59,.5);border-radius:6px;font-size:0.78rem;color:var(--dim);border:1px solid var(--border)">B+ 树索引 支持范围查询 &nbsp;|&nbsp; 哈希索引 不支持范围查询（数据无序存储）</div>';
+    return;
+  }
+  el.innerHTML=`<div class="compare-panel">
+    <h3>对比：B+ 树 vs 哈希索引</h3>
+    <div class="compare-row">
+      <div class="compare-col btree">
+        <h4 style="color:var(--green)">B+ 树索引</h4>
+        <ul>
+          <li class="good">范围查询：O(log n) 定位后沿链表扫描</li>
+          <li class="good">数据有序存储，天然支持排序</li>
+          <li>等值查询：O(log n)</li>
+        </ul>
+      </div>
+      <div class="compare-col hash">
+        <h4 style="color:var(--orange)">哈希索引</h4>
+        <ul>
+          <li class="good">等值查询：O(1) 超快</li>
+          <li class="bad">范围查询：O(n) 必须全表扫描</li>
+          <li class="bad">数据无序，不支持排序/ORDER BY</li>
+        </ul>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ─── Main render ─────────────────────────────────────────────────────
+function render(){
+  if(!steps.length) return;
+  const step=steps[cur];
+  renderBuckets(step);
+  renderHashCalc(step);
+  renderCompare(step);
+  highlightLines(step.highlightLines||[]);
+  document.getElementById('desc').textContent=step.description||'';
+  document.getElementById('stepCounter').textContent=`${cur+1} / ${steps.length}`;
+}
+
+// ─── Tab switching ────────────────────────────────────────────────────
+function switchTab(t){
+  activeTab=t;
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',i===t));
+  pause();
+  steps=allSteps[t];
+  cur=0;
+  render();
+}
+
+// ─── Controls ─────────────────────────────────────────────────────────
+const btnPlay=document.getElementById('btnPlay');
+const speedRange=document.getElementById('speedRange');
+
+function play(){playing=true;btnPlay.innerHTML='⏸ 暂停';tick();}
+function pause(){playing=false;clearTimeout(timer);btnPlay.innerHTML='▶ 播放';}
+function tick(){if(!playing)return;if(cur<steps.length-1){cur++;render();timer=setTimeout(tick,SPEED[+speedRange.value-1]);}else pause();}
+
+document.getElementById('btnReset').onclick=()=>{pause();cur=0;render();};
+document.getElementById('btnPrev').onclick=()=>{pause();if(cur>0){cur--;render();}};
+document.getElementById('btnPlay').onclick=()=>{playing?pause():play();};
+document.getElementById('btnNext').onclick=()=>{pause();if(cur<steps.length-1){cur++;render();}};
+
+document.querySelectorAll('.code-line').forEach(el=>{
+  el.addEventListener('click',()=>{
+    const ln=+el.dataset.ln;
+    let best=-1,bd=Infinity;
+    steps.forEach((s,i)=>{if((s.highlightLines||[]).includes(ln)){const d=Math.abs(i-cur);if(d<bd){bd=d;best=i;}}});
+    if(best>=0){cur=best;render();}
+  });
+});
+
+// ─── Init ─────────────────────────────────────────────────────────────
+buildCodePanel();
+allSteps=[makeInsertSteps(),makeSearchSteps(),makeRangeSteps()];
+switchTab(0);
+</script>
+</body>
+</html>

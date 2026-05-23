@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MVCC 多版本并发控制</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.1rem;font-weight:600;}
+.ds-tags{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;}
+.ds-tag{font-size:0.72rem;padding:2px 8px;border-radius:4px;font-family:monospace;font-weight:500;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;overflow:auto;padding:20px;position:relative;}
+.desc-box{padding:12px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:44px;display:flex;align-items:center;}
+.step-counter{margin-left:auto;font-family:monospace;font-size:0.8rem;color:var(--dim);}
+.code-panel{width:44%;min-width:360px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background .15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.7;}
+.code-line:hover{background:rgba(255,255,255,.04);}.code-line.active{background:rgba(251,191,36,.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:44px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;}.id{color:#e6edf3;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:.85rem;transition:all .15s;font-family:inherit;}
+.btn:hover{background:rgba(255,255,255,.12);}.btn.primary{background:rgba(56,189,248,.15);border-color:rgba(56,189,248,.3);color:var(--blue);}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:80px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
+@media(max-width:768px){body{height:auto!important;min-height:100vh;overflow-y:auto!important;}.main{flex-direction:column!important;height:auto!important;flex:none!important;}.viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:300px!important;flex:none!important;}.code-panel{width:100%!important;min-width:unset!important;height:320px!important;flex:none!important;}.controls{flex-wrap:wrap!important;height:auto!important;}.speed-wrap{margin-left:0!important;}}
+
+/* MVCC-specific */
+.mvcc-container{display:flex;gap:20px;height:100%;min-height:360px;}
+.timeline-col{width:200px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;}
+.timeline-label{font-size:0.75rem;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;font-weight:600;}
+.txn-box{border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:0.8rem;transition:all .3s;opacity:0;transform:translateX(-10px);}
+.txn-box.visible{opacity:1;transform:translateX(0);}
+.txn-box.active{border-color:var(--blue);}
+.txn-box.committed{border-color:var(--green);background:rgba(74,222,128,.08);}
+.txn-box.reading{border-color:var(--yellow);background:rgba(251,191,36,.08);}
+.txn-id{font-weight:700;font-size:0.85rem;margin-bottom:3px;}
+.txn-ts{font-family:monospace;font-size:0.75rem;color:var(--dim);}
+.txn-status{font-size:0.72rem;margin-top:4px;font-weight:500;}
+
+.chain-col{flex:1;display:flex;flex-direction:column;gap:16px;}
+.chain-label{font-size:0.75rem;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;font-weight:600;}
+.version-chain{display:flex;align-items:center;gap:0;flex-wrap:wrap;gap:4px 0;}
+.version-node{border:2px solid var(--border);border-radius:8px;padding:10px 14px;font-size:0.78rem;font-family:monospace;min-width:160px;transition:all .3s;background:var(--panel);position:relative;}
+.version-node.highlight-check{border-color:var(--yellow);background:rgba(251,191,36,.1);}
+.version-node.visible-ver{border-color:var(--green);background:rgba(74,222,128,.1);}
+.version-node.invisible-ver{border-color:var(--red);background:rgba(248,113,113,.08);opacity:.7;}
+.version-node.new-ver{border-color:var(--purple);background:rgba(192,132,252,.1);}
+.ver-field{margin:1px 0;color:var(--dim);}
+.ver-field span{color:var(--text);}
+.ver-field .val{color:var(--green);font-weight:700;}
+.ver-field .ts{color:var(--blue);}
+.ver-field .txnid{color:var(--purple);}
+.chain-arrow{display:flex;align-items:center;padding:0 6px;color:var(--dim);font-size:1rem;flex-shrink:0;}
+.chain-null{display:flex;align-items:center;padding:0 8px;color:var(--dim);font-size:0.8rem;font-family:monospace;}
+.check-badge{position:absolute;top:-10px;right:-10px;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;}
+.check-badge.ok{background:var(--green);color:#000;}
+.check-badge.no{background:var(--red);color:#fff;}
+
+.read-result{padding:10px 14px;border-radius:8px;font-size:0.85rem;font-weight:600;margin-top:8px;transition:all .3s;opacity:0;}
+.read-result.show{opacity:1;}
+.read-result.ok{background:rgba(74,222,128,.15);border:1px solid var(--green);color:var(--green);}
+.read-result.info{background:rgba(56,189,248,.1);border:1px solid var(--blue);color:var(--blue);}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>MVCC 多版本并发控制</h1>
+  <div class="ds-tags">
+    <span class="ds-tag" style="background:rgba(192,132,252,.15);color:var(--purple)">版本链 Version Chain</span>
+    <span class="ds-tag" style="background:rgba(56,189,248,.15);color:var(--blue)">链表 Linked List</span>
+    <span class="ds-tag" style="background:rgba(74,222,128,.15);color:var(--green)">快照读 Snapshot</span>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="viz-panel">
+    <div class="viz-area" id="vizArea">
+      <div class="mvcc-container">
+        <!-- Left: transaction timeline -->
+        <div class="timeline-col">
+          <div class="timeline-label">事务状态</div>
+          <div id="t1Box" class="txn-box" style="border-left:3px solid var(--blue)">
+            <div class="txn-id" style="color:var(--blue)">T1 (txnID=100)</div>
+            <div class="txn-ts">snapshot_ts = <span id="t1Ts">1</span></div>
+            <div class="txn-status" id="t1Status"></div>
+          </div>
+          <div id="t2Box" class="txn-box" style="border-left:3px solid var(--orange)">
+            <div class="txn-id" style="color:var(--orange)">T2 (txnID=101)</div>
+            <div class="txn-ts">snapshot_ts = <span id="t2Ts">2</span></div>
+            <div class="txn-status" id="t2Status"></div>
+          </div>
+          <div id="t3Box" class="txn-box" style="border-left:3px solid var(--teal)">
+            <div class="txn-id" style="color:var(--teal)">T3 (txnID=102)</div>
+            <div class="txn-ts">snapshot_ts = <span id="t3Ts">5</span></div>
+            <div class="txn-status" id="t3Status"></div>
+          </div>
+        </div>
+
+        <!-- Right: version chain + results -->
+        <div class="chain-col">
+          <div class="chain-label">版本链 (row: balance)</div>
+          <div id="versionChain" class="version-chain"></div>
+          <div id="readResult" class="read-result"></div>
+        </div>
+      </div>
+    </div>
+    <div class="desc-box">
+      <span id="desc">初始化：balance 行的版本链，v1 是初始版本。</span>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+  </div>
+
+  <!-- Code panel -->
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:var(--purple)"></div>
+      <span>mvcc.go</span>
+    </div>
+    <div class="code-body" id="codeBody">
+    </div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="btn" id="btnReset">⟳ 重置</button>
+  <button class="btn" id="btnPrev">← 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 →</button>
+  <div class="speed-wrap">
+    速度 <input type="range" id="speedRange" min="1" max="5" value="3">
+  </div>
+</div>
+
+<script>
+// --- Code lines ---
+const CODE_LINES = [
+  { ln:1,  html: '<span class="cm">// MVCC: 每行维护版本链，读取时按时间戳过滤</span>' },
+  { ln:2,  html: '<span class="kw">type</span> <span class="id">Version</span> <span class="kw">struct</span> {' },
+  { ln:3,  html: '&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">Value</span>   <span class="kw">int</span>       <span class="cm">// 实际数据</span>' },
+  { ln:4,  html: '&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">TxnID</span>   <span class="pkg">uint64</span>    <span class="cm">// 创建此版本的事务</span>' },
+  { ln:5,  html: '&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">BeginTS</span> <span class="pkg">uint64</span>    <span class="cm">// 版本生效时间戳</span>' },
+  { ln:6,  html: '&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">Undo</span>    <span class="kw">*Version</span>  <span class="cm">// 指向旧版本（版本链）</span>' },
+  { ln:7,  html: '}' },
+  { ln:8,  html: '' },
+  { ln:9,  html: '<span class="cm">// 判断版本对当前事务是否可见</span>' },
+  { ln:10, html: '<span class="kw">func</span> <span class="fn">isVisible</span>(v <span class="kw">*Version</span>, txn <span class="kw">*Transaction</span>) <span class="kw">bool</span> {' },
+  { ln:11, html: '&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 版本的生效时间 &lt;= 事务开始时间 → 可见</span>' },
+  { ln:12, html: '&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> v.<span class="id">BeginTS</span> &lt;= txn.<span class="id">SnapshotTS</span>' },
+  { ln:13, html: '}' },
+  { ln:14, html: '' },
+  { ln:15, html: '<span class="cm">// 读取：沿版本链找第一个可见版本</span>' },
+  { ln:16, html: '<span class="kw">func</span> (row <span class="kw">*Row</span>) <span class="fn">Read</span>(txn <span class="kw">*Transaction</span>) <span class="kw">int</span> {' },
+  { ln:17, html: '&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> v := row.<span class="id">head</span>; v != <span class="kw">nil</span>; v = v.<span class="id">Undo</span> {' },
+  { ln:18, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> <span class="fn">isVisible</span>(v, txn) {' },
+  { ln:19, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> v.<span class="id">Value</span>  <span class="cm">// 找到可见版本</span>' },
+  { ln:20, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}' },
+  { ln:21, html: '&nbsp;&nbsp;&nbsp;&nbsp;}' },
+  { ln:22, html: '&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="num">0</span> <span class="cm">// 无可见版本</span>' },
+  { ln:23, html: '}' },
+  { ln:24, html: '' },
+  { ln:25, html: '<span class="cm">// 写入：创建新版本，插入链表头部</span>' },
+  { ln:26, html: '<span class="kw">func</span> (row <span class="kw">*Row</span>) <span class="fn">Write</span>(txn <span class="kw">*Transaction</span>, val <span class="kw">int</span>) {' },
+  { ln:27, html: '&nbsp;&nbsp;&nbsp;&nbsp;newVer := &amp;<span class="id">Version</span>{' },
+  { ln:28, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">Value</span>:   val,' },
+  { ln:29, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">TxnID</span>:   txn.<span class="id">ID</span>,' },
+  { ln:30, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">BeginTS</span>: txn.<span class="id">CommitTS</span>, <span class="cm">// 提交时确定</span>' },
+  { ln:31, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">Undo</span>:    row.<span class="id">head</span>,     <span class="cm">// 指向旧版本</span>' },
+  { ln:32, html: '&nbsp;&nbsp;&nbsp;&nbsp;}' },
+  { ln:33, html: '&nbsp;&nbsp;&nbsp;&nbsp;row.<span class="id">head</span> = newVer <span class="cm">// 新版本成为链表头</span>' },
+  { ln:34, html: '}' },
+  { ln:35, html: '<span class="cm">// 读写不阻塞：读取快照，写入创建新版本</span>' },
+];
+
+// Build code panel
+const codeBody = document.getElementById('codeBody');
+CODE_LINES.forEach(({ln, html}) => {
+  const el = document.createElement('div');
+  el.className = 'code-line';
+  el.dataset.ln = ln;
+  el.innerHTML = `<span class="ln">${ln}</span><span class="lc">${html}</span>`;
+  codeBody.appendChild(el);
+});
+
+// --- Steps definition ---
+// State schema:
+// versions: [{id, value, txnId, beginTS, nodeClass}]
+// transactions: {t1:{show,status}, t2:{show,status}, t3:{show,status}}
+// checkingVersion: id | null, checkResult per version id
+// readResultText, readResultClass
+// highlightLines, description
+
+const steps = [
+  {
+    versions: [
+      {id:'v1', value:1000, txnId:0, beginTS:0, nodeClass:''}
+    ],
+    transactions: {t1:{show:false,status:''},t2:{show:false,status:''},t3:{show:false,status:''}},
+    checkVersions: {},
+    readResultText: '', readResultClass: '',
+    highlightLines: [2,3,4,5,6],
+    description: '初始状态：balance 行有一个版本 v1（value=1000），这是数据库初始写入的版本。'
+  },
+  {
+    versions: [
+      {id:'v1', value:1000, txnId:0, beginTS:0, nodeClass:''}
+    ],
+    transactions: {t1:{show:true,status:'active'},t2:{show:false,status:''},t3:{show:false,status:''}},
+    checkVersions: {},
+    readResultText: '', readResultClass: '',
+    highlightLines: [16,17],
+    description: 'T1 开始（txnID=100），记录快照时间戳 snapshot_ts=1。T1 看到的数据将是 ts≤1 时的版本。'
+  },
+  {
+    versions: [
+      {id:'v1', value:1000, txnId:0, beginTS:0, nodeClass:''}
+    ],
+    transactions: {t1:{show:true,status:'active'},t2:{show:true,status:'active'},t3:{show:false,status:''}},
+    checkVersions: {},
+    readResultText: '', readResultClass: '',
+    highlightLines: [16,17],
+    description: 'T2 开始（txnID=101），记录快照时间戳 snapshot_ts=2。T2 将写入新版本。'
+  },
+  {
+    versions: [
+      {id:'v2', value:1200, txnId:101, beginTS:3, nodeClass:'new-ver'},
+      {id:'v1', value:1000, txnId:0, beginTS:0, nodeClass:''}
+    ],
+    transactions: {t1:{show:true,status:'active'},t2:{show:true,status:'active'},t3:{show:false,status:''}},
+    checkVersions: {},
+    readResultText: '', readResultClass: '',
+    highlightLines: [25,26,27,28,29,30,31,32,33],
+    description: 'T2 写入 balance=1200，创建新版本 v2（beginTS=3，即 T2 的 commitTS）。v2 插入链表头部，Undo 指针指向 v1。'
+  },
+  {
+    versions: [
+      {id:'v2', value:1200, txnId:101, beginTS:3, nodeClass:''},
+      {id:'v1', value:1000, txnId:0, beginTS:0, nodeClass:''}
+    ],
+    transactions: {t1:{show:true,status:'active'},t2:{show:true,status:'committed'},t3:{show:false,status:''}},
+    checkVersions: {},
+    readResultText: '', readResultClass: '',
+    highlightLines: [30],
+    description: 'T2 提交（commitTS=3）。v2.beginTS=3 记录了提交时间戳，此后 snapshot_ts≥3 的事务可以看到 v2。'
+  },
+  {
+    versions: [
+      {id:'v2', value:1200, txnId:101, beginTS:3, nodeClass:'highlight-check'},
+      {id:'v1', value:1000, txnId:0, beginTS:0, nodeClass:''}
+    ],
+    transactions: {t1:{show:true,status:'reading'},t2:{show:true,status:'committed'},t3:{show:false,status:''}},
+    checkVersions: {v2:'no'},
+    readResultText: '', readResultClass: '',
+    highlightLines: [10,11,12,17,18],
+    description: 'T1 读取 balance。检查 v2：beginTS=3 > T1.snapshot_ts=1 → 不可见！T1 无法读到 T2 的写入。'
+  },
+  {
+    versions: [
+      {id:'v2', value:1200, txnId:101, beginTS:3, nodeClass:'invisible-ver'},
+      {id:'v1', value:1000, txnId:0, beginTS:0, nodeClass:'highlight-check'}
+    ],
+    transactions: {t1:{show:true,status:'reading'},t2:{show:true,status:'committed'},t3:{show:false,status:''}},
+    checkVersions: {v2:'no', v1:'ok'},
+    readResultText: '', readResultClass: '',
+    highlightLines: [10,11,12,17,18],
+    description: '继续沿版本链：检查 v1：beginTS=0 ≤ T1.snapshot_ts=1 → 可见！T1 读到 v1.value=1000。'
+  },
+  {
+    versions: [
+      {id:'v2', value:1200, txnId:101, beginTS:3, nodeClass:'invisible-ver'},
+      {id:'v1', value:1000, txnId:0, beginTS:0, nodeClass:'visible-ver'}
+    ],
+    transactions: {t1:{show:true,status:'active'},t2:{show:true,status:'committed'},t3:{show:false,status:''}},
+    checkVersions: {v2:'no', v1:'ok'},
+    readResultText: 'T1 读到 balance = 1000（快照隔离：T2 的提交对 T1 不可见）', readResultClass: 'ok',
+    highlightLines: [19],
+    description: '快照隔离保证：T1 始终看到它开始时的数据快照，即 balance=1000，不受 T2 提交影响。这是 MVCC 的核心优势。'
+  },
+  {
+    versions: [
+      {id:'v2', value:1200, txnId:101, beginTS:3, nodeClass:''},
+      {id:'v1', value:1000, txnId:0, beginTS:0, nodeClass:''}
+    ],
+    transactions: {t1:{show:true,status:'active'},t2:{show:true,status:'committed'},t3:{show:true,status:'active'}},
+    checkVersions: {},
+    readResultText: '', readResultClass: '',
+    highlightLines: [16,17],
+    description: 'T3 开始（txnID=102），snapshot_ts=5（T2 已经提交，commitTS=3 < 5）。T3 的快照应该能看到 T2 的写入。'
+  },
+  {
+    versions: [
+      {id:'v2', value:1200, txnId:101, beginTS:3, nodeClass:'highlight-check'},
+      {id:'v1', value:1000, txnId:0, beginTS:0, nodeClass:''}
+    ],
+    transactions: {t1:{show:true,status:'active'},t2:{show:true,status:'committed'},t3:{show:true,status:'reading'}},
+    checkVersions: {v2:'ok'},
+    readResultText: '', readResultClass: '',
+    highlightLines: [10,11,12,17,18],
+    description: 'T3 读取 balance：检查 v2：beginTS=3 ≤ T3.snapshot_ts=5 → 可见！找到第一个可见版本，立即返回。'
+  },
+  {
+    versions: [
+      {id:'v2', value:1200, txnId:101, beginTS:3, nodeClass:'visible-ver'},
+      {id:'v1', value:1000, txnId:0, beginTS:0, nodeClass:''}
+    ],
+    transactions: {t1:{show:true,status:'active'},t2:{show:true,status:'committed'},t3:{show:true,status:'active'}},
+    checkVersions: {v2:'ok'},
+    readResultText: 'T3 读到 balance = 1200（T2 已提交，T3 看到最新版本）', readResultClass: 'ok',
+    highlightLines: [19],
+    description: 'T3 读到 balance=1200。MVCC 的核心：读不加锁，写创建新版本，通过时间戳判断可见性，读写互不阻塞！'
+  }
+];
+
+// --- Render ---
+function renderVersionChain(versions, checkVersions) {
+  const chain = document.getElementById('versionChain');
+  chain.innerHTML = '';
+  versions.forEach((v, i) => {
+    const node = document.createElement('div');
+    node.className = 'version-node ' + (v.nodeClass || '');
+    node.innerHTML = `
+      <div class="ver-field">value: <span class="val">${v.value}</span></div>
+      <div class="ver-field">txnID: <span class="txnid">${v.txnId}</span></div>
+      <div class="ver-field">beginTS: <span class="ts">${v.beginTS}</span></div>
+      <div class="ver-field" style="color:var(--dim);font-size:0.72rem;">${i===0?'← head':'← Undo'}</div>
+    `;
+    if (checkVersions && checkVersions[v.id]) {
+      const badge = document.createElement('div');
+      badge.className = 'check-badge ' + checkVersions[v.id];
+      badge.textContent = checkVersions[v.id] === 'ok' ? '✓' : '✗';
+      node.appendChild(badge);
+    }
+    chain.appendChild(node);
+    if (i < versions.length - 1) {
+      const arr = document.createElement('div');
+      arr.className = 'chain-arrow';
+      arr.textContent = '→';
+      chain.appendChild(arr);
+    }
+  });
+  const nullEl = document.createElement('div');
+  nullEl.className = 'chain-arrow';
+  nullEl.textContent = '→';
+  chain.appendChild(nullEl);
+  const n = document.createElement('div');
+  n.className = 'chain-null';
+  n.textContent = 'NULL';
+  chain.appendChild(n);
+}
+
+function renderTxnBox(id, boxId, state) {
+  const box = document.getElementById(boxId);
+  const statusEl = document.getElementById(id + 'Status');
+  if (!state.show) { box.classList.remove('visible'); return; }
+  box.classList.add('visible');
+  box.classList.remove('active','committed','reading');
+  if (state.status === 'committed') { box.classList.add('committed'); statusEl.style.color = 'var(--green)'; statusEl.textContent = '✓ COMMITTED'; }
+  else if (state.status === 'reading') { box.classList.add('reading'); statusEl.style.color = 'var(--yellow)'; statusEl.textContent = '👁 READING...'; }
+  else { box.classList.add('active'); statusEl.style.color = 'var(--blue)'; statusEl.textContent = 'ACTIVE'; }
+}
+
+function render() {
+  const s = steps[cur];
+  renderVersionChain(s.versions, s.checkVersions);
+  renderTxnBox('t1', 't1Box', s.transactions.t1);
+  renderTxnBox('t2', 't2Box', s.transactions.t2);
+  renderTxnBox('t3', 't3Box', s.transactions.t3);
+  const rr = document.getElementById('readResult');
+  if (s.readResultText) {
+    rr.className = 'read-result show ' + s.readResultClass;
+    rr.textContent = s.readResultText;
+  } else {
+    rr.className = 'read-result';
+    rr.textContent = '';
+  }
+  document.getElementById('desc').textContent = s.description;
+  document.getElementById('stepCounter').textContent = (cur+1) + ' / ' + steps.length;
+  highlightLines(s.highlightLines || []);
+}
+
+// --- Standard controls ---
+const SPEED=[1200,800,500,300,150];
+let cur=0,playing=false,timer=null;
+const btnPlay=document.getElementById('btnPlay');
+const speedRange=document.getElementById('speedRange');
+function highlightLines(lines){document.querySelectorAll('.code-line').forEach(el=>{el.classList.toggle('active',lines.includes(+el.dataset.ln));});}
+function play(){playing=true;btnPlay.innerHTML='⏸ 暂停';tick();}
+function pause(){playing=false;clearTimeout(timer);btnPlay.innerHTML='▶ 播放';}
+function tick(){if(!playing)return;if(cur<steps.length-1){cur++;render();timer=setTimeout(tick,SPEED[+speedRange.value-1]);}else pause();}
+document.getElementById('btnReset').onclick=()=>{pause();cur=0;render();};
+document.getElementById('btnPrev').onclick=()=>{pause();if(cur>0){cur--;render();}};
+document.getElementById('btnPlay').onclick=()=>{playing?pause():play();};
+document.getElementById('btnNext').onclick=()=>{pause();if(cur<steps.length-1){cur++;render();}};
+document.querySelectorAll('.code-line').forEach(el=>{el.addEventListener('click',()=>{const ln=+el.dataset.ln;let best=-1,bd=Infinity;steps.forEach((s,i)=>{if((s.highlightLines||[]).includes(ln)){const d=Math.abs(i-cur);if(d<bd){bd=d;best=i;}}});if(best>=0){cur=best;render();}});});
+
+render();
+</script>
+</body>
+</html>

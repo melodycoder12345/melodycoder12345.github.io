@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>缓冲池 Buffer Pool - 数据库可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;font-style:italic;}.id{color:#e6edf3;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;flex-wrap:wrap;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;transition:color 0.15s;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.15rem;font-weight:600;}
+.ds-tags{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;}
+.ds-tag{font-size:0.72rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;overflow:auto;padding:20px;}
+.area-label{font-size:0.75rem;color:var(--dim);margin-bottom:8px;font-family:monospace;letter-spacing:0.04em;}
+.pool-row{margin-bottom:20px;}
+#poolFrames{display:flex;gap:12px;flex-wrap:wrap;}
+.frame-box{flex:1;max-width:140px;min-width:100px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:12px;transition:all 0.3s;}
+.frame-label{font-size:0.7rem;color:var(--dim);font-family:monospace;}
+.frame-page{font-size:1rem;font-weight:700;color:var(--text);margin:6px 0;}
+.frame-rows{font-size:0.7rem;color:var(--dim);font-family:monospace;}
+.frame-empty{font-size:0.82rem;color:#4b5563;margin-top:8px;font-family:monospace;}
+.lru-row{margin-bottom:20px;}
+#lruChain{display:flex;align-items:center;gap:0;min-height:48px;flex-wrap:wrap;}
+.lru-node{display:flex;align-items:center;}
+.lru-arrow{color:#334155;font-size:1.2rem;margin:0 2px;}
+.lru-page{padding:6px 12px;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.3);border-radius:7px;font-family:monospace;font-size:0.85rem;color:var(--blue);}
+.lru-badge{font-size:0.62rem;margin-left:5px;font-family:monospace;font-weight:700;}
+.req-row{margin-bottom:16px;}
+#reqSeq{display:flex;gap:6px;flex-wrap:wrap;}
+.req-item{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:7px;font-family:monospace;font-size:0.85rem;font-weight:700;border:1px solid var(--border);background:rgba(255,255,255,0.04);color:var(--dim);transition:all 0.25s;}
+.req-item.active{background:rgba(251,191,36,0.2);border-color:var(--yellow);color:var(--yellow);transform:scale(1.15);}
+.req-item.done-hit{background:rgba(74,222,128,0.12);border-color:rgba(74,222,128,0.4);color:var(--green);}
+.req-item.done-miss{background:rgba(248,113,113,0.12);border-color:rgba(248,113,113,0.4);color:var(--red);}
+#statsRow{display:flex;gap:24px;font-family:monospace;font-size:0.8rem;color:var(--dim);padding:10px 16px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid var(--border);}
+.stat-item{display:flex;flex-direction:column;gap:2px;}
+.stat-label{font-size:0.68rem;color:var(--dim);}
+.stat-val{font-size:0.92rem;font-weight:700;color:var(--text);}
+.desc-box{padding:10px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.9rem;color:var(--dim);min-height:52px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:44%;min-width:360px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono','Fira Code',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.3);color:var(--yellow);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--yellow);cursor:pointer;}
+
+/* MOBILE_INJECTED */
+@media(max-width:768px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;overflow-x:hidden;}
+  nav{flex-wrap:wrap;padding:10px 16px;gap:6px;}
+  nav h1{font-size:1rem;flex:1;}
+  .ds-tags{margin-left:0!important;width:100%;order:3;margin-top:4px;}
+  .ds-tag{font-size:0.68rem;padding:2px 7px;}
+  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
+  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:auto!important;min-height:auto!important;flex:none!important;overflow:visible!important;}
+  .viz-area{flex:none!important;padding:14px 10px!important;}
+  #poolFrames{gap:8px!important;}
+  .frame-box{min-width:72px!important;max-width:100px!important;padding:8px!important;}
+  .code-panel{width:100%!important;min-width:unset!important;height:360px!important;flex:none!important;}
+  .code-line{font-size:0.76rem!important;}
+  .ln{min-width:36px!important;padding:0 8px!important;}
+  .controls{flex-wrap:wrap!important;padding:10px 14px!important;gap:6px!important;}
+  .btn{padding:6px 10px!important;font-size:0.8rem!important;}
+  .speed-wrap{margin-left:0!important;width:100%;justify-content:flex-end;}
+  .desc-box{padding:8px 14px!important;font-size:0.82rem!important;}
+  #statsRow{flex-wrap:wrap;gap:12px;}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>缓冲池 Buffer Pool</h1>
+  <div class="ds-tags">
+    <span class="ds-tag" style="background:rgba(56,189,248,0.12);color:#38bdf8">HashMap</span>
+    <span class="ds-tag" style="background:rgba(192,132,252,0.12);color:#c084fc">双向链表</span>
+    <span class="ds-tag" style="background:rgba(74,222,128,0.12);color:#4ade80">O(1) LRU</span>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="viz-panel">
+    <div class="viz-area">
+      <!-- Buffer Pool Frames -->
+      <div class="pool-row">
+        <div class="area-label">BUFFER POOL (capacity: 4)</div>
+        <div id="poolFrames"></div>
+      </div>
+      <!-- LRU Chain -->
+      <div class="lru-row">
+        <div class="area-label">LRU CHAIN (left=MRU, right=LRU)</div>
+        <div id="lruChain"></div>
+      </div>
+      <!-- Access Sequence -->
+      <div class="req-row">
+        <div class="area-label">ACCESS SEQUENCE</div>
+        <div id="reqSeq"></div>
+      </div>
+      <!-- Stats -->
+      <div id="statsRow"></div>
+    </div>
+    <div class="desc-box">
+      <span id="descText">点击播放开始模拟缓冲池 LRU 策略</span>
+      <span class="step-counter" id="stepCounter"></span>
+    </div>
+  </div>
+
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57;"></div>
+      <div class="code-dot" style="background:#febc2e;"></div>
+      <div class="code-dot" style="background:#28c840;"></div>
+      <span style="margin-left:8px;">buffer_pool.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">← 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 →</button>
+  <div class="speed-wrap">
+    <span>🐢</span>
+    <input type="range" id="speedRange" min="1" max="5" value="3">
+    <span>🐇</span>
+  </div>
+</div>
+
+<script>
+// ─── Constants ───────────────────────────────────────────────────────────────
+const CAPACITY = 4;
+const ACCESS_SEQ = [1,2,3,4,1,5,1,6,2,3,5,7];
+const SPEED = [1200,800,500,300,150];
+
+// ─── Go code lines ────────────────────────────────────────────────────────────
+const CODE_LINES = [
+  {ln:1,  html:`<span class="cm">// BufferPool 使用 HashMap + 双向链表 实现 O(1) LRU</span>`},
+  {ln:2,  html:`<span class="kw">type</span> <span class="id">BufferPool</span> <span class="kw">struct</span> {`},
+  {ln:3,  html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">frames</span> <span class="kw">map</span>[<span class="kw">int</span>]*<span class="id">Page</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// pageID → Page，O(1) 查找</span>`},
+  {ln:4,  html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">lru</span>    *<span class="pkg">list</span>.<span class="id">List</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 双向链表，MRU ← → LRU</span>`},
+  {ln:5,  html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">elems</span>  <span class="kw">map</span>[<span class="kw">int</span>]*<span class="pkg">list</span>.<span class="id">Element</span>`},
+  {ln:6,  html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">cap</span>    <span class="kw">int</span>`},
+  {ln:7,  html:`}`},
+  {ln:8,  html:``},
+  {ln:9,  html:`<span class="cm">// GetPage 读取页面，O(1) 时间复杂度</span>`},
+  {ln:10, html:`<span class="kw">func</span> (<span class="id">bp</span> *<span class="id">BufferPool</span>) <span class="fn">GetPage</span>(<span class="id">pageID</span> <span class="kw">int</span>) *<span class="id">Page</span> {`},
+  {ln:11, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 1. 查询 HashMap，O(1) 判断是否在缓冲池</span>`},
+  {ln:12, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> <span class="id">elem</span>, <span class="id">ok</span> := <span class="id">bp</span>.<span class="id">elems</span>[<span class="id">pageID</span>]; <span class="id">ok</span> {`},
+  {ln:13, html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">bp</span>.<span class="id">lru</span>.<span class="fn">MoveToFront</span>(<span class="id">elem</span>) <span class="cm">// O(1) 移动到 MRU 端</span>`},
+  {ln:14, html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="id">bp</span>.<span class="id">frames</span>[<span class="id">pageID</span>] <span class="cm">// 缓存命中 ✓</span>`},
+  {ln:15, html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {ln:16, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 2. 缓存未命中，检查是否需要驱逐</span>`},
+  {ln:17, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> <span class="fn">len</span>(<span class="id">bp</span>.<span class="id">frames</span>) &gt;= <span class="id">bp</span>.<span class="id">cap</span> {`},
+  {ln:18, html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">bp</span>.<span class="fn">evict</span>() <span class="cm">// 驱逐 LRU 末尾页面</span>`},
+  {ln:19, html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {ln:20, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 3. 从磁盘读取（慢！磁盘 I/O）</span>`},
+  {ln:21, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">page</span> := <span class="fn">readDisk</span>(<span class="id">pageID</span>)`},
+  {ln:22, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">bp</span>.<span class="id">frames</span>[<span class="id">pageID</span>] = <span class="id">page</span>`},
+  {ln:23, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">bp</span>.<span class="id">elems</span>[<span class="id">pageID</span>] = <span class="id">bp</span>.<span class="id">lru</span>.<span class="fn">PushFront</span>(<span class="id">pageID</span>)`},
+  {ln:24, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="id">page</span>`},
+  {ln:25, html:`}`},
+  {ln:26, html:``},
+  {ln:27, html:`<span class="cm">// evict 驱逐最久未使用的页面，O(1)</span>`},
+  {ln:28, html:`<span class="kw">func</span> (<span class="id">bp</span> *<span class="id">BufferPool</span>) <span class="fn">evict</span>() {`},
+  {ln:29, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">victim</span> := <span class="id">bp</span>.<span class="id">lru</span>.<span class="fn">Back</span>()`},
+  {ln:30, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">id</span> := <span class="id">victim</span>.<span class="id">Value</span>.(<span class="kw">int</span>)`},
+  {ln:31, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> <span class="id">bp</span>.<span class="id">frames</span>[<span class="id">id</span>].<span class="id">dirty</span> { <span class="fn">writeDisk</span>(<span class="id">bp</span>.<span class="id">frames</span>[<span class="id">id</span>]) }`},
+  {ln:32, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">delete</span>(<span class="id">bp</span>.<span class="id">frames</span>, <span class="id">id</span>)`},
+  {ln:33, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">delete</span>(<span class="id">bp</span>.<span class="id">elems</span>, <span class="id">id</span>)`},
+  {ln:34, html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">bp</span>.<span class="id">lru</span>.<span class="fn">Remove</span>(<span class="id">victim</span>)`},
+  {ln:35, html:`}`},
+];
+
+// ─── Step Generation ─────────────────────────────────────────────────────────
+function generateSteps() {
+  const steps = [];
+  // current pool state: array of 4 frames {pageId: null|N, highlight: null}
+  const pool = Array.from({length: CAPACITY}, () => ({pageId: null, highlight: null}));
+  // lruOrder: most-recent first
+  let lruOrder = [];
+  let diskReads = 0;
+  let cacheHits = 0;
+  let cacheMisses = 0;
+
+  function clonePool(p) { return p.map(f => ({...f})); }
+  function cloneArr(a) { return [...a]; }
+
+  // Step 0: initial state
+  steps.push({
+    pool: clonePool(pool),
+    lruOrder: cloneArr(lruOrder),
+    requesting: null,
+    reqIndex: -1,
+    diskReads,
+    cacheHits,
+    cacheMisses,
+    highlightLines: [1,2,3,4,5,6,7],
+    description: '初始状态：缓冲池为空，HashMap 和双向链表均为空。',
+  });
+
+  for (let i = 0; i < ACCESS_SEQ.length; i++) {
+    const pageId = ACCESS_SEQ[i];
+
+    // Reset all highlights
+    pool.forEach(f => f.highlight = null);
+
+    // Step A: requesting
+    steps.push({
+      pool: clonePool(pool),
+      lruOrder: cloneArr(lruOrder),
+      requesting: pageId,
+      reqIndex: i,
+      diskReads,
+      cacheHits,
+      cacheMisses,
+      highlightLines: [10,11,12],
+      description: `正在请求 Page ${pageId} → 查询 HashMap 判断是否已在缓冲池...`,
+    });
+
+    const inPool = lruOrder.includes(pageId);
+
+    if (inPool) {
+      // HIT: move to front
+      cacheHits++;
+      lruOrder = [pageId, ...lruOrder.filter(x => x !== pageId)];
+      // Update highlight
+      const frameIdx = pool.findIndex(f => f.pageId === pageId);
+      if (frameIdx !== -1) pool[frameIdx].highlight = 'hit';
+
+      steps.push({
+        pool: clonePool(pool),
+        lruOrder: cloneArr(lruOrder),
+        requesting: pageId,
+        reqIndex: i,
+        diskReads,
+        cacheHits,
+        cacheMisses,
+        highlightLines: [12,13,14],
+        description: `✓ 命中！Page ${pageId} 已在缓冲池（Frame ${pool.findIndex(f=>f.pageId===pageId)}），移至 LRU 头部（MRU）。`,
+      });
+    } else {
+      // MISS
+      cacheMisses++;
+      const isFull = lruOrder.length >= CAPACITY;
+
+      if (isFull) {
+        const evictId = lruOrder[lruOrder.length - 1];
+        const evictFrameIdx = pool.findIndex(f => f.pageId === evictId);
+
+        // Mark evicting frame
+        pool.forEach(f => f.highlight = null);
+        if (evictFrameIdx !== -1) pool[evictFrameIdx].highlight = 'evict';
+
+        steps.push({
+          pool: clonePool(pool),
+          lruOrder: cloneArr(lruOrder),
+          requesting: pageId,
+          reqIndex: i,
+          diskReads,
+          cacheHits,
+          cacheMisses,
+          highlightLines: [16,17,18,28,29,30,31,32,33,34],
+          description: `✗ 未命中，缓冲池已满（${CAPACITY}/${CAPACITY}）。驱逐 LRU 末尾 Page ${evictId}（最久未使用）。`,
+        });
+
+        diskReads++;
+        // Actually evict
+        lruOrder = lruOrder.filter(x => x !== evictId);
+        if (evictFrameIdx !== -1) {
+          pool[evictFrameIdx].pageId = pageId;
+          pool[evictFrameIdx].highlight = 'load';
+        }
+        lruOrder = [pageId, ...lruOrder];
+
+        steps.push({
+          pool: clonePool(pool),
+          lruOrder: cloneArr(lruOrder),
+          requesting: pageId,
+          reqIndex: i,
+          diskReads,
+          cacheHits,
+          cacheMisses,
+          highlightLines: [20,21,22,23],
+          description: `磁盘 I/O：Page ${evictId} 已驱逐，Page ${pageId} 从磁盘读入 Frame ${evictFrameIdx}，加入 LRU 头部。`,
+        });
+      } else {
+        // Space available
+        diskReads++;
+        const emptyIdx = pool.findIndex(f => f.pageId === null);
+        pool[emptyIdx].pageId = pageId;
+        pool[emptyIdx].highlight = 'load';
+        lruOrder = [pageId, ...lruOrder];
+
+        steps.push({
+          pool: clonePool(pool),
+          lruOrder: cloneArr(lruOrder),
+          requesting: pageId,
+          reqIndex: i,
+          diskReads,
+          cacheHits,
+          cacheMisses,
+          highlightLines: [16,17,20,21,22,23],
+          description: `✗ 未命中，缓冲池有空闲（Frame ${emptyIdx}）。从磁盘读取 Page ${pageId}，磁盘读取次数 +1。`,
+        });
+      }
+    }
+  }
+
+  // Final summary
+  pool.forEach(f => f.highlight = null);
+  steps.push({
+    pool: clonePool(pool),
+    lruOrder: cloneArr(lruOrder),
+    requesting: null,
+    reqIndex: ACCESS_SEQ.length,
+    diskReads,
+    cacheHits,
+    cacheMisses,
+    highlightLines: [],
+    description: `模拟完成。命中率 ${(cacheHits/(cacheHits+cacheMisses)*100).toFixed(1)}%，共 ${diskReads} 次磁盘 I/O，${cacheHits} 次缓存命中。`,
+  });
+
+  return steps;
+}
+
+// ─── State ────────────────────────────────────────────────────────────────────
+const steps = generateSteps();
+let cur = 0, playing = false, timer = null;
+
+// ─── DOM refs ─────────────────────────────────────────────────────────────────
+const poolFrames  = document.getElementById('poolFrames');
+const lruChain    = document.getElementById('lruChain');
+const reqSeq      = document.getElementById('reqSeq');
+const statsRow    = document.getElementById('statsRow');
+const descText    = document.getElementById('descText');
+const stepCounter = document.getElementById('stepCounter');
+const codeBody    = document.getElementById('codeBody');
+const btnReset    = document.getElementById('btnReset');
+const btnPrev     = document.getElementById('btnPrev');
+const btnPlay     = document.getElementById('btnPlay');
+const btnNext     = document.getElementById('btnNext');
+const speedRange  = document.getElementById('speedRange');
+
+// ─── Render Code ─────────────────────────────────────────────────────────────
+function buildCode() {
+  codeBody.innerHTML = CODE_LINES.map(({ln, html}) =>
+    `<div class="code-line" data-ln="${ln}">` +
+      `<span class="ln">${ln}</span>` +
+      `<span class="lc">${html}</span>` +
+    `</div>`
+  ).join('');
+}
+
+function highlightLines(lines) {
+  document.querySelectorAll('.code-line').forEach(el => {
+    el.classList.toggle('active', lines.includes(+el.dataset.ln));
+  });
+  // Auto-scroll to first active line
+  if (lines.length > 0) {
+    const first = document.querySelector(`.code-line[data-ln="${lines[0]}"]`);
+    if (first) first.scrollIntoView({block:'nearest', behavior:'smooth'});
+  }
+}
+
+// ─── Render Frame Box ─────────────────────────────────────────────────────────
+function renderFrameBox(frame, idx) {
+  const pageColors = {
+    hit:   'rgba(74,222,128,0.15)',
+    miss:  'rgba(248,113,113,0.15)',
+    evict: 'rgba(251,146,60,0.15)',
+    load:  'rgba(56,189,248,0.15)',
+  };
+  const borderColors = {
+    hit:   '#4ade80',
+    miss:  '#f87171',
+    evict: '#fb923c',
+    load:  '#38bdf8',
+  };
+  const bg     = frame.highlight ? pageColors[frame.highlight]  : 'rgba(255,255,255,0.03)';
+  const border = frame.highlight ? borderColors[frame.highlight]: 'var(--border)';
+
+  const inner = frame.pageId !== null
+    ? `<div class="frame-page">Page ${frame.pageId}</div>
+       <div class="frame-rows">rows ${(frame.pageId-1)*5+1}-${frame.pageId*5}</div>`
+    : `<div class="frame-empty">[ empty ]</div>`;
+
+  return `<div class="frame-box" style="background:${bg};border-color:${border};">
+    <div class="frame-label">Frame ${idx}</div>
+    ${inner}
+  </div>`;
+}
+
+// ─── Render LRU Chain ─────────────────────────────────────────────────────────
+function renderLRUChain(lruOrder) {
+  if (lruOrder.length === 0) {
+    lruChain.innerHTML = '<span style="color:var(--dim);font-size:0.82rem;font-family:monospace;">空</span>';
+    return;
+  }
+  lruChain.innerHTML = lruOrder.map((pid, i) => {
+    const isMRU = i === 0;
+    const isLRU = i === lruOrder.length - 1;
+    const badge = isMRU
+      ? `<span class="lru-badge" style="color:var(--green)">MRU</span>`
+      : isLRU
+        ? `<span class="lru-badge" style="color:var(--red)">LRU</span>`
+        : '';
+    const arrow = i > 0 ? `<span class="lru-arrow">→</span>` : '';
+    return `<div class="lru-node">
+      ${arrow}
+      <div class="lru-page">P${pid}${badge}</div>
+    </div>`;
+  }).join('');
+}
+
+// ─── Render Access Sequence ───────────────────────────────────────────────────
+function renderReqSeq(reqIndex, pool, lruOrder) {
+  reqSeq.innerHTML = ACCESS_SEQ.map((pid, i) => {
+    let cls = 'req-item';
+    if (i === reqIndex) cls += ' active';
+    else if (i < reqIndex) {
+      // Determine if this was a hit or miss by checking if it's in the current pool
+      // We use a heuristic: check final outcome coloring stored per-step
+      cls += ' done-miss'; // will be overridden below via stored result
+    }
+    return `<div class="${cls}" title="Page ${pid}">${pid}</div>`;
+  }).join('');
+}
+
+function renderReqSeqFromSteps(reqIndex) {
+  // Build hit/miss map from steps
+  const resultMap = {};
+  for (const s of steps) {
+    if (s.reqIndex >= 0 && s.reqIndex < ACCESS_SEQ.length) {
+      if (s.description.startsWith('✓')) resultMap[s.reqIndex] = 'hit';
+      else if (s.description.startsWith('✗')) resultMap[s.reqIndex] = 'miss';
+    }
+  }
+  reqSeq.innerHTML = ACCESS_SEQ.map((pid, i) => {
+    let cls = 'req-item';
+    if (i === reqIndex) cls += ' active';
+    else if (i < reqIndex) {
+      cls += resultMap[i] === 'hit' ? ' done-hit' : ' done-miss';
+    }
+    return `<div class="${cls}" title="Page ${pid}">${pid}</div>`;
+  }).join('');
+}
+
+// ─── Render Stats ─────────────────────────────────────────────────────────────
+function renderStats(s) {
+  const total = s.cacheHits + s.cacheMisses;
+  const hitRate = total > 0 ? (s.cacheHits / total * 100).toFixed(1) : '0.0';
+  statsRow.innerHTML = `
+    <div class="stat-item"><div class="stat-label">缓存命中</div><div class="stat-val" style="color:var(--green)">${s.cacheHits}</div></div>
+    <div class="stat-item"><div class="stat-label">缓存未命中</div><div class="stat-val" style="color:var(--red)">${s.cacheMisses}</div></div>
+    <div class="stat-item"><div class="stat-label">磁盘 I/O</div><div class="stat-val" style="color:var(--orange)">${s.diskReads}</div></div>
+    <div class="stat-item"><div class="stat-label">命中率</div><div class="stat-val" style="color:var(--blue)">${hitRate}%</div></div>
+    <div class="stat-item"><div class="stat-label">LRU 容量</div><div class="stat-val">${s.lruOrder.length} / ${CAPACITY}</div></div>
+  `;
+}
+
+// ─── Main Render ─────────────────────────────────────────────────────────────
+function render() {
+  const s = steps[cur];
+
+  // Pool frames
+  poolFrames.innerHTML = s.pool.map((f, i) => renderFrameBox(f, i)).join('');
+
+  // LRU chain
+  renderLRUChain(s.lruOrder);
+
+  // Access sequence
+  renderReqSeqFromSteps(s.reqIndex);
+
+  // Stats
+  renderStats(s);
+
+  // Description
+  descText.textContent = s.description;
+  stepCounter.textContent = `步骤 ${cur} / ${steps.length - 1}`;
+
+  // Code highlight
+  highlightLines(s.highlightLines);
+
+  // Button states
+  btnPrev.disabled = cur === 0;
+  btnNext.disabled = cur === steps.length - 1;
+}
+
+// ─── Playback Controls ────────────────────────────────────────────────────────
+function play() {
+  playing = true;
+  btnPlay.innerHTML = '⏸ 暂停';
+  tick();
+}
+
+function pause() {
+  playing = false;
+  clearTimeout(timer);
+  btnPlay.innerHTML = '▶ 播放';
+}
+
+function tick() {
+  if (!playing) return;
+  if (cur < steps.length - 1) {
+    cur++;
+    render();
+    timer = setTimeout(tick, SPEED[+speedRange.value - 1]);
+  } else {
+    pause();
+  }
+}
+
+btnPlay.addEventListener('click', () => {
+  if (playing) pause();
+  else if (cur < steps.length - 1) play();
+  else { cur = 0; render(); play(); }
+});
+
+btnNext.addEventListener('click', () => {
+  if (cur < steps.length - 1) { cur++; render(); }
+});
+
+btnPrev.addEventListener('click', () => {
+  if (cur > 0) { cur--; render(); }
+});
+
+btnReset.addEventListener('click', () => {
+  pause();
+  cur = 0;
+  render();
+});
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+buildCode();
+render();
+</script>
+</body>
+</html>

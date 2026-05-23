@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>B+ 树索引可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.1rem;font-weight:600;}
+.ds-tags{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;}
+.ds-tag{font-size:0.72rem;padding:2px 8px;border-radius:4px;font-family:monospace;font-weight:500;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;overflow:auto;padding:20px;position:relative;}
+.desc-box{padding:12px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:44px;display:flex;align-items:center;}
+.step-counter{margin-left:auto;font-family:monospace;font-size:0.8rem;color:var(--dim);}
+.code-panel{width:44%;min-width:360px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background .15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.7;}
+.code-line:hover{background:rgba(255,255,255,.04);}.code-line.active{background:rgba(251,191,36,.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:44px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;}.id{color:#e6edf3;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:.85rem;transition:all .15s;font-family:inherit;}
+.btn:hover{background:rgba(255,255,255,.12);}.btn.primary{background:rgba(56,189,248,.15);border-color:rgba(56,189,248,.3);color:var(--blue);}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:80px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
+@media(max-width:768px){body{height:auto!important;min-height:100vh;overflow-y:auto!important;}.main{flex-direction:column!important;height:auto!important;flex:none!important;}.viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:300px!important;flex:none!important;}.code-panel{width:100%!important;min-width:unset!important;height:320px!important;flex:none!important;}.controls{flex-wrap:wrap!important;height:auto!important;}.speed-wrap{margin-left:0!important;}}
+/* Tab buttons */
+.tabs{display:flex;gap:8px;padding:12px 20px 0;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.tab-btn{background:transparent;border:1px solid transparent;border-bottom:none;color:var(--dim);padding:6px 14px;border-radius:6px 6px 0 0;cursor:pointer;font-size:0.83rem;font-family:inherit;transition:all .15s;position:relative;bottom:-1px;}
+.tab-btn:hover{color:var(--text);background:rgba(255,255,255,.04);}
+.tab-btn.active{background:var(--bg);border-color:var(--border);color:var(--text);}
+/* Result table */
+.result-table{margin-top:12px;border-collapse:collapse;font-size:0.82rem;width:100%;}
+.result-table th,.result-table td{padding:5px 12px;border:1px solid var(--border);text-align:left;}
+.result-table th{background:rgba(255,255,255,.06);color:var(--dim);}
+.result-table tr.found{background:rgba(74,222,128,.08);}
+.result-table td.found-key{color:var(--green);font-weight:600;}
+.result-info{font-size:0.8rem;color:var(--dim);margin-top:6px;}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>B+ 树索引</h1>
+  <div class="ds-tags">
+    <span class="ds-tag" style="background:rgba(56,189,248,.15);color:var(--blue)">B+ Tree</span>
+    <span class="ds-tag" style="background:rgba(74,222,128,.15);color:var(--green)">O(log n) 查找</span>
+    <span class="ds-tag" style="background:rgba(192,132,252,.15);color:var(--purple)">叶节点链表</span>
+  </div>
+</nav>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="0" onclick="switchTab(0)">点查询</button>
+  <button class="tab-btn" data-tab="1" onclick="switchTab(1)">范围查询</button>
+  <button class="tab-btn" data-tab="2" onclick="switchTab(2)">插入</button>
+</div>
+
+<div class="main">
+  <div class="viz-panel">
+    <div class="viz-area" id="vizArea">
+      <svg id="treeSvg" width="100%" style="min-height:340px;"></svg>
+      <div id="resultArea"></div>
+    </div>
+    <div class="desc-box">
+      <span id="desc">选择操作场景开始演示</span>
+      <span class="step-counter" id="stepCounter"></span>
+    </div>
+  </div>
+
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <span class="code-dot" style="background:#ef4444"></span>
+      <span class="code-dot" style="background:#f59e0b"></span>
+      <span class="code-dot" style="background:#22c55e"></span>
+      <span style="margin-left:4px">btree_index.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">← 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 →</button>
+  <div class="speed-wrap">
+    <span>速度</span>
+    <input type="range" id="speedRange" min="1" max="5" value="3">
+    <span>快</span>
+  </div>
+</div>
+
+<script>
+// ─── Tree data ───────────────────────────────────────────────────────
+const ROWS=[
+  {id:1,name:'Alice',dept:'CS',salary:8000},
+  {id:3,name:'Bob',dept:'HR',salary:7200},
+  {id:5,name:'Carol',dept:'CS',salary:9500},
+  {id:7,name:'Dave',dept:'FE',salary:6800},
+  {id:9,name:'Eve',dept:'CS',salary:8800},
+  {id:11,name:'Frank',dept:'HR',salary:7500},
+  {id:13,name:'Grace',dept:'FE',salary:9000},
+];
+
+// B+ tree node definitions (static for visualization)
+// node id, type, keys, children ids, rows (leaf)
+const TREE_NODES={
+  root:{id:'root',isLeaf:false,keys:[5],children:['n1','n2']},
+  n1:{id:'n1',isLeaf:false,keys:[3],children:['l1','l2']},
+  n2:{id:'n2',isLeaf:false,keys:[9,11],children:['l3','l4','l5']},
+  l1:{id:'l1',isLeaf:true,keys:[1,3],rows:[ROWS[0],ROWS[1]],next:'l2'},
+  l2:{id:'l2',isLeaf:true,keys:[3,5],rows:[ROWS[1],ROWS[2]],next:'l3'},
+  l3:{id:'l3',isLeaf:true,keys:[5,7,9],rows:[ROWS[2],ROWS[3],ROWS[4]],next:'l4'},
+  l4:{id:'l4',isLeaf:true,keys:[9,11],rows:[ROWS[4],ROWS[5]],next:'l5'},
+  l5:{id:'l5',isLeaf:true,keys:[11,13],rows:[ROWS[5],ROWS[6]],next:null},
+};
+const LEAVES=['l1','l2','l3','l4','l5'];
+
+// Layout
+const SVG_W=680, SVG_H=320;
+const NODE_H=36, INT_W=72, LEAF_W=100;
+const nodePos={
+  root:{x:SVG_W/2,y:44,w:INT_W},
+  n1:{x:SVG_W*0.3,y:130,w:INT_W},
+  n2:{x:SVG_W*0.7,y:130,w:90},
+  l1:{x:SVG_W*0.08,y:230,w:LEAF_W},
+  l2:{x:SVG_W*0.26,y:230,w:LEAF_W},
+  l3:{x:SVG_W*0.46,y:230,w:LEAF_W},
+  l4:{x:SVG_W*0.66,y:230,w:LEAF_W},
+  l5:{x:SVG_W*0.85,y:230,w:LEAF_W},
+};
+
+// ─── Code lines ──────────────────────────────────────────────────────
+const CODE_LINES=[
+  {ln:1, html:'<span class="cm">// B+ 树索引：数据只存叶节点，叶节点用链表连接</span>'},
+  {ln:2, html:'<span class="kw">type</span> <span class="id">BPlusNode</span> <span class="kw">struct</span> {'},
+  {ln:3, html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">keys</span>     []<span class="kw">int</span>'},
+  {ln:4, html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">children</span> []*<span class="id">BPlusNode</span> <span class="cm">// 内部节点的子指针</span>'},
+  {ln:5, html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">next</span>     *<span class="id">BPlusNode</span>   <span class="cm">// 叶节点链表指针（范围查询关键！）</span>'},
+  {ln:6, html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">isLeaf</span>   <span class="kw">bool</span>'},
+  {ln:7, html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">rows</span>     []<span class="id">Row</span>        <span class="cm">// 叶节点存储真实数据行</span>'},
+  {ln:8, html:'}'},
+  {ln:9, html:''},
+  {ln:10,html:'<span class="cm">// Search: O(log n) 单点查询</span>'},
+  {ln:11,html:'<span class="kw">func</span> (<span class="id">t</span> *<span class="id">BPlusTree</span>) <span class="fn">Search</span>(<span class="id">key</span> <span class="kw">int</span>) *<span class="id">Row</span> {'},
+  {ln:12,html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">node</span> := <span class="id">t</span>.<span class="id">root</span>'},
+  {ln:13,html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> !<span class="id">node</span>.<span class="id">isLeaf</span> {'},
+  {ln:14,html:'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">i</span> := <span class="pkg">sort</span>.<span class="fn">SearchInts</span>(<span class="id">node</span>.<span class="id">keys</span>, <span class="id">key</span>)'},
+  {ln:15,html:'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">node</span> = <span class="id">node</span>.<span class="id">children</span>[<span class="id">i</span>]   <span class="cm">// 向下遍历</span>'},
+  {ln:16,html:'&nbsp;&nbsp;&nbsp;&nbsp;}'},
+  {ln:17,html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 在叶节点线性查找</span>'},
+  {ln:18,html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> <span class="id">i</span>, <span class="id">k</span> := <span class="kw">range</span> <span class="id">node</span>.<span class="id">keys</span> {'},
+  {ln:19,html:'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> <span class="id">k</span> == <span class="id">key</span> { <span class="kw">return</span> &<span class="id">node</span>.<span class="id">rows</span>[<span class="id">i</span>] }'},
+  {ln:20,html:'&nbsp;&nbsp;&nbsp;&nbsp;}'},
+  {ln:21,html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="num">nil</span> <span class="cm">// 未找到</span>'},
+  {ln:22,html:'}'},
+  {ln:23,html:''},
+  {ln:24,html:'<span class="cm">// RangeQuery: 先找左端点，再沿链表扫描</span>'},
+  {ln:25,html:'<span class="kw">func</span> (<span class="id">t</span> *<span class="id">BPlusTree</span>) <span class="fn">RangeQuery</span>(<span class="id">lo</span>, <span class="id">hi</span> <span class="kw">int</span>) []<span class="id">Row</span> {'},
+  {ln:26,html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">node</span> := <span class="id">t</span>.<span class="fn">findLeaf</span>(<span class="id">lo</span>)  <span class="cm">// O(log n) 定位左端点</span>'},
+  {ln:27,html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">var</span> <span class="id">result</span> []<span class="id">Row</span>'},
+  {ln:28,html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> <span class="id">node</span> != <span class="num">nil</span> {'},
+  {ln:29,html:'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> <span class="id">i</span>, <span class="id">k</span> := <span class="kw">range</span> <span class="id">node</span>.<span class="id">keys</span> {'},
+  {ln:30,html:'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> <span class="id">k</span> > <span class="id">hi</span> { <span class="kw">return</span> <span class="id">result</span> }'},
+  {ln:31,html:'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> <span class="id">k</span> >= <span class="id">lo</span> { <span class="id">result</span> = <span class="pkg">append</span>(<span class="id">result</span>, <span class="id">node</span>.<span class="id">rows</span>[<span class="id">i</span>]) }'},
+  {ln:32,html:'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}'},
+  {ln:33,html:'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">node</span> = <span class="id">node</span>.<span class="id">next</span>    <span class="cm">// O(1) 沿链表前进！</span>'},
+  {ln:34,html:'&nbsp;&nbsp;&nbsp;&nbsp;}'},
+  {ln:35,html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="id">result</span>'},
+  {ln:36,html:'}'},
+];
+
+// ─── Step generators ─────────────────────────────────────────────────
+function makeSearchSteps(){
+  const key=7;
+  return [
+    {highlightNodes:[],foundNodes:[],rangeNodes:[],insertLeaf:null,splitFrom:null,splitTo:null,result:[],highlightLines:[11,12],description:`开始点查询：SELECT * FROM employees WHERE id = ${key}`},
+    {highlightNodes:['root'],foundNodes:[],rangeNodes:[],insertLeaf:null,splitFrom:null,splitTo:null,result:[],highlightLines:[13,14],description:`访问根节点 [5]。比较：${key} < 5 ? 否 → 向右子树走`},
+    {highlightNodes:['root','n2'],foundNodes:[],rangeNodes:[],insertLeaf:null,splitFrom:null,splitTo:null,result:[],highlightLines:[14,15],description:`访问内部节点 [9, 11]。比较：${key} < 9 ? 是 → 走第一个子节点`},
+    {highlightNodes:['root','n2','l3'],foundNodes:[],rangeNodes:[],insertLeaf:null,splitFrom:null,splitTo:null,result:[],highlightLines:[16,17,18],description:`到达叶节点 [5, 7, 9]。在叶节点中线性查找 key=${key}`},
+    {highlightNodes:['root','n2'],foundNodes:['l3'],rangeNodes:[],insertLeaf:null,splitFrom:null,splitTo:null,result:[ROWS[3]],highlightLines:[18,19],description:`✓ 在叶节点 [5,7,9] 中找到 id=${key}，返回行数据 → Dave, FE, 6800`},
+  ];
+}
+
+function makeRangeSteps(){
+  // range 5..11
+  return [
+    {highlightNodes:[],foundNodes:[],rangeNodes:[],insertLeaf:null,splitFrom:null,splitTo:null,result:[],highlightLines:[25,26],description:'开始范围查询：SELECT * FROM employees WHERE id BETWEEN 5 AND 11'},
+    {highlightNodes:['root'],foundNodes:[],rangeNodes:[],insertLeaf:null,splitFrom:null,splitTo:null,result:[],highlightLines:[26],description:'第一步：用 findLeaf(5) 定位左端点所在叶节点。访问根节点 [5]'},
+    {highlightNodes:['root','n1'],foundNodes:[],rangeNodes:[],insertLeaf:null,splitFrom:null,splitTo:null,result:[],highlightLines:[26],description:'5 ≥ 5 → 进入右子树。访问内部节点 [3]，5 > 3 → 走右边'},
+    {highlightNodes:['root','n1','l2'],foundNodes:[],rangeNodes:[],insertLeaf:null,splitFrom:null,splitTo:null,result:[],highlightLines:[26],description:'到达叶节点 [3,5]，包含左端点 id=5'},
+    {highlightNodes:[],foundNodes:[],rangeNodes:['l2'],insertLeaf:null,splitFrom:null,splitTo:null,result:[ROWS[2]],highlightLines:[28,29,30,31],description:'在叶节点 [3,5] 中：3 < 5 跳过；5 ∈ [5,11] ✓ 收集 id=5 (Carol)'},
+    {highlightNodes:[],foundNodes:[],rangeNodes:['l2','l3'],insertLeaf:null,splitFrom:null,splitTo:null,result:[ROWS[2],ROWS[3],ROWS[4]],highlightLines:[33,28,29,30,31],description:'沿链表 next 指针前进到 [5,7,9]：5已收集；7 ✓ 收集 Dave；9 ✓ 收集 Eve'},
+    {highlightNodes:[],foundNodes:[],rangeNodes:['l2','l3','l4'],insertLeaf:null,splitFrom:null,splitTo:null,result:[ROWS[2],ROWS[3],ROWS[4],ROWS[5]],highlightLines:[33,28,29,30,31],description:'继续 next 指针到 [9,11]：9已在结果中；11 ✓ 收集 Frank'},
+    {highlightNodes:[],foundNodes:[],rangeNodes:['l2','l3','l4'],insertLeaf:null,splitFrom:null,splitTo:null,result:[ROWS[2],ROWS[3],ROWS[4],ROWS[5]],highlightLines:[30,35,36],description:'next 节点 [11,13] 中 13 > 11，提前终止。返回 4 行结果（id=5,7,9,11）'},
+  ];
+}
+
+function makeInsertSteps(){
+  // insert id=6
+  const newRow={id:6,name:'Heidi',dept:'FE',salary:7100};
+  return [
+    {highlightNodes:[],foundNodes:[],rangeNodes:[],insertLeaf:null,splitFrom:null,splitTo:null,result:[],highlightLines:[],description:"插入新行：INSERT INTO employees VALUES (6,'Heidi','FE',7100)"},
+    {highlightNodes:['root'],foundNodes:[],rangeNodes:[],insertLeaf:null,splitFrom:null,splitTo:null,result:[],highlightLines:[13,14],description:'从根节点 [5] 开始查找插入位置。6 ≥ 5 → 向右子树'},
+    {highlightNodes:['root','n2'],foundNodes:[],rangeNodes:[],insertLeaf:null,splitFrom:null,splitTo:null,result:[],highlightLines:[14,15],description:'访问内部节点 [9,11]。6 < 9 → 进入左子叶节点'},
+    {highlightNodes:['root','n2','l3'],foundNodes:[],rangeNodes:[],insertLeaf:null,splitFrom:null,splitTo:null,result:[],highlightLines:[16,17],description:'到达叶节点 [5,7,9]。该节点已有 3 个键，order=3 意味着满了！需要分裂'},
+    {highlightNodes:[],foundNodes:[],rangeNodes:[],insertLeaf:'l3',splitFrom:null,splitTo:null,result:[],highlightLines:[],description:'叶节点 [5,7,9] 已满（3键）→ 插入 id=6 后变为 [5,6,7,9]，触发分裂'},
+    {highlightNodes:[],foundNodes:[],rangeNodes:[],insertLeaf:null,splitFrom:'l3',splitTo:'l3b',result:[],highlightLines:[],description:'分裂叶节点：左半 [5,6]，右半 [7,9]；中间键 7 上推到父节点。链表指针重新连接'},
+    {highlightNodes:['n2'],foundNodes:[],rangeNodes:[],insertLeaf:null,splitFrom:null,splitTo:null,result:[newRow],highlightLines:[],description:'父节点 [9,11] 接收上推键 7 → 变为 [7,9,11]，仍在阶数内无需再分裂。插入完成！'},
+  ];
+}
+
+// ─── State machine ────────────────────────────────────────────────────
+let activeTab=0;
+let steps=[], cur=0, playing=false, timer=null;
+const SPEED=[1200,800,500,300,150];
+
+const allSteps=[makeSearchSteps(),makeRangeSteps(),makeInsertSteps()];
+
+function switchTab(t){
+  activeTab=t;
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',i===t));
+  pause();
+  steps=allSteps[t];
+  cur=0;
+  render();
+}
+
+// ─── SVG renderer ────────────────────────────────────────────────────
+function getNodeColor(nodeId,step){
+  if(step.foundNodes&&step.foundNodes.includes(nodeId)) return 'var(--green)';
+  if(step.rangeNodes&&step.rangeNodes.includes(nodeId)) return 'var(--purple)';
+  if(step.highlightNodes&&step.highlightNodes.includes(nodeId)) return 'var(--yellow)';
+  const n=TREE_NODES[nodeId];
+  if(n.isLeaf) return 'var(--teal)';
+  return 'var(--blue)';
+}
+function getNodeBg(nodeId,step){
+  if(step.foundNodes&&step.foundNodes.includes(nodeId)) return 'rgba(74,222,128,.18)';
+  if(step.rangeNodes&&step.rangeNodes.includes(nodeId)) return 'rgba(192,132,252,.18)';
+  if(step.highlightNodes&&step.highlightNodes.includes(nodeId)) return 'rgba(251,191,36,.18)';
+  return 'rgba(30,41,59,0.95)';
+}
+
+function renderTree(step){
+  const svg=document.getElementById('treeSvg');
+  const W=Math.max(svg.clientWidth,SVG_W);
+  const scaleX=W/SVG_W;
+  svg.setAttribute('viewBox',`0 0 ${SVG_W} ${SVG_H}`);
+  svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+  svg.style.height='320px';
+
+  let html='';
+
+  // Draw edges first
+  // root → n1, n2
+  function edge(fromId,toId){
+    const fp=nodePos[fromId], tp=nodePos[toId];
+    const x1=fp.x, y1=fp.y+NODE_H/2;
+    const x2=tp.x, y2=tp.y-NODE_H/2;
+    const hl=(step.highlightNodes&&(step.highlightNodes.includes(fromId)||step.highlightNodes.includes(toId)));
+    const rng=(step.rangeNodes&&(step.rangeNodes.includes(fromId)||step.rangeNodes.includes(toId)));
+    const fnd=(step.foundNodes&&(step.foundNodes.includes(fromId)||step.foundNodes.includes(toId)));
+    const color=fnd?'#4ade80':rng?'#c084fc':hl?'#fbbf24':'#334155';
+    const w=hl||fnd||rng?2:1.5;
+    html+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="${w}" marker-end="url(#arrowhead-${fnd?'green':rng?'purple':hl?'yellow':'gray'})"/>`;
+  }
+  edge('root','n1'); edge('root','n2');
+  edge('n1','l1'); edge('n1','l2');
+  edge('n2','l3'); edge('n2','l4'); edge('n2','l5');
+
+  // Leaf linked list arrows
+  const leafPairs=[['l1','l2'],['l2','l3'],['l3','l4'],['l4','l5']];
+  leafPairs.forEach(([a,b])=>{
+    const ap=nodePos[a], bp=nodePos[b];
+    const x1=ap.x+ap.w/2+2, y1=ap.y+NODE_H/2+12;
+    const x2=bp.x-bp.w/2-2, y2=bp.y+NODE_H/2+12;
+    const bothRange=step.rangeNodes&&step.rangeNodes.includes(a)&&step.rangeNodes.includes(b);
+    const color=bothRange?'#c084fc':'#334155';
+    const dashArray=bothRange?'':'5,4';
+    html+=`<path d="M${x1},${y1} Q${(x1+x2)/2},${y1+22} ${x2},${y2}" fill="none" stroke="${color}" stroke-width="${bothRange?2:1.5}" stroke-dasharray="${dashArray}" opacity="${bothRange?1:0.5}" marker-end="url(#arrowhead-${bothRange?'purple':'gray'})"/>`;
+  });
+
+  // Draw split indicator
+  if(step.insertLeaf==='l3'){
+    const p=nodePos['l3'];
+    html+=`<rect x="${p.x-p.w/2-4}" y="${p.y-NODE_H/2-4}" width="${p.w+8}" height="${NODE_H+8}" rx="8" fill="none" stroke="var(--orange)" stroke-width="2.5" stroke-dasharray="6,3" opacity="0.9"/>`;
+    html+=`<text x="${p.x}" y="${p.y+NODE_H/2+26}" text-anchor="middle" fill="var(--orange)" font-size="11" font-family="monospace">← 叶节点已满！</text>`;
+  }
+  if(step.splitFrom==='l3'){
+    const p=nodePos['l3'];
+    html+=`<rect x="${p.x-p.w/2}" y="${p.y-NODE_H/2}" width="${p.w/2-2}" height="${NODE_H}" rx="6" fill="rgba(251,191,36,.2)" stroke="var(--yellow)" stroke-width="2"/>`;
+    html+=`<text x="${p.x-p.w/4}" y="${p.y+5}" text-anchor="middle" fill="var(--yellow)" font-size="11" font-family="monospace">[5,6]</text>`;
+    html+=`<rect x="${p.x+2}" y="${p.y-NODE_H/2}" width="${p.w/2-2}" height="${NODE_H}" rx="6" fill="rgba(251,191,36,.2)" stroke="var(--yellow)" stroke-width="2"/>`;
+    html+=`<text x="${p.x+p.w/4}" y="${p.y+5}" text-anchor="middle" fill="var(--yellow)" font-size="11" font-family="monospace">[7,9]</text>`;
+    html+=`<text x="${p.x}" y="${p.y+NODE_H/2+28}" text-anchor="middle" fill="var(--yellow)" font-size="11" font-family="monospace">7 上推到父节点 →</text>`;
+  }
+
+  // Draw nodes
+  Object.entries(TREE_NODES).forEach(([id,node])=>{
+    // skip split visualization override for l3
+    if((step.splitFrom||step.insertLeaf==='l3')&&id==='l3') return;
+    const p=nodePos[id];
+    const color=getNodeColor(id,step);
+    const bg=getNodeBg(id,step);
+    const rx=node.isLeaf?7:6;
+    html+=`<rect x="${p.x-p.w/2}" y="${p.y-NODE_H/2}" width="${p.w}" height="${NODE_H}" rx="${rx}" fill="${bg}" stroke="${color}" stroke-width="${(step.highlightNodes&&step.highlightNodes.includes(id))||(step.foundNodes&&step.foundNodes.includes(id))||(step.rangeNodes&&step.rangeNodes.includes(id))?2:1.5}"/>`;
+    if(node.isLeaf){
+      html+=`<text x="${p.x}" y="${p.y+5}" text-anchor="middle" fill="${color}" font-size="11.5" font-family="'JetBrains Mono',monospace">[${node.keys.join(',')}]</text>`;
+      html+=`<text x="${p.x}" y="${p.y-NODE_H/2-5}" text-anchor="middle" fill="${color}" font-size="9.5" opacity="0.7">leaf</text>`;
+    } else {
+      html+=`<text x="${p.x}" y="${p.y+5}" text-anchor="middle" fill="${color}" font-size="12" font-family="'JetBrains Mono',monospace">[${node.keys.join(',')}]</text>`;
+    }
+  });
+
+  // Arrowhead defs
+  const arrowDefs=[
+    {id:'gray',color:'#334155'},
+    {id:'yellow',color:'#fbbf24'},
+    {id:'green',color:'#4ade80'},
+    {id:'purple',color:'#c084fc'},
+  ].map(({id,color})=>`<marker id="arrowhead-${id}" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="${color}"/></marker>`).join('');
+
+  svg.innerHTML=`<defs>${arrowDefs}</defs>${html}`;
+}
+
+function renderResult(step){
+  const el=document.getElementById('resultArea');
+  if(!step.result||step.result.length===0){el.innerHTML='';return;}
+  const tab=activeTab;
+  let html=`<table class="result-table"><thead><tr><th>id</th><th>name</th><th>dept</th><th>salary</th></tr></thead><tbody>`;
+  step.result.forEach(r=>{
+    html+=`<tr class="found"><td class="found-key">${r.id}</td><td>${r.name}</td><td>${r.dept}</td><td>${r.salary}</td></tr>`;
+  });
+  html+=`</tbody></table><div class="result-info">${tab===1?'范围查询结果 id ∈ [5,11]：'+step.result.length+' 行':'查询结果：'+step.result.length+' 行'}</div>`;
+  el.innerHTML=html;
+}
+
+// ─── Code panel ───────────────────────────────────────────────────────
+function buildCodePanel(){
+  const cb=document.getElementById('codeBody');
+  cb.innerHTML=CODE_LINES.map(l=>`<div class="code-line" data-ln="${l.ln}"><span class="ln">${l.ln}</span><span class="lc">${l.html}</span></div>`).join('');
+}
+
+function highlightLines(lines){
+  document.querySelectorAll('.code-line').forEach(el=>{
+    el.classList.toggle('active',lines.includes(+el.dataset.ln));
+  });
+  if(lines.length){
+    const first=document.querySelector(`.code-line[data-ln="${lines[0]}"]`);
+    if(first) first.scrollIntoView({block:'nearest',behavior:'smooth'});
+  }
+}
+
+// ─── Render ───────────────────────────────────────────────────────────
+function render(){
+  if(!steps.length) return;
+  const step=steps[cur];
+  renderTree(step);
+  renderResult(step);
+  highlightLines(step.highlightLines||[]);
+  document.getElementById('desc').textContent=step.description||'';
+  document.getElementById('stepCounter').textContent=`${cur+1} / ${steps.length}`;
+}
+
+// ─── Controls ─────────────────────────────────────────────────────────
+const btnPlay=document.getElementById('btnPlay');
+const speedRange=document.getElementById('speedRange');
+
+function play(){playing=true;btnPlay.innerHTML='⏸ 暂停';tick();}
+function pause(){playing=false;clearTimeout(timer);btnPlay.innerHTML='▶ 播放';}
+function tick(){if(!playing)return;if(cur<steps.length-1){cur++;render();timer=setTimeout(tick,SPEED[+speedRange.value-1]);}else pause();}
+
+document.getElementById('btnReset').onclick=()=>{pause();cur=0;render();};
+document.getElementById('btnPrev').onclick=()=>{pause();if(cur>0){cur--;render();}};
+document.getElementById('btnPlay').onclick=()=>{playing?pause():play();};
+document.getElementById('btnNext').onclick=()=>{pause();if(cur<steps.length-1){cur++;render();}};
+
+document.querySelectorAll('.code-line').forEach(el=>{
+  el.addEventListener('click',()=>{
+    const ln=+el.dataset.ln;
+    let best=-1,bd=Infinity;
+    steps.forEach((s,i)=>{if((s.highlightLines||[]).includes(ln)){const d=Math.abs(i-cur);if(d<bd){bd=d;best=i;}}});
+    if(best>=0){cur=best;render();}
+  });
+});
+
+// ─── Init ─────────────────────────────────────────────────────────────
+buildCodePanel();
+switchTab(0);
+</script>
+</body>
+</html>

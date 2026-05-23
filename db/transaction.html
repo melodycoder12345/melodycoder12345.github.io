@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>事务与死锁检测</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.1rem;font-weight:600;}
+.ds-tags{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;}
+.ds-tag{font-size:0.72rem;padding:2px 8px;border-radius:4px;font-family:monospace;font-weight:500;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;overflow:auto;padding:20px;position:relative;}
+.desc-box{padding:12px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:44px;display:flex;align-items:center;}
+.step-counter{margin-left:auto;font-family:monospace;font-size:0.8rem;color:var(--dim);}
+.code-panel{width:44%;min-width:360px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background .15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.7;}
+.code-line:hover{background:rgba(255,255,255,.04);}.code-line.active{background:rgba(251,191,36,.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:44px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;}.id{color:#e6edf3;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:.85rem;transition:all .15s;font-family:inherit;}
+.btn:hover{background:rgba(255,255,255,.12);}.btn.primary{background:rgba(56,189,248,.15);border-color:rgba(56,189,248,.3);color:var(--blue);}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:80px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
+@media(max-width:768px){body{height:auto!important;min-height:100vh;overflow-y:auto!important;}.main{flex-direction:column!important;height:auto!important;flex:none!important;}.viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:300px!important;flex:none!important;}.code-panel{width:100%!important;min-width:unset!important;height:320px!important;flex:none!important;}.controls{flex-wrap:wrap!important;height:auto!important;}.speed-wrap{margin-left:0!important;}}
+
+/* Deadlock-specific */
+.dl-container{display:flex;gap:20px;height:100%;min-height:380px;}
+.lock-col{width:260px;flex-shrink:0;display:flex;flex-direction:column;gap:12px;}
+.graph-col{flex:1;display:flex;flex-direction:column;gap:8px;}
+.panel-label{font-size:0.75rem;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-bottom:4px;}
+
+/* Lock table */
+.lock-table{border-collapse:collapse;width:100%;font-size:0.78rem;}
+.lock-table th{padding:6px 8px;text-align:center;color:var(--dim);font-weight:500;border-bottom:1px solid var(--border);}
+.lock-table td{padding:6px 8px;text-align:center;border:1px solid rgba(51,65,85,.5);font-family:monospace;font-size:0.72rem;transition:all .3s;}
+.lock-table .res-name{text-align:left;color:var(--dim);font-family:inherit;font-size:0.75rem;white-space:nowrap;}
+.cell-hold{background:rgba(74,222,128,.18);color:var(--green);font-weight:700;}
+.cell-wait{background:rgba(251,191,36,.18);color:var(--yellow);font-weight:700;animation:blink .8s step-end infinite;}
+.cell-free{background:rgba(255,255,255,.02);color:var(--border);}
+.cell-aborted{background:rgba(248,113,113,.1);color:var(--red);text-decoration:line-through;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+/* Phase badge */
+.phase-badge{padding:4px 10px;border-radius:5px;font-size:0.72rem;font-weight:600;font-family:monospace;display:inline-flex;align-items:center;gap:5px;}
+
+/* Wait for graph */
+.graph-wrap{flex:1;position:relative;min-height:200px;}
+svg.wfg{width:100%;height:100%;min-height:200px;}
+
+/* DFS path */
+.dfs-path{font-family:monospace;font-size:0.78rem;padding:8px 12px;background:rgba(255,255,255,.04);border-radius:6px;border:1px solid var(--border);}
+.dfs-path-label{color:var(--dim);font-size:0.72rem;margin-bottom:3px;}
+
+/* Victim banner */
+.victim-banner{padding:10px 14px;border-radius:8px;font-size:0.85rem;font-weight:600;border:1px solid var(--red);background:rgba(248,113,113,.12);color:var(--red);display:none;}
+.victim-banner.show{display:flex;align-items:center;gap:8px;}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>事务与死锁检测</h1>
+  <div class="ds-tags">
+    <span class="ds-tag" style="background:rgba(251,146,60,.15);color:var(--orange)">有向图 Wait-for Graph</span>
+    <span class="ds-tag" style="background:rgba(248,113,113,.15);color:var(--red)">DFS 环检测</span>
+    <span class="ds-tag" style="background:rgba(56,189,248,.15);color:var(--blue)">2PL 两阶段锁</span>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="viz-panel">
+    <div class="viz-area" id="vizArea">
+      <div class="dl-container">
+        <!-- Left: Lock table -->
+        <div class="lock-col">
+          <div class="panel-label">锁表 Lock Table</div>
+          <table class="lock-table" id="lockTable">
+            <thead>
+              <tr>
+                <th>资源</th>
+                <th>T1</th>
+                <th>T2</th>
+                <th>T3</th>
+              </tr>
+            </thead>
+            <tbody id="lockTableBody"></tbody>
+          </table>
+          <div id="phaseBadge" style="margin-top:8px;"></div>
+          <div id="victimBanner" class="victim-banner"></div>
+        </div>
+
+        <!-- Right: Wait-for graph -->
+        <div class="graph-col">
+          <div class="panel-label">等待图 Wait-for Graph</div>
+          <div class="graph-wrap">
+            <svg class="wfg" id="wfgSvg" viewBox="0 0 320 220"></svg>
+          </div>
+          <div class="dfs-path" id="dfsPathBox" style="display:none">
+            <div class="dfs-path-label">DFS 访问路径：</div>
+            <div id="dfsPathText"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="desc-box">
+      <span id="desc">初始状态：三个事务，三个资源，准备开始加锁。</span>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+  </div>
+
+  <!-- Code panel -->
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:var(--orange)"></div>
+      <span>deadlock.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="btn" id="btnReset">⟳ 重置</button>
+  <button class="btn" id="btnPrev">← 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 →</button>
+  <div class="speed-wrap">
+    速度 <input type="range" id="speedRange" min="1" max="5" value="3">
+  </div>
+</div>
+
+<script>
+// --- Code ---
+const CODE_LINES = [
+  { ln:1,  html: '<span class="cm">// 等待图 + DFS 检测死锁</span>' },
+  { ln:2,  html: '<span class="kw">type</span> <span class="id">WaitForGraph</span> <span class="kw">struct</span> {' },
+  { ln:3,  html: '&nbsp;&nbsp;&nbsp;&nbsp;edges <span class="kw">map</span>[<span class="kw">int</span>][]<span class="kw">int</span> <span class="cm">// txnID → []waiting_for_txnIDs</span>' },
+  { ln:4,  html: '}' },
+  { ln:5,  html: '' },
+  { ln:6,  html: '<span class="cm">// AddEdge: 事务 from 等待事务 to 释放锁</span>' },
+  { ln:7,  html: '<span class="kw">func</span> (g <span class="kw">*WaitForGraph</span>) <span class="fn">AddEdge</span>(from, to <span class="kw">int</span>) {' },
+  { ln:8,  html: '&nbsp;&nbsp;&nbsp;&nbsp;g.edges[from] = <span class="fn">append</span>(g.edges[from], to)' },
+  { ln:9,  html: '}' },
+  { ln:10, html: '' },
+  { ln:11, html: '<span class="cm">// DetectCycle: DFS 检测环，O(V+E)</span>' },
+  { ln:12, html: '<span class="kw">func</span> (g <span class="kw">*WaitForGraph</span>) <span class="fn">DetectCycle</span>() (<span class="kw">bool</span>, []<span class="kw">int</span>) {' },
+  { ln:13, html: '&nbsp;&nbsp;&nbsp;&nbsp;visited := <span class="fn">make</span>(<span class="kw">map</span>[<span class="kw">int</span>]<span class="kw">bool</span>)' },
+  { ln:14, html: '&nbsp;&nbsp;&nbsp;&nbsp;recStack := <span class="fn">make</span>(<span class="kw">map</span>[<span class="kw">int</span>]<span class="kw">bool</span>) <span class="cm">// 当前 DFS 路径</span>' },
+  { ln:15, html: '&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">var</span> path []<span class="kw">int</span>' },
+  { ln:16, html: '' },
+  { ln:17, html: '&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">var</span> dfs <span class="kw">func</span>(v <span class="kw">int</span>) <span class="kw">bool</span>' },
+  { ln:18, html: '&nbsp;&nbsp;&nbsp;&nbsp;dfs = <span class="kw">func</span>(v <span class="kw">int</span>) <span class="kw">bool</span> {' },
+  { ln:19, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;visited[v] = <span class="kw">true</span>' },
+  { ln:20, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;recStack[v] = <span class="kw">true</span>' },
+  { ln:21, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;path = <span class="fn">append</span>(path, v)' },
+  { ln:22, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> _, neighbor := <span class="kw">range</span> g.edges[v] {' },
+  { ln:23, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> !visited[neighbor] {' },
+  { ln:24, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> <span class="fn">dfs</span>(neighbor) { <span class="kw">return</span> <span class="kw">true</span> }' },
+  { ln:25, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;} <span class="kw">else if</span> recStack[neighbor] {' },
+  { ln:26, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="kw">true</span> <span class="cm">// 发现环！</span>' },
+  { ln:27, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}' },
+  { ln:28, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}' },
+  { ln:29, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;recStack[v] = <span class="kw">false</span>' },
+  { ln:30, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;path = path[:len(path)-<span class="num">1</span>]' },
+  { ln:31, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="kw">false</span>' },
+  { ln:32, html: '&nbsp;&nbsp;&nbsp;&nbsp;}' },
+  { ln:33, html: '&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> txn := <span class="kw">range</span> g.edges {' },
+  { ln:34, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> !visited[txn] && <span class="fn">dfs</span>(txn) {' },
+  { ln:35, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="kw">true</span>, path <span class="cm">// 返回死锁路径</span>' },
+  { ln:36, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}' },
+  { ln:37, html: '&nbsp;&nbsp;&nbsp;&nbsp;}' },
+  { ln:38, html: '&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="kw">false</span>, <span class="kw">nil</span>' },
+  { ln:39, html: '}' },
+  { ln:40, html: '<span class="cm">// 解决方案：选择代价最小的事务回滚（Victim Selection）</span>' },
+];
+
+const codeBody = document.getElementById('codeBody');
+CODE_LINES.forEach(({ln, html}) => {
+  const el = document.createElement('div');
+  el.className = 'code-line';
+  el.dataset.ln = ln;
+  el.innerHTML = `<span class="ln">${ln}</span><span class="lc">${html}</span>`;
+  codeBody.appendChild(el);
+});
+
+// --- Steps ---
+// locks: [{txn:'T1'|'T2'|'T3', resource:'R1'|'R2'|'R3', status:'hold'|'wait'|'aborted'}]
+// waitGraph: [{from, to, highlight:'normal'|'cycle'}]
+// visitedNodes: ['T1',...]  dfsPath: ['T1','T2',...] victim: null|'T3'
+// phase: 'acquire'|'wait'|'detect'|'resolve'
+
+const steps = [
+  {
+    locks: [],
+    waitGraph: [],
+    visitedNodes: [], dfsPath: [],
+    victim: null, phase: 'acquire',
+    highlightLines: [2,3],
+    description: '初始状态：三个事务（T1, T2, T3），三个资源（R1=account_A, R2=account_B, R3=account_C）。等待图为空。'
+  },
+  {
+    locks: [{txn:'T1',resource:'R1',status:'hold'}],
+    waitGraph: [],
+    visitedNodes: [], dfsPath: [],
+    victim: null, phase: 'acquire',
+    highlightLines: [7,8],
+    description: 'T1 申请锁 R1（account_A）。资源空闲，T1 立即获得锁。2PL 加锁阶段开始。'
+  },
+  {
+    locks: [
+      {txn:'T1',resource:'R1',status:'hold'},
+      {txn:'T2',resource:'R2',status:'hold'}
+    ],
+    waitGraph: [],
+    visitedNodes: [], dfsPath: [],
+    victim: null, phase: 'acquire',
+    highlightLines: [7,8],
+    description: 'T2 申请锁 R2（account_B）。资源空闲，T2 立即获得锁。'
+  },
+  {
+    locks: [
+      {txn:'T1',resource:'R1',status:'hold'},
+      {txn:'T2',resource:'R2',status:'hold'},
+      {txn:'T3',resource:'R3',status:'hold'}
+    ],
+    waitGraph: [],
+    visitedNodes: [], dfsPath: [],
+    victim: null, phase: 'acquire',
+    highlightLines: [7,8],
+    description: 'T3 申请锁 R3（account_C）。资源空闲，T3 立即获得锁。三个事务各自持有一个资源。'
+  },
+  {
+    locks: [
+      {txn:'T1',resource:'R1',status:'hold'},
+      {txn:'T2',resource:'R2',status:'hold'},
+      {txn:'T3',resource:'R3',status:'hold'},
+      {txn:'T1',resource:'R2',status:'wait'}
+    ],
+    waitGraph: [{from:'T1',to:'T2',highlight:'normal'}],
+    visitedNodes: [], dfsPath: [],
+    victim: null, phase: 'wait',
+    highlightLines: [7,8],
+    description: 'T1 申请 R2（account_B），但 R2 被 T2 持有！T1 进入等待。等待图添加边：T1 → T2。'
+  },
+  {
+    locks: [
+      {txn:'T1',resource:'R1',status:'hold'},
+      {txn:'T2',resource:'R2',status:'hold'},
+      {txn:'T3',resource:'R3',status:'hold'},
+      {txn:'T1',resource:'R2',status:'wait'},
+      {txn:'T2',resource:'R3',status:'wait'}
+    ],
+    waitGraph: [
+      {from:'T1',to:'T2',highlight:'normal'},
+      {from:'T2',to:'T3',highlight:'normal'}
+    ],
+    visitedNodes: [], dfsPath: [],
+    victim: null, phase: 'wait',
+    highlightLines: [7,8],
+    description: 'T2 申请 R3（account_C），但 R3 被 T3 持有！T2 等待。等待图添加边：T2 → T3。'
+  },
+  {
+    locks: [
+      {txn:'T1',resource:'R1',status:'hold'},
+      {txn:'T2',resource:'R2',status:'hold'},
+      {txn:'T3',resource:'R3',status:'hold'},
+      {txn:'T1',resource:'R2',status:'wait'},
+      {txn:'T2',resource:'R3',status:'wait'},
+      {txn:'T3',resource:'R1',status:'wait'}
+    ],
+    waitGraph: [
+      {from:'T1',to:'T2',highlight:'normal'},
+      {from:'T2',to:'T3',highlight:'normal'},
+      {from:'T3',to:'T1',highlight:'normal'}
+    ],
+    visitedNodes: [], dfsPath: [],
+    victim: null, phase: 'wait',
+    highlightLines: [7,8],
+    description: 'T3 申请 R1（account_A），但 R1 被 T1 持有！T3 等待。等待图：T1→T2, T2→T3, T3→T1。三个事务形成环路！'
+  },
+  {
+    locks: [
+      {txn:'T1',resource:'R1',status:'hold'},
+      {txn:'T2',resource:'R2',status:'hold'},
+      {txn:'T3',resource:'R3',status:'hold'},
+      {txn:'T1',resource:'R2',status:'wait'},
+      {txn:'T2',resource:'R3',status:'wait'},
+      {txn:'T3',resource:'R1',status:'wait'}
+    ],
+    waitGraph: [
+      {from:'T1',to:'T2',highlight:'normal'},
+      {from:'T2',to:'T3',highlight:'normal'},
+      {from:'T3',to:'T1',highlight:'normal'}
+    ],
+    visitedNodes: ['T1'], dfsPath: ['T1'],
+    victim: null, phase: 'detect',
+    highlightLines: [12,13,14,15,17,18,19,20,21,33,34],
+    description: '死锁检测器启动！对等待图进行 DFS。从 T1 开始访问，标记 T1 为已访问，加入当前路径。'
+  },
+  {
+    locks: [
+      {txn:'T1',resource:'R1',status:'hold'},
+      {txn:'T2',resource:'R2',status:'hold'},
+      {txn:'T3',resource:'R3',status:'hold'},
+      {txn:'T1',resource:'R2',status:'wait'},
+      {txn:'T2',resource:'R3',status:'wait'},
+      {txn:'T3',resource:'R1',status:'wait'}
+    ],
+    waitGraph: [
+      {from:'T1',to:'T2',highlight:'normal'},
+      {from:'T2',to:'T3',highlight:'normal'},
+      {from:'T3',to:'T1',highlight:'normal'}
+    ],
+    visitedNodes: ['T1','T2'], dfsPath: ['T1','T2'],
+    victim: null, phase: 'detect',
+    highlightLines: [22,23,24,19,20,21],
+    description: 'DFS：T1 的邻居是 T2（T1等T2）。T2 未访问，递归访问 T2。路径：T1 → T2。'
+  },
+  {
+    locks: [
+      {txn:'T1',resource:'R1',status:'hold'},
+      {txn:'T2',resource:'R2',status:'hold'},
+      {txn:'T3',resource:'R3',status:'hold'},
+      {txn:'T1',resource:'R2',status:'wait'},
+      {txn:'T2',resource:'R3',status:'wait'},
+      {txn:'T3',resource:'R1',status:'wait'}
+    ],
+    waitGraph: [
+      {from:'T1',to:'T2',highlight:'normal'},
+      {from:'T2',to:'T3',highlight:'normal'},
+      {from:'T3',to:'T1',highlight:'normal'}
+    ],
+    visitedNodes: ['T1','T2','T3'], dfsPath: ['T1','T2','T3'],
+    victim: null, phase: 'detect',
+    highlightLines: [22,23,24,19,20,21],
+    description: 'DFS：T2 的邻居是 T3（T2等T3）。T3 未访问，递归访问 T3。路径：T1 → T2 → T3。'
+  },
+  {
+    locks: [
+      {txn:'T1',resource:'R1',status:'hold'},
+      {txn:'T2',resource:'R2',status:'hold'},
+      {txn:'T3',resource:'R3',status:'hold'},
+      {txn:'T1',resource:'R2',status:'wait'},
+      {txn:'T2',resource:'R3',status:'wait'},
+      {txn:'T3',resource:'R1',status:'wait'}
+    ],
+    waitGraph: [
+      {from:'T1',to:'T2',highlight:'cycle'},
+      {from:'T2',to:'T3',highlight:'cycle'},
+      {from:'T3',to:'T1',highlight:'cycle'}
+    ],
+    visitedNodes: ['T1','T2','T3'], dfsPath: ['T1','T2','T3','T1(环!)'],
+    victim: null, phase: 'detect',
+    highlightLines: [25,26],
+    description: 'DFS：T3 的邻居是 T1，但 T1 已在当前路径（recStack）中！发现环：T1 → T2 → T3 → T1。死锁确认！'
+  },
+  {
+    locks: [
+      {txn:'T1',resource:'R1',status:'hold'},
+      {txn:'T2',resource:'R2',status:'hold'},
+      {txn:'T3',resource:'R3',status:'aborted'},
+      {txn:'T1',resource:'R2',status:'wait'},
+      {txn:'T2',resource:'R3',status:'wait'},
+      {txn:'T3',resource:'R1',status:'aborted'}
+    ],
+    waitGraph: [
+      {from:'T1',to:'T2',highlight:'normal'},
+    ],
+    visitedNodes: [], dfsPath: [],
+    victim: 'T3', phase: 'resolve',
+    highlightLines: [40],
+    description: '选择代价最小的事务 T3 作为牺牲者（Victim）。T3 回滚，释放 R3。T2 获得 R3，死锁解除！T1→T2 的等待仍存在，但不再成环。'
+  }
+];
+
+// --- Render ---
+const RESOURCES = ['R1(account_A)','R2(account_B)','R3(account_C)'];
+const TXNS = ['T1','T2','T3'];
+const R_SHORT = ['R1','R2','R3'];
+
+function getCellStatus(txn, resShort, locks, victim) {
+  if (victim && victim === txn) return 'aborted';
+  const lock = locks.find(l => l.txn === txn && l.resource === resShort);
+  if (!lock) return 'free';
+  return lock.status;
+}
+
+function renderLockTable(locks, victim) {
+  const tbody = document.getElementById('lockTableBody');
+  tbody.innerHTML = '';
+  RESOURCES.forEach((res, ri) => {
+    const tr = document.createElement('tr');
+    let html = `<td class="res-name">${res}</td>`;
+    TXNS.forEach(txn => {
+      const status = getCellStatus(txn, R_SHORT[ri], locks, victim);
+      let cls = 'cell-free', text = '—';
+      if (status === 'hold') { cls = 'cell-hold'; text = 'HOLD'; }
+      else if (status === 'wait') { cls = 'cell-wait'; text = 'WAIT'; }
+      else if (status === 'aborted') { cls = 'cell-aborted'; text = 'ABORT'; }
+      html += `<td class="${cls}">${text}</td>`;
+    });
+    tr.innerHTML = html;
+    tbody.appendChild(tr);
+  });
+}
+
+// Node positions in SVG (viewBox 320x220)
+const NODE_POS = { T1: {x:80, y:60}, T2: {x:240, y:60}, T3: {x:160, y:160} };
+const TXN_COLORS = { T1: 'var(--blue)', T2: 'var(--orange)', T3: 'var(--teal)' };
+
+function renderWFG(waitGraph, visitedNodes, victim) {
+  const svg = document.getElementById('wfgSvg');
+  svg.innerHTML = '';
+
+  // defs for arrowheads
+  const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+  const mkMarker = (id, color) => {
+    const m = document.createElementNS('http://www.w3.org/2000/svg','marker');
+    m.setAttribute('id', id);
+    m.setAttribute('markerWidth','8');
+    m.setAttribute('markerHeight','8');
+    m.setAttribute('refX','6');
+    m.setAttribute('refY','3');
+    m.setAttribute('orient','auto');
+    const p = document.createElementNS('http://www.w3.org/2000/svg','path');
+    p.setAttribute('d','M0,0 L0,6 L8,3 z');
+    p.setAttribute('fill', color);
+    m.appendChild(p);
+    return m;
+  };
+  defs.appendChild(mkMarker('arrow-normal','#94a3b8'));
+  defs.appendChild(mkMarker('arrow-cycle','#f87171'));
+  svg.appendChild(defs);
+
+  // Draw edges
+  waitGraph.forEach(edge => {
+    const from = NODE_POS[edge.from];
+    const to = NODE_POS[edge.to];
+    const isCycle = edge.highlight === 'cycle';
+    const color = isCycle ? '#f87171' : '#475569';
+    const markerId = isCycle ? 'arrow-cycle' : 'arrow-normal';
+
+    // Compute offset so arrows don't overlap node circles
+    const dx = to.x - from.x, dy = to.y - from.y;
+    const len = Math.sqrt(dx*dx+dy*dy);
+    const r = 26;
+    const sx = from.x + dx/len*r, sy = from.y + dy/len*r;
+    const ex = to.x - dx/len*r, ey = to.y - dy/len*r;
+
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1', sx); line.setAttribute('y1', sy);
+    line.setAttribute('x2', ex); line.setAttribute('y2', ey);
+    line.setAttribute('stroke', color);
+    line.setAttribute('stroke-width', isCycle ? '2.5' : '1.5');
+    line.setAttribute('marker-end', `url(#${markerId})`);
+    if (isCycle) {
+      line.setAttribute('stroke-dasharray','0');
+      line.style.animation = 'none';
+    }
+    svg.appendChild(line);
+
+    // Edge label (from → to short)
+    const mx = (sx+ex)/2, my = (sy+ey)/2;
+    const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
+    lbl.setAttribute('x', mx);
+    lbl.setAttribute('y', my - 5);
+    lbl.setAttribute('text-anchor','middle');
+    lbl.setAttribute('font-size','9');
+    lbl.setAttribute('fill', isCycle ? '#f87171' : '#64748b');
+    lbl.setAttribute('font-family','monospace');
+    lbl.textContent = `${edge.from}→${edge.to}`;
+    svg.appendChild(lbl);
+  });
+
+  // Draw nodes
+  TXNS.forEach(txn => {
+    const pos = NODE_POS[txn];
+    const isVisited = visitedNodes.includes(txn);
+    const isVictim = victim === txn;
+    const color = TXN_COLORS[txn];
+
+    const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circle.setAttribute('cx', pos.x);
+    circle.setAttribute('cy', pos.y);
+    circle.setAttribute('r', 26);
+    if (isVictim) {
+      circle.setAttribute('fill','rgba(248,113,113,0.15)');
+      circle.setAttribute('stroke','#f87171');
+      circle.setAttribute('stroke-width','2.5');
+    } else if (isVisited) {
+      circle.setAttribute('fill','rgba(251,191,36,0.12)');
+      circle.setAttribute('stroke','#fbbf24');
+      circle.setAttribute('stroke-width','2.5');
+    } else {
+      circle.setAttribute('fill','rgba(30,41,59,0.9)');
+      circle.setAttribute('stroke', color.replace('var(--','').replace(')',''));
+      // Use inline style for CSS variable
+      circle.style.stroke = color;
+      circle.setAttribute('stroke-width','2');
+    }
+    svg.appendChild(circle);
+
+    const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+    label.setAttribute('x', pos.x);
+    label.setAttribute('y', pos.y + 5);
+    label.setAttribute('text-anchor','middle');
+    label.setAttribute('font-size','14');
+    label.setAttribute('font-weight','700');
+    label.setAttribute('font-family','monospace');
+    label.style.fill = isVictim ? '#f87171' : (isVisited ? '#fbbf24' : color);
+    label.textContent = txn;
+    svg.appendChild(label);
+
+    if (isVictim) {
+      const badge = document.createElementNS('http://www.w3.org/2000/svg','text');
+      badge.setAttribute('x', pos.x);
+      badge.setAttribute('y', pos.y + 20);
+      badge.setAttribute('text-anchor','middle');
+      badge.setAttribute('font-size','8');
+      badge.setAttribute('fill','#f87171');
+      badge.setAttribute('font-family','sans-serif');
+      badge.textContent = 'ABORTED';
+      svg.appendChild(badge);
+    } else if (isVisited) {
+      const badge = document.createElementNS('http://www.w3.org/2000/svg','text');
+      badge.setAttribute('x', pos.x);
+      badge.setAttribute('y', pos.y + 20);
+      badge.setAttribute('text-anchor','middle');
+      badge.setAttribute('font-size','8');
+      badge.setAttribute('fill','#fbbf24');
+      badge.setAttribute('font-family','sans-serif');
+      badge.textContent = 'visited';
+      svg.appendChild(badge);
+    }
+  });
+}
+
+const PHASE_CONFIG = {
+  acquire: { label: '加锁阶段 (Growing Phase)', color: 'var(--green)', bg: 'rgba(74,222,128,.12)' },
+  wait:    { label: '等待中 (Blocked)', color: 'var(--yellow)', bg: 'rgba(251,191,36,.12)' },
+  detect:  { label: 'DFS 死锁检测', color: 'var(--orange)', bg: 'rgba(251,146,60,.12)' },
+  resolve: { label: '死锁解除 (Resolved)', color: 'var(--teal)', bg: 'rgba(45,212,191,.12)' },
+};
+
+function render() {
+  const s = steps[cur];
+  renderLockTable(s.locks, s.victim);
+  renderWFG(s.waitGraph, s.visitedNodes, s.victim);
+
+  // Phase badge
+  const pb = document.getElementById('phaseBadge');
+  const pc = PHASE_CONFIG[s.phase];
+  pb.innerHTML = `<span class="phase-badge" style="background:${pc.bg};color:${pc.color};border:1px solid ${pc.color}33">● ${pc.label}</span>`;
+
+  // Victim banner
+  const vb = document.getElementById('victimBanner');
+  if (s.victim) {
+    vb.className = 'victim-banner show';
+    vb.innerHTML = `⚠ 牺牲者: ${s.victim} 已回滚`;
+  } else {
+    vb.className = 'victim-banner';
+  }
+
+  // DFS path
+  const dfsBox = document.getElementById('dfsPathBox');
+  const dfsText = document.getElementById('dfsPathText');
+  if (s.dfsPath && s.dfsPath.length > 0) {
+    dfsBox.style.display = 'block';
+    dfsText.innerHTML = s.dfsPath.map((n,i) => {
+      const color = n.includes('环') ? '#f87171' : '#fbbf24';
+      return `<span style="color:${color};font-weight:600">${n}</span>${i < s.dfsPath.length-1 ? '<span style="color:#475569"> → </span>' : ''}`;
+    }).join('');
+  } else {
+    dfsBox.style.display = 'none';
+  }
+
+  document.getElementById('desc').textContent = s.description;
+  document.getElementById('stepCounter').textContent = (cur+1) + ' / ' + steps.length;
+  highlightLines(s.highlightLines || []);
+}
+
+// --- Standard controls ---
+const SPEED=[1200,800,500,300,150];
+let cur=0,playing=false,timer=null;
+const btnPlay=document.getElementById('btnPlay');
+const speedRange=document.getElementById('speedRange');
+function highlightLines(lines){document.querySelectorAll('.code-line').forEach(el=>{el.classList.toggle('active',lines.includes(+el.dataset.ln));});}
+function play(){playing=true;btnPlay.innerHTML='⏸ 暂停';tick();}
+function pause(){playing=false;clearTimeout(timer);btnPlay.innerHTML='▶ 播放';}
+function tick(){if(!playing)return;if(cur<steps.length-1){cur++;render();timer=setTimeout(tick,SPEED[+speedRange.value-1]);}else pause();}
+document.getElementById('btnReset').onclick=()=>{pause();cur=0;render();};
+document.getElementById('btnPrev').onclick=()=>{pause();if(cur>0){cur--;render();}};
+document.getElementById('btnPlay').onclick=()=>{playing?pause():play();};
+document.getElementById('btnNext').onclick=()=>{pause();if(cur<steps.length-1){cur++;render();}};
+document.querySelectorAll('.code-line').forEach(el=>{el.addEventListener('click',()=>{const ln=+el.dataset.ln;let best=-1,bd=Infinity;steps.forEach((s,i)=>{if((s.highlightLines||[]).includes(ln)){const d=Math.abs(i-cur);if(d<bd){bd=d;best=i;}}});if(best>=0){cur=best;render();}});});
+
+render();
+</script>
+</body>
+</html>

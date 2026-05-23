@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JOIN 算法对比</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.1rem;font-weight:600;}
+.ds-tags{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;}
+.ds-tag{font-size:0.72rem;padding:2px 8px;border-radius:4px;font-family:monospace;font-weight:500;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;overflow:auto;padding:20px;position:relative;}
+.desc-box{padding:12px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:44px;display:flex;align-items:center;}
+.step-counter{margin-left:auto;font-family:monospace;font-size:0.8rem;color:var(--dim);}
+.code-panel{width:44%;min-width:360px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background .15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.7;}
+.code-line:hover{background:rgba(255,255,255,.04);}.code-line.active{background:rgba(251,191,36,.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:44px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;}.id{color:#e6edf3;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:.85rem;transition:all .15s;font-family:inherit;}
+.btn:hover{background:rgba(255,255,255,.12);}.btn.primary{background:rgba(56,189,248,.15);border-color:rgba(56,189,248,.3);color:var(--blue);}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:80px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
+
+/* Tab styles */
+.tab-bar{display:flex;gap:0;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--panel);}
+.tab-btn{padding:9px 18px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--dim);font-size:0.83rem;cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap;}
+.tab-btn:hover{color:var(--text);background:rgba(255,255,255,.04);}
+.tab-btn.active{color:var(--blue);border-bottom-color:var(--blue);}
+
+/* Table styles */
+.tables-row{display:flex;gap:20px;align-items:flex-start;margin-bottom:16px;}
+.tbl-wrap{flex:1;}
+.tbl-label{font-size:0.78rem;color:var(--dim);margin-bottom:6px;font-family:monospace;text-transform:uppercase;letter-spacing:.05em;}
+.tbl{width:100%;border-collapse:collapse;font-size:0.82rem;}
+.tbl th{background:rgba(255,255,255,.06);padding:5px 10px;text-align:left;font-size:0.75rem;color:var(--dim);font-weight:500;border:1px solid var(--border);}
+.tbl td{padding:5px 10px;border:1px solid var(--border);font-family:monospace;transition:background .15s,border-color .15s;}
+.tbl tr.row-compare td{background:rgba(251,191,36,.15);border-color:var(--yellow);}
+.tbl tr.row-match td{background:rgba(74,222,128,.15);border-color:var(--green);}
+.tbl tr.row-nomatch td{background:rgba(248,113,113,.12);border-color:var(--red);}
+.tbl tr.row-outer td{background:rgba(56,189,248,.1);border-color:rgba(56,189,248,.4);}
+.tbl tr.row-active td{background:rgba(56,189,248,.08);border-color:rgba(56,189,248,.35);}
+.tbl tr.row-dim td{opacity:0.35;}
+
+/* Result table */
+.result-wrap{margin-top:16px;}
+.result-label{font-size:0.78rem;color:var(--green);margin-bottom:6px;font-family:monospace;text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:8px;}
+.result-count{background:rgba(74,222,128,.15);border:1px solid rgba(74,222,128,.3);color:var(--green);padding:1px 8px;border-radius:10px;font-size:0.72rem;}
+
+/* Hash buckets */
+.hash-section{margin-top:8px;}
+.hash-label{font-size:0.78rem;color:var(--dim);margin-bottom:8px;font-family:monospace;}
+.hash-buckets{display:flex;gap:8px;flex-wrap:wrap;}
+.hash-bucket{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:6px;padding:8px 12px;min-width:80px;}
+.hash-bucket-head{font-size:0.7rem;color:var(--dim);font-family:monospace;margin-bottom:4px;}
+.hash-bucket-item{font-size:0.78rem;font-family:monospace;padding:2px 6px;border-radius:3px;margin-bottom:2px;background:rgba(56,189,248,.1);color:var(--blue);}
+.hash-bucket.probing{border-color:var(--orange);background:rgba(251,146,60,.08);}
+.hash-bucket.matched{border-color:var(--green);background:rgba(74,222,128,.08);}
+.probe-arrow{font-size:0.8rem;color:var(--orange);margin:0 4px;}
+
+/* SMJ sorted arrays */
+.smj-arrays{display:flex;gap:20px;margin-bottom:16px;}
+.smj-arr{flex:1;}
+.smj-arr-label{font-size:0.75rem;color:var(--dim);margin-bottom:6px;font-family:monospace;}
+.smj-items{display:flex;gap:4px;flex-wrap:wrap;}
+.smj-item{width:52px;height:52px;border:1px solid var(--border);border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:monospace;font-size:0.78rem;background:rgba(255,255,255,.04);transition:all .2s;position:relative;}
+.smj-item .smj-key{font-size:1rem;font-weight:700;}
+.smj-item .smj-val{font-size:0.65rem;color:var(--dim);}
+.smj-item.ptr-left{border-color:var(--blue);background:rgba(56,189,248,.12);}
+.smj-item.ptr-right{border-color:var(--orange);background:rgba(251,146,60,.1);}
+.smj-item.matched{border-color:var(--green);background:rgba(74,222,128,.12);}
+.smj-item.done{opacity:0.3;}
+.smj-ptr{font-size:0.7rem;position:absolute;top:-18px;left:50%;transform:translateX(-50%);white-space:nowrap;color:var(--blue);font-weight:600;}
+.smj-ptr.right{color:var(--orange);}
+.smj-phase-label{font-size:0.8rem;color:var(--dim);padding:6px 0;font-style:italic;}
+
+/* Phase indicator */
+.phase-badge{display:inline-flex;align-items:center;gap:6px;font-size:0.75rem;padding:3px 10px;border-radius:12px;font-weight:500;margin-bottom:12px;}
+.phase-badge.build{background:rgba(56,189,248,.12);color:var(--blue);border:1px solid rgba(56,189,248,.25);}
+.phase-badge.probe{background:rgba(251,146,60,.12);color:var(--orange);border:1px solid rgba(251,146,60,.25);}
+.phase-badge.sort{background:rgba(192,132,252,.12);color:var(--purple);border:1px solid rgba(192,132,252,.25);}
+.phase-badge.merge{background:rgba(45,212,191,.12);color:var(--teal);border:1px solid rgba(45,212,191,.25);}
+.phase-badge.nl{background:rgba(248,113,113,.1);color:var(--red);border:1px solid rgba(248,113,113,.2);}
+
+@media(max-width:768px){body{height:auto!important;min-height:100vh;overflow-y:auto!important;}.main{flex-direction:column!important;height:auto!important;flex:none!important;}.viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:auto!important;flex:none!important;min-height:400px;}.code-panel{width:100%!important;min-width:unset!important;height:320px!important;flex:none!important;}.controls{flex-wrap:wrap!important;height:auto!important;}.speed-wrap{margin-left:0!important;}}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>JOIN 算法对比</h1>
+  <div class="ds-tags">
+    <span class="ds-tag" style="background:rgba(248,113,113,.12);color:var(--red);border:1px solid rgba(248,113,113,.25)">嵌套循环 O(n²)</span>
+    <span class="ds-tag" style="background:rgba(56,189,248,.12);color:var(--blue);border:1px solid rgba(56,189,248,.25)">哈希连接 O(n+m)</span>
+    <span class="ds-tag" style="background:rgba(192,132,252,.12);color:var(--purple);border:1px solid rgba(192,132,252,.25)">排序归并 O(n log n)</span>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="viz-panel">
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab(0)">嵌套循环 NLJ</button>
+      <button class="tab-btn" onclick="switchTab(1)">哈希连接 Hash</button>
+      <button class="tab-btn" onclick="switchTab(2)">排序归并 SMJ</button>
+    </div>
+    <div class="viz-area" id="vizArea"></div>
+    <div class="desc-box">
+      <span id="desc">点击播放开始动画</span>
+      <span class="step-counter" id="stepCounter"></span>
+    </div>
+  </div>
+
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <span class="code-dot" style="background:var(--orange)"></span>
+      <span class="code-dot" style="background:var(--yellow)"></span>
+      <span class="code-dot" style="background:var(--green)"></span>
+      <span style="margin-left:4px">join_algo.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="btn" id="btnReset">↺ 重置</button>
+  <button class="btn" id="btnPrev">‹ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ›</button>
+  <div class="speed-wrap">
+    <span>速度</span>
+    <input type="range" id="speedRange" min="1" max="5" value="3">
+    <span>快</span>
+  </div>
+</div>
+
+<script>
+// ─── Data ───────────────────────────────────────────────────────────────────
+const students = [
+  {id:1, name:'Alice'},
+  {id:2, name:'Bob'},
+  {id:3, name:'Carol'},
+  {id:4, name:'Dave'},
+  {id:5, name:'Eve'},
+];
+const orders = [
+  {sid:2, course:'Math'},
+  {sid:3, course:'CS'},
+  {sid:1, course:'Physics'},
+  {sid:3, course:'DB'},
+  {sid:4, course:'Algo'},
+  {sid:2, course:'OS'},
+];
+
+// ─── Code lines ─────────────────────────────────────────────────────────────
+const codeLines = [
+  {n:1,  h:`<span class="cm">// 1. 嵌套循环连接 O(n×m) — 最简单，小表适用</span>`},
+  {n:2,  h:`<span class="kw">func</span> <span class="fn">NestedLoopJoin</span>(outer, inner []<span class="id">Row</span>) []<span class="id">Result</span> {`},
+  {n:3,  h:`    <span class="kw">var</span> out []<span class="id">Result</span>`},
+  {n:4,  h:`    <span class="kw">for</span> _, o := <span class="kw">range</span> outer {         <span class="cm">// 外层循环</span>`},
+  {n:5,  h:`        <span class="kw">for</span> _, i := <span class="kw">range</span> inner {     <span class="cm">// 内层循环（全扫描）</span>`},
+  {n:6,  h:`            <span class="kw">if</span> o.id == i.studentID {  <span class="cm">// 比较连接键</span>`},
+  {n:7,  h:`                out = <span class="fn">append</span>(out, <span class="fn">join</span>(o, i))`},
+  {n:8,  h:`            }`},
+  {n:9,  h:`        }`},
+  {n:10, h:`    }`},
+  {n:11, h:`    <span class="kw">return</span> out`},
+  {n:12, h:`}`},
+  {n:13, h:``},
+  {n:14, h:`<span class="cm">// 2. 哈希连接 O(n+m) — 大表首选</span>`},
+  {n:15, h:`<span class="kw">func</span> <span class="fn">HashJoin</span>(build, probe []<span class="id">Row</span>) []<span class="id">Result</span> {`},
+  {n:16, h:`    ht := <span class="fn">make</span>(<span class="kw">map</span>[<span class="id">int</span>]<span class="id">Row</span>)`},
+  {n:17, h:`    <span class="kw">for</span> _, r := <span class="kw">range</span> build {         <span class="cm">// Build 阶段：建哈希表</span>`},
+  {n:18, h:`        ht[r.id] = r                  <span class="cm">// O(1) 插入</span>`},
+  {n:19, h:`    }`},
+  {n:20, h:`    <span class="kw">var</span> out []<span class="id">Result</span>`},
+  {n:21, h:`    <span class="kw">for</span> _, r := <span class="kw">range</span> probe {         <span class="cm">// Probe 阶段</span>`},
+  {n:22, h:`        <span class="kw">if</span> match, ok := ht[r.studentID]; ok { <span class="cm">// O(1) 查找</span>`},
+  {n:23, h:`            out = <span class="fn">append</span>(out, <span class="fn">join</span>(match, r))`},
+  {n:24, h:`        }`},
+  {n:25, h:`    }`},
+  {n:26, h:`    <span class="kw">return</span> out`},
+  {n:27, h:`}`},
+  {n:28, h:``},
+  {n:29, h:`<span class="cm">// 3. 排序归并连接 O(n log n + m log m)</span>`},
+  {n:30, h:`<span class="kw">func</span> <span class="fn">SortMergeJoin</span>(left, right []<span class="id">Row</span>) []<span class="id">Result</span> {`},
+  {n:31, h:`    sort.<span class="fn">Slice</span>(left, ...)   <span class="cm">// O(n log n)</span>`},
+  {n:32, h:`    sort.<span class="fn">Slice</span>(right, ...)  <span class="cm">// O(m log m)</span>`},
+  {n:33, h:`    i, j := <span class="num">0</span>, <span class="num">0</span>`},
+  {n:34, h:`    <span class="kw">var</span> out []<span class="id">Result</span>`},
+  {n:35, h:`    <span class="kw">for</span> i &lt; <span class="fn">len</span>(left) &amp;&amp; j &lt; <span class="fn">len</span>(right) { <span class="cm">// 归并</span>`},
+  {n:36, h:`        <span class="kw">if</span> left[i].id == right[j].studentID {`},
+  {n:37, h:`            out = <span class="fn">append</span>(out, <span class="fn">join</span>(left[i], right[j]))`},
+  {n:38, h:`            j++`},
+  {n:39, h:`        } <span class="kw">else if</span> left[i].id &lt; right[j].studentID { i++ } <span class="kw">else</span> { j++ }`},
+  {n:40, h:`    }`},
+  {n:41, h:`    <span class="kw">return</span> out`},
+  {n:42, h:`}`},
+];
+
+function buildCodePanel() {
+  const body = document.getElementById('codeBody');
+  body.innerHTML = codeLines.map(l =>
+    `<div class="code-line" data-ln="${l.n}"><span class="ln">${l.n}</span><span class="lc">${l.h}</span></div>`
+  ).join('');
+  body.querySelectorAll('.code-line').forEach(el => {
+    el.addEventListener('click', () => {
+      const ln = +el.dataset.ln;
+      let best = -1, bd = Infinity;
+      steps.forEach((s, i) => {
+        if (s.highlightLines && s.highlightLines.includes(ln)) {
+          const d = Math.abs(i - cur);
+          if (d < bd) { bd = d; best = i; }
+        }
+      });
+      if (best >= 0) { cur = best; render(); }
+    });
+  });
+}
+
+function highlightLines(lines) {
+  document.querySelectorAll('.code-line').forEach(el => {
+    el.classList.toggle('active', lines && lines.includes(+el.dataset.ln));
+  });
+}
+
+// ─── Tab & Steps ────────────────────────────────────────────────────────────
+let curTab = 0;
+let steps = [], cur = 0, playing = false, timer = null;
+
+const SPEED = [1200, 800, 500, 300, 150];
+const descEl = document.getElementById('desc');
+const stepEl = document.getElementById('stepCounter');
+const btnPlay = document.getElementById('btnPlay');
+const speedRange = document.getElementById('speedRange');
+
+function switchTab(t) {
+  pause();
+  curTab = t;
+  document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', i === t));
+  buildSteps();
+  cur = 0;
+  render();
+}
+
+// ─── NLJ Steps ──────────────────────────────────────────────────────────────
+function buildNLJSteps() {
+  const s = [];
+  const results = [];
+  s.push({ desc:'嵌套循环连接：外层循环遍历 students，内层全扫描 orders', outerIdx:-1, innerIdx:-1, compareState:null, results:[...results], highlightLines:[1,2,3] });
+  for (let oi = 0; oi < students.length; oi++) {
+    s.push({ desc:`外层循环：取 students 第 ${oi+1} 行 → id=${students[oi].id} (${students[oi].name})`, outerIdx:oi, innerIdx:-1, compareState:null, results:[...results], highlightLines:[4] });
+    for (let ii = 0; ii < orders.length; ii++) {
+      const match = students[oi].id === orders[ii].sid;
+      s.push({ desc:`比较 student.id=${students[oi].id} vs order.sid=${orders[ii].sid} → ${match ? '✓ 匹配' : '✗ 不匹配'}`, outerIdx:oi, innerIdx:ii, compareState: match?'match':'nomatch', results:[...results], highlightLines:[5,6] });
+      if (match) {
+        results.push({name: students[oi].name, course: orders[ii].course});
+        s.push({ desc:`✓ 匹配！输出 (${students[oi].name}, ${orders[ii].course})`, outerIdx:oi, innerIdx:ii, compareState:'match', results:[...results], highlightLines:[7] });
+      }
+    }
+  }
+  s.push({ desc:`嵌套循环完成，共扫描 ${students.length * orders.length} 次比较，找到 ${results.length} 条匹配`, outerIdx:-1, innerIdx:-1, compareState:null, results:[...results], highlightLines:[10,11,12] });
+  return s;
+}
+
+// ─── Hash Steps ─────────────────────────────────────────────────────────────
+function buildHashSteps() {
+  const s = [];
+  const buckets = {};
+  const results = [];
+
+  s.push({ phase:'build', desc:'哈希连接：Phase 1 (Build) — 将较小的 students 表哈希到内存', buckets:{}, probeIdx:-1, probeHit:null, results:[...results], highlightLines:[14,15,16] });
+
+  for (let i = 0; i < students.length; i++) {
+    const key = students[i].id;
+    const bk = 'bucket_' + (key % 3);
+    if (!buckets[bk]) buckets[bk] = [];
+    buckets[bk].push({...students[i]});
+    s.push({ phase:'build', desc:`Build: 计算 hash(id=${key}) → ${bk}，插入哈希表`, buckets: JSON.parse(JSON.stringify(buckets)), buildIdx:i, probeIdx:-1, probeHit:null, results:[...results], highlightLines:[17,18] });
+  }
+
+  s.push({ phase:'probe', desc:'哈希连接：Phase 2 (Probe) — 扫描 orders 表，探测哈希表', buckets: JSON.parse(JSON.stringify(buckets)), probeIdx:-1, probeHit:null, results:[...results], highlightLines:[20,21] });
+
+  for (let i = 0; i < orders.length; i++) {
+    const key = orders[i].sid;
+    const bk = 'bucket_' + (key % 3);
+    const matchSt = students.find(s => s.id === key);
+    s.push({ phase:'probe', desc:`Probe: orders[${i}].sid=${key} → hash → ${bk}，${matchSt ? `找到 ${matchSt.name}` : '无匹配'}`, buckets: JSON.parse(JSON.stringify(buckets)), probeIdx:i, probeHit: matchSt ? {bk, match:true} : {bk, match:false}, results:[...results], highlightLines:[21,22] });
+    if (matchSt) {
+      results.push({name: matchSt.name, course: orders[i].course});
+      s.push({ phase:'probe', desc:`✓ 输出 (${matchSt.name}, ${orders[i].course})`, buckets: JSON.parse(JSON.stringify(buckets)), probeIdx:i, probeHit:{bk, match:true}, results:[...results], highlightLines:[23] });
+    }
+  }
+  s.push({ phase:'probe', desc:`哈希连接完成！仅需 O(n+m) 操作，共 ${results.length} 条结果`, buckets: JSON.parse(JSON.stringify(buckets)), probeIdx:-1, probeHit:null, results:[...results], highlightLines:[26,27] });
+  return s;
+}
+
+// ─── SMJ Steps ──────────────────────────────────────────────────────────────
+function buildSMJSteps() {
+  const s = [];
+  const results = [];
+
+  s.push({ phase:'sort', desc:'排序归并：首先对两张表按连接键排序', leftSorted:false, rightSorted:false, li:-1, ri:-1, results:[], highlightLines:[29,30] });
+
+  s.push({ phase:'sort', desc:'Step 1: 对 students 表按 id 排序 → [1,2,3,4,5]（已有序）', leftSorted:true, rightSorted:false, li:-1, ri:-1, results:[], highlightLines:[31] });
+
+  s.push({ phase:'sort', desc:'Step 2: 对 orders 表按 student_id 排序 → [1,2,2,3,3,4]', leftSorted:true, rightSorted:true, li:-1, ri:-1, results:[], highlightLines:[32] });
+
+  const left = [...students].sort((a,b) => a.id - b.id);
+  const right = [...orders].sort((a,b) => a.sid - b.sid);
+
+  s.push({ phase:'merge', desc:'Step 3: 双指针归并，i=0 (students), j=0 (orders)', leftSorted:true, rightSorted:true, li:0, ri:0, results:[], highlightLines:[33,34,35] });
+
+  let li = 0, ri = 0;
+  while (li < left.length && ri < right.length) {
+    const lv = left[li].id, rv = right[ri].sid;
+    if (lv === rv) {
+      results.push({name: left[li].name, course: right[ri].course});
+      s.push({ phase:'merge', desc:`✓ 匹配！left[${li}].id=${lv} == right[${ri}].sid=${rv} → 输出 (${left[li].name}, ${right[ri].course})`, leftSorted:true, rightSorted:true, li, ri, matchedLi:li, matchedRi:ri, results:[...results], highlightLines:[36,37] });
+      ri++;
+      s.push({ phase:'merge', desc:`右指针前进 j=${ri} (同一 left 可能有多个匹配)`, leftSorted:true, rightSorted:true, li, ri: Math.min(ri, right.length-1), results:[...results], highlightLines:[38] });
+    } else if (lv < rv) {
+      s.push({ phase:'merge', desc:`left[${li}].id=${lv} < right[${ri}].sid=${rv} → 左指针前进`, leftSorted:true, rightSorted:true, li, ri, results:[...results], highlightLines:[39] });
+      li++;
+    } else {
+      s.push({ phase:'merge', desc:`left[${li}].id=${lv} > right[${ri}].sid=${rv} → 右指针前进`, leftSorted:true, rightSorted:true, li, ri, results:[...results], highlightLines:[39] });
+      ri++;
+    }
+    if (ri >= right.length) break;
+  }
+  s.push({ phase:'merge', desc:`归并完成！O(n log n) 排序 + O(n+m) 归并，共 ${results.length} 条结果`, leftSorted:true, rightSorted:true, li: left.length, ri: right.length, results:[...results], highlightLines:[40,41,42] });
+  return s;
+}
+
+// ─── Render ──────────────────────────────────────────────────────────────────
+function buildSteps() {
+  if (curTab === 0) steps = buildNLJSteps();
+  else if (curTab === 1) steps = buildHashSteps();
+  else steps = buildSMJSteps();
+}
+
+function render() {
+  if (!steps.length) return;
+  const st = steps[cur];
+  descEl.textContent = st.desc;
+  stepEl.textContent = `${cur + 1} / ${steps.length}`;
+  highlightLines(st.highlightLines || []);
+
+  if (curTab === 0) renderNLJ(st);
+  else if (curTab === 1) renderHash(st);
+  else renderSMJ(st);
+}
+
+function renderNLJ(st) {
+  const viz = document.getElementById('vizArea');
+
+  const studRows = students.map((s, i) => {
+    let cls = '';
+    if (i === st.outerIdx) {
+      cls = st.compareState === 'match' ? 'row-match' : st.compareState === 'nomatch' ? 'row-compare' : 'row-outer';
+    }
+    return `<tr class="${cls}"><td>${s.id}</td><td>${s.name}</td></tr>`;
+  }).join('');
+
+  const ordRows = orders.map((o, i) => {
+    let cls = '';
+    if (i === st.innerIdx) {
+      cls = st.compareState === 'match' ? 'row-match' : st.compareState === 'nomatch' ? 'row-nomatch' : 'row-active';
+    }
+    return `<tr class="${cls}"><td>${o.sid}</td><td>${o.course}</td></tr>`;
+  }).join('');
+
+  const resRows = st.results.map(r => `<tr><td>${r.name}</td><td>${r.course}</td></tr>`).join('');
+
+  viz.innerHTML = `
+    <span class="phase-badge nl">嵌套循环 O(n²) — 共 ${students.length}×${orders.length}=${students.length*orders.length} 次比较</span>
+    <div class="tables-row">
+      <div class="tbl-wrap">
+        <div class="tbl-label">students (外表 / outer)</div>
+        <table class="tbl">
+          <thead><tr><th>id</th><th>name</th></tr></thead>
+          <tbody>${studRows}</tbody>
+        </table>
+      </div>
+      <div class="tbl-wrap">
+        <div class="tbl-label">orders (内表 / inner — 每行都要全扫描)</div>
+        <table class="tbl">
+          <thead><tr><th>student_id</th><th>course</th></tr></thead>
+          <tbody>${ordRows}</tbody>
+        </table>
+      </div>
+    </div>
+    ${st.results.length > 0 || cur === steps.length-1 ? `
+    <div class="result-wrap">
+      <div class="result-label">结果集 <span class="result-count">${st.results.length} 行</span></div>
+      <table class="tbl" style="max-width:320px">
+        <thead><tr><th>name</th><th>course</th></tr></thead>
+        <tbody>${resRows}</tbody>
+      </table>
+    </div>` : ''}
+  `;
+}
+
+function renderHash(st) {
+  const viz = document.getElementById('vizArea');
+  const phaseLabel = st.phase === 'build' ? '构建阶段 (Build)' : '探测阶段 (Probe)';
+  const phaseClass = st.phase === 'build' ? 'build' : 'probe';
+
+  const bucketsHtml = Object.entries(st.buckets).map(([bk, items]) => {
+    let bCls = '';
+    if (st.probeHit && st.probeHit.bk === bk) {
+      bCls = st.probeHit.match ? 'matched' : 'probing';
+    }
+    const itemsHtml = items.map(it => `<div class="hash-bucket-item">id:${it.id} ${it.name}</div>`).join('');
+    return `<div class="hash-bucket ${bCls}"><div class="hash-bucket-head">${bk} (id%3=${bk.split('_')[1]})</div>${itemsHtml || '<div style="color:var(--dim);font-size:0.7rem">空</div>'}</div>`;
+  }).join('');
+
+  const ordRows = orders.map((o, i) => {
+    let cls = i === st.probeIdx ? (st.probeHit && st.probeHit.match ? 'row-match' : 'row-compare') : '';
+    return `<tr class="${cls}"><td>${o.sid}</td><td>${o.course}</td></tr>`;
+  }).join('');
+
+  const resRows = st.results.map(r => `<tr><td>${r.name}</td><td>${r.course}</td></tr>`).join('');
+
+  viz.innerHTML = `
+    <span class="phase-badge ${phaseClass}">${phaseLabel}</span>
+    <div class="hash-section">
+      <div class="hash-label">哈希表（以 id % 3 分桶）${st.phase==='build'&&st.buildIdx>=0?` ← 正在插入 id=${students[st.buildIdx].id}`:''}</div>
+      <div class="hash-buckets">${bucketsHtml || '<span style="color:var(--dim);font-size:0.82rem">（尚未构建）</span>'}</div>
+    </div>
+    <div class="tables-row" style="margin-top:14px">
+      <div class="tbl-wrap">
+        <div class="tbl-label">orders (探测表)</div>
+        <table class="tbl">
+          <thead><tr><th>student_id</th><th>course</th></tr></thead>
+          <tbody>${ordRows}</tbody>
+        </table>
+      </div>
+      ${st.probeIdx >= 0 ? `<div style="display:flex;align-items:center;padding-top:30px;font-size:1.5rem;color:var(--orange)">→</div>
+      <div class="tbl-wrap"><div class="tbl-label" style="color:var(--orange)">探测 hash(sid=${orders[st.probeIdx]?.sid})</div><div style="font-family:monospace;font-size:0.82rem;padding:8px 12px;background:rgba(255,255,255,.04);border:1px solid ${st.probeHit?.match?'var(--green)':'var(--orange)'};border-radius:6px;color:${st.probeHit?.match?'var(--green)':'var(--orange)'}">bucket_${orders[st.probeIdx]?.sid % 3}<br>${st.probeHit?.match?'✓ 命中':'✗ 未命中'}</div></div>` : ''}
+    </div>
+    ${st.results.length > 0 ? `
+    <div class="result-wrap">
+      <div class="result-label">结果集 <span class="result-count">${st.results.length} 行</span></div>
+      <table class="tbl" style="max-width:320px">
+        <thead><tr><th>name</th><th>course</th></tr></thead>
+        <tbody>${resRows}</tbody>
+      </table>
+    </div>` : ''}
+  `;
+}
+
+function renderSMJ(st) {
+  const viz = document.getElementById('vizArea');
+  const left = [...students].sort((a,b) => a.id - b.id);
+  const right = [...orders].sort((a,b) => a.sid - b.sid);
+
+  const phaseClass = st.phase === 'sort' ? 'sort' : 'merge';
+  const phaseText = st.phase === 'sort' ? '排序阶段' : '归并阶段';
+
+  const leftItems = left.map((s, i) => {
+    let cls = '';
+    if (st.li === i) cls = 'ptr-left';
+    if (st.matchedLi === i && st.phase === 'merge') cls = 'matched';
+    if (st.li !== undefined && i < st.li) cls = 'done';
+    const ptr = st.li === i ? `<span class="smj-ptr">i↓</span>` : '';
+    return `<div class="smj-item ${cls}" style="position:relative">${ptr}<span class="smj-key">${s.id}</span><span class="smj-val">${s.name}</span></div>`;
+  }).join('');
+
+  const rightItems = right.map((o, i) => {
+    let cls = '';
+    if (st.ri === i) cls = 'ptr-right';
+    if (st.matchedRi === i && st.phase === 'merge') cls = 'matched';
+    if (st.ri !== undefined && i < st.ri) cls = 'done';
+    const ptr = st.ri === i ? `<span class="smj-ptr right">j↓</span>` : '';
+    return `<div class="smj-item ${cls}" style="position:relative">${ptr}<span class="smj-key">${o.sid}</span><span class="smj-val">${o.course.slice(0,4)}</span></div>`;
+  }).join('');
+
+  const resRows = st.results.map(r => `<tr><td>${r.name}</td><td>${r.course}</td></tr>`).join('');
+
+  viz.innerHTML = `
+    <span class="phase-badge ${phaseClass}">${phaseText}</span>
+    <div class="smj-arrays">
+      <div class="smj-arr">
+        <div class="smj-arr-label">students (已按 id 排序) ${!st.leftSorted?'<span style="color:var(--dim)">未排序</span>':''}</div>
+        <div class="smj-items">${st.leftSorted ? leftItems : left.map(s=>`<div class="smj-item"><span class="smj-key" style="color:var(--dim)">${s.id}</span><span class="smj-val">${s.name}</span></div>`).join('')}</div>
+      </div>
+      <div class="smj-arr">
+        <div class="smj-arr-label">orders (已按 student_id 排序) ${!st.rightSorted?'<span style="color:var(--dim)">未排序</span>':''}</div>
+        <div class="smj-items">${st.rightSorted ? rightItems : right.map(o=>`<div class="smj-item"><span class="smj-key" style="color:var(--dim)">${o.sid}</span><span class="smj-val">${o.course.slice(0,4)}</span></div>`).join('')}</div>
+      </div>
+    </div>
+    ${st.phase === 'merge' ? `<div style="font-size:0.78rem;color:var(--dim);font-family:monospace;margin-bottom:10px">指针位置：i=${st.li >= left.length ? 'END' : st.li} (id=${left[Math.min(st.li,left.length-1)]?.id})，j=${st.ri >= right.length ? 'END' : st.ri} (sid=${right[Math.min(st.ri,right.length-1)]?.sid})</div>` : ''}
+    ${st.results.length > 0 ? `
+    <div class="result-wrap">
+      <div class="result-label">结果集 <span class="result-count">${st.results.length} 行</span></div>
+      <table class="tbl" style="max-width:320px">
+        <thead><tr><th>name</th><th>course</th></tr></thead>
+        <tbody>${resRows}</tbody>
+      </table>
+    </div>` : ''}
+  `;
+}
+
+// ─── Controls ────────────────────────────────────────────────────────────────
+function play() { playing = true; btnPlay.innerHTML = '⏸ 暂停'; tick(); }
+function pause() { playing = false; clearTimeout(timer); btnPlay.innerHTML = '▶ 播放'; }
+function tick() {
+  if (!playing) return;
+  if (cur < steps.length - 1) {
+    cur++;
+    render();
+    timer = setTimeout(tick, SPEED[+speedRange.value - 1]);
+  } else pause();
+}
+
+document.getElementById('btnReset').onclick = () => { pause(); cur = 0; render(); };
+document.getElementById('btnPrev').onclick = () => { pause(); if (cur > 0) { cur--; render(); } };
+document.getElementById('btnPlay').onclick = () => { playing ? pause() : play(); };
+document.getElementById('btnNext').onclick = () => { pause(); if (cur < steps.length - 1) { cur++; render(); } };
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+buildCodePanel();
+buildSteps();
+render();
+</script>
+</body>
+</html>
