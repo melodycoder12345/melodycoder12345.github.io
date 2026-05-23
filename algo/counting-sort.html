@@ -73,6 +73,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
+<script src="../lang.js"></script>
 </head>
 <body>
 <nav>
@@ -93,7 +94,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
       <div class="code-dot" style="background:#ff5f57"></div>
       <div class="code-dot" style="background:#febc2e"></div>
       <div class="code-dot" style="background:#28c840"></div>
-      <span style="margin-left:4px">counting_sort.go</span>
+      <span style="margin-left:4px" data-base="counting_sort">counting_sort.go</span>
     </div>
     <div class="code-body" id="codeBody"></div>
   </div>
@@ -133,6 +134,40 @@ const CODE_LINES = [
   {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">fmt</span>.<span class="fn">Println</span>(result)`},
   {html:`}`},
 ];
+
+window.LANG_PLAIN = {
+  js: `function countingSort(arr, maxVal) {
+    const count = new Array(maxVal + 1).fill(0);
+    for (const val of arr) count[val]++;
+    for (let i = 1; i <= maxVal; i++) count[i] += count[i - 1];
+    const output = new Array(arr.length);
+    for (let i = arr.length - 1; i >= 0; i--) {
+        output[count[arr[i]] - 1] = arr[i];
+        count[arr[i]]--;
+    }
+    for (let i = 0; i < arr.length; i++) arr[i] = output[i];
+}
+
+const arr = [4, 2, 2, 8, 3, 3, 1];
+countingSort(arr, 8);
+console.log(arr);`,
+  py: `def counting_sort(arr, max_val):
+    count = [0] * (max_val + 1)
+    for val in arr:
+        count[val] += 1
+    for i in range(1, max_val + 1):
+        count[i] += count[i - 1]
+    output = [0] * len(arr)
+    for i in range(len(arr) - 1, -1, -1):
+        output[count[arr[i]] - 1] = arr[i]
+        count[arr[i]] -= 1
+    for i in range(len(arr)):
+        arr[i] = output[i]
+
+arr = [4, 2, 2, 8, 3, 3, 1]
+counting_sort(arr, 8)
+print(arr)`
+};
 
 const INITIAL = [4,2,2,8,3,3,1,6,4,9];
 const K = 9;
@@ -292,6 +327,19 @@ function jumpToLine(ln) {
   render();
 }
 
+function renderCode() {
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current))
+    || CODE_LINES;
+  const hl = LangSwitcher.getHL(steps[cur]);
+  const body = document.getElementById('codeBody');
+  body.innerHTML = lines.map((line, i) => {
+    const active = hl.includes(i) ? ' active' : '';
+    return `<div class="code-line${active}" onclick="jumpToLine(${i})">${line.html || '&nbsp;'}</div>`;
+  }).join('');
+  const el = body.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
+}
+
 function cellColor(base, active) {
   if (active) return base;
   return 'rgba(255,255,255,0.06)';
@@ -429,7 +477,7 @@ function render() {
   outputRow.appendChild(outputCells);
   vizArea.appendChild(outputRow);
 
-  highlightLines(s.highlightLines);
+  renderCode();
   descText.textContent = s.description;
   stepCounter.textContent = `${cur+1} / ${steps.length}`;
   btnPrev.disabled = cur === 0;
@@ -464,6 +512,7 @@ btnNext.addEventListener('click', () => { pause(); if (cur < steps.length-1) { c
 btnReset.addEventListener('click', () => { pause(); cur = 0; render(); });
 
 buildCode();
+LangSwitcher.init(renderCode);
 render();
 </script>
 </body>

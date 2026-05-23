@@ -84,6 +84,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
+<script src="../lang.js"></script>
 </head>
 <body>
 <nav>
@@ -134,7 +135,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
       <div class="code-dot" style="background:#ff5f57"></div>
       <div class="code-dot" style="background:#febc2e"></div>
       <div class="code-dot" style="background:#28c840"></div>
-      <span style="margin-left:4px">queue.go</span>
+      <span style="margin-left:4px" data-base="queue">queue.go</span>
     </div>
     <div class="code-body" id="codeBody"></div>
   </div>
@@ -173,6 +174,65 @@ const CODE_LINES = [
   {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> q.items[<span class="num">0</span>], <span class="kw">true</span>`},
   {html:`}`},
 ];
+
+window.LANG_PLAIN = {
+  js: `class Queue {
+    constructor() { this.items = []; this.front = 0; }
+
+    enqueue(val) {
+        this.items.push(val);
+    }
+
+    dequeue() {
+        if (this.isEmpty()) throw new Error("Queue underflow");
+        return this.items[this.front++];
+    }
+
+    peek() {
+        if (this.isEmpty()) throw new Error("Queue is empty");
+        return this.items[this.front];
+    }
+
+    isEmpty() { return this.front >= this.items.length; }
+    size() { return this.items.length - this.front; }
+}
+
+const q = new Queue();
+q.enqueue(10); q.enqueue(20); q.enqueue(30);
+console.log(q.peek());    // 10
+console.log(q.dequeue()); // 10
+console.log(q.size());    // 2`,
+  py: `from collections import deque
+
+class Queue:
+    def __init__(self):
+        self.items = deque()
+
+    def enqueue(self, val):
+        self.items.append(val)
+
+    def dequeue(self):
+        if self.is_empty():
+            raise IndexError("Queue underflow")
+        return self.items.popleft()
+
+    def peek(self):
+        if self.is_empty():
+            raise IndexError("Queue is empty")
+        return self.items[0]
+
+    def is_empty(self):
+        return len(self.items) == 0
+
+    def size(self):
+        return len(self.items)
+
+q = Queue()
+q.enqueue(10); q.enqueue(20); q.enqueue(30)
+print(q.peek())    # 10
+print(q.dequeue()) # 10
+print(q.size())    # 2`
+};
 
 let queueData = [10, 20, 30, 40];
 let steps = [];
@@ -246,6 +306,20 @@ function highlightLines(lines){
 }
 function jumpToLine(ln){let t=cur,b=Infinity;steps.forEach((s,i)=>{if(s.lines&&s.lines.includes(ln)){const d=Math.abs(i-cur);if(d<b){b=d;t=i;}}});cur=t;render();}
 
+function renderCode() {
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current))
+    || CODE_LINES;
+  const step = steps[cur];
+  const hl = LangSwitcher.getHL(step) || (step && (step.highlightLines || step.lines)) || [];
+  const body = document.getElementById('codeBody');
+  body.innerHTML = lines.map((line, i) => {
+    const active = hl.includes(i) ? ' active' : '';
+    return `<div class="code-line${active}" onclick="jumpToLine(${i})">${line.html || '&nbsp;'}</div>`;
+  }).join('');
+  const el = body.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
+}
+
 const COLORS=['#38bdf8','#818cf8','#fb923c','#4ade80','#c084fc','#fbbf24'];
 function renderQueue(q, hl, adding){
   queueRow.innerHTML='';
@@ -274,7 +348,7 @@ function render(){
   if(steps.length===0){renderQueue(queueData,-1,-1);descText.textContent='选择操作并点击执行';stepCounter.textContent='';return;}
   const s=steps[cur];
   renderQueue(s.q,s.hl,s.adding);
-  if(s.lines)highlightLines(s.lines);
+  renderCode();
   descText.textContent=s.desc;
   stepCounter.textContent=`${cur+1} / ${steps.length}`;
   btnPrev.disabled=cur===0;btnNext.disabled=cur===steps.length-1;
@@ -286,7 +360,7 @@ btnPlay.addEventListener('click',()=>playing?pause():play());
 btnPrev.addEventListener('click',()=>{pause();if(cur>0){cur--;render();}});
 btnNext.addEventListener('click',()=>{pause();if(cur<steps.length-1){cur++;render();}});
 btnReset.addEventListener('click',()=>{pause();cur=0;render();});
-buildCode();renderQueue(queueData,-1,-1);
+buildCode();LangSwitcher.init(renderCode);renderCode();renderQueue(queueData,-1,-1);
 </script>
 </body>
 </html>

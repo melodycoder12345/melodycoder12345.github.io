@@ -122,8 +122,13 @@ h1{font-size:1.5rem;font-weight:700;color:var(--blue);margin-bottom:4px;}
 }
 </style>
 <script src="../nav.js"></script>
+<script src="../lang.js"></script>
 </head>
 <body>
+<nav style="display:flex;align-items:center;gap:16px;padding:8px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;margin-bottom:4px;">
+  <a href="index.html" style="color:var(--dim);text-decoration:none;font-size:0.9rem;">← 返回</a>
+  <span style="font-size:1rem;font-weight:600;">0/1 背包问题</span>
+</nav>
 <h1>0/1 背包问题</h1>
 <div class="subtitle">动态规划 · 二维 DP 表格可视化</div>
 <div>
@@ -209,36 +214,13 @@ h1{font-size:1.5rem;font-weight:700;color:var(--blue);margin-bottom:4px;}
     </div>
 
     <div class="panel" style="margin-bottom:16px;">
-      <div class="section-title">Go 实现</div>
-      <div class="code-block"><span class="kw">package</span> main
-<span class="kw">import</span> <span class="str">"fmt"</span>
-
-<span class="kw">func</span> <span class="fn">knapsack</span>(weights, values []<span class="kw">int</span>, W <span class="kw">int</span>) <span class="kw">int</span> {
-    n := len(weights)
-    dp := make([][]<span class="kw">int</span>, n+<span class="num">1</span>)
-    <span class="kw">for</span> i := <span class="kw">range</span> dp {
-        dp[i] = make([]<span class="kw">int</span>, W+<span class="num">1</span>)
-    }
-
-    <span class="kw">for</span> i := <span class="num">1</span>; i &lt;= n; i++ {
-        w, v := weights[i-<span class="num">1</span>], values[i-<span class="num">1</span>]
-        <span class="kw">for</span> j := <span class="num">0</span>; j &lt;= W; j++ {
-            dp[i][j] = dp[i-<span class="num">1</span>][j] <span class="cm">// 不选第 i 件</span>
-            <span class="kw">if</span> j &gt;= w &amp;&amp;
-               dp[i-<span class="num">1</span>][j-w]+v &gt; dp[i][j] {
-                dp[i][j] = dp[i-<span class="num">1</span>][j-w] + v
-            }
-        }
-    }
-    <span class="kw">return</span> dp[n][W]
-}
-
-<span class="kw">func</span> <span class="fn">main</span>() {
-    weights := []<span class="kw">int</span>{<span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>, <span class="num">5</span>}
-    values  := []<span class="kw">int</span>{<span class="num">3</span>, <span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>}
-    fmt.<span class="fn">Println</span>(<span class="fn">knapsack</span>(weights, values, <span class="num">8</span>))
-    <span class="cm">// 输出: 10</span>
-}</div>
+      <div class="code-panel-header" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <div style="width:10px;height:10px;border-radius:50%;background:#ff5f57"></div>
+        <div style="width:10px;height:10px;border-radius:50%;background:#febc2e"></div>
+        <div style="width:10px;height:10px;border-radius:50%;background:#28c840"></div>
+        <span style="margin-left:4px;font-size:0.85rem;color:var(--dim);" data-base="knapsack">knapsack.go</span>
+      </div>
+      <div class="code-body" id="codeBody" style="background:#0d1117;border-radius:8px;padding:16px 0;overflow-y:auto;max-height:420px;font-family:'JetBrains Mono',monospace;font-size:0.78rem;line-height:1.7;"></div>
     </div>
 
     <div class="panel">
@@ -255,6 +237,99 @@ h1{font-size:1.5rem;font-weight:700;color:var(--blue);margin-bottom:4px;}
 </div>
 
 <script>
+const CODE_LINES = [];
+
+window.LANG_PLAIN = {
+  go: `package main
+import "fmt"
+
+func knapsack(weights, values []int, W int) int {
+    n := len(weights)
+    dp := make([][]int, n+1)
+    for i := range dp {
+        dp[i] = make([]int, W+1)
+    }
+
+    for i := 1; i <= n; i++ {
+        w, v := weights[i-1], values[i-1]
+        for j := 0; j <= W; j++ {
+            dp[i][j] = dp[i-1][j] // 不选第 i 件
+            if j >= w &&
+               dp[i-1][j-w]+v > dp[i][j] {
+                dp[i][j] = dp[i-1][j-w] + v
+            }
+        }
+    }
+    return dp[n][W]
+}
+
+func main() {
+    weights := []int{2, 3, 4, 5}
+    values  := []int{3, 4, 5, 6}
+    fmt.Println(knapsack(weights, values, 8))
+    // 输出: 10
+}`,
+  js: `function knapsack01(weights, values, capacity) {
+    const n = weights.length;
+    // dp[i][w] = max value using first i items with capacity w
+    const dp = Array.from({length: n + 1}, () => new Array(capacity + 1).fill(0));
+
+    for (let i = 1; i <= n; i++) {
+        for (let w = 0; w <= capacity; w++) {
+            dp[i][w] = dp[i - 1][w]; // don't take item i
+            if (weights[i - 1] <= w) {
+                dp[i][w] = Math.max(dp[i][w],
+                    dp[i - 1][w - weights[i - 1]] + values[i - 1]);
+            }
+        }
+    }
+
+    // Traceback
+    const taken = [];
+    let w = capacity;
+    for (let i = n; i > 0; i--) {
+        if (dp[i][w] !== dp[i - 1][w]) {
+            taken.push(i - 1);
+            w -= weights[i - 1];
+        }
+    }
+
+    return { maxValue: dp[n][capacity], taken: taken.reverse() };
+}
+
+const weights = [2, 3, 4, 5];
+const values  = [3, 4, 5, 6];
+const capacity = 8;
+console.log(knapsack01(weights, values, capacity));`,
+  py: `def knapsack_01(weights, values, capacity):
+    n = len(weights)
+    # dp[i][w] = max value using first i items with capacity w
+    dp = [[0] * (capacity + 1) for _ in range(n + 1)]
+
+    for i in range(1, n + 1):
+        for w in range(capacity + 1):
+            dp[i][w] = dp[i - 1][w]  # don't take item i
+            if weights[i - 1] <= w:
+                dp[i][w] = max(dp[i][w],
+                    dp[i - 1][w - weights[i - 1]] + values[i - 1])
+
+    # Traceback
+    taken = []
+    w = capacity
+    for i in range(n, 0, -1):
+        if dp[i][w] != dp[i - 1][w]:
+            taken.append(i - 1)
+            w -= weights[i - 1]
+
+    return dp[n][capacity], list(reversed(taken))
+
+weights = [2, 3, 4, 5]
+values  = [3, 4, 5, 6]
+capacity = 8
+max_val, items = knapsack_01(weights, values, capacity)
+print(f"Max value: {max_val}, Items: {items}")`
+};
+
 let weights = [], values = [], W = 0, n = 0;
 let dp = [], steps = [], stepIdx = 0;
 let playTimer = null;
@@ -502,7 +577,26 @@ function initAll() {
   document.getElementById('btn-next').disabled = false;
 }
 
+function renderCode() {
+  const lang = LangSwitcher.current;
+  const lines = LangSwitcher.getLines(lang) || CODE_LINES;
+  const hl = steps[stepIdx] ? LangSwitcher.getHL(steps[stepIdx]) : [];
+  const body = document.getElementById('codeBody');
+  body.innerHTML = lines.map((line, i) => {
+    const active = hl.includes(i) ? ' active' : '';
+    return `<div class="code-line${active}" onclick="jumpToLine(${i})">${line.html || '&nbsp;'}</div>`;
+  }).join('');
+  const el = body.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
+}
+
+function jumpToLine(ln) {
+  // no-op for DP pages without per-line step sync
+}
+
 // Init on load
+LangSwitcher.init(renderCode);
+renderCode();
 initAll();
 </script>
 </body>

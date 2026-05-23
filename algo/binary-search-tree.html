@@ -72,6 +72,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
+<script src="../lang.js"></script>
 </head>
 <body>
 <nav>
@@ -99,7 +100,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
       <div class="code-dot" style="background:#ff5f57"></div>
       <div class="code-dot" style="background:#febc2e"></div>
       <div class="code-dot" style="background:#28c840"></div>
-      <span style="margin-left:4px">bst.go</span>
+      <span style="margin-left:4px" data-base="bst">bst.go</span>
     </div>
     <div class="code-body" id="codeBody"></div>
   </div>
@@ -145,6 +146,105 @@ const CODE_LINES = [
   {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="fn">search</span>(root.Right, val)`},
   {html:`}`},
 ];
+
+window.LANG_PLAIN = {
+  js: `class BSTNode {
+    constructor(val) { this.val = val; this.left = this.right = null; }
+}
+
+class BST {
+    constructor() { this.root = null; }
+
+    insert(val) {
+        this.root = this._insert(this.root, val);
+    }
+
+    _insert(node, val) {
+        if (!node) return new BSTNode(val);
+        if (val < node.val) node.left = this._insert(node.left, val);
+        else if (val > node.val) node.right = this._insert(node.right, val);
+        return node;
+    }
+
+    search(val) {
+        let cur = this.root;
+        while (cur) {
+            if (val === cur.val) return cur;
+            cur = val < cur.val ? cur.left : cur.right;
+        }
+        return null;
+    }
+
+    delete(val) {
+        this.root = this._delete(this.root, val);
+    }
+
+    _delete(node, val) {
+        if (!node) return null;
+        if (val < node.val) node.left = this._delete(node.left, val);
+        else if (val > node.val) node.right = this._delete(node.right, val);
+        else {
+            if (!node.left) return node.right;
+            if (!node.right) return node.left;
+            let min = node.right;
+            while (min.left) min = min.left;
+            node.val = min.val;
+            node.right = this._delete(node.right, min.val);
+        }
+        return node;
+    }
+}`,
+  py: `class BSTNode:
+    def __init__(self, val):
+        self.val = val
+        self.left = self.right = None
+
+class BST:
+    def __init__(self):
+        self.root = None
+
+    def insert(self, val):
+        self.root = self._insert(self.root, val)
+
+    def _insert(self, node, val):
+        if not node:
+            return BSTNode(val)
+        if val < node.val:
+            node.left = self._insert(node.left, val)
+        elif val > node.val:
+            node.right = self._insert(node.right, val)
+        return node
+
+    def search(self, val):
+        cur = self.root
+        while cur:
+            if val == cur.val:
+                return cur
+            cur = cur.left if val < cur.val else cur.right
+        return None
+
+    def delete(self, val):
+        self.root = self._delete(self.root, val)
+
+    def _delete(self, node, val):
+        if not node:
+            return None
+        if val < node.val:
+            node.left = self._delete(node.left, val)
+        elif val > node.val:
+            node.right = self._delete(node.right, val)
+        else:
+            if not node.left:
+                return node.right
+            if not node.right:
+                return node.left
+            cur = node.right
+            while cur.left:
+                cur = cur.left
+            node.val = cur.val
+            node.right = self._delete(node.right, cur.val)
+        return node`
+};
 
 // BST node structure (JS object)
 function newNode(val){return {val,left:null,right:null};}
@@ -238,16 +338,23 @@ goBtn.addEventListener('click',()=>{
 });
 resetTreeBtn.addEventListener('click',()=>{tree=buildInitialTree();steps=[];cur=0;renderTree(tree,[],null,null,null);descText.textContent='树已重置';stepCounter.textContent='';});
 
-function buildCode(){
-  codeBody.innerHTML=CODE_LINES.map((l,i)=>`<div class="code-line" data-line="${i}"><span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`).join('');
-  codeBody.querySelectorAll('.code-line').forEach(el=>el.addEventListener('click',()=>jumpToLine(parseInt(el.dataset.line))));
+function renderCode() {
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current))
+    || CODE_LINES;
+  const hl = LangSwitcher.getHL(steps[cur] || {});
+  const body = document.getElementById('codeBody');
+  body.innerHTML = lines.map((line, i) => {
+    const active = hl.includes(i) ? ' active' : '';
+    return `<div class="code-line${active}" onclick="jumpToLine(${i})">${line.html || '&nbsp;'}</div>`;
+  }).join('');
+  const el = body.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
 }
+function buildCode(){ renderCode(); }
 function highlightLines(lines){
-  codeBody.querySelectorAll('.code-line').forEach(el=>el.classList.remove('active'));
-  lines.forEach(ln=>{const el=codeBody.querySelector(`[data-line="${ln}"]`);if(el)el.classList.add('active');});
-  if(lines.length>0){const f=codeBody.querySelector(`[data-line="${lines[0]}"]`);if(f)f.scrollIntoView({block:'nearest'});}
+  renderCode();
 }
-function jumpToLine(ln){let t=cur,b=Infinity;steps.forEach((s,i)=>{if(s.lines&&s.lines.includes(ln)){const d=Math.abs(i-cur);if(d<b){b=d;t=i;}}});cur=t;render();}
+function jumpToLine(ln){if(LangSwitcher.current!=='go')return;let t=cur,b=Infinity;steps.forEach((s,i)=>{if(s.lines&&s.lines.includes(ln)){const d=Math.abs(i-cur);if(d<b){b=d;t=i;}}});cur=t;render();}
 
 // Tree layout
 function computeLayout(root){
@@ -308,10 +415,10 @@ function renderTree(root,visited,current,newNodeVal,foundVal){
   drawNodes(root);
 }
 function render(){
-  if(steps.length===0){renderTree(tree,[],null,null,null);descText.textContent='选择操作并执行';stepCounter.textContent='';return;}
+  if(steps.length===0){renderTree(tree,[],null,null,null);descText.textContent='选择操作并执行';stepCounter.textContent='';renderCode();return;}
   const s=steps[cur];
   renderTree(s.tree,s.visited||[],s.current,s.newNode,s.found);
-  if(s.lines)highlightLines(s.lines);
+  renderCode();
   descText.textContent=s.desc;
   stepCounter.textContent=`${cur+1} / ${steps.length}`;
   btnPrev.disabled=cur===0;btnNext.disabled=cur===steps.length-1;
@@ -323,6 +430,7 @@ btnPlay.addEventListener('click',()=>playing?pause():play());
 btnPrev.addEventListener('click',()=>{pause();if(cur>0){cur--;render();}});
 btnNext.addEventListener('click',()=>{pause();if(cur<steps.length-1){cur++;render();}});
 btnReset.addEventListener('click',()=>{pause();cur=0;render();});
+LangSwitcher.init(renderCode);
 buildCode();renderTree(tree,[],null,null,null);descText.textContent='初始 BST：50,30,70,20,40,60,80';
 window.addEventListener('resize',()=>render());
 </script>

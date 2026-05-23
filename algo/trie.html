@@ -75,6 +75,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
+<script src="../lang.js"></script>
 </head>
 <body>
 <nav>
@@ -104,7 +105,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
       <div class="code-dot" style="background:#ff5f57"></div>
       <div class="code-dot" style="background:#febc2e"></div>
       <div class="code-dot" style="background:#28c840"></div>
-      <span style="margin-left:4px">trie.go</span>
+      <span style="margin-left:4px" data-base="trie">trie.go</span>
     </div>
     <div class="code-body" id="codeBody"></div>
   </div>
@@ -174,6 +175,112 @@ const CODE_LINES = [
   {html:`&nbsp;&nbsp;&nbsp;&nbsp;fmt.<span class="fn">Println</span>(t.<span class="fn">Search</span>(<span class="st">"ap"</span>))       <span class="cm">// false</span>`},
   {html:`}`},
 ];
+
+window.LANG_PLAIN = {
+  js: `class TrieNode {
+    constructor() {
+        this.children = {};
+        this.isEnd = false;
+    }
+}
+
+class Trie {
+    constructor() { this.root = new TrieNode(); }
+
+    insert(word) {
+        let cur = this.root;
+        for (const ch of word) {
+            if (!cur.children[ch]) cur.children[ch] = new TrieNode();
+            cur = cur.children[ch];
+        }
+        cur.isEnd = true;
+    }
+
+    search(word) {
+        let cur = this.root;
+        for (const ch of word) {
+            if (!cur.children[ch]) return false;
+            cur = cur.children[ch];
+        }
+        return cur.isEnd;
+    }
+
+    startsWith(prefix) {
+        let cur = this.root;
+        for (const ch of prefix) {
+            if (!cur.children[ch]) return false;
+            cur = cur.children[ch];
+        }
+        return true;
+    }
+
+    delete(word) {
+        this._delete(this.root, word, 0);
+    }
+
+    _delete(node, word, depth) {
+        if (!node) return false;
+        if (depth === word.length) {
+            if (node.isEnd) node.isEnd = false;
+            return Object.keys(node.children).length === 0;
+        }
+        const ch = word[depth];
+        if (this._delete(node.children[ch], word, depth + 1)) {
+            delete node.children[ch];
+            return !node.isEnd && Object.keys(node.children).length === 0;
+        }
+        return false;
+    }
+}`,
+  py: `class TrieNode:
+    def __init__(self):
+        self.children = {}
+        self.is_end = False
+
+class Trie:
+    def __init__(self):
+        self.root = TrieNode()
+
+    def insert(self, word):
+        cur = self.root
+        for ch in word:
+            if ch not in cur.children:
+                cur.children[ch] = TrieNode()
+            cur = cur.children[ch]
+        cur.is_end = True
+
+    def search(self, word):
+        cur = self.root
+        for ch in word:
+            if ch not in cur.children:
+                return False
+            cur = cur.children[ch]
+        return cur.is_end
+
+    def starts_with(self, prefix):
+        cur = self.root
+        for ch in prefix:
+            if ch not in cur.children:
+                return False
+            cur = cur.children[ch]
+        return True
+
+    def delete(self, word):
+        self._delete(self.root, word, 0)
+
+    def _delete(self, node, word, depth):
+        if not node:
+            return False
+        if depth == len(word):
+            if node.is_end:
+                node.is_end = False
+            return len(node.children) == 0
+        ch = word[depth]
+        if ch in node.children and self._delete(node.children[ch], word, depth + 1):
+            del node.children[ch]
+            return not node.is_end and len(node.children) == 0
+        return False`
+};
 
 // ---- Trie Data Structure ----
 class TrieNode {
@@ -580,6 +687,7 @@ function renderTrie(trieRoot, highlightIds, currentId, newIds, failIds) {
 function render() {
   if (steps.length === 0) {
     renderTrie(trie, [], null, [], []);
+    renderCode();
     descText.textContent = '初始 Trie：app, apple, apply, apt, bat, ball, band, ban';
     stepCounter.textContent = '';
     resultBadge.style.display = 'none';
@@ -587,7 +695,7 @@ function render() {
   }
   const s = steps[cur];
   renderTrie(s.root, s.highlightIds || [], s.currentId, s.newIds || [], s.failIds || []);
-  if (s.lines) highlightLines(s.lines);
+  renderCode();
   descText.textContent = s.desc;
   stepCounter.textContent = `${cur + 1} / ${steps.length}`;
   btnPrev.disabled = cur === 0;
@@ -642,26 +750,22 @@ resetTreeBtn.addEventListener('click', () => {
 });
 
 // ---- Code Panel ----
-function buildCode() {
-  codeBody.innerHTML = CODE_LINES.map((l, i) =>
-    `<div class="code-line" data-line="${i}"><span class="ln">${i + 1}</span><span class="lc">${l.html || '&nbsp;'}</span></div>`
-  ).join('');
-  codeBody.querySelectorAll('.code-line').forEach(el =>
-    el.addEventListener('click', () => jumpToLine(parseInt(el.dataset.line)))
-  );
+function renderCode() {
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current))
+    || CODE_LINES;
+  const hl = LangSwitcher.getHL(steps[cur] || {});
+  const body = document.getElementById('codeBody');
+  body.innerHTML = lines.map((line, i) => {
+    const active = hl.includes(i) ? ' active' : '';
+    return `<div class="code-line${active}" onclick="jumpToLine(${i})">${line.html || '&nbsp;'}</div>`;
+  }).join('');
+  const el = body.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
 }
-function highlightLines(lines) {
-  codeBody.querySelectorAll('.code-line').forEach(el => el.classList.remove('active'));
-  lines.forEach(ln => {
-    const el = codeBody.querySelector(`[data-line="${ln}"]`);
-    if (el) el.classList.add('active');
-  });
-  if (lines.length > 0) {
-    const f = codeBody.querySelector(`[data-line="${lines[0]}"]`);
-    if (f) f.scrollIntoView({ block: 'nearest' });
-  }
-}
+function buildCode() { renderCode(); }
+function highlightLines(lines) { renderCode(); }
 function jumpToLine(ln) {
+  if (LangSwitcher.current !== 'go') return;
   let t = cur, best = Infinity;
   steps.forEach((s, i) => {
     if (s.lines && s.lines.includes(ln)) {
@@ -702,6 +806,7 @@ btnReset.addEventListener('click', () => { pause(); cur = 0; render(); });
 
 window.addEventListener('resize', () => render());
 
+LangSwitcher.init(renderCode);
 buildCode();
 render();
 </script>

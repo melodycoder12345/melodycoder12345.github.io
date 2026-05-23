@@ -75,6 +75,7 @@ canvas{display:block;}
 }
 </style>
 <script src="../nav.js"></script>
+<script src="../lang.js"></script>
 </head>
 <body>
 
@@ -94,7 +95,7 @@ canvas{display:block;}
   </div>
   <div class="code-panel">
     <div class="code-panel-header">
-      <span class="dot">●</span> skip_list.go
+      <span class="dot">●</span> <span data-base="skip_list">skip_list.go</span>
     </div>
     <div class="code-content" id="codeContent">
       <pre id="codeBlock"></pre>
@@ -495,7 +496,7 @@ function renderStep(idx) {
   drawSkipList(step.snap, step.hl);
   document.getElementById('stepDesc').textContent = step.desc;
   document.getElementById('stepCounter').textContent = `步骤 ${idx + 1} / ${steps.length}`;
-  highlightCode(step.codeLines);
+  renderCode();
 }
 
 function drawSkipList(snap, hl) {
@@ -787,8 +788,121 @@ const CODE_LINES = [
 /*92*/ '}',
 ];
 
+window.LANG_PLAIN = {
+  js: `class SkipNode {
+    constructor(key, level) {
+        this.key = key;
+        this.forward = new Array(level + 1).fill(null);
+    }
+}
+
+class SkipList {
+    constructor(maxLevel = 4, p = 0.5) {
+        this.maxLevel = maxLevel;
+        this.p = p;
+        this.level = 0;
+        this.header = new SkipNode(-Infinity, maxLevel);
+    }
+
+    _randomLevel() {
+        let level = 0;
+        while (Math.random() < this.p && level < this.maxLevel) level++;
+        return level;
+    }
+
+    insert(key) {
+        const update = new Array(this.maxLevel + 1).fill(null);
+        let cur = this.header;
+        for (let i = this.level; i >= 0; i--) {
+            while (cur.forward[i] && cur.forward[i].key < key) cur = cur.forward[i];
+            update[i] = cur;
+        }
+        const lvl = this._randomLevel();
+        if (lvl > this.level) {
+            for (let i = this.level + 1; i <= lvl; i++) update[i] = this.header;
+            this.level = lvl;
+        }
+        const node = new SkipNode(key, lvl);
+        for (let i = 0; i <= lvl; i++) {
+            node.forward[i] = update[i].forward[i];
+            update[i].forward[i] = node;
+        }
+    }
+
+    search(key) {
+        let cur = this.header;
+        for (let i = this.level; i >= 0; i--) {
+            while (cur.forward[i] && cur.forward[i].key < key) cur = cur.forward[i];
+        }
+        cur = cur.forward[0];
+        return cur && cur.key === key ? cur : null;
+    }
+}`,
+  py: `import random
+
+class SkipNode:
+    def __init__(self, key, level):
+        self.key = key
+        self.forward = [None] * (level + 1)
+
+class SkipList:
+    def __init__(self, max_level=4, p=0.5):
+        self.max_level = max_level
+        self.p = p
+        self.level = 0
+        self.header = SkipNode(float('-inf'), max_level)
+
+    def _random_level(self):
+        level = 0
+        while random.random() < self.p and level < self.max_level:
+            level += 1
+        return level
+
+    def insert(self, key):
+        update = [None] * (self.max_level + 1)
+        cur = self.header
+        for i in range(self.level, -1, -1):
+            while cur.forward[i] and cur.forward[i].key < key:
+                cur = cur.forward[i]
+            update[i] = cur
+        lvl = self._random_level()
+        if lvl > self.level:
+            for i in range(self.level + 1, lvl + 1):
+                update[i] = self.header
+            self.level = lvl
+        node = SkipNode(key, lvl)
+        for i in range(lvl + 1):
+            node.forward[i] = update[i].forward[i]
+            update[i].forward[i] = node
+
+    def search(self, key):
+        cur = self.header
+        for i in range(self.level, -1, -1):
+            while cur.forward[i] and cur.forward[i].key < key:
+                cur = cur.forward[i]
+        cur = cur.forward[0]
+        return cur if cur and cur.key == key else None`
+};
+
 // 操作与 CODE_LINES 行号的映射
 // Search: 16~27, Insert: 30~52, Delete: 55~73
+
+function renderCode() {
+  const pre = document.getElementById('codeBlock');
+  if (typeof LangSwitcher !== 'undefined' && LangSwitcher.current !== 'go') {
+    const lines = LangSwitcher.getLines(LangSwitcher.current);
+    if (lines) {
+      const hl = (steps.length > 0) ? LangSwitcher.getHL(steps[stepIdx]) : [];
+      pre.innerHTML = lines.map((line, i) => {
+        const text = (line.html || ' ');
+        if (hl && hl.includes(i)) return `<span class="hl-line">${text}</span>`;
+        return text || ' ';
+      }).join('\n');
+      return;
+    }
+  }
+  highlightCode((steps.length > 0 && steps[stepIdx]) ? steps[stepIdx].codeLines : []);
+}
 
 function highlightCode(activeLines) {
   const pre = document.getElementById('codeBlock');
@@ -831,6 +945,7 @@ window.addEventListener('resize', () => {
   if (steps.length > 0) renderStep(stepIdx);
 });
 
+LangSwitcher.init(renderCode);
 initSkipList();
 </script>
 </body>

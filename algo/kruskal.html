@@ -82,6 +82,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
+<script src="../lang.js"></script>
 </head>
 <body>
 <nav>
@@ -123,7 +124,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
       <div class="code-dot" style="background:#ff5f57"></div>
       <div class="code-dot" style="background:#febc2e"></div>
       <div class="code-dot" style="background:#28c840"></div>
-      <span style="margin-left:4px">kruskal.go</span>
+      <span style="margin-left:4px" data-base="kruskal">kruskal.go</span>
     </div>
     <div class="code-body" id="codeBody"></div>
   </div>
@@ -176,6 +177,83 @@ const CODE_LINES = [
   {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">fmt</span>.<span class="fn">Println</span>(mst)`},
   {html:`}`},
 ];
+
+window.LANG_PLAIN = {
+  js: `function kruskal(vertices, edges) {
+    // Sort edges by weight
+    edges.sort((a, b) => a[2] - b[2]);
+
+    const parent = {};
+    const rank = {};
+    for (const v of vertices) { parent[v] = v; rank[v] = 0; }
+
+    function find(x) {
+        if (parent[x] !== x) parent[x] = find(parent[x]);
+        return parent[x];
+    }
+
+    function union(x, y) {
+        const px = find(x), py = find(y);
+        if (px === py) return false;
+        if (rank[px] < rank[py]) parent[px] = py;
+        else if (rank[px] > rank[py]) parent[py] = px;
+        else { parent[py] = px; rank[px]++; }
+        return true;
+    }
+
+    const mst = [];
+    let totalWeight = 0;
+    for (const [u, v, w] of edges) {
+        if (union(u, v)) {
+            mst.push([u, v, w]);
+            totalWeight += w;
+        }
+    }
+    return { mst, totalWeight };
+}
+
+const vertices = [0, 1, 2, 3, 4];
+const edges = [[0,1,10],[0,2,6],[0,3,5],[1,3,15],[2,3,4],[3,4,8]];
+const { mst, totalWeight } = kruskal(vertices, edges);
+console.log(mst, totalWeight);`,
+  py: `def kruskal(vertices, edges):
+    edges.sort(key=lambda e: e[2])
+
+    parent = {v: v for v in vertices}
+    rank = {v: 0 for v in vertices}
+
+    def find(x):
+        if parent[x] != x:
+            parent[x] = find(parent[x])
+        return parent[x]
+
+    def union(x, y):
+        px, py = find(x), find(y)
+        if px == py:
+            return False
+        if rank[px] < rank[py]:
+            parent[px] = py
+        elif rank[px] > rank[py]:
+            parent[py] = px
+        else:
+            parent[py] = px
+            rank[px] += 1
+        return True
+
+    mst = []
+    total_weight = 0
+    for u, v, w in edges:
+        if union(u, v):
+            mst.append((u, v, w))
+            total_weight += w
+
+    return mst, total_weight
+
+vertices = [0, 1, 2, 3, 4]
+edges = [(0,1,10),(0,2,6),(0,3,5),(1,3,15),(2,3,4),(3,4,8)]
+mst, total = kruskal(vertices, edges)
+print(mst, total)`
+};
 
 const NODE_NAMES = ['A','B','C','D','E','F','G'];
 const NODE_POS = [
@@ -295,11 +373,23 @@ function generateSteps() {
   return result;
 }
 
+function jumpToLine(ln) {
+  if (!steps.length) return;
+  let t = cur, b = Infinity;
+  steps.forEach((s, i) => { if (s.highlightLines && s.highlightLines.includes(ln)) { const d = Math.abs(i - cur); if (d < b) { b = d; t = i; } } });
+  cur = t; render();
+}
 function renderCode() {
-  const cb = document.getElementById('codeBody');
-  cb.innerHTML = CODE_LINES.map((l,i)=>
-    `<div class="code-line" id="cl${i}"><span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
-  ).join('');
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current))
+    || CODE_LINES;
+  const hl = steps[cur] ? LangSwitcher.getHL(steps[cur]) : [];
+  const body = document.getElementById('codeBody');
+  body.innerHTML = lines.map((line, i) => {
+    const active = hl.includes(i) ? ' active' : '';
+    return `<div class="code-line${active}" onclick="jumpToLine(${i})">${line.html || '&nbsp;'}</div>`;
+  }).join('');
+  const el = body.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
 }
 
 function renderEdgeList(s) {
@@ -377,15 +467,7 @@ function renderGraph(s) {
 }
 
 function highlightLines(lines) {
-  document.querySelectorAll('.code-line').forEach(el=>el.classList.remove('active'));
-  (lines||[]).forEach(l=>{
-    const el = document.getElementById(`cl${l}`);
-    if(el) el.classList.add('active');
-  });
-  if(lines && lines.length) {
-    const el = document.getElementById(`cl${lines[0]}`);
-    if(el) el.scrollIntoView({block:'nearest'});
-  }
+  // highlighting is now handled by renderCode()
 }
 
 function render() {
@@ -393,7 +475,7 @@ function render() {
   const s = steps[cur];
   renderGraph(s);
   renderEdgeList(s);
-  highlightLines(s.highlightLines);
+  renderCode();
   document.getElementById('descText').textContent = s.desc;
   document.getElementById('stepCounter').textContent = `${cur+1} / ${steps.length}`;
   document.getElementById('btnPrev').disabled = cur === 0;
@@ -445,6 +527,7 @@ document.getElementById('speedRange').oninput = () => {
   if(playing){ stopPlay(); togglePlay(); }
 };
 
+LangSwitcher.init(renderCode);
 renderCode();
 window.addEventListener('resize', ()=>{ if(steps.length) renderGraph(steps[cur]); });
 init();

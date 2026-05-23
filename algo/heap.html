@@ -79,6 +79,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
+<script src="../lang.js"></script>
 </head>
 <body>
 <nav>
@@ -124,7 +125,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
       <div class="code-dot" style="background:#ff5f57"></div>
       <div class="code-dot" style="background:#febc2e"></div>
       <div class="code-dot" style="background:#28c840"></div>
-      <span style="margin-left:4px">heap.go</span>
+      <span style="margin-left:4px" data-base="heap">heap.go</span>
     </div>
     <div class="code-body" id="codeBody"></div>
   </div>
@@ -186,6 +187,106 @@ const CODE_LINES = [
   {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
   {html:`}`},
 ];
+
+window.LANG_PLAIN = {
+  js: `class MinHeap {
+    constructor() { this.heap = []; }
+
+    push(val) {
+        this.heap.push(val);
+        this._siftUp(this.heap.length - 1);
+    }
+
+    pop() {
+        const min = this.heap[0];
+        const last = this.heap.pop();
+        if (this.heap.length > 0) {
+            this.heap[0] = last;
+            this._siftDown(0);
+        }
+        return min;
+    }
+
+    _siftUp(i) {
+        while (i > 0) {
+            const parent = Math.floor((i - 1) / 2);
+            if (this.heap[parent] > this.heap[i]) {
+                [this.heap[parent], this.heap[i]] = [this.heap[i], this.heap[parent]];
+                i = parent;
+            } else break;
+        }
+    }
+
+    _siftDown(i) {
+        const n = this.heap.length;
+        while (true) {
+            let smallest = i;
+            const l = 2 * i + 1, r = 2 * i + 2;
+            if (l < n && this.heap[l] < this.heap[smallest]) smallest = l;
+            if (r < n && this.heap[r] < this.heap[smallest]) smallest = r;
+            if (smallest === i) break;
+            [this.heap[i], this.heap[smallest]] = [this.heap[smallest], this.heap[i]];
+            i = smallest;
+        }
+    }
+}`,
+  py: `import heapq
+
+class MinHeap:
+    def __init__(self):
+        self.heap = []
+
+    def push(self, val):
+        heapq.heappush(self.heap, val)
+
+    def pop(self):
+        return heapq.heappop(self.heap)
+
+    def peek(self):
+        return self.heap[0] if self.heap else None
+
+    def size(self):
+        return len(self.heap)
+
+# Manual implementation
+class MinHeapManual:
+    def __init__(self):
+        self.heap = []
+
+    def push(self, val):
+        self.heap.append(val)
+        self._sift_up(len(self.heap) - 1)
+
+    def pop(self):
+        self.heap[0], self.heap[-1] = self.heap[-1], self.heap[0]
+        val = self.heap.pop()
+        if self.heap:
+            self._sift_down(0)
+        return val
+
+    def _sift_up(self, i):
+        while i > 0:
+            parent = (i - 1) // 2
+            if self.heap[parent] > self.heap[i]:
+                self.heap[parent], self.heap[i] = self.heap[i], self.heap[parent]
+                i = parent
+            else:
+                break
+
+    def _sift_down(self, i):
+        n = len(self.heap)
+        while True:
+            smallest = i
+            l, r = 2 * i + 1, 2 * i + 2
+            if l < n and self.heap[l] < self.heap[smallest]:
+                smallest = l
+            if r < n and self.heap[r] < self.heap[smallest]:
+                smallest = r
+            if smallest == i:
+                break
+            self.heap[i], self.heap[smallest] = self.heap[smallest], self.heap[i]
+            i = smallest`
+};
 
 // Heap state
 let heapData = [80, 60, 70, 30, 40, 50, 20];
@@ -410,7 +511,7 @@ function render() {
   }
   const s = steps[cur];
   renderTree(s); renderArr(s);
-  highlightLines(s.highlightLines);
+  renderCode();
   descText.textContent = s.description;
   stepCounter.textContent = `${cur + 1} / ${steps.length}`;
   sizeCount.textContent = s.data.length;
@@ -435,6 +536,20 @@ function jumpToLine(ln) {
   cur = t; render();
 }
 
+function renderCode() {
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current))
+    || CODE_LINES;
+  const step = steps[cur];
+  const hl = LangSwitcher.getHL(step) || (step && (step.highlightLines || step.lines)) || [];
+  const body = document.getElementById('codeBody');
+  body.innerHTML = lines.map((line, i) => {
+    const active = hl.includes(i) ? ' active' : '';
+    return `<div class="code-line${active}" onclick="jumpToLine(${i})">${line.html || '&nbsp;'}</div>`;
+  }).join('');
+  const el = body.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
+}
+
 function play() { if (cur >= steps.length - 1) cur = 0; playing = true; btnPlay.innerHTML = '⏸ 暂停'; tick(); }
 function pause() { playing = false; clearTimeout(timer); btnPlay.innerHTML = '▶ 播放'; }
 function tick() { if (!playing) return; if (cur < steps.length - 1) { cur++; render(); timer = setTimeout(tick, SPEED[parseInt(speedRange.value) - 1]); } else pause(); }
@@ -445,6 +560,7 @@ btnNext.addEventListener('click', () => { pause(); if (cur < steps.length - 1) {
 btnReset.addEventListener('click', () => { pause(); heapData = [80, 60, 70, 30, 40, 50, 20]; steps = []; cur = 0; render(); });
 
 buildCode();
+LangSwitcher.init(renderCode);
 // Initialize with build-heap demo
 const initRes = generateBuildSteps([45, 20, 65, 10, 30, 55, 80]);
 steps = initRes.steps;

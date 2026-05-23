@@ -81,6 +81,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
+<script src="../lang.js"></script>
 </head>
 <body>
 <nav>
@@ -128,7 +129,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
       <div class="code-dot" style="background:#ff5f57"></div>
       <div class="code-dot" style="background:#febc2e"></div>
       <div class="code-dot" style="background:#28c840"></div>
-      <span style="margin-left:4px">stack.go</span>
+      <span style="margin-left:4px" data-base="stack">stack.go</span>
     </div>
     <div class="code-body" id="codeBody"></div>
   </div>
@@ -171,6 +172,63 @@ const CODE_LINES = [
   {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="fn">len</span>(s.items) == <span class="num">0</span>`},
   {html:`}`},
 ];
+
+window.LANG_PLAIN = {
+  js: `class Stack {
+    constructor() { this.items = []; }
+
+    push(val) {
+        this.items.push(val);
+    }
+
+    pop() {
+        if (this.isEmpty()) throw new Error("Stack underflow");
+        return this.items.pop();
+    }
+
+    peek() {
+        if (this.isEmpty()) throw new Error("Stack is empty");
+        return this.items[this.items.length - 1];
+    }
+
+    isEmpty() { return this.items.length === 0; }
+    size() { return this.items.length; }
+}
+
+const s = new Stack();
+s.push(10); s.push(20); s.push(30);
+console.log(s.peek());  // 30
+console.log(s.pop());   // 30
+console.log(s.size());  // 2`,
+  py: `class Stack:
+    def __init__(self):
+        self.items = []
+
+    def push(self, val):
+        self.items.append(val)
+
+    def pop(self):
+        if self.is_empty():
+            raise IndexError("Stack underflow")
+        return self.items.pop()
+
+    def peek(self):
+        if self.is_empty():
+            raise IndexError("Stack is empty")
+        return self.items[-1]
+
+    def is_empty(self):
+        return len(self.items) == 0
+
+    def size(self):
+        return len(self.items)
+
+s = Stack()
+s.push(10); s.push(20); s.push(30)
+print(s.peek())  # 30
+print(s.pop())   # 30
+print(s.size())  # 2`
+};
 
 let stackData = [];
 let steps = [];
@@ -246,6 +304,20 @@ function highlightLines(lines){
 }
 function jumpToLine(ln){let t=cur,b=Infinity;steps.forEach((s,i)=>{if(s.lines&&s.lines.includes(ln)){const d=Math.abs(i-cur);if(d<b){b=d;t=i;}}});cur=t;render();}
 
+function renderCode() {
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current))
+    || CODE_LINES;
+  const step = steps[cur];
+  const hl = LangSwitcher.getHL(step) || (step && (step.highlightLines || step.lines)) || [];
+  const body = document.getElementById('codeBody');
+  body.innerHTML = lines.map((line, i) => {
+    const active = hl.includes(i) ? ' active' : '';
+    return `<div class="code-line${active}" onclick="jumpToLine(${i})">${line.html || '&nbsp;'}</div>`;
+  }).join('');
+  const el = body.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
+}
+
 const COLORS=['#38bdf8','#818cf8','#fb923c','#4ade80','#c084fc','#fbbf24','#f87171'];
 function renderStack(stack, highlight, adding){
   stackItems.innerHTML='';
@@ -274,7 +346,7 @@ function render(){
   if(steps.length===0){renderStack(stackData,-1,-1);descText.textContent='选择操作并点击执行';stepCounter.textContent='';return;}
   const s=steps[cur];
   renderStack(s.stack,s.highlight,s.adding);
-  if(s.lines)highlightLines(s.lines);
+  renderCode();
   descText.textContent=s.desc;
   stepCounter.textContent=`${cur+1} / ${steps.length}`;
   btnPrev.disabled=cur===0;btnNext.disabled=cur===steps.length-1;
@@ -286,7 +358,7 @@ btnPlay.addEventListener('click',()=>playing?pause():play());
 btnPrev.addEventListener('click',()=>{pause();if(cur>0){cur--;render();}});
 btnNext.addEventListener('click',()=>{pause();if(cur<steps.length-1){cur++;render();}});
 btnReset.addEventListener('click',()=>{pause();cur=0;render();});
-buildCode();renderStack(stackData,-1,-1);
+buildCode();LangSwitcher.init(renderCode);renderCode();renderStack(stackData,-1,-1);
 </script>
 </body>
 </html>

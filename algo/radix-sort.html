@@ -93,6 +93,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
+<script src="../lang.js"></script>
 </head>
 <body>
 <nav>
@@ -113,7 +114,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
       <div class="code-dot" style="background:#ff5f57"></div>
       <div class="code-dot" style="background:#febc2e"></div>
       <div class="code-dot" style="background:#28c840"></div>
-      <span style="margin-left:4px">radix_sort.go</span>
+      <span style="margin-left:4px" data-base="radix_sort">radix_sort.go</span>
     </div>
     <div class="code-body" id="codeBody"></div>
   </div>
@@ -165,6 +166,59 @@ const CODE_LINES = [
   {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">fmt</span>.<span class="fn">Println</span>(arr)`},
   {html:`}`},
 ];
+
+window.LANG_PLAIN = {
+  js: `function radixSort(arr) {
+    const max = Math.max(...arr);
+    for (let exp = 1; Math.floor(max / exp) > 0; exp *= 10) {
+        countingSortByDigit(arr, exp);
+    }
+}
+
+function countingSortByDigit(arr, exp) {
+    const n = arr.length;
+    const output = new Array(n);
+    const count = new Array(10).fill(0);
+    for (let i = 0; i < n; i++) count[Math.floor(arr[i] / exp) % 10]++;
+    for (let i = 1; i < 10; i++) count[i] += count[i - 1];
+    for (let i = n - 1; i >= 0; i--) {
+        const digit = Math.floor(arr[i] / exp) % 10;
+        output[count[digit] - 1] = arr[i];
+        count[digit]--;
+    }
+    for (let i = 0; i < n; i++) arr[i] = output[i];
+}
+
+const arr = [170, 45, 75, 90, 802, 24, 2, 66];
+radixSort(arr);
+console.log(arr);`,
+  py: `def radix_sort(arr):
+    max_val = max(arr)
+    exp = 1
+    while max_val // exp > 0:
+        counting_sort_by_digit(arr, exp)
+        exp *= 10
+
+def counting_sort_by_digit(arr, exp):
+    n = len(arr)
+    output = [0] * n
+    count = [0] * 10
+    for i in range(n):
+        index = (arr[i] // exp) % 10
+        count[index] += 1
+    for i in range(1, 10):
+        count[i] += count[i - 1]
+    for i in range(n - 1, -1, -1):
+        index = (arr[i] // exp) % 10
+        output[count[index] - 1] = arr[i]
+        count[index] -= 1
+    for i in range(n):
+        arr[i] = output[i]
+
+arr = [170, 45, 75, 90, 802, 24, 2, 66]
+radix_sort(arr)
+print(arr)`
+};
 
 const INITIAL = [170, 45, 75, 90, 802, 24, 2, 66];
 const DIGIT_NAMES = ['个位', '十位', '百位'];
@@ -359,6 +413,19 @@ function jumpToLine(ln) {
   render();
 }
 
+function renderCode() {
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current))
+    || CODE_LINES;
+  const hl = LangSwitcher.getHL(steps[cur]);
+  const body = document.getElementById('codeBody');
+  body.innerHTML = lines.map((line, i) => {
+    const active = hl.includes(i) ? ' active' : '';
+    return `<div class="code-line${active}" onclick="jumpToLine(${i})">${line.html || '&nbsp;'}</div>`;
+  }).join('');
+  const el = body.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
+}
+
 function render() {
   const s = steps[cur];
   vizArea.innerHTML = '';
@@ -482,7 +549,7 @@ function render() {
   bucketsSection.appendChild(bucketsGrid);
   vizArea.appendChild(bucketsSection);
 
-  highlightLines(s.highlightLines);
+  renderCode();
   descText.textContent = s.description;
   stepCounter.textContent = `${cur+1} / ${steps.length}`;
   btnPrev.disabled = cur === 0;
@@ -519,6 +586,7 @@ btnNext.addEventListener('click', () => { pause(); if (cur < steps.length-1) { c
 btnReset.addEventListener('click', () => { pause(); cur = 0; render(); });
 
 buildCode();
+LangSwitcher.init(renderCode);
 render();
 </script>
 </body>

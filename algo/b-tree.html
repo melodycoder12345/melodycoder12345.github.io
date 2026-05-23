@@ -74,6 +74,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
+<script src="../lang.js"></script>
 </head>
 <body>
 <nav>
@@ -118,7 +119,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
       <div class="code-dot" style="background:#ff5f57"></div>
       <div class="code-dot" style="background:#febc2e"></div>
       <div class="code-dot" style="background:#28c840"></div>
-      <span style="margin-left:4px">b_tree.go</span>
+      <span style="margin-left:4px" data-base="b_tree">b_tree.go</span>
     </div>
     <div class="code-body" id="codeBody"></div>
   </div>
@@ -179,6 +180,131 @@ const CODE_LINES = [
   {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">insertNonFull</span>(node.<span class="id">children</span>[i], k)`},
   {html:`}`},
 ];
+
+window.LANG_PLAIN = {
+  js: `class BTreeNode {
+    constructor(t, isLeaf) {
+        this.t = t;          // minimum degree
+        this.keys = [];
+        this.children = [];
+        this.isLeaf = isLeaf;
+    }
+}
+
+class BTree {
+    constructor(t = 2) {
+        this.t = t;
+        this.root = new BTreeNode(t, true);
+    }
+
+    search(node, key) {
+        let i = 0;
+        while (i < node.keys.length && key > node.keys[i]) i++;
+        if (i < node.keys.length && key === node.keys[i]) return node;
+        if (node.isLeaf) return null;
+        return this.search(node.children[i], key);
+    }
+
+    insert(key) {
+        const root = this.root;
+        if (root.keys.length === 2 * this.t - 1) {
+            const newRoot = new BTreeNode(this.t, false);
+            newRoot.children.push(this.root);
+            this._splitChild(newRoot, 0);
+            this.root = newRoot;
+        }
+        this._insertNonFull(this.root, key);
+    }
+
+    _insertNonFull(node, key) {
+        let i = node.keys.length - 1;
+        if (node.isLeaf) {
+            node.keys.push(0);
+            while (i >= 0 && key < node.keys[i]) { node.keys[i + 1] = node.keys[i]; i--; }
+            node.keys[i + 1] = key;
+        } else {
+            while (i >= 0 && key < node.keys[i]) i--;
+            i++;
+            if (node.children[i].keys.length === 2 * this.t - 1) {
+                this._splitChild(node, i);
+                if (key > node.keys[i]) i++;
+            }
+            this._insertNonFull(node.children[i], key);
+        }
+    }
+
+    _splitChild(parent, i) {
+        const t = this.t;
+        const child = parent.children[i];
+        const newNode = new BTreeNode(t, child.isLeaf);
+        parent.keys.splice(i, 0, child.keys[t - 1]);
+        parent.children.splice(i + 1, 0, newNode);
+        newNode.keys = child.keys.splice(t, t - 1);
+        child.keys.length = t - 1;
+        if (!child.isLeaf) newNode.children = child.children.splice(t);
+    }
+}`,
+  py: `class BTreeNode:
+    def __init__(self, t, is_leaf):
+        self.t = t
+        self.keys = []
+        self.children = []
+        self.is_leaf = is_leaf
+
+class BTree:
+    def __init__(self, t=2):
+        self.t = t
+        self.root = BTreeNode(t, True)
+
+    def search(self, node, key):
+        i = 0
+        while i < len(node.keys) and key > node.keys[i]:
+            i += 1
+        if i < len(node.keys) and key == node.keys[i]:
+            return node
+        if node.is_leaf:
+            return None
+        return self.search(node.children[i], key)
+
+    def insert(self, key):
+        root = self.root
+        if len(root.keys) == 2 * self.t - 1:
+            new_root = BTreeNode(self.t, False)
+            new_root.children.append(self.root)
+            self._split_child(new_root, 0)
+            self.root = new_root
+        self._insert_non_full(self.root, key)
+
+    def _insert_non_full(self, node, key):
+        i = len(node.keys) - 1
+        if node.is_leaf:
+            node.keys.append(0)
+            while i >= 0 and key < node.keys[i]:
+                node.keys[i + 1] = node.keys[i]
+                i -= 1
+            node.keys[i + 1] = key
+        else:
+            while i >= 0 and key < node.keys[i]:
+                i -= 1
+            i += 1
+            if len(node.children[i].keys) == 2 * self.t - 1:
+                self._split_child(node, i)
+                if key > node.keys[i]:
+                    i += 1
+            self._insert_non_full(node.children[i], key)
+
+    def _split_child(self, parent, i):
+        t = self.t
+        child = parent.children[i]
+        new_node = BTreeNode(t, child.is_leaf)
+        parent.keys.insert(i, child.keys[t - 1])
+        parent.children.insert(i + 1, new_node)
+        new_node.keys = child.keys[t:]
+        child.keys = child.keys[:t - 1]
+        if not child.is_leaf:
+            new_node.children = child.children[t:]
+            child.children = child.children[:t]`
+};
 
 const T = 2; // minimum degree
 const MAX_KEYS = 2 * T - 1; // 3
@@ -467,6 +593,7 @@ function renderBTree(s) {
 function render() {
   if (steps.length === 0) {
     renderBTree(null);
+    renderCode();
     descText.textContent = 'B 树（t=2），每节点最多 3 个键';
     keyCount.textContent = treeKeyCount(btRoot);
     treeHeightEl.textContent = treeHeight(btRoot);
@@ -475,7 +602,7 @@ function render() {
   }
   const s = steps[cur];
   renderBTree(s);
-  highlightLines(s.highlightLines);
+  renderCode();
   descText.textContent = s.description;
   stepCounter.textContent = `${cur + 1} / ${steps.length}`;
   keyCount.textContent = s.root ? treeKeyCount(s.root) : 0;
@@ -484,16 +611,22 @@ function render() {
   btnNext.disabled = cur === steps.length - 1;
 }
 
-function buildCode() {
-  codeBody.innerHTML = CODE_LINES.map((l, i) => `<div class="code-line" data-line="${i}"><span class="ln">${i + 1}</span><span class="lc">${l.html || '&nbsp;'}</span></div>`).join('');
-  codeBody.querySelectorAll('.code-line').forEach(el => el.addEventListener('click', () => jumpToLine(parseInt(el.dataset.line))));
+function renderCode() {
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current))
+    || CODE_LINES;
+  const hl = LangSwitcher.getHL(steps[cur] || {});
+  const body = document.getElementById('codeBody');
+  body.innerHTML = lines.map((line, i) => {
+    const active = hl.includes(i) ? ' active' : '';
+    return `<div class="code-line${active}" onclick="jumpToLine(${i})">${line.html || '&nbsp;'}</div>`;
+  }).join('');
+  const el = body.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
 }
-function highlightLines(lines) {
-  codeBody.querySelectorAll('.code-line').forEach(el => el.classList.remove('active'));
-  (lines || []).forEach(ln => { const el = codeBody.querySelector(`[data-line="${ln}"]`); if (el) el.classList.add('active'); });
-  if (lines && lines.length > 0) { const f = codeBody.querySelector(`[data-line="${lines[0]}"]`); if (f) f.scrollIntoView({ block: 'nearest' }); }
-}
+function buildCode() { renderCode(); }
+function highlightLines(lines) { renderCode(); }
 function jumpToLine(ln) {
+  if (LangSwitcher.current !== 'go') return;
   if (steps.length === 0) return;
   let t2 = cur, b = Infinity;
   steps.forEach((s, i) => { if (s.highlightLines && s.highlightLines.includes(ln)) { const d = Math.abs(i - cur); if (d < b) { b = d; t2 = i; } } });
@@ -509,6 +642,7 @@ btnPrev.addEventListener('click', () => { pause(); if (cur > 0) { cur--; render(
 btnNext.addEventListener('click', () => { pause(); if (cur < steps.length - 1) { cur++; render(); } });
 btnReset.addEventListener('click', () => { pause(); btRoot = new BNode(true); BNode._id = 0; steps = []; cur = 0; render(); });
 
+LangSwitcher.init(renderCode);
 buildCode();
 doPreset();
 </script>

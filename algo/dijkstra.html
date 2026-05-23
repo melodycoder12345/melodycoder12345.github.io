@@ -81,6 +81,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
+<script src="../lang.js"></script>
 </head>
 <body>
 <nav>
@@ -126,7 +127,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
       <div class="code-dot" style="background:#ff5f57"></div>
       <div class="code-dot" style="background:#febc2e"></div>
       <div class="code-dot" style="background:#28c840"></div>
-      <span style="margin-left:4px">dijkstra.go</span>
+      <span style="margin-left:4px" data-base="dijkstra">dijkstra.go</span>
     </div>
     <div class="code-body" id="codeBody"></div>
   </div>
@@ -174,6 +175,78 @@ const CODE_LINES = [
   {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> dist`},
   {html:`}`},
 ];
+
+window.LANG_PLAIN = {
+  js: `function dijkstra(graph, start) {
+    const dist = {};
+    const visited = new Set();
+    const prev = {};
+
+    for (const node in graph) {
+        dist[node] = Infinity;
+    }
+    dist[start] = 0;
+
+    while (true) {
+        // Pick unvisited node with minimum distance
+        let u = null;
+        for (const node in dist) {
+            if (!visited.has(node) && (u === null || dist[node] < dist[u])) {
+                u = node;
+            }
+        }
+        if (u === null || dist[u] === Infinity) break;
+        visited.add(u);
+
+        for (const [v, weight] of (graph[u] || [])) {
+            const alt = dist[u] + weight;
+            if (alt < dist[v]) {
+                dist[v] = alt;
+                prev[v] = u;
+            }
+        }
+    }
+    return { dist, prev };
+}
+
+const graph = {
+    A: [['B', 4], ['C', 2]],
+    B: [['D', 5]],
+    C: [['B', 1], ['D', 8]],
+    D: []
+};
+const { dist } = dijkstra(graph, 'A');
+console.log(dist); // A:0, B:3, C:2, D:8`,
+  py: `import heapq
+
+def dijkstra(graph, start):
+    dist = {node: float('inf') for node in graph}
+    dist[start] = 0
+    prev = {}
+    pq = [(0, start)]
+
+    while pq:
+        d, u = heapq.heappop(pq)
+        if d > dist[u]:
+            continue
+        for v, weight in graph.get(u, []):
+            alt = dist[u] + weight
+            if alt < dist[v]:
+                dist[v] = alt
+                prev[v] = u
+                heapq.heappush(pq, (alt, v))
+
+    return dist, prev
+
+graph = {
+    'A': [('B', 4), ('C', 2)],
+    'B': [('D', 5)],
+    'C': [('B', 1), ('D', 8)],
+    'D': []
+}
+dist, _ = dijkstra(graph, 'A')
+print(dist)  # A:0, B:3, C:2, D:8`
+};
 
 // Graph: 7 nodes (0=A, 1=B, 2=C, 3=D, 4=E, 5=F, 6=G)
 const NODE_NAMES = ['A','B','C','D','E','F','G'];
@@ -378,7 +451,7 @@ function render() {
   }
   const s = steps[cur];
   renderGraph(s); renderSideInfo(s);
-  highlightLines(s.highlightLines);
+  renderCode();
   descText.textContent = s.description;
   stepCounter.textContent = `${cur + 1} / ${steps.length}`;
   btnPrev.disabled = cur === 0;
@@ -400,6 +473,18 @@ function jumpToLine(ln) {
   steps.forEach((s, i) => { if (s.highlightLines.includes(ln)) { const d = Math.abs(i - cur); if (d < b) { b = d; t = i; } } });
   cur = t; render();
 }
+function renderCode() {
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current))
+    || CODE_LINES;
+  const hl = steps[cur] ? LangSwitcher.getHL(steps[cur]) : [];
+  const body = document.getElementById('codeBody');
+  body.innerHTML = lines.map((line, i) => {
+    const active = hl.includes(i) ? ' active' : '';
+    return `<div class="code-line${active}" onclick="jumpToLine(${i})">${line.html || '&nbsp;'}</div>`;
+  }).join('');
+  const el = body.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
+}
 
 function play() { if (cur >= steps.length - 1) cur = 0; playing = true; btnPlay.innerHTML = '⏸ 暂停'; tick(); }
 function pause() { playing = false; clearTimeout(timer); btnPlay.innerHTML = '▶ 播放'; }
@@ -410,7 +495,7 @@ btnPrev.addEventListener('click', () => { pause(); if (cur > 0) { cur--; render(
 btnNext.addEventListener('click', () => { pause(); if (cur < steps.length - 1) { cur++; render(); } });
 btnReset.addEventListener('click', () => { pause(); steps = generateDijkstraSteps(startNode); cur = 0; render(); });
 
-buildCode();
+LangSwitcher.init(renderCode);
 steps = generateDijkstraSteps(startNode);
 render();
 </script>

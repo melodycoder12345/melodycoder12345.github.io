@@ -151,6 +151,7 @@ input[type=text]:focus{outline:none;border-color:var(--blue);}
 }
 </style>
 <script src="../nav.js"></script>
+<script src="../lang.js"></script>
 </head>
 <body>
 
@@ -186,20 +187,13 @@ input[type=text]:focus{outline:none;border-color:var(--blue);}
     </div>
 
     <div class="sidebar-section">
-      <h3>Go 代码</h3>
-      <div class="code-block" id="code-display">
-<span style="color:var(--purple)">func</span> <span style="color:var(--blue)">lis</span>(nums []<span style="color:var(--orange)">int</span>) <span style="color:var(--orange)">int</span> {
-  tails := []<span style="color:var(--orange)">int</span>{}
-  <span style="color:var(--purple)">for</span> _, n := <span style="color:var(--purple)">range</span> nums {
-    <span id="cl1">    pos := sort.<span style="color:var(--blue)">SearchInts</span>(tails, n)</span>
-    <span id="cl2">    <span style="color:var(--purple)">if</span> pos == <span style="color:var(--blue)">len</span>(tails) {</span>
-    <span id="cl3">      tails = <span style="color:var(--blue)">append</span>(tails, n)</span>
-    <span id="cl4">    } <span style="color:var(--purple)">else</span> {
-      tails[pos] = n</span>
-      }
-  }
-  <span style="color:var(--purple)">return</span> <span style="color:var(--blue)">len</span>(tails)
-}
+      <div class="code-panel-header" style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+        <div style="width:8px;height:8px;border-radius:50%;background:#ff5f57"></div>
+        <div style="width:8px;height:8px;border-radius:50%;background:#febc2e"></div>
+        <div style="width:8px;height:8px;border-radius:50%;background:#28c840"></div>
+        <span style="margin-left:2px;font-size:0.78rem;color:var(--dim);" data-base="lis">lis.go</span>
+      </div>
+      <div class="code-block" id="code-display" style="font-size:0.72rem;line-height:1.6;overflow-y:auto;max-height:280px;">
       </div>
     </div>
 
@@ -306,6 +300,127 @@ input[type=text]:focus{outline:none;border-color:var(--blue);}
 </div>
 
 <script>
+const CODE_LINES = [];
+
+window.LANG_PLAIN = {
+  go: `package main
+import "sort"
+
+func lis(nums []int) int {
+    tails := []int{}
+    for _, n := range nums {
+        pos := sort.SearchInts(tails, n)
+        if pos == len(tails) {
+            tails = append(tails, n)
+        } else {
+            tails[pos] = n
+        }
+    }
+    return len(tails)
+}
+
+// O(n²) DP approach
+func lisDp(nums []int) (int, []int) {
+    n := len(nums)
+    dp := make([]int, n)
+    prev := make([]int, n)
+    for i := range dp { dp[i] = 1; prev[i] = -1 }
+    maxLen, maxIdx := 1, 0
+    for i := 1; i < n; i++ {
+        for j := 0; j < i; j++ {
+            if nums[j] < nums[i] && dp[j]+1 > dp[i] {
+                dp[i] = dp[j] + 1
+                prev[i] = j
+            }
+        }
+        if dp[i] > maxLen { maxLen = dp[i]; maxIdx = i }
+    }
+    seq := []int{}
+    for idx := maxIdx; idx != -1; idx = prev[idx] {
+        seq = append([]int{nums[idx]}, seq...)
+    }
+    return maxLen, seq
+}`,
+  js: `// O(n²) DP approach
+function lis(arr) {
+    const n = arr.length;
+    const dp = new Array(n).fill(1);
+    const prev = new Array(n).fill(-1);
+
+    let maxLen = 1, maxIdx = 0;
+    for (let i = 1; i < n; i++) {
+        for (let j = 0; j < i; j++) {
+            if (arr[j] < arr[i] && dp[j] + 1 > dp[i]) {
+                dp[i] = dp[j] + 1;
+                prev[i] = j;
+            }
+        }
+        if (dp[i] > maxLen) { maxLen = dp[i]; maxIdx = i; }
+    }
+
+    // Reconstruct
+    const seq = [];
+    let idx = maxIdx;
+    while (idx !== -1) { seq.push(arr[idx]); idx = prev[idx]; }
+    return { length: maxLen, sequence: seq.reverse() };
+}
+
+// O(n log n) patience sorting approach
+function lisFast(arr) {
+    const tails = [];
+    for (const x of arr) {
+        let lo = 0, hi = tails.length;
+        while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            tails[mid] < x ? (lo = mid + 1) : (hi = mid);
+        }
+        tails[lo] = x;
+    }
+    return tails.length;
+}
+
+console.log(lis([10, 9, 2, 5, 3, 7, 101, 18]));
+console.log(lisFast([10, 9, 2, 5, 3, 7, 101, 18])); // 4`,
+  py: `import bisect
+
+def lis_dp(arr):
+    n = len(arr)
+    dp = [1] * n
+    prev = [-1] * n
+
+    max_len, max_idx = 1, 0
+    for i in range(1, n):
+        for j in range(i):
+            if arr[j] < arr[i] and dp[j] + 1 > dp[i]:
+                dp[i] = dp[j] + 1
+                prev[i] = j
+        if dp[i] > max_len:
+            max_len = dp[i]
+            max_idx = i
+
+    seq = []
+    idx = max_idx
+    while idx != -1:
+        seq.append(arr[idx])
+        idx = prev[idx]
+    return max_len, list(reversed(seq))
+
+def lis_fast(arr):
+    tails = []
+    for x in arr:
+        pos = bisect.bisect_left(tails, x)
+        if pos == len(tails):
+            tails.append(x)
+        else:
+            tails[pos] = x
+    return len(tails)
+
+arr = [10, 9, 2, 5, 3, 7, 101, 18]
+length, seq = lis_dp(arr)
+print(f"Length: {length}, Sequence: {seq}")
+print(f"Fast LIS length: {lis_fast(arr)}")  # 4`
+};
+
 // ─── State ───────────────────────────────────────────────────────────────────
 let steps = [];
 let curStep = -1;
@@ -492,6 +607,20 @@ function reconstructLis(arr, dp, parent) {
   return { indices, seq: indices.map(i => arr[i]), length: maxLen };
 }
 
+function renderCode() {
+  const lang = LangSwitcher.current;
+  const lines = LangSwitcher.getLines(lang) || CODE_LINES;
+  const step = steps[curStep];
+  const hl = step ? LangSwitcher.getHL(step) : [];
+  const body = document.getElementById('code-display');
+  body.innerHTML = lines.map((line, i) => {
+    const active = hl.includes(i) ? ' active' : '';
+    return `<div class="code-line${active}" style="display:flex;align-items:stretch;padding:1px 0;font-size:0.72rem;line-height:1.6;">${line.html || '&nbsp;'}</div>`;
+  }).join('');
+  const el = body.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
+}
+
 // ─── Render ──────────────────────────────────────────────────────────────────
 function render(step) {
   const { arr, dp, tails, piles, curIdx, highlight, lisIndices, replacedIdx, isNew, justPlaced, justReplaced, finalLis } = step;
@@ -566,10 +695,7 @@ function render(step) {
   descEl.innerHTML = step.description;
 
   // Code highlight
-  ['cl1','cl2','cl3','cl4'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.className = (step.highlightLines && step.highlightLines.includes(id)) ? 'hl' : '';
-  });
+  renderCode();
 
   // Progress bar
   const pct = steps.length > 1 ? (curStep / (steps.length - 1)) * 100 : 0;
@@ -634,6 +760,7 @@ function resetWithInput() {
 }
 
 // ─── Init ────────────────────────────────────────────────────────────────────
+LangSwitcher.init(renderCode);
 (function init() {
   const defaultArr = [10, 9, 2, 5, 3, 7, 101, 18];
   steps = buildSteps(defaultArr);

@@ -74,6 +74,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
+<script src="../lang.js"></script>
 </head>
 <body>
 <nav>
@@ -118,7 +119,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
       <div class="code-dot" style="background:#ff5f57"></div>
       <div class="code-dot" style="background:#febc2e"></div>
       <div class="code-dot" style="background:#28c840"></div>
-      <span style="margin-left:4px">b_plus_tree.go</span>
+      <span style="margin-left:4px" data-base="b_plus_tree">b_plus_tree.go</span>
     </div>
     <div class="code-body" id="codeBody"></div>
   </div>
@@ -170,6 +171,160 @@ const CODE_LINES = [
   {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span>`},
   {html:`}`},
 ];
+
+window.LANG_PLAIN = {
+  js: `class BPlusNode {
+    constructor(isLeaf) {
+        this.keys = [];
+        this.children = [];  // internal: child nodes; leaf: values
+        this.next = null;    // leaf chain
+        this.isLeaf = isLeaf;
+    }
+}
+
+class BPlusTree {
+    constructor(order = 3) {
+        this.order = order;
+        this.root = new BPlusNode(true);
+    }
+
+    search(key) {
+        let node = this.root;
+        while (!node.isLeaf) {
+            let i = 0;
+            while (i < node.keys.length && key >= node.keys[i]) i++;
+            node = node.children[i];
+        }
+        for (let i = 0; i < node.keys.length; i++) {
+            if (node.keys[i] === key) return node.children[i];
+        }
+        return null;
+    }
+
+    insert(key, val) {
+        const result = this._insert(this.root, key, val);
+        if (result) {
+            const newRoot = new BPlusNode(false);
+            newRoot.keys = [result.key];
+            newRoot.children = [this.root, result.node];
+            this.root = newRoot;
+        }
+    }
+
+    _insert(node, key, val) {
+        if (node.isLeaf) {
+            let i = 0;
+            while (i < node.keys.length && key > node.keys[i]) i++;
+            node.keys.splice(i, 0, key);
+            node.children.splice(i, 0, val);
+            if (node.keys.length > this.order) return this._splitLeaf(node);
+            return null;
+        }
+        let i = 0;
+        while (i < node.keys.length && key >= node.keys[i]) i++;
+        const result = this._insert(node.children[i], key, val);
+        if (result) {
+            node.keys.splice(i, 0, result.key);
+            node.children.splice(i + 1, 0, result.node);
+            if (node.keys.length > this.order) return this._splitInternal(node);
+        }
+        return null;
+    }
+
+    _splitLeaf(node) {
+        const mid = Math.ceil(node.keys.length / 2);
+        const newNode = new BPlusNode(true);
+        newNode.keys = node.keys.splice(mid);
+        newNode.children = node.children.splice(mid);
+        newNode.next = node.next;
+        node.next = newNode;
+        return { key: newNode.keys[0], node: newNode };
+    }
+
+    _splitInternal(node) {
+        const mid = Math.floor(node.keys.length / 2);
+        const upKey = node.keys[mid];
+        const newNode = new BPlusNode(false);
+        newNode.keys = node.keys.splice(mid + 1);
+        newNode.children = node.children.splice(mid + 1);
+        node.keys.splice(mid, 1);
+        return { key: upKey, node: newNode };
+    }
+}`,
+  py: `class BPlusNode:
+    def __init__(self, is_leaf):
+        self.keys = []
+        self.children = []  # internal: nodes; leaf: values
+        self.next = None    # leaf chain
+        self.is_leaf = is_leaf
+
+class BPlusTree:
+    def __init__(self, order=3):
+        self.order = order
+        self.root = BPlusNode(True)
+
+    def search(self, key):
+        node = self.root
+        while not node.is_leaf:
+            i = 0
+            while i < len(node.keys) and key >= node.keys[i]:
+                i += 1
+            node = node.children[i]
+        for i, k in enumerate(node.keys):
+            if k == key:
+                return node.children[i]
+        return None
+
+    def insert(self, key, val):
+        result = self._insert(self.root, key, val)
+        if result:
+            new_root = BPlusNode(False)
+            new_root.keys = [result[0]]
+            new_root.children = [self.root, result[1]]
+            self.root = new_root
+
+    def _insert(self, node, key, val):
+        if node.is_leaf:
+            i = 0
+            while i < len(node.keys) and key > node.keys[i]:
+                i += 1
+            node.keys.insert(i, key)
+            node.children.insert(i, val)
+            if len(node.keys) > self.order:
+                return self._split_leaf(node)
+            return None
+        i = 0
+        while i < len(node.keys) and key >= node.keys[i]:
+            i += 1
+        result = self._insert(node.children[i], key, val)
+        if result:
+            node.keys.insert(i, result[0])
+            node.children.insert(i + 1, result[1])
+            if len(node.keys) > self.order:
+                return self._split_internal(node)
+        return None
+
+    def _split_leaf(self, node):
+        mid = (len(node.keys) + 1) // 2
+        new_node = BPlusNode(True)
+        new_node.keys = node.keys[mid:]
+        new_node.children = node.children[mid:]
+        new_node.next = node.next
+        node.next = new_node
+        node.keys = node.keys[:mid]
+        node.children = node.children[:mid]
+        return (new_node.keys[0], new_node)
+
+    def _split_internal(self, node):
+        mid = len(node.keys) // 2
+        up_key = node.keys[mid]
+        new_node = BPlusNode(False)
+        new_node.keys = node.keys[mid + 1:]
+        new_node.children = node.children[mid + 1:]
+        node.keys = node.keys[:mid]
+        node.children = node.children[:mid + 1]
+        return (up_key, new_node)`
+};
 
 const T = 2;
 const MAX_LEAF_KEYS = 2 * T;  // leaf can hold up to 2t keys before splitting
@@ -484,6 +639,7 @@ function renderBPTree(s) {
 function render() {
   if (steps.length === 0) {
     renderBPTree(null);
+    renderCode();
     descText.textContent = 'B+ 树：内部节点仅做索引，所有数据存于叶节点，叶节点用链表串联';
     leafCount.textContent = leafKeyCount(bpRoot);
     treeHeightEl.textContent = treeHeight(bpRoot);
@@ -492,7 +648,7 @@ function render() {
   }
   const s = steps[cur];
   renderBPTree(s);
-  highlightLines(s.highlightLines);
+  renderCode();
   descText.textContent = s.description;
   stepCounter.textContent = `${cur + 1} / ${steps.length}`;
   leafCount.textContent = s.root ? leafKeyCount(s.root) : 0;
@@ -501,16 +657,22 @@ function render() {
   btnNext.disabled = cur === steps.length - 1;
 }
 
-function buildCode() {
-  codeBody.innerHTML = CODE_LINES.map((l, i) => `<div class="code-line" data-line="${i}"><span class="ln">${i + 1}</span><span class="lc">${l.html || '&nbsp;'}</span></div>`).join('');
-  codeBody.querySelectorAll('.code-line').forEach(el => el.addEventListener('click', () => jumpToLine(parseInt(el.dataset.line))));
+function renderCode() {
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current))
+    || CODE_LINES;
+  const hl = LangSwitcher.getHL(steps[cur] || {});
+  const body = document.getElementById('codeBody');
+  body.innerHTML = lines.map((line, i) => {
+    const active = hl.includes(i) ? ' active' : '';
+    return `<div class="code-line${active}" onclick="jumpToLine(${i})">${line.html || '&nbsp;'}</div>`;
+  }).join('');
+  const el = body.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
 }
-function highlightLines(lines) {
-  codeBody.querySelectorAll('.code-line').forEach(el => el.classList.remove('active'));
-  (lines || []).forEach(ln => { const el = codeBody.querySelector(`[data-line="${ln}"]`); if (el) el.classList.add('active'); });
-  if (lines && lines.length > 0) { const f = codeBody.querySelector(`[data-line="${lines[0]}"]`); if (f) f.scrollIntoView({ block: 'nearest' }); }
-}
+function buildCode() { renderCode(); }
+function highlightLines(lines) { renderCode(); }
 function jumpToLine(ln) {
+  if (LangSwitcher.current !== 'go') return;
   if (steps.length === 0) return;
   let t2 = cur, b = Infinity;
   steps.forEach((s, i) => { if (s.highlightLines && s.highlightLines.includes(ln)) { const d = Math.abs(i - cur); if (d < b) { b = d; t2 = i; } } });
@@ -526,6 +688,7 @@ btnPrev.addEventListener('click', () => { pause(); if (cur > 0) { cur--; render(
 btnNext.addEventListener('click', () => { pause(); if (cur < steps.length - 1) { cur++; render(); } });
 btnReset.addEventListener('click', () => { pause(); bpRoot = new BPNode(true); nodeIdCounter = 0; bpRoot.id = nodeIdCounter++; steps = []; cur = 0; render(); });
 
+LangSwitcher.init(renderCode);
 buildCode();
 doPreset();
 </script>

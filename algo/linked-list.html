@@ -71,6 +71,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
+<script src="../lang.js"></script>
 </head>
 <body>
 <nav>
@@ -103,7 +104,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
       <div class="code-dot" style="background:#ff5f57"></div>
       <div class="code-dot" style="background:#febc2e"></div>
       <div class="code-dot" style="background:#28c840"></div>
-      <span style="margin-left:4px">linked_list.go</span>
+      <span style="margin-left:4px" data-base="linked_list">linked_list.go</span>
     </div>
     <div class="code-body" id="codeBody"></div>
   </div>
@@ -154,6 +155,76 @@ const CODE_LINES = [
   {html:`&nbsp;&nbsp;&nbsp;&nbsp;*head = dummy.Next`},
   {html:`}`},
 ];
+
+window.LANG_PLAIN = {
+  js: `class ListNode {
+    constructor(val) {
+        this.val = val;
+        this.next = null;
+    }
+}
+
+class LinkedList {
+    constructor() { this.head = null; }
+
+    insert(val, pos) {
+        const node = new ListNode(val);
+        if (pos === 0 || !this.head) {
+            node.next = this.head;
+            this.head = node;
+            return;
+        }
+        let cur = this.head;
+        for (let i = 0; i < pos - 1 && cur.next; i++) {
+            cur = cur.next;
+        }
+        node.next = cur.next;
+        cur.next = node;
+    }
+
+    delete(val) {
+        if (!this.head) return;
+        if (this.head.val === val) { this.head = this.head.next; return; }
+        let cur = this.head;
+        while (cur.next && cur.next.val !== val) cur = cur.next;
+        if (cur.next) cur.next = cur.next.next;
+    }
+}`,
+  py: `class ListNode:
+    def __init__(self, val):
+        self.val = val
+        self.next = None
+
+class LinkedList:
+    def __init__(self):
+        self.head = None
+
+    def insert(self, val, pos):
+        node = ListNode(val)
+        if pos == 0 or not self.head:
+            node.next = self.head
+            self.head = node
+            return
+        cur = self.head
+        for _ in range(pos - 1):
+            if not cur.next:
+                break
+            cur = cur.next
+        node.next = cur.next
+        cur.next = node
+
+    def delete(self, val):
+        if not self.head:
+            return
+        if self.head.val == val:
+            self.head = self.head.next
+            return
+        cur = self.head
+        while cur.next and cur.next.val != val:
+            cur = cur.next
+        if cur.next:
+            cur.next = cur.next.next`
+};
 
 // Linked list state: array of values
 let listData = [10, 20, 30, 40, 50];
@@ -293,12 +364,26 @@ function highlightLines(lines){
 }
 function jumpToLine(ln){let t=cur,b=Infinity;steps.forEach((s,i)=>{if(s.highlightLines&&s.highlightLines.includes(ln)){const d=Math.abs(i-cur);if(d<b){b=d;t=i;}}});cur=t;render();}
 
+function renderCode() {
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current))
+    || CODE_LINES;
+  const step = steps[cur];
+  const hl = LangSwitcher.getHL(step) || (step && (step.highlightLines || step.lines)) || [];
+  const body = document.getElementById('codeBody');
+  body.innerHTML = lines.map((line, i) => {
+    const active = hl.includes(i) ? ' active' : '';
+    return `<div class="code-line${active}" onclick="jumpToLine(${i})">${line.html || '&nbsp;'}</div>`;
+  }).join('');
+  const el = body.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
+}
+
 const NW=72, NH=44, GAP=40, ARROW=24;
 function render(){
   if(steps.length===0){renderList(listData,[],[],[]); descText.textContent='选择操作并点击执行'; stepCounter.textContent=''; return;}
   const s=steps[cur];
   renderList(s.nodes,s.highlight||[],s.active||[],s.crossed||[]);
-  if(s.highlightLines)highlightLines(s.highlightLines);
+  renderCode();
   descText.textContent=s.description;
   stepCounter.textContent=`${cur+1} / ${steps.length}`;
   btnPrev.disabled=cur===0;btnNext.disabled=cur===steps.length-1;
@@ -397,6 +482,7 @@ steps=generateInsertHeadSteps(listData,99);
 // Don't commit that - start with just showing the initial state
 steps=[];
 renderList(listData,[],[],[]);
+LangSwitcher.init(renderCode);renderCode();
 window.addEventListener('resize',()=>render());
 </script>
 </body>

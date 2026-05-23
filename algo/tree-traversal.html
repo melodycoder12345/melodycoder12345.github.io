@@ -76,6 +76,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
+<script src="../lang.js"></script>
 </head>
 <body>
 <nav>
@@ -108,7 +109,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
       <div class="code-dot" style="background:#ff5f57"></div>
       <div class="code-dot" style="background:#febc2e"></div>
       <div class="code-dot" style="background:#28c840"></div>
-      <span style="margin-left:4px">traversal.go</span>
+      <span style="margin-left:4px" data-base="tree_traversal">tree_traversal.go</span>
     </div>
     <div class="code-body" id="codeBody"></div>
   </div>
@@ -152,6 +153,90 @@ const CODE_LINES_MAP = {
     {html:`&nbsp;&nbsp;&nbsp;&nbsp;*result = <span class="fn">append</span>(*result, root.Val) <span class="cm">// 最后访问根</span>`},
     {html:`}`},
   ],
+};
+
+window.LANG_PLAIN = {
+  js: `class TreeNode {
+    constructor(val) { this.val = val; this.left = this.right = null; }
+}
+
+function preorder(root) {
+    if (!root) return [];
+    return [root.val, ...preorder(root.left), ...preorder(root.right)];
+}
+
+function inorder(root) {
+    if (!root) return [];
+    return [...inorder(root.left), root.val, ...inorder(root.right)];
+}
+
+function postorder(root) {
+    if (!root) return [];
+    return [...postorder(root.left), ...postorder(root.right), root.val];
+}
+
+function levelOrder(root) {
+    if (!root) return [];
+    const result = [], queue = [root];
+    while (queue.length) {
+        const node = queue.shift();
+        result.push(node.val);
+        if (node.left) queue.push(node.left);
+        if (node.right) queue.push(node.right);
+    }
+    return result;
+}
+
+// Build tree: 1->(2,3), 2->(4,5)
+const root = new TreeNode(1);
+root.left = new TreeNode(2); root.right = new TreeNode(3);
+root.left.left = new TreeNode(4); root.left.right = new TreeNode(5);
+
+console.log("Pre:",   preorder(root));   // [1,2,4,5,3]
+console.log("In:",    inorder(root));    // [4,2,5,1,3]
+console.log("Post:",  postorder(root));  // [4,5,2,3,1]
+console.log("Level:", levelOrder(root)); // [1,2,3,4,5]`,
+  py: `from collections import deque
+
+class TreeNode:
+    def __init__(self, val):
+        self.val = val
+        self.left = self.right = None
+
+def preorder(root):
+    if not root:
+        return []
+    return [root.val] + preorder(root.left) + preorder(root.right)
+
+def inorder(root):
+    if not root:
+        return []
+    return inorder(root.left) + [root.val] + inorder(root.right)
+
+def postorder(root):
+    if not root:
+        return []
+    return postorder(root.left) + postorder(root.right) + [root.val]
+
+def level_order(root):
+    if not root:
+        return []
+    result, queue = [], deque([root])
+    while queue:
+        node = queue.popleft()
+        result.append(node.val)
+        if node.left: queue.append(node.left)
+        if node.right: queue.append(node.right)
+    return result
+
+root = TreeNode(1)
+root.left = TreeNode(2); root.right = TreeNode(3)
+root.left.left = TreeNode(4); root.left.right = TreeNode(5)
+
+print("Pre:",   preorder(root))   # [1,2,4,5,3]
+print("In:",    inorder(root))    # [4,2,5,1,3]
+print("Post:",  postorder(root))  # [4,5,2,3,1]
+print("Level:", level_order(root)) # [1,2,3,4,5]`
 };
 
 // Line index for "visit root" in each traversal
@@ -221,17 +306,21 @@ const opBtns={inorder:document.getElementById('opInorder'),preorder:document.get
 Object.entries(opBtns).forEach(([m,btn])=>btn.addEventListener('click',()=>{currentMode=m;Object.values(opBtns).forEach(b=>b.classList.remove('active-op'));btn.classList.add('active-op');buildCode();}));
 goBtn.addEventListener('click',()=>{pause();steps=generateTraversalSteps(currentMode);cur=0;render();});
 
-function buildCode(){
-  const lines = CODE_LINES_MAP[currentMode];
-  codeBody.innerHTML=lines.map((l,i)=>`<div class="code-line" data-line="${i}"><span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`).join('');
-  codeBody.querySelectorAll('.code-line').forEach(el=>el.addEventListener('click',()=>jumpToLine(parseInt(el.dataset.line))));
+function renderCode(){
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current))
+    || CODE_LINES_MAP[currentMode];
+  const hl = LangSwitcher.getHL(steps[cur] || {});
+  const body = document.getElementById('codeBody');
+  body.innerHTML = lines.map((line, i) => {
+    const active = hl.includes(i) ? ' active' : '';
+    return `<div class="code-line${active}" onclick="jumpToLine(${i})">${line.html || '&nbsp;'}</div>`;
+  }).join('');
+  const el = body.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
 }
-function highlightLines(lines){
-  codeBody.querySelectorAll('.code-line').forEach(el=>el.classList.remove('active'));
-  lines.forEach(ln=>{const el=codeBody.querySelector(`[data-line="${ln}"]`);if(el)el.classList.add('active');});
-  if(lines.length>0){const f=codeBody.querySelector(`[data-line="${lines[0]}"]`);if(f)f.scrollIntoView({block:'nearest'});}
-}
-function jumpToLine(ln){let t=cur,b=Infinity;steps.forEach((s,i)=>{if(s.highlightLines&&s.highlightLines.includes(ln)){const d=Math.abs(i-cur);if(d<b){b=d;t=i;}}});cur=t;render();}
+function buildCode(){ renderCode(); }
+function highlightLines(lines){ renderCode(); }
+function jumpToLine(ln){if(LangSwitcher.current!=='go')return;let t=cur,b=Infinity;steps.forEach((s,i)=>{if(s.highlightLines&&s.highlightLines.includes(ln)){const d=Math.abs(i-cur);if(d<b){b=d;t=i;}}});cur=t;render();}
 
 // Tree layout: fixed for this tree
 const POSITIONS = {1:{x:3,y:0},2:{x:1,y:1},3:{x:5,y:1},4:{x:0,y:2},5:{x:2,y:2},6:{x:4,y:2},7:{x:6,y:2}};
@@ -280,11 +369,11 @@ function renderResultItems(visited){
   }).join('');
 }
 function render(){
-  if(steps.length===0){drawTree(null,[]);renderResultItems([]);descText.textContent='选择遍历方式并点击开始';stepCounter.textContent='';return;}
+  if(steps.length===0){drawTree(null,[]);renderResultItems([]);renderCode();descText.textContent='选择遍历方式并点击开始';stepCounter.textContent='';return;}
   const s=steps[cur];
   drawTree(s.current,s.visited);
   renderResultItems(s.visited);
-  if(s.highlightLines)highlightLines(s.highlightLines);
+  renderCode();
   descText.textContent=s.description;
   stepCounter.textContent=`${cur+1} / ${steps.length}`;
   btnPrev.disabled=cur===0;btnNext.disabled=cur===steps.length-1;
@@ -296,6 +385,7 @@ btnPlay.addEventListener('click',()=>playing?pause():play());
 btnPrev.addEventListener('click',()=>{pause();if(cur>0){cur--;render();}});
 btnNext.addEventListener('click',()=>{pause();if(cur<steps.length-1){cur++;render();}});
 btnReset.addEventListener('click',()=>{pause();cur=0;render();});
+LangSwitcher.init(renderCode);
 buildCode();drawTree(null,[]);renderResultItems([]);descText.textContent='二叉树：1为根，2,3为子节点，4,5,6,7为叶节点';
 window.addEventListener('resize',()=>render());
 </script>

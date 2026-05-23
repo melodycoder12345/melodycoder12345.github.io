@@ -89,6 +89,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
+<script src="../lang.js"></script>
 </head>
 <body>
 <nav>
@@ -138,7 +139,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
       <div class="code-dot" style="background:#ff5f57"></div>
       <div class="code-dot" style="background:#febc2e"></div>
       <div class="code-dot" style="background:#28c840"></div>
-      <span style="margin-left:4px">hash_table.go</span>
+      <span style="margin-left:4px" data-base="hash_table">hash_table.go</span>
     </div>
     <div class="code-body" id="codeBody"></div>
   </div>
@@ -202,6 +203,81 @@ const CODE_LINES = [
   {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="st">""</span>, <span class="kw">false</span>`},
   {html:`}`},
 ];
+
+window.LANG_PLAIN = {
+  js: `class HashMap {
+    constructor(size = 16) {
+        this.buckets = new Array(size).fill(null).map(() => []);
+        this.size = size;
+        this.count = 0;
+    }
+
+    _hash(key) {
+        let hash = 0;
+        for (const ch of String(key)) {
+            hash = (hash * 31 + ch.charCodeAt(0)) % this.size;
+        }
+        return hash;
+    }
+
+    set(key, val) {
+        const idx = this._hash(key);
+        const bucket = this.buckets[idx];
+        for (const pair of bucket) {
+            if (pair[0] === key) { pair[1] = val; return; }
+        }
+        bucket.push([key, val]);
+        this.count++;
+    }
+
+    get(key) {
+        const idx = this._hash(key);
+        for (const [k, v] of this.buckets[idx]) {
+            if (k === key) return v;
+        }
+        return undefined;
+    }
+
+    delete(key) {
+        const idx = this._hash(key);
+        const bucket = this.buckets[idx];
+        const i = bucket.findIndex(p => p[0] === key);
+        if (i !== -1) { bucket.splice(i, 1); this.count--; }
+    }
+}`,
+  py: `class HashMap:
+    def __init__(self, size=16):
+        self.buckets = [[] for _ in range(size)]
+        self.size = size
+        self.count = 0
+
+    def _hash(self, key):
+        h = 0
+        for ch in str(key):
+            h = (h * 31 + ord(ch)) % self.size
+        return h
+
+    def set(self, key, val):
+        idx = self._hash(key)
+        for pair in self.buckets[idx]:
+            if pair[0] == key:
+                pair[1] = val
+                return
+        self.buckets[idx].append([key, val])
+        self.count += 1
+
+    def get(self, key):
+        idx = self._hash(key)
+        for k, v in self.buckets[idx]:
+            if k == key:
+                return v
+        return None
+
+    def delete(self, key):
+        idx = self._hash(key)
+        self.buckets[idx] = [(k, v) for k, v in self.buckets[idx] if k != key]
+        self.count -= 1`
+};
 
 const CAPACITY = 8;
 // buckets: array of [{key,val}]  (simulating chaining)
@@ -385,7 +461,7 @@ function render() {
   }
   const s = steps[cur];
   renderGrid(s);
-  highlightLines(s.highlightLines);
+  renderCode();
   descText.textContent = s.description;
   stepCounter.textContent = `${cur + 1} / ${steps.length}`;
   const sz = s.buckets.reduce((acc, c) => acc + c.length, 0);
@@ -413,6 +489,20 @@ function jumpToLine(ln) {
   cur = t; render();
 }
 
+function renderCode() {
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current))
+    || CODE_LINES;
+  const step = steps[cur];
+  const hl = LangSwitcher.getHL(step) || (step && (step.highlightLines || step.lines)) || [];
+  const body = document.getElementById('codeBody');
+  body.innerHTML = lines.map((line, i) => {
+    const active = hl.includes(i) ? ' active' : '';
+    return `<div class="code-line${active}" onclick="jumpToLine(${i})">${line.html || '&nbsp;'}</div>`;
+  }).join('');
+  const el = body.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
+}
+
 function play() { if (cur >= steps.length - 1) cur = 0; playing = true; btnPlay.innerHTML = '⏸ 暂停'; tick(); }
 function pause() { playing = false; clearTimeout(timer); btnPlay.innerHTML = '▶ 播放'; }
 function tick() { if (!playing) return; if (cur < steps.length - 1) { cur++; render(); timer = setTimeout(tick, SPEED[parseInt(speedRange.value) - 1]); } else pause(); }
@@ -423,6 +513,7 @@ btnNext.addEventListener('click', () => { pause(); if (cur < steps.length - 1) {
 btnReset.addEventListener('click', () => doReset());
 
 buildCode();
+LangSwitcher.init(renderCode);
 // Initialize with some data
 const initPairs = [['name','Alice'],['age','25'],['city','Beijing'],['lang','Go'],['score','95']];
 for (const [k,v] of initPairs) {

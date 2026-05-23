@@ -74,6 +74,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
+<script src="../lang.js"></script>
 </head>
 <body>
 <nav>
@@ -120,7 +121,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
       <div class="code-dot" style="background:#ff5f57"></div>
       <div class="code-dot" style="background:#febc2e"></div>
       <div class="code-dot" style="background:#28c840"></div>
-      <span style="margin-left:4px">avl_tree.go</span>
+      <span style="margin-left:4px" data-base="avl_tree">avl_tree.go</span>
     </div>
     <div class="code-body" id="codeBody"></div>
   </div>
@@ -192,6 +193,97 @@ const CODE_LINES = [
   {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> node`},
   {html:`}`},
 ];
+
+window.LANG_PLAIN = {
+  js: `class AVLNode {
+    constructor(val) { this.val = val; this.left = this.right = null; this.height = 1; }
+}
+
+function height(n) { return n ? n.height : 0; }
+function balance(n) { return n ? height(n.left) - height(n.right) : 0; }
+function updateHeight(n) { n.height = 1 + Math.max(height(n.left), height(n.right)); }
+
+function rotateRight(y) {
+    const x = y.left, T2 = x.right;
+    x.right = y; y.left = T2;
+    updateHeight(y); updateHeight(x);
+    return x;
+}
+
+function rotateLeft(x) {
+    const y = x.right, T2 = y.left;
+    y.left = x; x.right = T2;
+    updateHeight(x); updateHeight(y);
+    return y;
+}
+
+function insert(node, val) {
+    if (!node) return new AVLNode(val);
+    if (val < node.val) node.left = insert(node.left, val);
+    else if (val > node.val) node.right = insert(node.right, val);
+    else return node;
+    updateHeight(node);
+    const bf = balance(node);
+    if (bf > 1 && val < node.left.val) return rotateRight(node);
+    if (bf < -1 && val > node.right.val) return rotateLeft(node);
+    if (bf > 1 && val > node.left.val) { node.left = rotateLeft(node.left); return rotateRight(node); }
+    if (bf < -1 && val < node.right.val) { node.right = rotateRight(node.right); return rotateLeft(node); }
+    return node;
+}`,
+  py: `class AVLNode:
+    def __init__(self, val):
+        self.val = val
+        self.left = self.right = None
+        self.height = 1
+
+def height(n):
+    return n.height if n else 0
+
+def balance(n):
+    return height(n.left) - height(n.right) if n else 0
+
+def update_height(n):
+    n.height = 1 + max(height(n.left), height(n.right))
+
+def rotate_right(y):
+    x, T2 = y.left, y.left.right
+    x.right = y
+    y.left = T2
+    update_height(y)
+    update_height(x)
+    return x
+
+def rotate_left(x):
+    y, T2 = x.right, x.right.left
+    y.left = x
+    x.right = T2
+    update_height(x)
+    update_height(y)
+    return y
+
+def insert(node, val):
+    if not node:
+        return AVLNode(val)
+    if val < node.val:
+        node.left = insert(node.left, val)
+    elif val > node.val:
+        node.right = insert(node.right, val)
+    else:
+        return node
+    update_height(node)
+    bf = balance(node)
+    if bf > 1 and val < node.left.val:
+        return rotate_right(node)
+    if bf < -1 and val > node.right.val:
+        return rotate_left(node)
+    if bf > 1 and val > node.left.val:
+        node.left = rotate_left(node.left)
+        return rotate_right(node)
+    if bf < -1 and val < node.right.val:
+        node.right = rotate_right(node.right)
+        return rotate_left(node)
+    return node`
+};
 
 // AVL tree node
 class AVLNode {
@@ -442,6 +534,7 @@ function renderTree(s) {
 function render() {
   if (steps.length === 0) {
     renderTree(null);
+    renderCode();
     descText.textContent = '选择插入操作开始演示';
     nodeCount.textContent = treeSize(avlRoot);
     treeHeightEl.textContent = nodeHeight(avlRoot);
@@ -450,7 +543,7 @@ function render() {
   }
   const s = steps[cur];
   renderTree(s);
-  highlightLines(s.highlightLines);
+  renderCode();
   descText.textContent = s.description;
   stepCounter.textContent = `${cur + 1} / ${steps.length}`;
   nodeCount.textContent = treeSize(s.root);
@@ -459,16 +552,22 @@ function render() {
   btnNext.disabled = cur === steps.length - 1;
 }
 
-function buildCode() {
-  codeBody.innerHTML = CODE_LINES.map((l, i) => `<div class="code-line" data-line="${i}"><span class="ln">${i + 1}</span><span class="lc">${l.html || '&nbsp;'}</span></div>`).join('');
-  codeBody.querySelectorAll('.code-line').forEach(el => el.addEventListener('click', () => jumpToLine(parseInt(el.dataset.line))));
+function renderCode() {
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current))
+    || CODE_LINES;
+  const hl = LangSwitcher.getHL(steps[cur] || {});
+  const body = document.getElementById('codeBody');
+  body.innerHTML = lines.map((line, i) => {
+    const active = hl.includes(i) ? ' active' : '';
+    return `<div class="code-line${active}" onclick="jumpToLine(${i})">${line.html || '&nbsp;'}</div>`;
+  }).join('');
+  const el = body.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
 }
-function highlightLines(lines) {
-  codeBody.querySelectorAll('.code-line').forEach(el => el.classList.remove('active'));
-  (lines || []).forEach(ln => { const el = codeBody.querySelector(`[data-line="${ln}"]`); if (el) el.classList.add('active'); });
-  if (lines && lines.length > 0) { const f = codeBody.querySelector(`[data-line="${lines[0]}"]`); if (f) f.scrollIntoView({ block: 'nearest' }); }
-}
+function buildCode() { renderCode(); }
+function highlightLines(lines) { renderCode(); }
 function jumpToLine(ln) {
+  if (LangSwitcher.current !== 'go') return;
   if (steps.length === 0) return;
   let t = cur, b2 = Infinity;
   steps.forEach((s, i) => { if (s.highlightLines && s.highlightLines.includes(ln)) { const d = Math.abs(i - cur); if (d < b2) { b2 = d; t = i; } } });
@@ -484,6 +583,7 @@ btnPrev.addEventListener('click', () => { pause(); if (cur > 0) { cur--; render(
 btnNext.addEventListener('click', () => { pause(); if (cur < steps.length - 1) { cur++; render(); } });
 btnReset.addEventListener('click', () => { pause(); avlRoot = null; steps = []; cur = 0; render(); });
 
+LangSwitcher.init(renderCode);
 buildCode();
 // Initialize with a balanced tree
 doPreset([50, 30, 70, 20, 40, 60, 80]);
