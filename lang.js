@@ -116,7 +116,7 @@
     },
 
     switch: function (lang) {
-      if (!window.LANG_PLAIN || !window.LANG_PLAIN[lang]) return;
+      if (lang !== 'go' && (!window.LANG_PLAIN || !window.LANG_PLAIN[lang])) return;
       this.current = lang;
       document.querySelectorAll('.lang-btn').forEach(function (b) {
         b.classList.toggle('active', b.dataset.lang === lang);

@@ -24,7 +24,7 @@
   const footer = d.createElement('footer');
   footer.id = '__sfooter';
   footer.innerHTML =
-    '<span class="sf-copy">© 2026 hudan\'s notes · 纯静态 · Go · SVG</span>' +
+    '<span class="sf-copy">© 2026 码海拾贝 · 纯静态 · Go · SVG</span>' +
     '<nav class="sf-links">' +
       '<a href="../index.html">主页</a>' +
       '<span class="sf-sep">·</span>' +

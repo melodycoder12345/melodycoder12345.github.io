@@ -72,7 +72,7 @@
   const nav = d.createElement('div');
   nav.id = '__snav';
   nav.innerHTML =
-    '<a href="../index.html" class="sn-logo"><span class="sn-dot"></span>hudan\'s notes</a>' +
+    '<a href="../index.html" class="sn-logo"><span class="sn-dot"></span>码海拾贝</a>' +
     '<div class="sn-uw">' +
       '<button class="sn-btn" id="snBtn"><span>👤</span><span>游客</span><span class="sn-chev" id="snChev">▾</span></button>' +
       '<div class="sn-panel" id="snPanel">' +
