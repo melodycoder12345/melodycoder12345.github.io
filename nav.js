@@ -32,10 +32,9 @@
   border-bottom:1px solid rgba(255,255,255,0.07);
   font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
 }
-.sn-logo{display:flex;align-items:center;gap:8px;text-decoration:none;font-size:0.92rem;font-weight:700;letter-spacing:0.04em;}
-.sn-logo .sn-dot{width:7px;height:7px;border-radius:50%;background:linear-gradient(135deg,#38bdf8,#c084fc);flex-shrink:0;}
-.sn-logo .sn-title{background:linear-gradient(120deg,#38bdf8 0%,#c084fc 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
-.sn-motto{font-size:0.68rem;color:#64748b;font-style:italic;letter-spacing:0.05em;flex:1;text-align:center;pointer-events:none;}
+.sn-logo{display:flex;flex-direction:column;gap:1px;text-decoration:none;}
+.sn-logo .sn-title{background:linear-gradient(120deg,#38bdf8 0%,#c084fc 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;font-size:0.92rem;font-weight:700;letter-spacing:0.06em;white-space:nowrap;}
+.sn-logo .sn-motto{font-size:0.58rem;color:#64748b;font-style:italic;letter-spacing:0.02em;align-self:flex-end;white-space:nowrap;}
 .sn-uw{position:relative;}
 .sn-btn{
   display:flex;align-items:center;gap:6px;padding:5px 11px;border-radius:7px;
@@ -74,8 +73,7 @@
   const nav = d.createElement('div');
   nav.id = '__snav';
   nav.innerHTML =
-    '<a href="../index.html" class="sn-logo"><span class="sn-dot"></span><span class="sn-title">码海拾贝</span></a>' +
-    '<span class="sn-motto">代码有迹可循，算法见微知著</span>' +
+    '<a href="../index.html" class="sn-logo"><span class="sn-title">码海拾贝</span><span class="sn-motto">代码有迹可循，算法见微知著</span></a>' +
     '<div class="sn-uw">' +
       '<button class="sn-btn" id="snBtn"><span>👤</span><span>游客</span><span class="sn-chev" id="snChev">▾</span></button>' +
       '<div class="sn-panel" id="snPanel">' +
