@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>MySQL 日志体系</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--purple:#c084fc;--green:#4ade80;--yellow:#fbbf24;--orange:#fb923c;--red:#f87171;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{height:100vh;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;}
+nav{height:52px;display:flex;align-items:center;gap:16px;padding:0 20px;background:var(--panel2);border-bottom:1px solid var(--border);flex-shrink:0;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;overflow-y:auto;background:var(--bg);padding:0;}
+.code-panel{width:44%;min-width:360px;background:var(--panel2);border-left:1px solid var(--border);overflow-y:auto;}
+.controls{flex-shrink:0;height:52px;display:flex;align-items:center;gap:10px;padding:0 16px;background:var(--panel);border-top:1px solid var(--border);}
+.status-bar{flex-shrink:0;height:36px;display:flex;align-items:center;padding:0 16px;background:var(--panel2);border-top:1px solid var(--border);font-size:0.82rem;color:var(--dim);}
+/* Go syntax */
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.pkg{color:#ffa657}.cm{color:#8b949e}.id{color:#e6edf3}
+/* Nav tags */
+.nav-title{font-size:1rem;font-weight:600;color:var(--text);}
+.tag{padding:2px 10px;border-radius:12px;font-size:0.78rem;font-weight:500;background:var(--panel);border:1px solid var(--border);}
+/* Tabs */
+.tabs{display:flex;gap:6px;padding:14px 16px 0;background:var(--bg);border-bottom:1px solid var(--border);}
+.tab-btn{padding:6px 16px;border-radius:6px 6px 0 0;border:1px solid var(--border);border-bottom:none;background:var(--panel);color:var(--dim);cursor:pointer;font-size:0.85rem;transition:all 0.2s;}
+.tab-btn.active{background:var(--panel2);color:var(--text);border-color:var(--blue);border-bottom:1px solid var(--panel2);}
+.tab-btn:hover:not(.active){color:var(--text);}
+/* Step description */
+.step-desc{padding:14px 16px;font-size:0.9rem;line-height:1.6;color:var(--text);min-height:56px;background:var(--panel);border-bottom:1px solid var(--border);}
+/* Viz area */
+.viz-area{padding:16px;}
+/* Controls */
+.btn{padding:5px 14px;border-radius:6px;border:1px solid var(--border);background:var(--panel);color:var(--text);cursor:pointer;font-size:0.85rem;transition:background 0.15s;}
+.btn:hover{background:var(--border);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.btn.play{background:var(--blue);color:#0f172a;border-color:var(--blue);}
+.btn.play:hover{background:#7dd3fc;}
+.step-counter{color:var(--dim);font-size:0.82rem;margin-left:auto;}
+input[type=range]{accent-color:var(--blue);width:80px;}
+.speed-label{color:var(--dim);font-size:0.78rem;}
+/* Code panel */
+.code-header{padding:10px 14px;font-size:0.8rem;color:var(--dim);border-bottom:1px solid var(--border);background:var(--panel);}
+.code-body{padding:0;}
+.code-line{display:flex;gap:10px;padding:1px 14px;font-family:'Fira Code','Cascadia Code','Consolas',monospace;font-size:0.79rem;line-height:1.65;cursor:pointer;transition:background 0.12s;}
+.code-line:hover{background:#1e293b66;}
+.code-line.active{background:#fbbf2420;border-left:2px solid var(--yellow);}
+.code-line .ln{color:#475569;min-width:22px;text-align:right;user-select:none;}
+.code-line .lc{white-space:pre;}
+/* Diagram common */
+.diag-box{border-radius:8px;padding:12px;font-size:0.82rem;}
+.diag-label{font-size:0.72rem;color:var(--dim);margin-bottom:4px;}
+.diag-title{font-weight:600;font-size:0.9rem;}
+.highlight-box{box-shadow:0 0 0 2px var(--yellow), 0 0 16px #fbbf2440;}
+/* Tab1: overview */
+.layer{border-radius:10px;padding:14px;margin-bottom:12px;}
+.layer-server{border:2px solid var(--purple);background:#c084fc08;}
+.layer-innodb{border:2px solid var(--blue);background:#38bdf808;}
+.layer-title{font-size:0.75rem;font-weight:700;letter-spacing:0.06em;margin-bottom:10px;}
+.log-boxes{display:flex;gap:10px;flex-wrap:wrap;}
+.log-box{flex:1;min-width:120px;border-radius:8px;padding:10px 12px;background:var(--panel);border:1px solid var(--border);transition:all 0.3s;}
+.log-box .name{font-weight:700;font-size:0.88rem;margin-bottom:4px;}
+.log-box .purpose{font-size:0.75rem;color:var(--dim);line-height:1.4;}
+.log-box .badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:0.7rem;margin-top:6px;}
+.badge-phys{background:#38bdf820;color:var(--blue);border:1px solid var(--blue);}
+.badge-logic{background:#c084fc20;color:var(--purple);border:1px solid var(--purple);}
+.two-pc-bar{border-radius:8px;padding:10px 14px;background:var(--panel);border:1px solid var(--yellow);margin:10px 0;display:flex;align-items:center;gap:10px;}
+/* Tab2: redo log ring */
+.ring-container{display:flex;flex-direction:column;align-items:center;gap:12px;padding:8px 0;}
+.ring-svg-wrap{position:relative;width:280px;height:280px;}
+.ring-lsn{display:flex;gap:24px;justify-content:center;font-size:0.82rem;}
+.lsn-box{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:6px 14px;text-align:center;}
+.lsn-val{font-size:1.1rem;font-weight:700;}
+.log-files{display:flex;gap:12px;justify-content:center;}
+.log-file{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:8px 18px;font-size:0.8rem;text-align:center;}
+.log-file .fn-name{font-weight:600;color:var(--blue);}
+.log-file .fn-size{color:var(--dim);font-size:0.72rem;}
+.flush-modes{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:6px;}
+.flush-mode{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:0.76rem;text-align:center;flex:1;min-width:100px;}
+.flush-mode.active-mode{border-color:var(--yellow);}
+/* Tab3: binlog */
+.repl-layout{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap;}
+.repl-master{background:var(--panel);border:2px solid var(--purple);border-radius:10px;padding:12px;min-width:140px;}
+.repl-replicas{display:flex;flex-direction:column;gap:8px;}
+.repl-replica{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:0.82rem;}
+.repl-center{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;min-width:120px;}
+.binlog-files{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;}
+.binlog-file{background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:0.74rem;color:var(--blue);}
+.format-table{width:100%;border-collapse:collapse;margin-top:12px;font-size:0.8rem;}
+.format-table th{background:var(--panel);padding:7px 10px;border:1px solid var(--border);text-align:left;font-weight:600;}
+.format-table td{padding:7px 10px;border:1px solid var(--border);}
+.format-table tr.hl-row{background:#fbbf2420;}
+/* Tab4: 2PC */
+.twopc-lanes{display:flex;gap:0;margin:8px 0;}
+.lane{flex:1;border:1px solid var(--border);border-radius:8px;margin:0 4px;padding:10px;min-height:360px;}
+.lane-title{text-align:center;font-weight:700;font-size:0.82rem;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:10px;}
+.lane-redo .lane-title{color:var(--blue);}
+.lane-binlog .lane-title{color:var(--purple);}
+.lane-coord{background:var(--panel);border:1px solid var(--yellow);border-radius:8px;width:80px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:0.74rem;color:var(--yellow);}
+.tpc-event{border-radius:6px;padding:7px 10px;margin-bottom:6px;font-size:0.78rem;line-height:1.4;border:1px solid var(--border);background:var(--panel);transition:all 0.3s;}
+.tpc-event.prepare{border-color:var(--blue);color:var(--blue);}
+.tpc-event.commit{border-color:var(--green);color:var(--green);}
+.tpc-event.binlog{border-color:var(--purple);color:var(--purple);}
+.tpc-event.rollback{border-color:var(--red);color:var(--red);}
+.tpc-event.undo{border-color:var(--teal);color:var(--teal);}
+.tpc-event.crash{border-color:var(--red);background:#f8717120;color:var(--red);font-weight:700;}
+.tpc-event.hidden{opacity:0;pointer-events:none;}
+.tpc-event.recover{border-color:var(--yellow);color:var(--yellow);}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html" style="color:var(--dim);text-decoration:none;font-size:0.88rem;margin-right:8px;">← 返回</a>
+  <span class="nav-title">MySQL 日志体系</span>
+  <span class="tag" style="color:var(--blue);border-color:var(--blue)">Redo Log</span>
+  <span class="tag" style="color:var(--teal);border-color:var(--teal)">Undo Log</span>
+  <span class="tag" style="color:var(--purple);border-color:var(--purple)">Binlog</span>
+  <span class="tag" style="color:var(--yellow);border-color:var(--yellow)">两阶段提交</span>
+</nav>
+
+<div class="main">
+  <div class="viz-panel" id="vizPanel">
+    <!-- tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab(0)">日志总览</button>
+      <button class="tab-btn" onclick="switchTab(1)">Redo Log</button>
+      <button class="tab-btn" onclick="switchTab(2)">Binlog</button>
+      <button class="tab-btn" onclick="switchTab(3)">两阶段提交</button>
+    </div>
+    <div class="step-desc" id="stepDesc">Loading...</div>
+    <div class="viz-area" id="vizArea"></div>
+  </div>
+
+  <div class="code-panel">
+    <div class="code-header" id="codeHeader">Go 实现参考</div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="btn" id="btnReset" onclick="reset()">重置</button>
+  <button class="btn" id="btnPrev" onclick="prev()">← 上一步</button>
+  <button class="btn play" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+  <button class="btn" id="btnNext" onclick="next()">下一步 →</button>
+  <span class="step-counter" id="stepCounter">0 / 0</span>
+  <span class="speed-label">速度</span>
+  <input type="range" min="0" max="4" value="2" id="speedSlider" oninput="setSpeed(this.value)">
+</div>
+<div class="status-bar" id="statusBar">就绪</div>
+
+<script>
+const SPEEDS = [1500, 1000, 600, 350, 180];
+let speedIdx = 2;
+let curTab = 0;
+let curStep = 0;
+let playing = false;
+let timer = null;
+
+// ============ CODE DEFINITIONS ============
+const CODES = [
+  // Tab 0: overview
+  [
+    {ln:1,  lc:`<span class="cm">// MySQL 日志分类</span>`},
+    {ln:2,  lc:`<span class="kw">type</span> <span class="id">LogType</span> <span class="kw">int</span>`},
+    {ln:3,  lc:`<span class="kw">const</span> (`},
+    {ln:4,  lc:`    <span class="id">RedoLog</span>  <span class="id">LogType</span> = <span class="fn">iota</span> <span class="cm">// InnoDB物理日志，crash-safe</span>`},
+    {ln:5,  lc:`    <span class="id">UndoLog</span>                  <span class="cm">// InnoDB逻辑日志，回滚+MVCC</span>`},
+    {ln:6,  lc:`    <span class="id">Binlog</span>                   <span class="cm">// Server层，主从复制+时间点恢复</span>`},
+    {ln:7,  lc:`    <span class="id">SlowLog</span>                  <span class="cm">// 慢查询日志，性能调优</span>`},
+    {ln:8,  lc:`    <span class="id">ErrorLog</span>                 <span class="cm">// 错误/启动日志，问题排查</span>`},
+    {ln:9,  lc:`)`},
+    {ln:10, lc:``},
+    {ln:11, lc:`<span class="cm">// 一次UPDATE的写入顺序</span>`},
+    {ln:12, lc:`<span class="kw">func</span> (tx *<span class="id">Transaction</span>) <span class="fn">Update</span>(row *<span class="id">Row</span>, newVal []<span class="kw">byte</span>) <span class="kw">error</span> {`},
+    {ln:13, lc:`    <span class="cm">// 1. 写 Undo Log（记录旧值，用于回滚和MVCC读）</span>`},
+    {ln:14, lc:`    tx.<span class="id">undoLog</span>.<span class="fn">Append</span>(<span class="id">UndoRecord</span>{`},
+    {ln:15, lc:`        <span class="id">TxnID</span>:  tx.<span class="id">ID</span>,`},
+    {ln:16, lc:`        <span class="id">PageID</span>: row.<span class="id">PageID</span>,`},
+    {ln:17, lc:`        <span class="id">Before</span>: row.<span class="id">Data</span>,`},
+    {ln:18, lc:`    })`},
+    {ln:19, lc:``},
+    {ln:20, lc:`    <span class="cm">// 2. 修改 Buffer Pool 中的页（内存操作）</span>`},
+    {ln:21, lc:`    row.<span class="id">Data</span> = newVal`},
+    {ln:22, lc:``},
+    {ln:23, lc:`    <span class="cm">// 3. 写 Redo Log（记录物理变更，prepare阶段）</span>`},
+    {ln:24, lc:`    tx.<span class="id">redoLog</span>.<span class="fn">Append</span>(<span class="id">RedoRecord</span>{`},
+    {ln:25, lc:`        <span class="id">Type</span>:   <span class="id">UPDATE</span>,`},
+    {ln:26, lc:`        <span class="id">PageID</span>: row.<span class="id">PageID</span>,`},
+    {ln:27, lc:`        <span class="id">After</span>:  newVal,`},
+    {ln:28, lc:`    })`},
+    {ln:29, lc:`    <span class="kw">return nil</span>`},
+    {ln:30, lc:`}`},
+    {ln:31, lc:``},
+    {ln:32, lc:`<span class="cm">// General Log → 开销极高，生产通常关闭</span>`},
+    {ln:33, lc:`<span class="cm">// Slow Log threshold: long_query_time 秒</span>`},
+    {ln:34, lc:`<span class="cm">// Error Log: 启动/关闭/异常，首选排查入口</span>`},
+    {ln:35, lc:`<span class="cm">// Redo: 循环写(覆盖) | Binlog: 追加写(永久保留)</span>`},
+  ],
+  // Tab 1: redo log
+  [
+    {ln:1,  lc:`<span class="cm">// InnoDB Redo Log 循环缓冲</span>`},
+    {ln:2,  lc:`<span class="kw">type</span> <span class="id">RedoLogBuffer</span> <span class="kw">struct</span> {`},
+    {ln:3,  lc:`    <span class="id">files</span>      [<span class="num">2</span>]*<span class="id">LogFile</span>  <span class="cm">// ib_logfile0, ib_logfile1</span>`},
+    {ln:4,  lc:`    <span class="id">writePos</span>   <span class="kw">uint64</span>       <span class="cm">// 当前写入位置(LSN)</span>`},
+    {ln:5,  lc:`    <span class="id">checkpoint</span> <span class="kw">uint64</span>      <span class="cm">// 已持久化的LSN（可安全覆盖）</span>`},
+    {ln:6,  lc:`    <span class="id">bufSize</span>    <span class="kw">uint64</span>       <span class="cm">// 总容量(如 96MB)</span>`},
+    {ln:7,  lc:`}`},
+    {ln:8,  lc:``},
+    {ln:9,  lc:`<span class="cm">// 写入重做日志记录</span>`},
+    {ln:10, lc:`<span class="kw">func</span> (rl *<span class="id">RedoLogBuffer</span>) <span class="fn">Append</span>(record <span class="id">RedoRecord</span>) (lsn <span class="kw">uint64</span>) {`},
+    {ln:11, lc:`    <span class="cm">// 检查空间是否充足</span>`},
+    {ln:12, lc:`    used := rl.<span class="id">writePos</span> - rl.<span class="id">checkpoint</span>`},
+    {ln:13, lc:`    <span class="kw">if</span> used >= rl.<span class="id">bufSize</span> * <span class="num">9</span>/<span class="num">10</span> {  <span class="cm">// 使用率>90%时强制检查点</span>`},
+    {ln:14, lc:`        rl.<span class="fn">forceCheckpoint</span>()`},
+    {ln:15, lc:`    }`},
+    {ln:16, lc:`    rl.<span class="id">writePos</span>++`},
+    {ln:17, lc:`    lsn = rl.<span class="id">writePos</span>`},
+    {ln:18, lc:`    rl.<span class="fn">write</span>(lsn, record)`},
+    {ln:19, lc:`    <span class="kw">return</span> lsn`},
+    {ln:20, lc:`}`},
+    {ln:21, lc:``},
+    {ln:22, lc:`<span class="cm">// Checkpoint推进（将脏页刷盘后更新）</span>`},
+    {ln:23, lc:`<span class="kw">func</span> (rl *<span class="id">RedoLogBuffer</span>) <span class="fn">Checkpoint</span>(lsn <span class="kw">uint64</span>) {`},
+    {ln:24, lc:`    <span class="cm">// 此LSN前的数据页均已安全落盘</span>`},
+    {ln:25, lc:`    <span class="cm">// 这段空间可以被循环覆盖</span>`},
+    {ln:26, lc:`    rl.<span class="id">checkpoint</span> = lsn`},
+    {ln:27, lc:`}`},
+    {ln:28, lc:``},
+    {ln:29, lc:`<span class="cm">// innodb_flush_log_at_trx_commit 控制刷盘时机</span>`},
+    {ln:30, lc:`<span class="cm">// =1: 每次提交都 fsync（最安全，性能最低）</span>`},
+    {ln:31, lc:`<span class="cm">// =2: 每次提交写OS buffer，每秒fsync（折中）</span>`},
+    {ln:32, lc:`<span class="cm">// =0: 每秒写+fsync（性能最高，可能丢1秒数据）</span>`},
+    {ln:33, lc:`<span class="kw">func</span> (rl *<span class="id">RedoLogBuffer</span>) <span class="fn">Flush</span>(mode <span class="kw">int</span>) {`},
+    {ln:34, lc:`    <span class="kw">switch</span> mode {`},
+    {ln:35, lc:`    <span class="kw">case</span> <span class="num">1</span>:`},
+    {ln:36, lc:`        rl.<span class="fn">fsync</span>()  <span class="cm">// 立即持久化</span>`},
+    {ln:37, lc:`    <span class="kw">case</span> <span class="num">2</span>:`},
+    {ln:38, lc:`        rl.<span class="fn">write</span>()  <span class="cm">// 写入OS缓冲（不fsync）</span>`},
+    {ln:39, lc:`    <span class="kw">case</span> <span class="num">0</span>:`},
+    {ln:40, lc:`        <span class="cm">// 依赖后台线程每秒flush</span>`},
+    {ln:41, lc:`    }`},
+    {ln:42, lc:`}`},
+  ],
+  // Tab 2: binlog
+  [
+    {ln:1,  lc:`<span class="cm">// Binlog 条目结构</span>`},
+    {ln:2,  lc:`<span class="kw">type</span> <span class="id">BinlogEvent</span> <span class="kw">struct</span> {`},
+    {ln:3,  lc:`    <span class="id">Timestamp</span> <span class="kw">uint32</span>`},
+    {ln:4,  lc:`    <span class="id">EventType</span> <span class="id">EventType</span>   <span class="cm">// QUERY/TABLE_MAP/WRITE_ROWS/UPDATE_ROWS</span>`},
+    {ln:5,  lc:`    <span class="id">ServerID</span>  <span class="kw">uint32</span>      <span class="cm">// 标识来源server</span>`},
+    {ln:6,  lc:`    <span class="id">EventLen</span>  <span class="kw">uint32</span>`},
+    {ln:7,  lc:`    <span class="id">NextPos</span>   <span class="kw">uint32</span>      <span class="cm">// 下一条事件位置</span>`},
+    {ln:8,  lc:`    <span class="id">GTID</span>      <span class="kw">string</span>      <span class="cm">// 如 "3E11FA47-71CA-11E1-9E33:1"</span>`},
+    {ln:9,  lc:`}`},
+    {ln:10, lc:``},
+    {ln:11, lc:`<span class="cm">// Row格式的更新事件</span>`},
+    {ln:12, lc:`<span class="kw">type</span> <span class="id">UpdateRowsEvent</span> <span class="kw">struct</span> {`},
+    {ln:13, lc:`    <span class="id">TableID</span> <span class="kw">uint64</span>`},
+    {ln:14, lc:`    <span class="id">Rows</span>    []<span class="id">RowChange</span>`},
+    {ln:15, lc:`}`},
+    {ln:16, lc:`<span class="kw">type</span> <span class="id">RowChange</span> <span class="kw">struct</span> {`},
+    {ln:17, lc:`    <span class="id">Before</span> []<span class="kw">interface</span>{}  <span class="cm">// 修改前的列值</span>`},
+    {ln:18, lc:`    <span class="id">After</span>  []<span class="kw">interface</span>{}  <span class="cm">// 修改后的列值</span>`},
+    {ln:19, lc:`}`},
+    {ln:20, lc:``},
+    {ln:21, lc:`<span class="cm">// 主从复制：IO线程拉取binlog</span>`},
+    {ln:22, lc:`<span class="kw">func</span> (replica *<span class="id">Replica</span>) <span class="fn">IOThread</span>() {`},
+    {ln:23, lc:`    conn := replica.<span class="fn">connectToMaster</span>()`},
+    {ln:24, lc:`    <span class="kw">for</span> {`},
+    {ln:25, lc:`        event := conn.<span class="fn">ReadBinlogEvent</span>()`},
+    {ln:26, lc:`        replica.<span class="id">relayLog</span>.<span class="fn">Append</span>(event)`},
+    {ln:27, lc:`    }`},
+    {ln:28, lc:`}`},
+    {ln:29, lc:``},
+    {ln:30, lc:`<span class="cm">// SQL线程重放</span>`},
+    {ln:31, lc:`<span class="kw">func</span> (replica *<span class="id">Replica</span>) <span class="fn">SQLThread</span>() {`},
+    {ln:32, lc:`    <span class="kw">for</span> event := <span class="kw">range</span> replica.<span class="id">relayLog</span>.<span class="fn">Consume</span>() {`},
+    {ln:33, lc:`        <span class="kw">switch</span> event.<span class="id">EventType</span> {`},
+    {ln:34, lc:`        <span class="kw">case</span> <span class="id">UPDATE_ROWS</span>:`},
+    {ln:35, lc:`            replica.<span class="fn">applyUpdate</span>(event)`},
+    {ln:36, lc:`        <span class="kw">case</span> <span class="id">QUERY</span>:`},
+    {ln:37, lc:`            replica.<span class="fn">execSQL</span>(event.<span class="id">Query</span>)`},
+    {ln:38, lc:`        }`},
+    {ln:39, lc:`    }`},
+    {ln:40, lc:`}`},
+  ],
+  // Tab 3: 2PC
+  [
+    {ln:1,  lc:`<span class="cm">// MySQL两阶段提交流程</span>`},
+    {ln:2,  lc:`<span class="kw">func</span> (db *<span class="id">MySQL</span>) <span class="fn">CommitTransaction</span>(txn *<span class="id">Transaction</span>) <span class="kw">error</span> {`},
+    {ln:3,  lc:`    <span class="cm">// === Phase 1: Prepare ===</span>`},
+    {ln:4,  lc:`    <span class="cm">// 写入 Redo Log，状态 = PREPARE</span>`},
+    {ln:5,  lc:`    xid := txn.<span class="id">XID</span>  <span class="cm">// 跨引擎的唯一事务ID</span>`},
+    {ln:6,  lc:`    <span class="kw">if</span> err := db.<span class="id">innodb</span>.<span class="fn">PrepareRedoLog</span>(xid); err != <span class="kw">nil</span> {`},
+    {ln:7,  lc:`        <span class="kw">return</span> db.<span class="fn">rollback</span>(txn)`},
+    {ln:8,  lc:`    }`},
+    {ln:9,  lc:``},
+    {ln:10, lc:`    <span class="cm">// === 写入 Binlog ===</span>`},
+    {ln:11, lc:`    <span class="cm">// 这是"point of no return"——写完binlog就必须提交</span>`},
+    {ln:12, lc:`    <span class="kw">if</span> err := db.<span class="id">server</span>.<span class="fn">WriteBinlog</span>(txn.<span class="id">Events</span>, xid); err != <span class="kw">nil</span> {`},
+    {ln:13, lc:`        <span class="cm">// binlog写失败 → 回滚（redo log处于prepare状态）</span>`},
+    {ln:14, lc:`        <span class="kw">return</span> db.<span class="fn">rollback</span>(txn)`},
+    {ln:15, lc:`    }`},
+    {ln:16, lc:`    <span class="cm">// fsync binlog（确保持久化）</span>`},
+    {ln:17, lc:`    db.<span class="id">server</span>.<span class="fn">FsyncBinlog</span>()`},
+    {ln:18, lc:``},
+    {ln:19, lc:`    <span class="cm">// === Phase 2: Commit ===</span>`},
+    {ln:20, lc:`    <span class="cm">// 写 Redo Log COMMIT标记</span>`},
+    {ln:21, lc:`    db.<span class="id">innodb</span>.<span class="fn">CommitRedoLog</span>(xid)`},
+    {ln:22, lc:`    <span class="kw">return nil</span>`},
+    {ln:23, lc:`}`},
+    {ln:24, lc:``},
+    {ln:25, lc:`<span class="cm">// 崩溃恢复决策</span>`},
+    {ln:26, lc:`<span class="kw">func</span> (db *<span class="id">MySQL</span>) <span class="fn">RecoverAfterCrash</span>() {`},
+    {ln:27, lc:`    <span class="cm">// 扫描处于PREPARE状态的Redo Log记录</span>`},
+    {ln:28, lc:`    <span class="kw">for</span> _, xid := <span class="kw">range</span> db.<span class="id">innodb</span>.<span class="fn">GetPreparedXIDs</span>() {`},
+    {ln:29, lc:`        <span class="kw">if</span> db.<span class="id">server</span>.<span class="fn">BinlogContains</span>(xid) {`},
+    {ln:30, lc:`            <span class="cm">// Binlog有记录 → 提交（保证主从一致）</span>`},
+    {ln:31, lc:`            db.<span class="id">innodb</span>.<span class="fn">CommitRedoLog</span>(xid)`},
+    {ln:32, lc:`        } <span class="kw">else</span> {`},
+    {ln:33, lc:`            <span class="cm">// Binlog无记录 → 回滚</span>`},
+    {ln:34, lc:`            db.<span class="id">innodb</span>.<span class="fn">RollbackRedoLog</span>(xid)`},
+    {ln:35, lc:`        }`},
+    {ln:36, lc:`    }`},
+    {ln:37, lc:`}`},
+    {ln:38, lc:``},
+    {ln:39, lc:`<span class="cm">// 组提交优化: 多事务批量fsync binlog</span>`},
+    {ln:40, lc:`<span class="cm">// 大幅减少磁盘IO次数，提升高并发吞吐量</span>`},
+  ],
+];
+
+// ============ STEPS DEFINITIONS ============
+const STEPS_TAB = [
+  // Tab 0: overview steps
+  [
+    {desc:"MySQL有5种日志，各司其职。最重要的是3种：Redo Log、Undo Log、Binlog", hl:[], codeLine:1},
+    {desc:"Redo Log（重做日志）— InnoDB层，物理日志，记录\"第X页第Y处改为Z\"，保证crash-safe", hl:["redo"], codeLine:4},
+    {desc:"Undo Log（回滚日志）— InnoDB层，逻辑日志，记录数据修改前的值，用于回滚和MVCC", hl:["undo"], codeLine:5},
+    {desc:"Binlog（归档日志）— MySQL Server层，逻辑日志，记录SQL或行变更，用于主从复制和时间点恢复", hl:["binlog"], codeLine:6},
+    {desc:"Redo Log vs Binlog：redo是InnoDB特有、循环覆盖写；binlog是MySQL层、永久追加写", hl:["redo","binlog"], codeLine:35},
+    {desc:"Slow Query Log — 记录执行时间超过 long_query_time 的SQL，用于性能调优", hl:["slow"], codeLine:7},
+    {desc:"Error Log — MySQL启动、停止、异常信息，是排查问题的第一入口", hl:["error"], codeLine:8},
+    {desc:"General Query Log — 记录所有SQL（开销大，生产环境通常关闭）", hl:["general"], codeLine:32},
+    {desc:"关键设计：写操作同时写 Undo Log（回滚用）+ Redo Log（恢复用）+ Binlog（复制用）", hl:["redo","undo","binlog"], codeLine:11},
+    {desc:"两阶段提交(XA)保证 Redo Log 和 Binlog 的一致性，这是整个体系的核心", hl:["twopc"], codeLine:35},
+  ],
+  // Tab 1: redo log steps
+  [
+    {desc:"InnoDB Redo Log：一组固定大小的循环文件（默认2个，各48MB，可配置更大）", wp:0, cp:0, mode:-1, crashReplay:false, codeLine:1},
+    {desc:"写入 LSN=100: T1 BEGIN → write pos前进", wp:1, cp:0, mode:-1, crashReplay:false, codeLine:16},
+    {desc:"写入 LSN=101: T1 UPDATE users(id=1) balance=800 → 物理记录'第42页偏移0x200改为800'", wp:2, cp:0, mode:-1, crashReplay:false, codeLine:18},
+    {desc:"写入 LSN=102: T1 COMMIT → write pos继续前进", wp:3, cp:0, mode:-1, crashReplay:false, codeLine:16},
+    {desc:"Checkpoint推进：LSN≤100的数据页已刷盘，checkpoint推进到LSN=101", wp:3, cp:1, mode:-1, crashReplay:false, codeLine:26},
+    {desc:"写入大量日志，write pos快追上checkpoint了...", wp:6, cp:1, mode:-1, crashReplay:false, codeLine:12},
+    {desc:"⚠️ Buffer即将写满！InnoDB强制将脏页刷盘，推进checkpoint，腾出空间", wp:6, cp:1, mode:-1, crashReplay:false, codeLine:14, warn:true},
+    {desc:"Checkpoint推进后，write pos可以继续写入", wp:6, cp:3, mode:-1, crashReplay:false, codeLine:26},
+    {desc:"崩溃恢复：重启时从checkpoint位置开始重放日志，直到write pos", wp:6, cp:3, mode:-1, crashReplay:true, codeLine:24},
+    {desc:"redo log buffer：在内存中，每秒或每次提交时刷到磁盘（由innodb_flush_log_at_trx_commit控制）", wp:6, cp:3, mode:1, crashReplay:false, codeLine:29},
+    {desc:"innodb_flush_log_at_trx_commit=1（默认）：提交时立即刷盘，最安全", wp:6, cp:3, mode:1, crashReplay:false, codeLine:35},
+    {desc:"innodb_flush_log_at_trx_commit=0/2：延迟刷盘，性能更高但可能丢数据", wp:6, cp:3, mode:0, crashReplay:false, codeLine:39},
+  ],
+  // Tab 2: binlog steps
+  [
+    {desc:"Binlog（Binary Log）：MySQL Server层的归档日志，记录所有数据变更", hl:"none", codeLine:1},
+    {desc:"Binlog格式1 - Statement：记录原始SQL语句。优点：日志量小；缺点：now()等函数可能不一致", hl:"stmt", codeLine:4},
+    {desc:"Binlog格式2 - Row：记录每行数据变更前后的值。优点：精确；缺点：日志量可能很大", hl:"row", codeLine:11},
+    {desc:"Binlog格式3 - Mixed：默认模式，安全SQL用Statement，含now()/uuid()等用Row", hl:"mixed", codeLine:4},
+    {desc:"主从复制流程：Master将binlog发送给Replica的IO Thread", hl:"repl1", codeLine:22},
+    {desc:"Replica的IO Thread将binlog写入本地 Relay Log（中继日志）", hl:"repl2", codeLine:26},
+    {desc:"Replica的SQL Thread读取Relay Log，重放SQL或行变更，更新Replica数据", hl:"repl3", codeLine:31},
+    {desc:"GTID（全局事务ID）：MySQL 5.6+，每个事务有唯一标识，简化主从切换和故障恢复", hl:"gtid", codeLine:8},
+    {desc:"时间点恢复(PITR)：全量备份 + 增量binlog = 恢复到任意时间点", hl:"pitr", codeLine:1},
+    {desc:"binlog用于：主从复制、时间点恢复、数据审计、CDC（变更数据捕获）→ Kafka等", hl:"cdc", codeLine:1},
+  ],
+  // Tab 3: 2PC steps
+  [
+    {desc:"两阶段提交(2PC)解决：如果Redo Log和Binlog只写了一个就崩溃，数据会不一致", state:"init", codeLine:1},
+    {desc:"T1 UPDATE执行：写Undo Log（记录旧值），修改Buffer Pool中的页", state:"undo", codeLine:3},
+    {desc:"阶段1 Prepare：写Redo Log，状态=PREPARE（XID标记），InnoDB内部提交准备完毕", state:"prepare", codeLine:6},
+    {desc:"写Binlog：将变更写入binlog文件，调用fsync持久化", state:"binlog", codeLine:12},
+    {desc:"阶段2 Commit：写Redo Log状态=COMMIT，事务完成", state:"commit", codeLine:21},
+    {desc:"✅ 正常提交路径完成。Redo Log和Binlog都有完整记录", state:"done", codeLine:22},
+    {desc:"💥 崩溃场景1：Prepare后、写Binlog前崩溃", state:"crash1", codeLine:6},
+    {desc:"恢复：Redo Log有PREPARE但无COMMIT，Binlog无记录 → 回滚事务（两边都没有）", state:"recover1", codeLine:34},
+    {desc:"💥 崩溃场景2：写完Binlog后、写Redo COMMIT前崩溃", state:"crash2", codeLine:17},
+    {desc:"恢复：Redo Log有PREPARE+XID，Binlog也有此XID → 判定：提交（binlog已写，主从一致）", state:"recover2", codeLine:29},
+    {desc:"这就是为什么2PC能保证Redo和Binlog始终一致，无论在哪个时刻崩溃", state:"done2", codeLine:25},
+    {desc:"性能优化：组提交(Group Commit) — 多个事务的binlog批量fsync，大幅提高吞吐量", state:"group", codeLine:39},
+  ],
+];
+
+let steps = STEPS_TAB[0];
+
+// ============ RENDER FUNCTIONS ============
+
+function renderTab0(step) {
+  const s = steps[step];
+  const hl = s.hl;
+  function isHl(id) { return Array.isArray(hl) ? hl.includes(id) : false; }
+  const hlStyle = 'box-shadow:0 0 0 2px var(--yellow),0 0 16px #fbbf2440;';
+
+  let html = `<div style="max-width:620px;margin:0 auto;">`;
+
+  // MySQL Server layer
+  html += `<div class="layer layer-server">
+    <div class="layer-title" style="color:var(--purple)">▶ MySQL Server 层</div>
+    <div class="log-boxes">
+      <div class="log-box" id="lb-binlog" style="${isHl('binlog')?hlStyle:''}">
+        <div class="name" style="color:var(--purple)">Binlog</div>
+        <div class="purpose">归档日志 · 主从复制 · 时间点恢复</div>
+        <span class="badge badge-logic">逻辑日志</span>
+      </div>
+      <div class="log-box" id="lb-slow" style="${isHl('slow')?hlStyle:''}">
+        <div class="name" style="color:var(--orange)">Slow Query Log</div>
+        <div class="purpose">慢SQL记录 · 性能调优</div>
+        <span class="badge" style="background:#fb923c20;color:var(--orange);border:1px solid var(--orange)">阈值触发</span>
+      </div>
+      <div class="log-box" id="lb-error" style="${isHl('error')?hlStyle:''}">
+        <div class="name" style="color:var(--red)">Error Log</div>
+        <div class="purpose">启动/停止/异常 · 首选排查</div>
+        <span class="badge" style="background:#f8717120;color:var(--red);border:1px solid var(--red)">全量记录</span>
+      </div>
+      <div class="log-box" id="lb-general" style="${isHl('general')?hlStyle:''}">
+        <div class="name" style="color:var(--dim)">General Log</div>
+        <div class="purpose">所有SQL · 生产通常关闭</div>
+        <span class="badge" style="background:#64748b20;color:var(--dim);border:1px solid var(--dim)">高开销</span>
+      </div>
+    </div>
+  </div>`;
+
+  // 2PC coordinator
+  html += `<div class="two-pc-bar" id="lb-twopc" style="${isHl('twopc')?'box-shadow:0 0 0 2px var(--yellow),0 0 16px #fbbf2440;':''}">
+    <span style="font-size:1.2rem">⚡</span>
+    <div>
+      <div style="font-weight:700;color:var(--yellow);font-size:0.88rem">两阶段提交协调器 (XA/2PC)</div>
+      <div style="font-size:0.75rem;color:var(--dim);margin-top:2px">保证 Redo Log 与 Binlog 原子性一致</div>
+    </div>
+  </div>`;
+
+  // InnoDB layer
+  html += `<div class="layer layer-innodb">
+    <div class="layer-title" style="color:var(--blue)">▶ InnoDB 存储引擎层</div>
+    <div class="log-boxes">
+      <div class="log-box" id="lb-redo" style="${isHl('redo')?hlStyle:''}">
+        <div class="name" style="color:var(--blue)">Redo Log</div>
+        <div class="purpose">重做日志 · crash-safe · 循环覆盖写</div>
+        <span class="badge badge-phys">物理日志</span>
+      </div>
+      <div class="log-box" id="lb-undo" style="${isHl('undo')?hlStyle:''}">
+        <div class="name" style="color:var(--teal)">Undo Log</div>
+        <div class="purpose">回滚日志 · MVCC多版本读 · 追加写</div>
+        <span class="badge badge-logic">逻辑日志</span>
+      </div>
+      <div class="log-box" style="border-color:var(--border)">
+        <div class="name" style="color:var(--green)">Buffer Pool</div>
+        <div class="purpose">内存缓冲页 · 读写先经过这里</div>
+        <span class="badge" style="background:#4ade8020;color:var(--green);border:1px solid var(--green)">内存</span>
+      </div>
+    </div>
+  </div></div>`;
+
+  document.getElementById('vizArea').innerHTML = html;
+}
+
+function renderTab1(step) {
+  const s = steps[step];
+  const wp = s.wp;
+  const cp = s.cp;
+  const N = 8;
+  const cx = 140, cy = 140, R = 110, r = 70;
+
+  // Build SVG ring
+  let svgParts = `<svg width="280" height="280" style="display:block;">`;
+  // draw segments
+  for(let i=0;i<N;i++){
+    const a0 = (i/N)*2*Math.PI - Math.PI/2;
+    const a1 = ((i+1)/N)*2*Math.PI - Math.PI/2;
+    const x0=cx+R*Math.cos(a0), y0=cy+R*Math.sin(a0);
+    const x1=cx+R*Math.cos(a1), y1=cy+R*Math.sin(a1);
+    const x2=cx+r*Math.cos(a1), y2=cy+r*Math.sin(a1);
+    const x3=cx+r*Math.cos(a0), y3=cy+r*Math.sin(a0);
+    // color: between cp and wp = used (blue), else free (dark)
+    let segIdx = i; // 0-indexed
+    let used = false;
+    if(wp > cp){
+      used = segIdx >= cp && segIdx < wp;
+    } else if(wp < cp){
+      used = segIdx >= cp || segIdx < wp;
+    }
+    // replay highlight
+    let replay = s.crashReplay && used;
+    let fillColor = replay ? '#fbbf2440' : (used ? '#38bdf830' : '#1e293b');
+    let strokeColor = replay ? 'var(--yellow)' : (used ? 'var(--blue)' : 'var(--border)');
+    svgParts += `<path d="M ${x0} ${y0} A ${R} ${R} 0 0 1 ${x1} ${y1} L ${x2} ${y2} A ${r} ${r} 0 0 0 ${x3} ${y3} Z" fill="${fillColor}" stroke="${strokeColor}" stroke-width="1.5"/>`;
+    // segment label
+    const am = ((i+0.5)/N)*2*Math.PI - Math.PI/2;
+    const lx = cx+((R+r)/2)*Math.cos(am);
+    const ly = cy+((R+r)/2)*Math.sin(am);
+    svgParts += `<text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="middle" font-size="11" fill="${used?'#38bdf8':'#475569'}">${i}</text>`;
+  }
+  // center
+  svgParts += `<circle cx="${cx}" cy="${cy}" r="${r-4}" fill="var(--panel2)"/>`;
+  svgParts += `<text x="${cx}" y="${cy-8}" text-anchor="middle" font-size="11" fill="var(--dim)">Redo Log</text>`;
+  svgParts += `<text x="${cx}" y="${cy+8}" text-anchor="middle" font-size="11" fill="var(--dim)">Ring Buffer</text>`;
+
+  // write pos arrow
+  const wpA = (wp/N)*2*Math.PI - Math.PI/2;
+  const wpOx = cx+(R+18)*Math.cos(wpA), wpOy = cy+(R+18)*Math.sin(wpA);
+  const wpTx = cx+(R+2)*Math.cos(wpA), wpTy = cy+(R+2)*Math.sin(wpA);
+  svgParts += `<line x1="${wpOx}" y1="${wpOy}" x2="${wpTx}" y2="${wpTy}" stroke="var(--blue)" stroke-width="2" marker-end="url(#arrowBlue)"/>`;
+  svgParts += `<text x="${cx+(R+32)*Math.cos(wpA)}" y="${cy+(R+32)*Math.sin(wpA)}" text-anchor="middle" dominant-baseline="middle" font-size="10" fill="var(--blue)" font-weight="bold">write_pos</text>`;
+
+  // checkpoint arrow
+  const cpA = (cp/N)*2*Math.PI - Math.PI/2;
+  const cpOx = cx+(R+18)*Math.cos(cpA+0.35), cpOy = cy+(R+18)*Math.sin(cpA+0.35);
+  const cpTx = cx+(R+2)*Math.cos(cpA+0.3), cpTy = cy+(R+2)*Math.sin(cpA+0.3);
+  svgParts += `<line x1="${cpOx}" y1="${cpOy}" x2="${cpTx}" y2="${cpTy}" stroke="var(--green)" stroke-width="2" marker-end="url(#arrowGreen)"/>`;
+  svgParts += `<text x="${cx+(R+32)*Math.cos(cpA+0.35)}" y="${cy+(R+32)*Math.sin(cpA+0.35)}" text-anchor="middle" dominant-baseline="middle" font-size="10" fill="var(--green)" font-weight="bold">checkpoint</text>`;
+
+  // defs
+  svgParts += `<defs>
+    <marker id="arrowBlue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 Z" fill="var(--blue)"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 Z" fill="var(--green)"/>
+    </marker>
+  </defs>`;
+  svgParts += `</svg>`;
+
+  // Flush modes
+  const mode = s.mode;
+  const modeLabels = [
+    {v:1, label:'=1 (默认)', desc:'提交立即fsync', color:'var(--green)'},
+    {v:2, label:'=2', desc:'写OS缓冲，每秒fsync', color:'var(--yellow)'},
+    {v:0, label:'=0', desc:'每秒写+fsync', color:'var(--orange)'},
+  ];
+
+  let modesHtml = '';
+  if(mode >= 0){
+    modesHtml = `<div style="margin-top:10px;width:100%;">
+      <div style="font-size:0.76rem;color:var(--dim);margin-bottom:6px;text-align:center">innodb_flush_log_at_trx_commit</div>
+      <div style="display:flex;gap:8px;justify-content:center;">`;
+    modeLabels.forEach(m => {
+      const isActive = mode === m.v;
+      modesHtml += `<div style="background:var(--panel);border:1px solid ${isActive?m.color:'var(--border)'};border-radius:6px;padding:6px 10px;font-size:0.76rem;text-align:center;min-width:100px;">
+        <div style="font-weight:700;color:${isActive?m.color:'var(--dim)'}">${m.label}</div>
+        <div style="color:var(--dim);font-size:0.7rem;margin-top:3px">${m.desc}</div>
+      </div>`;
+    });
+    modesHtml += `</div></div>`;
+  }
+
+  const warnHtml = s.warn ? `<div style="background:#f8717120;border:1px solid var(--red);border-radius:6px;padding:8px 12px;font-size:0.8rem;color:var(--red);text-align:center;width:100%;max-width:320px">⚠️ 写满风险：InnoDB 暂停写入，等待 checkpoint 推进</div>` : '';
+
+  const html = `<div class="ring-container">
+    <div class="ring-lsn">
+      <div class="lsn-box"><div style="color:var(--dim);font-size:0.72rem">write_pos LSN</div><div class="lsn-val" style="color:var(--blue)">${wp * 100}</div></div>
+      <div class="lsn-box"><div style="color:var(--dim);font-size:0.72rem">checkpoint LSN</div><div class="lsn-val" style="color:var(--green)">${cp * 100}</div></div>
+      <div class="lsn-box"><div style="color:var(--dim);font-size:0.72rem">可用空间</div><div class="lsn-val" style="color:var(--teal)">${Math.max(0,N-wp+cp)} / ${N}</div></div>
+    </div>
+    <div class="ring-svg-wrap">${svgParts}</div>
+    ${warnHtml}
+    <div class="log-files">
+      <div class="log-file"><div class="fn-name">ib_logfile0</div><div class="fn-size">48 MB</div></div>
+      <div class="log-file"><div class="fn-name">ib_logfile1</div><div class="fn-size">48 MB</div></div>
+    </div>
+    ${modesHtml}
+  </div>`;
+
+  document.getElementById('vizArea').innerHTML = html;
+}
+
+function renderTab2(step) {
+  const s = steps[step];
+  const hl = s.hl;
+
+  const fmtRows = [
+    {id:'stmt', fmt:'Statement', content:'UPDATE users SET balance=800 WHERE id=1', note:'日志量小，now()等可能不一致'},
+    {id:'row', fmt:'Row', content:'id=1: before(balance=1000) → after(balance=800)', note:'精确，日志量可能大'},
+    {id:'mixed', fmt:'Mixed', content:'安全SQL→Statement；含now()/uuid()→Row', note:'MySQL默认模式'},
+  ];
+
+  let fmtTableHtml = `<table class="format-table">
+    <tr><th>Format</th><th>记录内容</th><th>特点</th></tr>`;
+  fmtRows.forEach(r => {
+    const isHl = hl === r.id;
+    fmtTableHtml += `<tr${isHl?' style="background:#fbbf2420;outline:1px solid var(--yellow);"':''}>
+      <td style="font-weight:700;color:var(--purple)">${r.fmt}</td>
+      <td style="font-family:monospace;font-size:0.78rem;color:var(--blue)">${r.content}</td>
+      <td style="color:var(--dim);font-size:0.78rem">${r.note}</td>
+    </tr>`;
+  });
+  fmtTableHtml += `</table>`;
+
+  // Replication arrows visibility
+  const showIO = ['repl1','repl2','repl3'].includes(hl);
+  const showRelay = ['repl2','repl3'].includes(hl);
+  const showSQL = hl === 'repl3';
+  const showGTID = hl === 'gtid';
+  const showPITR = hl === 'pitr';
+  const showCDC = hl === 'cdc';
+
+  const arrowStyle = (show) => show ? 'color:var(--text);opacity:1' : 'color:var(--dim);opacity:0.3';
+
+  let html = `<div style="max-width:620px;margin:0 auto;">
+    <div style="margin-bottom:12px;">
+      <div style="font-size:0.78rem;color:var(--dim);margin-bottom:6px">Binlog 文件序列</div>
+      <div class="binlog-files">
+        <div class="binlog-file">mysql-bin.000001</div>
+        <div class="binlog-file">mysql-bin.000002</div>
+        <div class="binlog-file">mysql-bin.000003 ←当前</div>
+      </div>
+    </div>
+    <div class="repl-layout" style="margin-bottom:12px;">
+      <div class="repl-master">
+        <div style="font-weight:700;color:var(--purple);font-size:0.85rem;margin-bottom:6px">Master DB</div>
+        <div style="background:var(--panel2);border:1px solid var(--purple);border-radius:6px;padding:6px 10px;font-size:0.76rem;margin-bottom:6px">
+          <div style="color:var(--dim)">Binlog</div>
+          <div style="color:var(--blue);font-size:0.7rem">📜 Events stream</div>
+        </div>
+        ${showGTID ? `<div style="background:#38bdf820;border:1px solid var(--blue);border-radius:5px;padding:4px 8px;font-size:0.7rem;color:var(--blue)">GTID: uuid:1-100</div>` : ''}
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;flex:1;min-width:60px;">
+        <div style="${arrowStyle(showIO)};font-size:0.75rem;text-align:center">
+          IO Thread<br>──────→
+        </div>
+        <div style="${arrowStyle(showRelay)};font-size:0.75rem;text-align:center">
+          Relay Log<br>←──────
+        </div>
+        <div style="${arrowStyle(showSQL)};font-size:0.75rem;text-align:center">
+          SQL Thread<br>⟳ replay
+        </div>
+        ${showPITR ? `<div style="background:#4ade8020;border:1px solid var(--green);border-radius:5px;padding:4px 8px;font-size:0.7rem;color:var(--green);text-align:center">PITR<br>备份+binlog</div>` : ''}
+        ${showCDC ? `<div style="background:#ffa65720;border:1px solid var(--orange);border-radius:5px;padding:4px 8px;font-size:0.7rem;color:var(--orange);text-align:center">CDC→Kafka</div>` : ''}
+      </div>
+      <div class="repl-replicas">
+        <div class="repl-replica" style="${showIO||showRelay||showSQL?'border-color:var(--blue)':''}">
+          <div style="font-weight:600;font-size:0.82rem">Replica #1</div>
+          ${showRelay||showSQL ? `<div style="font-size:0.72rem;color:var(--dim);margin-top:3px">Relay Log: ${showSQL?'replaying...':'buffering'}</div>` : ''}
+        </div>
+        <div class="repl-replica">
+          <div style="font-weight:600;font-size:0.82rem">Replica #2</div>
+        </div>
+      </div>
+    </div>
+    ${fmtTableHtml}
+  </div>`;
+
+  document.getElementById('vizArea').innerHTML = html;
+}
+
+function renderTab3(step) {
+  const s = steps[step];
+  const state = s.state;
+
+  // Define event visibility per state
+  const events = {
+    undo:    {label:'写 Undo Log', cls:'undo', lane:'redo', states:['undo','prepare','binlog','commit','done','crash1','recover1','crash2','recover2','done2','group']},
+    prepare: {label:'Redo Log PREPARE (XID=42)', cls:'prepare', lane:'redo', states:['prepare','binlog','commit','done','crash1','recover1','crash2','recover2','done2','group']},
+    commitR: {label:'Redo Log COMMIT', cls:'commit', lane:'redo', states:['commit','done','recover2','done2','group']},
+    recoverRollback: {label:'↩ 回滚 (Undo Log恢复)', cls:'rollback', lane:'redo', states:['recover1']},
+    recoverCommit: {label:'✓ 补写 COMMIT (XID匹配)', cls:'recover', lane:'redo', states:['recover2']},
+    binlogW: {label:'Binlog写入 (XID=42)', cls:'binlog', lane:'binlog', states:['binlog','commit','done','crash2','recover2','done2','group']},
+    crashMark1: {label:'💥 CRASH HERE', cls:'crash', lane:'both', states:['crash1','recover1'], afterEvent:'prepare', beforeEvent:'binlogW'},
+    crashMark2: {label:'💥 CRASH HERE', cls:'crash', lane:'both', states:['crash2','recover2'], afterEvent:'binlogW', beforeEvent:'commitR'},
+  };
+
+  // Build lane events
+  const redoEvents = [
+    {key:'undo', label:'写 Undo Log', cls:'undo'},
+    {key:'prepare', label:'Redo Log PREPARE (XID=42)', cls:'prepare'},
+    {key:'crash1marker', label:'💥 CRASH (场景1)', cls:'crash', states:['crash1','recover1']},
+    {key:'binlogW_placeholder', label:'[ Binlog写入 ]', cls:'', placeholder:true},
+    {key:'crash2marker', label:'💥 CRASH (场景2)', cls:'crash', states:['crash2','recover2']},
+    {key:'commitR', label:'Redo Log COMMIT', cls:'commit', states:['commit','done','recover2','done2','group']},
+    {key:'recoverRollback', label:'↩ 回滚 (场景1恢复)', cls:'rollback', states:['recover1']},
+    {key:'recoverCommit', label:'✓ 补写 COMMIT (场景2恢复)', cls:'recover', states:['recover2']},
+    {key:'groupOpt', label:'◎ 组提交 fsync 优化', cls:'recover', states:['group']},
+  ];
+
+  const binlogEvents = [
+    {key:'undoB', label:'[ 引擎层操作 ]', cls:'', placeholder:true},
+    {key:'prepareB', label:'[ Redo PREPARE ]', cls:'', placeholder:true},
+    {key:'crash1markerB', label:'💥 CRASH (场景1)', cls:'crash', states:['crash1','recover1']},
+    {key:'binlogW', label:'Binlog写入 + fsync (XID=42)', cls:'binlog', states:['binlog','commit','done','crash2','recover2','done2','group']},
+    {key:'crash2markerB', label:'💥 CRASH (场景2)', cls:'crash', states:['crash2','recover2']},
+    {key:'commitB', label:'[ Redo COMMIT ]', cls:'', placeholder:true, states:['commit','done','done2','group']},
+    {key:'recoverB', label:'BinlogContains(42)=true', cls:'recover', states:['recover2']},
+    {key:'groupOptB', label:'◎ 批量 fsync (多事务)', cls:'recover', states:['group']},
+  ];
+
+  function isVisible(item) {
+    if(item.placeholder) return ['commit','done','crash2','recover2','done2','group','binlog'].some(s2 => item.states ? item.states.includes(state) : true) || true;
+    if(!item.states) {
+      // visible from certain states onward
+      const stateOrder = ['init','undo','prepare','binlog','commit','done','crash1','recover1','crash2','recover2','done2','group'];
+      const stateIdx = stateOrder.indexOf(state);
+      const keyToState = {
+        'undo':'undo', 'prepare':'prepare', 'commitR':'commit', 'binlogW':'binlog',
+        'undoB':'undo', 'prepareB':'prepare', 'commitB':'commit',
+      };
+      if(keyToState[item.key]) return stateIdx >= stateOrder.indexOf(keyToState[item.key]);
+      return true;
+    }
+    return item.states.includes(state);
+  }
+
+  function renderLaneEvents(evts) {
+    return evts.map(ev => {
+      if(ev.placeholder) {
+        const vis = !ev.states || ev.states.includes(state);
+        return `<div style="color:var(--dim);font-size:0.74rem;padding:5px 8px;opacity:${vis?0.4:0}">${ev.label}</div>`;
+      }
+      const vis = isVisible(ev);
+      return `<div class="tpc-event ${ev.cls}" style="${vis?'':'opacity:0;height:0;padding:0;margin:0;overflow:hidden;border:none;'}">${ev.label}</div>`;
+    }).join('');
+  }
+
+  const doneMsg = (state === 'done' || state === 'done2') ? `<div style="background:#4ade8020;border:1px solid var(--green);border-radius:8px;padding:10px;text-align:center;color:var(--green);font-weight:700;font-size:0.85rem;margin-top:10px">✅ 两阶段提交保证一致性</div>` : '';
+  const groupMsg = state === 'group' ? `<div style="background:#38bdf820;border:1px solid var(--blue);border-radius:8px;padding:10px;text-align:center;color:var(--blue);font-size:0.82rem;margin-top:10px">◎ 组提交：多个事务合并 fsync，降低磁盘IO频率，大幅提升 TPS</div>` : '';
+
+  const html = `<div style="max-width:600px;margin:0 auto;">
+    <div class="twopc-lanes">
+      <div class="lane lane-redo">
+        <div class="lane-title">InnoDB Redo Log</div>
+        ${renderLaneEvents(redoEvents)}
+      </div>
+      <div class="lane-coord">
+        <div style="font-size:1.2rem">⚡</div>
+        <div>XA</div>
+        <div>协调器</div>
+      </div>
+      <div class="lane lane-binlog">
+        <div class="lane-title">MySQL Binlog</div>
+        ${renderLaneEvents(binlogEvents)}
+      </div>
+    </div>
+    ${doneMsg}
+    ${groupMsg}
+  </div>`;
+
+  document.getElementById('vizArea').innerHTML = html;
+}
+
+// ============ TABS ============
+function switchTab(idx) {
+  curTab = idx;
+  steps = STEPS_TAB[idx];
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i===idx));
+  stopPlay();
+  render(0);
+}
+
+// ============ RENDER DISPATCH ============
+function render(stepIdx) {
+  curStep = Math.max(0, Math.min(stepIdx, steps.length - 1));
+  const s = steps[curStep];
+  document.getElementById('stepDesc').textContent = s.desc;
+  document.getElementById('stepCounter').textContent = `${curStep + 1} / ${steps.length}`;
+
+  if(curTab === 0) renderTab0(curStep);
+  else if(curTab === 1) renderTab1(curStep);
+  else if(curTab === 2) renderTab2(curStep);
+  else if(curTab === 3) renderTab3(curStep);
+
+  renderCode(curTab, s.codeLine);
+  document.getElementById('btnPrev').disabled = curStep === 0;
+  document.getElementById('btnNext').disabled = curStep === steps.length - 1;
+  document.getElementById('statusBar').textContent = `Tab: ${['日志总览','Redo Log','Binlog','两阶段提交'][curTab]} · 步骤 ${curStep+1}/${steps.length}`;
+}
+
+function renderCode(tabIdx, activeLine) {
+  const lines = CODES[tabIdx];
+  const codeHeaders = ['Go: MySQL日志分类与写入顺序', 'Go: Redo Log 环形缓冲实现', 'Go: Binlog结构与主从复制', 'Go: 两阶段提交实现'];
+  document.getElementById('codeHeader').textContent = codeHeaders[tabIdx];
+  let html = '';
+  lines.forEach(l => {
+    const isActive = l.ln === activeLine;
+    html += `<div class="code-line${isActive?' active':''}" data-line="${l.ln}" onclick="jumpLine(${l.ln})">
+      <span class="ln">${l.ln}</span>
+      <span class="lc">${l.lc}</span>
+    </div>`;
+  });
+  document.getElementById('codeBody').innerHTML = html;
+  // scroll active line into view
+  const activeEl = document.querySelector('.code-line.active');
+  if(activeEl) activeEl.scrollIntoView({block:'nearest', behavior:'smooth'});
+}
+
+function jumpLine(ln) {
+  // find step with this code line
+  for(let i=0;i<steps.length;i++){
+    if(steps[i].codeLine === ln){ render(i); return; }
+  }
+}
+
+// ============ CONTROLS ============
+function reset() { stopPlay(); render(0); }
+function prev() { stopPlay(); render(curStep - 1); }
+function next() { stopPlay(); render(curStep + 1); }
+
+function togglePlay() {
+  if(playing) { stopPlay(); }
+  else { startPlay(); }
+}
+
+function startPlay() {
+  playing = true;
+  document.getElementById('btnPlay').textContent = '⏸ 暂停';
+  document.getElementById('btnPlay').classList.add('play');
+  scheduleNext();
+}
+
+function stopPlay() {
+  playing = false;
+  document.getElementById('btnPlay').textContent = '▶ 播放';
+  if(timer) { clearTimeout(timer); timer = null; }
+}
+
+function scheduleNext() {
+  if(!playing) return;
+  timer = setTimeout(() => {
+    if(curStep < steps.length - 1){
+      render(curStep + 1);
+      scheduleNext();
+    } else {
+      stopPlay();
+    }
+  }, SPEEDS[speedIdx]);
+}
+
+function setSpeed(val) {
+  speedIdx = parseInt(val);
+  document.getElementById('statusBar').textContent = `速度: ${SPEEDS[speedIdx]}ms`;
+}
+
+// init
+render(0);
+</script>
+
+<!-- MOBILE_INJECTED -->
+<style>
+@media(max-width:768px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;overflow-x:hidden;}
+  nav{flex-wrap:wrap;padding:10px 16px;gap:6px;height:auto!important;}
+  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
+  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:340px!important;min-height:340px!important;flex:none!important;overflow:hidden;}
+  .code-panel{width:100%!important;min-width:unset!important;height:360px!important;flex:none!important;}
+  .controls{flex-wrap:wrap!important;padding:10px 14px!important;gap:6px!important;height:auto!important;}
+}
+</style>
+</body>
+</html>
