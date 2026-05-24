@@ -90,12 +90,13 @@
       return this.codeLinesCache[lang];
     },
 
-    // Returns highlight lines for current step; only Go has per-step sync
+    // Returns highlight lines for current step. Fallback keeps the active step visible
+    // on pages that have not defined language-specific line maps yet.
     getHL: function (step) {
       if (this.current === 'go') return step.highlightLines || [];
       if (this.current === 'js' && step.hlJs) return step.hlJs;
       if (this.current === 'py' && step.hlPy) return step.hlPy;
-      return [];
+      return step.highlightLines || [];
     },
 
     _buildSwitcher: function () {
@@ -122,7 +123,7 @@
         b.classList.toggle('active', b.dataset.lang === lang);
       });
       // Update filename label
-      var fn = document.querySelector('.code-panel-header span');
+      var fn = document.querySelector('.code-panel-header [data-base], .code-panel-header .lang-filename, .code-panel-header span:not(.code-dot)');
       if (fn) {
         var base = fn.dataset.base || fn.textContent.replace(/\.[^.]+$/, '');
         fn.dataset.base = base;

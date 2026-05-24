@@ -71,10 +71,25 @@
 }
 #__concept.collapsed #__concept-pill{display:flex;}
 #__concept-pill span{writing-mode:vertical-rl;text-orientation:mixed;color:#334155;font-size:0.62rem;}
+@media(max-width:768px){
+  #__concept{
+    width:100%!important;min-width:0!important;max-height:220px;
+    border-right:none;border-bottom:1px solid rgba(255,255,255,0.06);
+    transition:max-height 0.25s ease;
+  }
+  #__concept.collapsed{width:100%!important;min-width:0!important;max-height:36px;}
+  #__concept-toggle{top:8px;right:12px;}
+  #__concept-inner{max-height:220px;padding-right:40px;}
+  #__concept.collapsed #__concept-pill{
+    top:0;bottom:auto;height:36px;display:flex;flex-direction:row;
+    justify-content:flex-start;padding:0 14px;
+  }
+  #__concept-pill span{writing-mode:horizontal-tb;text-orientation:mixed;}
+}
 `;
   document.head.appendChild(style);
 
-  var expanded = true;
+  var expanded = !(window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
 
   function build() {
     if (!window.PAGE_CONCEPTS || !window.PAGE_CONCEPTS.length) return;
@@ -83,11 +98,12 @@
 
     var panel = document.createElement('div');
     panel.id = '__concept';
+    panel.classList.toggle('collapsed', !expanded);
 
     var toggle = document.createElement('button');
     toggle.id = '__concept-toggle';
     toggle.title = '折叠/展开概念说明';
-    toggle.innerHTML = '◀';
+    toggle.innerHTML = expanded ? '◀' : '▶';
     toggle.addEventListener('click', function () {
       expanded = !expanded;
       panel.classList.toggle('collapsed', !expanded);
@@ -122,7 +138,10 @@
         .getPropertyValue('--teal') || '#38bdf8';
       accentVar = accentVar.trim();
 
-      titleEl.innerHTML = '<span style="color:' + accentVar + '">' + c.title + '</span>';
+      var titleText = document.createElement('span');
+      titleText.style.color = accentVar;
+      titleText.textContent = c.title;
+      titleEl.appendChild(titleText);
       if (c.tag) {
         var tagEl = document.createElement('span');
         tagEl.className = 'cp-tag';

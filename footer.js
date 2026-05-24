@@ -14,10 +14,13 @@
   margin-top:auto;
 }
 .sf-copy{color:#64748b;}
-.sf-links{display:flex;align-items:center;gap:16px;}
+.sf-links{display:flex;align-items:center;}
 .sf-links a{color:#94a3b8;text-decoration:none;transition:color 0.15s;}
 .sf-links a:hover{color:#38bdf8;}
-.sf-sep{color:#334155;}
+@media(max-width:640px){
+  #__sfooter{justify-content:center;text-align:center;}
+  .sf-links{justify-content:center;}
+}
 `;
   d.head.appendChild(style);
 
@@ -26,25 +29,11 @@
   footer.innerHTML =
     '<span class="sf-copy">© 2026 码海拾贝 · 纯静态 · Go · SVG</span>' +
     '<nav class="sf-links">' +
-      '<a href="../index.html">主页</a>' +
-      '<span class="sf-sep">·</span>' +
-      '<a href="../algo/index.html">算法</a>' +
-      '<span class="sf-sep">·</span>' +
-      '<a href="../db/index.html">数据库</a>' +
-      '<span class="sf-sep">·</span>' +
-      '<a href="../kafka/index.html">Kafka</a>' +
-      '<span class="sf-sep">·</span>' +
-      '<a href="../redis/index.html">Redis</a>' +
-      '<span class="sf-sep">·</span>' +
-      '<a href="../linux/index.html">Linux</a>' +
-      '<span class="sf-sep">·</span>' +
-      '<a href="../network/index.html">网络</a>' +
+      '<a href="../index.html#friend-links">友情链接</a>' +
     '</nav>';
 
   function init() {
-    // Remove any existing <footer> to avoid duplicates
-    const existing = d.querySelector('footer');
-    if (existing) existing.remove();
+    if (d.getElementById('__sfooter')) return;
     d.body.appendChild(footer);
   }
 

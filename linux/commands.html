@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Linux 常用命令 - Linux</title>
+<style>
+:root{
+  --bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;
+  --border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;
+  --blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;
+  --green:#4ade80;--purple:#c084fc;--red:#f87171;--teal:#2dd4bf;
+  --linux:#f7c948;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:12px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;flex-wrap:wrap;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.1rem;font-weight:600;}
+.badge{font-size:0.72rem;padding:2px 8px;border-radius:100px;font-family:monospace;font-weight:500;}
+.complexity{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;overflow:auto;padding:18px 20px;display:flex;align-items:flex-start;justify-content:center;}
+.desc-box{padding:10px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:400px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.detail-body{flex:1;overflow-y:auto;padding:18px;background:#0d1117;}
+.detail-body::-webkit-scrollbar{width:6px;}.detail-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono','Fira Code',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(247,201,72,0.12);}.code-line.active .ln{color:var(--linux);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;white-space:pre-wrap;word-break:break-word;}
+.cmd{color:#a5d6ff}.arg{color:#79c0ff}.pipe{color:#ff7b72}.cm{color:#8b949e;font-style:italic}.path{color:#fbbf24}.var{color:#4ade80}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;font-family:inherit;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(247,201,72,0.15);border-color:rgba(247,201,72,0.3);color:var(--linux);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--linux);cursor:pointer;}
+
+.cmd-map{width:100%;max-width:780px;display:flex;flex-direction:column;gap:14px;}
+.scenario{border:1px solid var(--border);border-radius:14px;background:rgba(13,17,23,0.72);overflow:hidden;}
+.scenario-head{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);background:rgba(255,255,255,0.03);}
+.scenario-icon{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:rgba(247,201,72,0.12);border:1px solid rgba(247,201,72,0.28);}
+.scenario-title{font-weight:700;font-size:0.95rem;}
+.scenario-sub{font-size:0.78rem;color:var(--dim);margin-top:2px;}
+.cmd-flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:16px;}
+.cmd-chip{border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,0.035);padding:10px 8px;text-align:center;transition:all 0.22s;cursor:pointer;font-family:inherit;color:inherit;}
+.cmd-chip:hover{border-color:rgba(247,201,72,0.5);background:rgba(247,201,72,0.07);}
+.cmd-chip.active{border-color:var(--linux);background:rgba(247,201,72,0.12);box-shadow:0 0 20px rgba(247,201,72,0.12);transform:translateY(-2px);}
+.cmd-name{font-family:'JetBrains Mono',monospace;font-size:0.82rem;color:var(--text);margin-bottom:5px;}
+.cmd-note{font-size:0.72rem;color:var(--dim);line-height:1.45;}
+.quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.quick-card{border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,0.03);padding:12px 14px;}
+.quick-card h3{font-size:0.82rem;color:var(--linux);margin-bottom:8px;}
+.quick-card p{font-size:0.78rem;color:var(--dim);line-height:1.65;}
+.detail-title{font-size:1.35rem;font-weight:800;color:var(--text);font-family:'JetBrains Mono','Fira Code',monospace;margin-bottom:8px;}
+.detail-summary{color:var(--dim);line-height:1.75;font-size:0.9rem;margin-bottom:16px;}
+.detail-section{border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,0.03);padding:13px 14px;margin-bottom:12px;}
+.detail-section h3{font-size:0.78rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--linux);margin-bottom:9px;}
+.usage-box,.help-box{font-family:'JetBrains Mono','Fira Code',monospace;font-size:0.8rem;line-height:1.7;color:#a5d6ff;white-space:pre-wrap;word-break:break-word;}
+.help-box{color:var(--dim);background:rgba(0,0,0,0.22);border-radius:8px;padding:10px 12px;}
+.option-list{display:flex;flex-direction:column;gap:7px;}
+.option-item{font-size:0.82rem;color:var(--dim);line-height:1.55;}
+.option-item code,.example-list code{color:#a5d6ff;background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.14);border-radius:5px;padding:1px 5px;font-family:'JetBrains Mono','Fira Code',monospace;}
+.example-list{display:flex;flex-direction:column;gap:8px;}
+.example-list div{font-size:0.82rem;color:var(--dim);line-height:1.55;}
+
+@media(max-width:768px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;}
+  nav{padding:10px 16px;gap:6px;}
+  nav h1{font-size:1rem;flex:1;}
+  .complexity{margin-left:0!important;width:100%;}
+  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
+  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:auto!important;min-height:420px!important;flex:none!important;overflow:visible;}
+  .viz-area{padding:14px 10px!important;}
+  .code-panel{width:100%!important;min-width:unset!important;height:360px!important;flex:none!important;}
+  .cmd-flow{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .quick-grid{grid-template-columns:1fr;}
+  .controls{flex-wrap:wrap!important;padding:10px 14px!important;gap:6px!important;height:auto!important;}
+  .btn{padding:6px 10px!important;font-size:0.8rem!important;}
+  .speed-wrap{margin-left:0!important;width:100%;justify-content:flex-end;}
+}
+</style>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>Linux 常用命令速查</h1>
+  <div class="complexity">
+    <span class="badge" style="background:rgba(247,201,72,0.15);color:#f7c948">shell</span>
+    <span class="badge" style="background:rgba(74,222,128,0.15);color:#4ade80">排障</span>
+    <span class="badge" style="background:rgba(56,189,248,0.15);color:#38bdf8">运维</span>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="viz-panel">
+    <div class="viz-area">
+      <div class="cmd-map" id="cmdMap"></div>
+    </div>
+    <div class="desc-box">
+      <span id="descText">点击播放，按场景理解常用命令怎么组合使用</span>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+  </div>
+
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px">命令说明 / --help 摘要</span>
+    </div>
+    <div class="detail-body" id="detailBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+
+<script>
+window.PAGE_CONCEPTS = [
+  {title:'先定位再操作', body:'不要一上来就 rm、kill、chmod。先用 pwd/ls/find/ps/ss/df/free 看清对象、进程、端口和资源状态。'},
+  {title:'管道组合', body:'Linux 命令的强项是组合：一个命令输出文本，后面用 grep、awk、sort、uniq、xargs 继续处理。'},
+  {title:'权限模型', body:'用户、组、其他人三类权限配合 chmod/chown 使用。遇到 Permission denied，先看 ls -l 和当前用户。'},
+  {title:'排障顺序', body:'服务异常通常按 进程是否在 → 端口是否监听 → 日志是否报错 → CPU/内存/磁盘是否打满 的顺序排查。'},
+  {title:'谨慎危险命令', body:'rm -rf、kill -9、chmod -R、chown -R、dd 都可能造成不可恢复影响，执行前确认路径、目标和权限。'}
+];
+
+const CATEGORIES = [
+  {
+    title:'文件与目录',
+    icon:'📁',
+    sub:'先确认位置，再查看、复制、移动和删除',
+    chips:[
+      ['pwd','当前位置'],
+      ['ls -lah','列出详情'],
+      ['cd /path','切换目录'],
+      ['cp/mv/rm','复制移动删除']
+    ]
+  },
+  {
+    title:'文本查看与检索',
+    icon:'🔎',
+    sub:'看日志、搜关键字、截取重点字段',
+    chips:[
+      ['cat/less','查看文件'],
+      ['tail -f','跟踪日志'],
+      ['grep','关键字过滤'],
+      ['awk/sed','字段处理']
+    ]
+  },
+  {
+    title:'进程与端口',
+    icon:'⚙️',
+    sub:'定位服务是否运行、端口是否监听',
+    chips:[
+      ['ps aux','进程列表'],
+      ['top/htop','资源占用'],
+      ['kill','结束进程'],
+      ['ss -lntp','监听端口']
+    ]
+  },
+  {
+    title:'磁盘与系统资源',
+    icon:'📊',
+    sub:'检查磁盘、内存、系统负载和大文件',
+    chips:[
+      ['df -h','磁盘容量'],
+      ['du -sh','目录大小'],
+      ['free -h','内存情况'],
+      ['uptime','系统负载']
+    ]
+  },
+  {
+    title:'网络连通性',
+    icon:'🌐',
+    sub:'从 DNS、连通性、HTTP 响应逐层检查',
+    chips:[
+      ['ping','基础连通'],
+      ['curl -I','HTTP 头'],
+      ['dig/nslookup','DNS 解析'],
+      ['traceroute','路由路径']
+    ]
+  },
+  {
+    title:'权限与压缩传输',
+    icon:'🔐',
+    sub:'管理权限、归档文件和远程拷贝',
+    chips:[
+      ['chmod','改权限'],
+      ['chown','改属主'],
+      ['tar','打包压缩'],
+      ['scp/rsync','远程同步']
+    ]
+  }
+];
+
+const STEPS = [
+  {cat:0, chip:1},
+  {cat:1, chip:2},
+  {cat:2, chip:3},
+  {cat:3, chip:0},
+  {cat:4, chip:1},
+  {cat:5, chip:2}
+];
+
+function detail(summary, usage, options, examples, help) {
+  return { summary, usage, options, examples, help };
+}
+
+const COMMAND_DETAILS = {
+  'pwd': detail('显示当前所在目录。进入陌生机器或脚本执行前，先用它确认工作目录。','pwd',[
+    ['-P','显示物理路径，解析符号链接后的真实目录。'],
+    ['-L','显示逻辑路径，保留 shell 当前路径里的符号链接。']
+  ],['pwd','cd /var/log && pwd'],'Usage: pwd [-LP]'),
+  'ls -lah': detail('列出目录内容，常用于确认文件大小、权限、属主和更新时间。','ls [OPTION]... [FILE]...',[
+    ['-l','长格式，显示权限、属主、大小和时间。'],
+    ['-a','显示隐藏文件。'],
+    ['-h','用 KB/MB/GB 这类可读单位显示大小。']
+  ],['ls -lah','ls -lah /var/log | head'],'Usage: ls [OPTION]... [FILE]...'),
+  'cd /path': detail('切换当前 shell 的工作目录。它是 shell 内建命令，不是普通外部程序。','cd [dir]',[
+    ['cd -','回到上一次所在目录。'],
+    ['cd ~','回到当前用户 home 目录。'],
+    ['cd ..','切换到上级目录。']
+  ],['cd /etc/nginx','cd -'],'Usage: cd [dir]'),
+  'cp/mv/rm': detail('复制、移动和删除文件。删除命令风险最高，执行前要确认路径。','cp SOURCE DEST\nmv SOURCE DEST\nrm [OPTION] FILE',[
+    ['cp -r','递归复制目录。'],
+    ['mv','移动或重命名。'],
+    ['rm -i','删除前逐个确认。'],
+    ['rm -rf','递归强制删除，谨慎使用。']
+  ],['cp app.conf app.conf.bak','mv app.conf /tmp/','rm -i old.log'],'Usage: cp [OPTION]... SOURCE DEST\nUsage: mv [OPTION]... SOURCE DEST\nUsage: rm [OPTION]... FILE...'),
+  'cat/less': detail('查看文本文件。小文件可用 cat，大文件、日志和分页查看优先 less。','cat [FILE]...\nless [FILE]',[
+    ['less /pattern','在 less 内搜索关键字。'],
+    ['less -N','显示行号。'],
+    ['cat -n','输出时显示行号。']
+  ],['less /var/log/nginx/error.log','cat -n app.conf'],'Usage: less [OPTIONS] file...\nUsage: cat [OPTION]... [FILE]...'),
+  'tail -f': detail('查看文件末尾并持续跟踪新增内容，常用于实时看日志。','tail [OPTION]... [FILE]...',[
+    ['-n 200','显示最后 200 行。'],
+    ['-f','持续跟踪文件新增内容。'],
+    ['-F','文件轮转后继续跟踪新文件。']
+  ],['tail -f /var/log/app/app.log','tail -n 200 -F app.log'],'Usage: tail [OPTION]... [FILE]...'),
+  'grep': detail('按关键字或正则过滤文本，是日志排查和管道组合里最常用的命令之一。','grep [OPTION]... PATTERNS [FILE]...',[
+    ['-n','显示匹配行号。'],
+    ['-i','忽略大小写。'],
+    ['-r','递归搜索目录。'],
+    ['-v','反向过滤。']
+  ],['grep -n "ERROR" app.log','ps aux | grep nginx'],'Usage: grep [OPTION]... PATTERNS [FILE]...'),
+  'awk/sed': detail('awk 适合按列处理文本，sed 适合按行替换、截取和批量编辑。','awk PROGRAM [FILE]...\nsed [OPTION]... SCRIPT [FILE]...',[
+    ['awk \'{print $1}\'','打印第一列。'],
+    ['awk -F:','指定分隔符。'],
+    ['sed -n "10,20p"','只打印指定行范围。'],
+    ['sed "s/old/new/g"','替换文本。']
+  ],['awk \'{print $1,$2,$NF}\' app.log','sed -n "100,140p" app.log'],'Usage: awk [OPTIONS] program file...\nUsage: sed [OPTION]... SCRIPT [INPUTFILE]...'),
+  'ps aux': detail('查看当前进程快照，常用来确认服务是否存在、PID 是多少。','ps [options]',[
+    ['aux','显示所有用户的所有进程。'],
+    ['-ef','System V 风格的完整格式。'],
+    ['--sort=-%cpu','按 CPU 占用排序。']
+  ],['ps aux | grep nginx','ps aux --sort=-%mem | head'],'Usage: ps [options]'),
+  'top/htop': detail('实时查看 CPU、内存和进程占用。top 通常系统自带，htop 更易读但可能需要安装。','top [options]\nhtop',[
+    ['P','top 内按 CPU 排序。'],
+    ['M','top 内按内存排序。'],
+    ['k','top 内发送 kill 信号。']
+  ],['top','htop'],'Usage: top -hv | -bcEeHiOSs -d secs -n max ...'),
+  'kill': detail('给进程发送信号。优先用 TERM 让进程优雅退出，最后才考虑 KILL。','kill [-SIGNAL] PID...',[
+    ['-TERM','请求进程正常退出，默认信号。'],
+    ['-HUP','常用于让服务重新加载配置。'],
+    ['-KILL / -9','强制杀死，进程无法清理资源。']
+  ],['kill -TERM 1234','kill -HUP $(cat nginx.pid)'],'Usage: kill [-s signal|-SIGNAL] pid...'),
+  'ss -lntp': detail('查看 socket 和监听端口。比 netstat 更新，排查端口占用时很常用。','ss [OPTIONS] [FILTER]',[
+    ['-l','只显示监听 socket。'],
+    ['-n','不解析服务名，直接显示端口数字。'],
+    ['-t','只看 TCP。'],
+    ['-p','显示占用进程。']
+  ],['ss -lntp','ss -lntp | grep ":8080"'],'Usage: ss [ OPTIONS ] [ FILTER ]'),
+  'df -h': detail('查看文件系统磁盘容量。磁盘满、inode 满都会导致写入失败。','df [OPTION]... [FILE]...',[
+    ['-h','用可读单位显示容量。'],
+    ['-i','查看 inode 使用情况。'],
+    ['-T','显示文件系统类型。']
+  ],['df -h','df -ih'],'Usage: df [OPTION]... [FILE]...'),
+  'du -sh': detail('统计目录或文件占用空间。常与 sort 搭配查大目录。','du [OPTION]... [FILE]...',[
+    ['-s','只汇总总大小。'],
+    ['-h','用可读单位显示。'],
+    ['--max-depth=1','只统计一层目录。']
+  ],['du -sh /var/log/* | sort -h','du -h --max-depth=1 /data'],'Usage: du [OPTION]... [FILE]...'),
+  'free -h': detail('查看内存使用情况。重点看 available，而不是只看 free。','free [options]',[
+    ['-h','用可读单位显示。'],
+    ['-m','以 MB 显示。'],
+    ['-s 1','每 1 秒刷新一次。']
+  ],['free -h','free -h -s 1'],'Usage: free [options]'),
+  'uptime': detail('显示系统运行时间、登录用户数和 load average。用于快速判断负载是否异常。','uptime [options]',[
+    ['-p','用可读方式显示运行多久。'],
+    ['-s','显示系统启动时间。']
+  ],['uptime','uptime -p'],'Usage: uptime [options]'),
+  'ping': detail('检查 ICMP 连通性和延迟。注意很多服务器会禁 ICMP，所以 ping 不通不一定代表 HTTP 不通。','ping [OPTION...] HOST',[
+    ['-c 4','发送 4 个包后停止。'],
+    ['-i 1','设置发送间隔。'],
+    ['-W 2','设置等待超时时间。']
+  ],['ping -c 4 example.com','ping -c 4 8.8.8.8'],'Usage: ping [OPTION...] HOST'),
+  'curl -I': detail('发起 HTTP 请求。-I 只看响应头，适合检查状态码、重定向和缓存头。','curl [options...] <url>',[
+    ['-I','只获取响应头。'],
+    ['-L','跟随重定向。'],
+    ['-v','显示详细连接过程。'],
+    ['--connect-timeout','设置连接超时。']
+  ],['curl -I https://example.com','curl -IL https://example.com'],'Usage: curl [options...] <url>'),
+  'dig/nslookup': detail('查询 DNS 解析结果。dig 信息更完整，nslookup 更常见。','dig [name] [type]\nnslookup name',[
+    ['A','查询 IPv4 地址。'],
+    ['AAAA','查询 IPv6 地址。'],
+    ['CNAME','查询别名记录。'],
+    ['@server','指定 DNS 服务器。']
+  ],['dig example.com','dig @8.8.8.8 example.com A','nslookup example.com'],'Usage: dig [@server] name [type]\nUsage: nslookup name [server]'),
+  'traceroute': detail('查看到目标地址经过的路由跳点。网络延迟、跨地域链路排查时有用。','traceroute [options] host',[
+    ['-n','不做 DNS 反查，加快输出。'],
+    ['-m','设置最大跳数。'],
+    ['-w','设置每跳等待时间。']
+  ],['traceroute example.com','traceroute -n example.com'],'Usage: traceroute [options] host'),
+  'chmod': detail('修改文件权限。先用 ls -l 看清当前权限，再决定是否给可执行或写权限。','chmod [OPTION]... MODE FILE...',[
+    ['+x','增加可执行权限。'],
+    ['644','属主可读写，其他只读。'],
+    ['755','属主可读写执行，其他可读执行。'],
+    ['-R','递归修改，谨慎使用。']
+  ],['chmod +x deploy.sh','chmod 644 app.conf'],'Usage: chmod [OPTION]... MODE[,MODE]... FILE...'),
+  'chown': detail('修改文件属主和属组。部署目录权限不对时常用。','chown [OPTION]... OWNER[:GROUP] FILE...',[
+    ['user:group','同时修改属主和属组。'],
+    ['-R','递归修改目录，谨慎使用。'],
+    ['--reference','参考另一个文件的属主属组。']
+  ],['chown deploy:deploy app.sh','chown -R deploy:deploy /srv/app'],'Usage: chown [OPTION]... [OWNER][:[GROUP]] FILE...'),
+  'tar': detail('归档和压缩文件。常用于打包日志、备份配置、发布目录。','tar [OPTION...] [FILE]...',[
+    ['-c','创建归档。'],
+    ['-x','解包归档。'],
+    ['-z','使用 gzip。'],
+    ['-f','指定归档文件名。']
+  ],['tar -czf logs.tar.gz /var/log/app','tar -xzf logs.tar.gz'],'Usage: tar [OPTION...] [FILE]...'),
+  'scp/rsync': detail('远程复制文件。scp 简单直接，rsync 更适合同步大目录和增量发布。','scp [options] SRC DEST\nrsync [options] SRC DEST',[
+    ['scp -r','递归复制目录。'],
+    ['rsync -a','归档模式，保留权限和时间。'],
+    ['rsync -v','显示过程。'],
+    ['rsync -z','传输时压缩。']
+  ],['scp app.tar.gz user@host:/tmp/','rsync -avz ./dist/ user@host:/srv/app/'],'Usage: scp [OPTION]... source target\nUsage: rsync [OPTION]... SRC DEST')
+};
+
+let cur = 0, playing = false, timer = null;
+let activeCat = STEPS[0].cat, activeChip = STEPS[0].chip;
+const SPEED = [1500,1100,800,520,320];
+const cmdMap = document.getElementById('cmdMap');
+const detailBody = document.getElementById('detailBody');
+const descText = document.getElementById('descText');
+const stepCounter = document.getElementById('stepCounter');
+const btnPlay = document.getElementById('btnPlay');
+const btnPrev = document.getElementById('btnPrev');
+const btnNext = document.getElementById('btnNext');
+const speedRange = document.getElementById('speedRange');
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function getActiveName() {
+  return CATEGORIES[activeCat].chips[activeChip][0];
+}
+
+function getCommandIndex() {
+  let idx = 0;
+  for (let ci = 0; ci < CATEGORIES.length; ci++) {
+    for (let i = 0; i < CATEGORIES[ci].chips.length; i++) {
+      idx++;
+      if (ci === activeCat && i === activeChip) return idx;
+    }
+  }
+  return 1;
+}
+
+function syncStepSelection() {
+  activeCat = STEPS[cur].cat;
+  activeChip = STEPS[cur].chip;
+}
+
+function renderMap() {
+  cmdMap.innerHTML = CATEGORIES.map((cat, ci) => `
+    <div class="scenario">
+      <div class="scenario-head">
+        <div class="scenario-icon">${cat.icon}</div>
+        <div>
+          <div class="scenario-title">${cat.title}</div>
+          <div class="scenario-sub">${cat.sub}</div>
+        </div>
+      </div>
+      <div class="cmd-flow">
+        ${cat.chips.map(([name,note], i) => `
+          <button class="cmd-chip${ci === activeCat && i === activeChip ? ' active' : ''}" onclick="selectCommand(${ci},${i})">
+            <div class="cmd-name">${escapeHtml(name)}</div>
+            <div class="cmd-note">${escapeHtml(note)}</div>
+          </button>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderDetail() {
+  const name = getActiveName();
+  const d = COMMAND_DETAILS[name];
+  detailBody.innerHTML = `
+    <div class="detail-title">${escapeHtml(name)}</div>
+    <div class="detail-summary">${escapeHtml(d.summary)}</div>
+    <div class="detail-section">
+      <h3>常用写法</h3>
+      <div class="usage-box">${escapeHtml(d.usage)}</div>
+    </div>
+    <div class="detail-section">
+      <h3>常用参数</h3>
+      <div class="option-list">
+        ${d.options.map(([opt, body]) => `<div class="option-item"><code>${escapeHtml(opt)}</code> ${escapeHtml(body)}</div>`).join('')}
+      </div>
+    </div>
+    <div class="detail-section">
+      <h3>示例</h3>
+      <div class="example-list">
+        ${d.examples.map(ex => `<div><code>${escapeHtml(ex)}</code></div>`).join('')}
+      </div>
+    </div>
+    <div class="detail-section">
+      <h3>${escapeHtml(name.split('/')[0].split(' ')[0])} -h / --help 类似输出</h3>
+      <div class="help-box">${escapeHtml(d.help)}</div>
+    </div>
+  `;
+}
+
+function render() {
+  renderMap();
+  renderDetail();
+  const [name, note] = CATEGORIES[activeCat].chips[activeChip];
+  descText.textContent = `${name}：${note}`;
+  stepCounter.textContent = `${getCommandIndex()} / 24`;
+  btnPrev.disabled = cur === 0;
+  btnNext.disabled = cur === STEPS.length - 1;
+}
+
+function selectCommand(cat, chip) {
+  pause();
+  activeCat = cat;
+  activeChip = chip;
+  const matchedStep = STEPS.findIndex(s => s.cat === cat);
+  if (matchedStep >= 0) cur = matchedStep;
+  render();
+}
+
+function pause(){playing=false;clearTimeout(timer);btnPlay.innerHTML='▶ 播放';}
+function play(){if(cur>=STEPS.length-1)cur=0;syncStepSelection();playing=true;btnPlay.innerHTML='⏸ 暂停';tick();}
+function tick(){if(!playing)return;if(cur<STEPS.length-1){cur++;syncStepSelection();render();timer=setTimeout(tick,SPEED[parseInt(speedRange.value,10)-1]);}else pause();}
+
+document.getElementById('btnReset').addEventListener('click',()=>{pause();cur=0;syncStepSelection();render();});
+btnPrev.addEventListener('click',()=>{pause();if(cur>0){cur--;syncStepSelection();render();}});
+btnNext.addEventListener('click',()=>{pause();if(cur<STEPS.length-1){cur++;syncStepSelection();render();}});
+btnPlay.addEventListener('click',()=>playing?pause():play());
+
+render();
+if (window.NavTracker) NavTracker.track('Linux 常用命令', window.location.href, '⌨️', 'Linux');
+</script>
+</body>
+</html>
