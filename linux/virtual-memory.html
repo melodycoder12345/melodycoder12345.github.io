@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>虚拟内存与分页 - Linux 内核原理</title>
+<style>
+:root{
+  --bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;
+  --border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;
+  --blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;
+  --green:#4ade80;--purple:#c084fc;--red:#f87171;--teal:#2dd4bf;
+  --linux:#f7c948;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:12px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;flex-wrap:wrap;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.1rem;font-weight:600;}
+.badge{font-size:0.72rem;padding:2px 8px;border-radius:100px;font-family:monospace;font-weight:500;}
+.complexity{margin-left:auto;display:flex;gap:8px;align-items:center;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;overflow:auto;padding:20px;display:flex;align-items:flex-start;justify-content:center;}
+.desc-box{padding:10px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(247,201,72,0.12);}.code-line.active .ln{color:var(--linux);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;font-style:italic;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;font-family:inherit;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(247,201,72,0.15);border-color:rgba(247,201,72,0.3);color:var(--linux);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--linux);cursor:pointer;}
+
+/* Visualization */
+.vm-layout{display:flex;gap:16px;width:100%;max-width:700px;}
+.vm-col{flex:1;}
+.vm-col-title{font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--dim2);margin-bottom:8px;text-align:center;}
+.addr-block{padding:7px 12px;border-radius:6px;border:1px solid var(--border);margin-bottom:4px;font-size:0.78rem;text-align:center;transition:all 0.3s;cursor:default;}
+.addr-block.kernel{background:rgba(251,146,60,0.08);border-color:rgba(251,146,60,0.2);color:var(--orange);}
+.addr-block.stack{background:rgba(192,132,252,0.08);border-color:rgba(192,132,252,0.2);color:var(--purple);}
+.addr-block.mmap{background:rgba(56,189,248,0.08);border-color:rgba(56,189,248,0.2);color:var(--blue);}
+.addr-block.heap{background:rgba(74,222,128,0.08);border-color:rgba(74,222,128,0.2);color:var(--green);}
+.addr-block.bss{background:rgba(251,191,36,0.08);border-color:rgba(251,191,36,0.2);color:var(--yellow);}
+.addr-block.data{background:rgba(247,201,72,0.08);border-color:rgba(247,201,72,0.25);color:var(--linux);}
+.addr-block.text{background:rgba(45,212,191,0.08);border-color:rgba(45,212,191,0.2);color:var(--teal);}
+.addr-block.gap{background:transparent;border-color:transparent;color:var(--dim2);font-size:0.7rem;}
+.addr-block.active{box-shadow:0 0 12px currentColor;border-width:2px;}
+
+.ptable{margin-top:4px;}
+.pt-row{display:flex;align-items:center;gap:8px;padding:4px 10px;border-radius:5px;border:1px solid var(--border);margin-bottom:3px;font-size:0.75rem;font-family:monospace;transition:all 0.3s;}
+.pt-row.active{background:rgba(247,201,72,0.1);border-color:var(--linux);}
+.pt-vaddr{color:var(--blue);flex:1;}
+.pt-arrow{color:var(--dim2);}
+.pt-paddr{color:var(--green);flex:1;}
+.pt-flags{color:var(--dim2);font-size:0.7rem;}
+
+.tlb-box{padding:12px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,0.02);margin-top:8px;}
+.tlb-title{font-size:0.72rem;font-weight:600;color:var(--dim2);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;}
+.tlb-entry{display:flex;gap:6px;padding:4px 8px;border-radius:4px;border:1px solid var(--border);margin-bottom:3px;font-size:0.74rem;font-family:monospace;transition:all 0.3s;}
+.tlb-entry.hit{background:rgba(74,222,128,0.1);border-color:var(--green);}
+.tlb-entry.miss{background:rgba(248,113,113,0.1);border-color:var(--red);}
+
+.addr-parse{display:flex;align-items:center;gap:4px;margin-top:8px;font-family:monospace;font-size:0.8rem;justify-content:center;flex-wrap:wrap;}
+.ap-seg{padding:4px 10px;border-radius:4px;border:1px solid;transition:all 0.3s;}
+.ap-seg.pdi{background:rgba(247,201,72,0.1);border-color:var(--linux);color:var(--linux);}
+.ap-seg.pti{background:rgba(56,189,248,0.1);border-color:var(--blue);color:var(--blue);}
+.ap-seg.off{background:rgba(74,222,128,0.1);border-color:var(--green);color:var(--green);}
+.ap-seg.active{box-shadow:0 0 8px currentColor;}
+.ap-label{font-size:0.68rem;color:var(--dim2);text-align:center;}
+
+@media(max-width:768px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;}
+  nav{flex-wrap:wrap;padding:10px 16px;gap:6px;}
+  nav h1{font-size:1rem;flex:1;}
+  .complexity{margin-left:0!important;width:100%;}
+  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
+  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:400px!important;min-height:400px!important;flex:none!important;overflow:hidden;}
+  .viz-area{padding:12px!important;}
+  .code-panel{width:100%!important;min-width:unset!important;height:320px!important;flex:none!important;}
+  .controls{flex-wrap:wrap!important;padding:10px 14px!important;gap:6px!important;height:auto!important;}
+  .btn{padding:6px 10px!important;font-size:0.8rem!important;}
+  .speed-wrap{margin-left:0!important;width:100%;}
+  .vm-layout{flex-direction:column;gap:10px;}
+}
+</style>
+<script src="../nav.js"></script>
+<script src="../lang.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>虚拟内存与分页机制</h1>
+  <div class="complexity">
+    <span class="badge" style="background:rgba(247,201,72,0.15);color:#f7c948">虚拟内存</span>
+    <span class="badge" style="background:rgba(56,189,248,0.15);color:#38bdf8">页表</span>
+    <span class="badge" style="background:rgba(192,132,252,0.15);color:#c084fc">TLB</span>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="viz-panel">
+    <div class="viz-area" id="vizArea">
+      <div style="width:100%;max-width:720px;">
+        <!-- Address space layout -->
+        <div class="vm-layout" id="vmLayout">
+          <div class="vm-col">
+            <div class="vm-col-title">虚拟地址空间 (64-bit)</div>
+            <div id="vsLayout"></div>
+          </div>
+          <div class="vm-col">
+            <div class="vm-col-title">地址转换 / 页表</div>
+            <div id="ptLayout"></div>
+            <div id="tlbBox"></div>
+          </div>
+        </div>
+        <!-- Address bit decomposition -->
+        <div id="addrParse" style="margin-top:12px;display:none;">
+          <div class="addr-parse" id="addrBits"></div>
+          <div class="addr-parse" style="gap:4px;margin-top:4px;" id="addrLabels"></div>
+        </div>
+      </div>
+    </div>
+    <div class="desc-box">
+      <span id="descText">点击播放开始演示</span>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+  </div>
+
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px" data-base="virtual_memory">virtual_memory.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+
+<script>
+const VS_SEGMENTS = [
+  {cls:'kernel', label:'内核空间 (Kernel)', addr:'0xFFFF...'},
+  {cls:'gap',    label:'···'},
+  {cls:'stack',  label:'Stack (栈)', addr:'↓ 向低地址增长'},
+  {cls:'mmap',   label:'mmap / 共享库', addr:'动态映射区'},
+  {cls:'heap',   label:'Heap (堆)', addr:'↑ 向高地址增长'},
+  {cls:'bss',    label:'BSS 段 (未初始化全局)', addr:''},
+  {cls:'data',   label:'Data 段 (初始化全局)', addr:''},
+  {cls:'text',   label:'Text 段 (代码)', addr:'0x400000...'},
+];
+
+const STEPS = [
+  {
+    highlight:[], ptEntries:[], tlbState:'none', showAddrParse:false,
+    highlightLines:[1,2,3], hlJs:[1], hlPy:[1],
+    description:'每个进程拥有独立的虚拟地址空间，互相隔离，通过内核映射到物理内存'
+  },
+  {
+    highlight:['text','data','bss','heap','mmap','stack','kernel'], ptEntries:[], tlbState:'none', showAddrParse:false,
+    highlightLines:[33,34,35,36], hlJs:[2], hlPy:[2],
+    description:'虚拟地址空间布局：代码段(0x400000) → BSS/Data → 堆(向上) → mmap → 栈(向下) → 内核'
+  },
+  {
+    highlight:['text'], ptEntries:[], tlbState:'none', showAddrParse:false,
+    highlightLines:[37,38], hlJs:[3], hlPy:[3],
+    description:'页 (Page)：内存管理的基本单位，大小通常为 4KB (x86_64 默认)，页内偏移 12 位'
+  },
+  {
+    highlight:[], ptEntries:[], tlbState:'none', showAddrParse:true,
+    highlightLines:[39,40], hlJs:[4], hlPy:[4],
+    description:'虚拟地址结构：[PGD(9位) | PUD(9位) | PMD(9位) | PT(9位) | Offset(12位)]'
+  },
+  {
+    highlight:[], ptEntries:[{va:'0x7fff...1000', pa:'0x2a4b...1000', flags:'r-xp', status:'present'}], tlbState:'none', showAddrParse:false,
+    highlightLines:[41,42], hlJs:[5], hlPy:[5],
+    description:'CR3 寄存器指向当前进程的顶级页目录 (PGD)，进程切换时 CR3 被更新'
+  },
+  {
+    highlight:['stack','mmap','heap'], ptEntries:[
+      {va:'0x7fff...f000', pa:'0x3c9d...f000', flags:'rw-p', status:'present'},
+      {va:'0x7f2a...2000', pa:'0x5e1b...2000', flags:'r-xp', status:'present'},
+      {va:'0x5611...8000', pa:'0x1a2b...8000', flags:'rw-p', status:'present'},
+    ], tlbState:'none', showAddrParse:false,
+    highlightLines:[43,44,45,46,47,48,49,50], hlJs:[6], hlPy:[6],
+    description:'四级页表遍历：PGD → PUD → PMD → PTE，每级索引 9 bit，最终得到物理页帧号'
+  },
+  {
+    highlight:['text'], ptEntries:[
+      {va:'0x400...000', pa:'0x6a0b...000', flags:'r-xp', status:'present', tlb:'hit'},
+    ], tlbState:'hit', showAddrParse:false,
+    highlightLines:[51,52,53], hlJs:[7], hlPy:[7],
+    description:'TLB 命中 (<1ns)：Translation Lookaside Buffer 缓存最近页表项，直接获取物理地址'
+  },
+  {
+    highlight:['data'], ptEntries:[
+      {va:'0x601...000', pa:'?', flags:'', status:'miss', tlb:'miss'},
+    ], tlbState:'miss', showAddrParse:false,
+    highlightLines:[54,55,56], hlJs:[8], hlPy:[8],
+    description:'TLB 缺失：TLB 中没有缓存，需要 CPU 硬件遍历页表 (page table walk)，约 100ns'
+  },
+  {
+    highlight:['heap'], ptEntries:[
+      {va:'0x5611...000', pa:'NOT MAPPED', flags:'', status:'fault'},
+    ], tlbState:'none', showAddrParse:false,
+    highlightLines:[57,58], hlJs:[9], hlPy:[9],
+    description:'缺页异常 (Page Fault)：访问未映射或不在内存中的页，触发 #PF 异常'
+  },
+  {
+    highlight:['heap','mmap'], ptEntries:[
+      {va:'0x5611...000', pa:'0x8f2a...000', flags:'rw-p', status:'present'},
+    ], tlbState:'none', showAddrParse:false,
+    highlightLines:[59,60,61,62,63,64,65], hlJs:[10], hlPy:[10],
+    description:'Page Fault Handler：分配物理页，建立 PTE 映射，填充数据，返回用户空间重试'
+  },
+  {
+    highlight:['stack','heap'], ptEntries:[
+      {va:'0x7fff...000 (父)', pa:'0x1234...000', flags:'r--p (COW)', status:'cow'},
+      {va:'0x7fff...000 (子)', pa:'0x1234...000', flags:'r--p (COW)', status:'cow'},
+    ], tlbState:'none', showAddrParse:false,
+    highlightLines:[15,16,17,18,19,20,21,22], hlJs:[11], hlPy:[11],
+    description:'Copy-on-Write (COW)：fork 后父子进程共享物理页，写入时才真正复制，延迟分配'
+  },
+  {
+    highlight:['mmap'], ptEntries:[
+      {va:'0x7f2a...000', pa:'文件磁盘块', flags:'r--p (mmap)', status:'mmap'},
+    ], tlbState:'none', showAddrParse:false,
+    highlightLines:[4,5,6,7,8,9,10,11,12,13,14], hlJs:[12], hlPy:[12],
+    description:'mmap：将文件映射到虚拟地址空间，读写内存即读写文件，实现零拷贝'
+  },
+];
+
+const CODE_LINES = [
+  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
+  {html:``},
+  {html:`<span class="kw">import</span> (`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"fmt"</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"os"</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"syscall"</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"unsafe"</span>`},
+  {html:`)`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">mmapExample</span>() {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;f, _ := <span class="pkg">os</span>.<span class="fn">CreateTemp</span>(<span class="st">""</span>, <span class="st">"mmap-*"</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">defer</span> <span class="pkg">os</span>.<span class="fn">Remove</span>(f.<span class="fn">Name</span>())`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;f.<span class="fn">WriteString</span>(<span class="st">"Hello, mmap!"</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;f.<span class="fn">Close</span>()`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;f, _ = <span class="pkg">os</span>.<span class="fn">Open</span>(f.<span class="fn">Name</span>())`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">defer</span> f.<span class="fn">Close</span>()`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;fi, _ := f.<span class="fn">Stat</span>()`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;size := <span class="kw">int</span>(fi.<span class="fn">Size</span>())`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// mmap: 文件映射到虚拟地址空间</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;data, err := <span class="pkg">syscall</span>.<span class="fn">Mmap</span>(`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">int</span>(f.<span class="fn">Fd</span>()),`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="num">0</span>,       <span class="cm">// 文件偏移</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;size,    <span class="cm">// 映射大小</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">syscall</span>.<span class="id">PROT_READ</span>,`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">syscall</span>.<span class="id">MAP_SHARED</span>,`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">panic</span>(err) }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">defer</span> <span class="pkg">syscall</span>.<span class="fn">Munmap</span>(data)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"mmap 读取: %s\n"</span>, <span class="kw">string</span>(data))`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">showMemoryLayout</span>() {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">var</span> x <span class="kw">int</span> = <span class="num">42</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"栈变量地址: %p\n"</span>, &amp;x)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;p := <span class="kw">new</span>(<span class="kw">int</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"堆变量地址: %p\n"</span>, p)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"函数地址: %v\n"</span>,`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">unsafe</span>.<span class="fn">Pointer</span>(&amp;<span class="fn">showMemoryLayout</span>))`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">main</span>() {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">showMemoryLayout</span>()`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">mmapExample</span>()`},
+  {html:`}`},
+];
+
+window.LANG_PLAIN = {
+  js: `// JavaScript — 内存布局查看 (Node.js)
+const v8 = require('v8');
+const process = require('process');
+
+// 查看堆内存统计
+function showMemoryLayout() {
+  const stats = v8.getHeapStatistics();
+  console.log('堆使用量:', stats.used_heap_size, 'bytes');
+  console.log('堆总量:', stats.total_heap_size, 'bytes');
+  console.log('RSS:', process.memoryUsage().rss, 'bytes');
+}
+
+// SharedArrayBuffer — 类似 mmap 共享内存
+function sharedMemoryExample() {
+  // 创建 1KB 共享内存
+  const shared = new SharedArrayBuffer(1024);
+  const view = new Int32Array(shared);
+
+  // 写入数据
+  view[0] = 42;
+  console.log('共享内存值:', Atomics.load(view, 0));
+
+  // 模拟 COW: 复制后修改不影响原始
+  const copy = new Int32Array(shared.slice(0));
+  copy[0] = 100;
+  console.log('原始值:', view[0]);   // 42
+  console.log('副本值:', copy[0]);   // 100
+}
+
+showMemoryLayout();
+sharedMemoryExample();`,
+  py: `# Python — 虚拟内存操作
+import os
+import mmap
+import ctypes
+import sys
+
+# 查看内存布局
+def show_memory_layout():
+    x = 42
+    print(f'局部变量地址: {id(x):x}')
+
+    p = [1, 2, 3]
+    print(f'列表对象地址: {id(p):x}')
+
+    print(f'函数对象地址: {id(show_memory_layout):x}')
+
+    # Python 进程的 RSS
+    with open(f'/proc/{os.getpid()}/status') as f:
+        for line in f:
+            if 'VmRSS' in line:
+                print('RSS:', line.strip())
+                break
+
+# mmap — 内存映射文件
+def mmap_example():
+    with open('/tmp/mmap_test.txt', 'w+b') as f:
+        f.write(b'Hello, mmap!')
+        f.flush()
+
+        # 内存映射
+        with mmap.mmap(f.fileno(), 0) as mm:
+            print('mmap 读取:', mm.read().decode())
+            # 直接写入内存 = 写入文件
+            mm.seek(0)
+            mm.write(b'Updated!   ')
+
+show_memory_layout()
+mmap_example()`
+};
+
+function buildViz(step) {
+  const s = STEPS[step];
+  // Address space layout
+  let vsHtml = VS_SEGMENTS.map(seg => {
+    const active = s.highlight.includes(seg.cls) ? ' active' : '';
+    return `<div class="addr-block ${seg.cls}${active}">
+      <strong>${seg.label}</strong>${seg.addr ? `<br><span style="font-size:0.7rem;opacity:0.7">${seg.addr}</span>` : ''}
+    </div>`;
+  }).join('');
+  document.getElementById('vsLayout').innerHTML = vsHtml;
+
+  // Page table entries
+  let ptHtml = '<div class="ptable">';
+  if (s.ptEntries.length === 0) {
+    ptHtml += `<div style="font-size:0.78rem;color:var(--dim2);text-align:center;padding:12px">页表项将在演示中显示</div>`;
+  } else {
+    s.ptEntries.forEach(e => {
+      const stc = e.status === 'present' ? 'color:var(--green)' :
+                  e.status === 'miss' ? 'color:var(--red)' :
+                  e.status === 'fault' ? 'color:var(--red)' :
+                  e.status === 'cow' ? 'color:var(--yellow)' :
+                  e.status === 'mmap' ? 'color:var(--blue)' : 'color:var(--dim)';
+      const tlbMark = e.tlb === 'hit' ? ' 🟢TLB' : e.tlb === 'miss' ? ' 🔴Miss' : '';
+      ptHtml += `<div class="pt-row${e.status === 'present' || e.status === 'cow' || e.status === 'mmap' ? ' active' : ''}">
+        <span class="pt-vaddr">${e.va}</span>
+        <span class="pt-arrow">→</span>
+        <span class="pt-paddr">${e.pa}</span>
+        <span class="pt-flags" style="${stc}">${e.flags}${tlbMark}</span>
+      </div>`;
+    });
+  }
+  ptHtml += '</div>';
+  document.getElementById('ptLayout').innerHTML = ptHtml;
+
+  // TLB box
+  let tlbHtml = '';
+  if (s.tlbState !== 'none') {
+    tlbHtml = `<div class="tlb-box">
+      <div class="tlb-title">TLB (Translation Lookaside Buffer)</div>
+      ${s.ptEntries.map(e => `<div class="tlb-entry ${e.tlb || ''}">
+        <span style="color:var(--dim2)">VPN</span>
+        <span style="color:var(--blue)">${e.va.substring(0,12)}...</span>
+        <span style="color:var(--dim2)">→</span>
+        <span style="color:var(--green)">${e.pa}</span>
+        <span style="color:${s.tlbState==='hit'?'var(--green)':'var(--red)'}">${s.tlbState==='hit'?'HIT':'MISS'}</span>
+      </div>`).join('')}
+    </div>`;
+  }
+  document.getElementById('tlbBox').innerHTML = tlbHtml;
+
+  // Address bit parse
+  const parseEl = document.getElementById('addrParse');
+  if (s.showAddrParse) {
+    parseEl.style.display = 'block';
+    document.getElementById('addrBits').innerHTML = `
+      <span class="ap-seg pdi active">PGD<br>9 bits</span>
+      <span style="color:var(--dim2)">|</span>
+      <span class="ap-seg pti active">PUD+PMD+PT<br>27 bits</span>
+      <span style="color:var(--dim2)">|</span>
+      <span class="ap-seg off active">Page Offset<br>12 bits</span>`;
+    document.getElementById('addrLabels').innerHTML = `
+      <span style="font-size:0.68rem;color:var(--linux)">顶级目录索引</span>
+      <span>&nbsp;&nbsp;&nbsp;</span>
+      <span style="font-size:0.68rem;color:var(--blue)">页表多级索引</span>
+      <span>&nbsp;&nbsp;</span>
+      <span style="font-size:0.68rem;color:var(--green)">4KB 页内偏移</span>`;
+  } else {
+    parseEl.style.display = 'none';
+  }
+}
+
+function renderCode() {
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current)) || CODE_LINES;
+  const hl = LangSwitcher.getHL(STEPS[cur]);
+  const body = document.getElementById('codeBody');
+  body.innerHTML = lines.map((line, i) => {
+    const active = hl.includes(i+1) ? ' active' : '';
+    return `<div class="code-line${active}" onclick="jumpToLine(${i+1})"><span class="ln">${i+1}</span><span class="lc">${line.html||'&nbsp;'}</span></div>`;
+  }).join('');
+  const el = body.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
+}
+
+function jumpToLine(ln) {
+  let t = cur, b = Infinity;
+  STEPS.forEach((s,i) => {
+    if ((s.highlightLines||[]).includes(ln)) { const d = Math.abs(i-cur); if(d<b){b=d;t=i;} }
+  });
+  cur = t; render();
+}
+
+let cur = 0, playing = false, timer = null;
+const SPEED = [1800,1200,700,400,180];
+
+function render() {
+  buildViz(cur);
+  renderCode();
+  document.getElementById('descText').textContent = STEPS[cur].description;
+  document.getElementById('stepCounter').textContent = `${cur+1} / ${STEPS.length}`;
+  document.getElementById('btnPrev').disabled = cur === 0;
+  document.getElementById('btnNext').disabled = cur === STEPS.length-1;
+}
+function play(){if(cur>=STEPS.length-1)cur=0;playing=true;document.getElementById('btnPlay').innerHTML='⏸ 暂停';tick();}
+function pause(){playing=false;clearTimeout(timer);document.getElementById('btnPlay').innerHTML='▶ 播放';}
+function tick(){if(!playing)return;if(cur<STEPS.length-1){cur++;render();timer=setTimeout(tick,SPEED[parseInt(document.getElementById('speedRange').value)-1]);}else pause();}
+document.getElementById('btnPlay').addEventListener('click',()=>playing?pause():play());
+document.getElementById('btnPrev').addEventListener('click',()=>{pause();if(cur>0){cur--;render();}});
+document.getElementById('btnNext').addEventListener('click',()=>{pause();if(cur<STEPS.length-1){cur++;render();}});
+document.getElementById('btnReset').addEventListener('click',()=>{pause();cur=0;render();});
+
+LangSwitcher.init(renderCode);
+render();
+if (window.NavTracker) NavTracker.track('虚拟内存', window.location.href, '🗺️', 'Linux');
+</script>
+</body>
+</html>

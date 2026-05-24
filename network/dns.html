@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DNS 解析过程 - 网络可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;
+  --border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;
+  --blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;
+  --green:#4ade80;--purple:#c084fc;--red:#f87171;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}
+.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;display:flex;flex-direction:column;min-height:0;padding:16px;}
+#dnsCanvas{width:100%;flex:1;display:block;border-radius:8px;background:var(--panel2);}
+.desc-box{padding:12px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.9rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(45,212,191,0.12);}.code-line.active .ln{color:var(--teal);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(45,212,191,0.15);border-color:rgba(45,212,191,0.3);color:var(--teal);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--teal);cursor:pointer;}
+@media(max-width:768px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;}
+  nav{flex-wrap:wrap;padding:10px 16px;gap:6px;}
+  nav h1{font-size:1rem;flex:1;}
+  .complexity{margin-left:0!important;width:100%;order:3;margin-top:4px;}
+  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
+  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:300px!important;min-height:300px!important;flex:none!important;overflow:hidden;}
+  .code-panel{width:100%!important;min-width:unset!important;height:340px!important;flex:none!important;}
+  .code-line{font-size:0.76rem!important;}
+  .ln{min-width:36px!important;padding:0 8px!important;}
+  .controls{flex-wrap:wrap!important;padding:10px 14px!important;gap:6px!important;}
+  .btn{padding:6px 10px!important;font-size:0.8rem!important;}
+  .speed-wrap{margin-left:0!important;width:100%;justify-content:flex-end;}
+  .desc-box{padding:8px 14px!important;font-size:0.8rem!important;}
+}
+</style>
+<script src="../nav.js"></script>
+<script src="../lang.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>DNS 解析过程</h1>
+  <div class="complexity">
+    <span class="badge" style="background:rgba(45,212,191,0.15);color:#2dd4bf">DNS</span>
+    <span class="badge" style="background:rgba(251,191,36,0.15);color:#fbbf24">递归解析</span>
+    <span class="badge" style="background:rgba(56,189,248,0.15);color:#38bdf8">TTL 缓存</span>
+  </div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="viz-area">
+      <canvas id="dnsCanvas"></canvas>
+    </div>
+    <div class="desc-box">
+      <span id="descText">点击播放，观察 DNS 解析的完整链路</span>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px" data-base="dns_lookup">dns_lookup.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+NavTracker.track('DNS 解析', window.location.href, '🔍', '网络');
+
+const CODE_LINES = [
+  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
+  {html:``},
+  {html:`<span class="kw">import</span> (<br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"context"</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"fmt"</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"net"</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"time"</span><br>)`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">dnsLookup</span>(hostname <span class="kw">string</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 使用系统默认解析器</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;resolver := &amp;<span class="pkg">net</span>.<span class="fn">Resolver</span>{`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">PreferGo</span>: <span class="kw">true</span>, <span class="cm">// 使用 Go 内置 DNS 解析器</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;ctx, cancel := <span class="pkg">context</span>.<span class="fn">WithTimeout</span>(<span class="pkg">context</span>.<span class="fn">Background</span>(), <span class="num">5</span>*<span class="pkg">time</span>.Second)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">defer</span> <span class="fn">cancel</span>()`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 查询 A 记录 (IPv4)</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;addrs, err := resolver.<span class="fn">LookupHost</span>(ctx, hostname)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> err != <span class="kw">nil</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"解析失败: %v\n"</span>, err)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> _, addr := <span class="kw">range</span> addrs {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"%s → %s\n"</span>, hostname, addr)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 查询 MX 记录 (邮件服务器)</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;mxs, _ := resolver.<span class="fn">LookupMX</span>(ctx, hostname)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> _, mx := <span class="kw">range</span> mxs {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"MX: %s (优先级: %d)\n"</span>, mx.Host, mx.Pref)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 查询 TXT 记录 (SPF/DKIM)</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;txts, _ := resolver.<span class="fn">LookupTXT</span>(ctx, hostname)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> _, txt := <span class="kw">range</span> txts {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"TXT: %s\n"</span>, txt)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">reverseDNS</span>(ip <span class="kw">string</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;resolver := &amp;<span class="pkg">net</span>.<span class="fn">Resolver</span>{}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;ctx := <span class="pkg">context</span>.<span class="fn">Background</span>()`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;names, err := resolver.<span class="fn">LookupAddr</span>(ctx, ip)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> err != <span class="kw">nil</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"反向解析失败: %v\n"</span>, err)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"IP %s 的主机名: %v\n"</span>, ip, names)`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">main</span>() {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">dnsLookup</span>(<span class="st">"google.com"</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">reverseDNS</span>(<span class="st">"8.8.8.8"</span>)`},
+  {html:`}`},
+];
+
+window.LANG_PLAIN = {
+  js: `const dns = require('dns').promises;
+
+async function dnsLookup(hostname) {
+    // 查询 A 记录 (IPv4)
+    const addrs = await dns.lookup(hostname, { all: true });
+    addrs.forEach(a => console.log(\`\${hostname} → \${a.address}\`));
+
+    // 查询 MX 记录
+    const mxs = await dns.resolveMx(hostname);
+    mxs.forEach(mx => console.log(\`MX: \${mx.exchange} (priority: \${mx.priority})\`));
+
+    // 查询 TXT 记录 (SPF/DKIM)
+    const txts = await dns.resolveTxt(hostname);
+    txts.forEach(txt => console.log(\`TXT: \${txt.join('')}\`));
+}
+
+async function reverseDNS(ip) {
+    const hostnames = await dns.reverse(ip);
+    console.log(\`IP \${ip} → \${hostnames}\`);
+}
+
+// main
+dnsLookup('google.com').catch(console.error);
+reverseDNS('8.8.8.8').catch(console.error);`,
+  py: `import socket
+import dns.resolver  # pip install dnspython
+
+def dns_lookup(hostname):
+    # 查询 A 记录 (IPv4) - 使用系统解析器
+    addr = socket.gethostbyname(hostname)
+    print(f'{hostname} → {addr}')
+
+    # 使用 dnspython 查询更多类型
+    resolver = dns.resolver.Resolver()
+
+    # A 记录 (IPv4)
+    answers = resolver.resolve(hostname, 'A')
+    for r in answers:
+        print(f'A: {r.address} (TTL: {answers.ttl})')
+
+    # MX 记录
+    try:
+        mx = resolver.resolve(hostname, 'MX')
+        for r in mx:
+            print(f'MX: {r.exchange} (pref: {r.preference})')
+    except:
+        pass
+
+def reverse_dns(ip):
+    hostname = socket.gethostbyaddr(ip)
+    print(f'IP {ip} → {hostname[0]}')
+
+if __name__ == '__main__':
+    dns_lookup('google.com')
+    reverse_dns('8.8.8.8')`
+};
+
+// DNS nodes: browser, os_cache, hosts, resolver, root, tld, auth
+const DNS_NODES = [
+  {id:'browser',label:'浏览器',sublabel:'DNS Cache',color:'#38bdf8',x:0.08,y:0.5},
+  {id:'os',label:'操作系统',sublabel:'OS Cache',color:'#4ade80',x:0.22,y:0.5},
+  {id:'hosts',label:'/etc/hosts',sublabel:'本地文件',color:'#fbbf24',x:0.36,y:0.5},
+  {id:'resolver',label:'递归解析器',sublabel:'8.8.8.8',color:'#2dd4bf',x:0.5,y:0.5},
+  {id:'root',label:'根域名服务器',sublabel:'. (13个)',color:'#c084fc',x:0.70,y:0.25},
+  {id:'tld',label:'.com TLD',sublabel:'Verisign',color:'#fb923c',x:0.85,y:0.5},
+  {id:'auth',label:'权威服务器',sublabel:'example.com',color:'#f87171',x:0.70,y:0.75},
+];
+
+const STEPS = [
+  {highlightLines:[47,48],hlJs:[22,23],hlPy:[26,27],description:'浏览器访问 www.example.com，开始 DNS 解析',activeNode:'browser',arrow:null,hitCache:false},
+  {highlightLines:[13,14],hlJs:[4,5],hlPy:[7,8],description:'检查浏览器 DNS 缓存（Chrome: chrome://net-internals/#dns）',activeNode:'browser',arrow:{from:'browser',to:'browser'},hitCache:false},
+  {highlightLines:[6,7,8],hlJs:[4,5],hlPy:[7,8],description:'缓存未命中 → 查询操作系统 DNS 缓存',activeNode:'os',arrow:{from:'browser',to:'os',label:'查询'},hitCache:false},
+  {highlightLines:[6,7,8],hlJs:[4,5],hlPy:[7,8],description:'未命中 → 查询 /etc/hosts 文件（最高优先级本地覆盖）',activeNode:'hosts',arrow:{from:'os',to:'hosts',label:'查询'},hitCache:false},
+  {highlightLines:[10,11],hlJs:[4,5],hlPy:[7,8],description:'未命中 → 发送至递归解析器（ISP 或 8.8.8.8/1.1.1.1）',activeNode:'resolver',arrow:{from:'hosts',to:'resolver',label:'DNS Query (UDP:53)'},hitCache:false},
+  {highlightLines:[13,14],hlJs:[4,5],hlPy:[7,8],description:'递归解析器检查自身缓存（命中则直接返回，大量查询在此终止）',activeNode:'resolver',arrow:{from:'resolver',to:'resolver'},hitCache:false},
+  {highlightLines:[13,14],hlJs:[4,5],hlPy:[7,8],description:'缓存未命中 → 查询根域名服务器（全球 13 个 IP，实际数百台）',activeNode:'root',arrow:{from:'resolver',to:'root',label:'查询 .'},hitCache:false},
+  {highlightLines:[13,14],hlJs:[4,5],hlPy:[7,8],description:'根服务器返回 .com TLD 服务器地址（不含最终答案，迭代查询）',activeNode:'root',arrow:{from:'root',to:'resolver',label:'.com NS: a.gtld-servers.net'},hitCache:false},
+  {highlightLines:[13,14],hlJs:[4,5],hlPy:[7,8],description:'查询 .com TLD 服务器（由 Verisign 运营）',activeNode:'tld',arrow:{from:'resolver',to:'tld',label:'查询 example.com'},hitCache:false},
+  {highlightLines:[13,14],hlJs:[4,5],hlPy:[7,8],description:'TLD 返回 example.com 权威服务器地址',activeNode:'tld',arrow:{from:'tld',to:'resolver',label:'Auth NS: ns1.example.com'},hitCache:false},
+  {highlightLines:[14,15,19,20],hlJs:[5,6],hlPy:[11,12],description:'查询权威服务器 → 获得 A 记录: www.example.com = 93.184.216.34',activeNode:'auth',arrow:{from:'resolver',to:'auth',label:'查询 www.example.com A'},hitCache:false},
+  {highlightLines:[14,15,19,20],hlJs:[5,6],hlPy:[11,12],description:'缓存结果 (按 TTL=3600秒)，逐层返回 IP 地址给浏览器',activeNode:'browser',arrow:{from:'auth',to:'resolver',label:'93.184.216.34 TTL=3600'},hitCache:true},
+];
+
+// Active arrows accumulate
+let resolvedArrows = [];
+let cur = 0, playing = false, timer = null;
+const SPEED = [1200,800,500,300,150];
+
+const canvas = document.getElementById('dnsCanvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  canvas.style.width = rect.width + 'px';
+  canvas.style.height = rect.height + 'px';
+  ctx.scale(dpr, dpr);
+  drawViz();
+}
+
+function getNodePos(id, W, H) {
+  const n = DNS_NODES.find(n => n.id === id);
+  if(!n) return {x:0,y:0};
+  return {x: n.x * W, y: n.y * H};
+}
+
+function drawViz() {
+  const s = STEPS[cur];
+  const rect = canvas.getBoundingClientRect();
+  const W = rect.width, H = rect.height;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw all nodes
+  DNS_NODES.forEach(n => {
+    const x = n.x * W, y = n.y * H;
+    const isActive = n.id === s.activeNode;
+    const r = 34;
+    ctx.fillStyle = isActive ? n.color + '33' : '#1e293b';
+    ctx.strokeStyle = isActive ? n.color : '#334155';
+    ctx.lineWidth = isActive ? 2.5 : 1.5;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle = isActive ? n.color : '#94a3b8';
+    ctx.font = `bold ${W < 500 ? 9 : 11}px system-ui`;
+    ctx.textAlign = 'center';
+    ctx.fillText(n.label, x, y - 4);
+    ctx.fillStyle = '#64748b';
+    ctx.font = `${W < 500 ? 8 : 9}px monospace`;
+    ctx.fillText(n.sublabel, x, y + 10);
+
+    // Glow on active
+    if(isActive) {
+      ctx.strokeStyle = n.color + '55';
+      ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(x, y, r + 6, 0, Math.PI*2); ctx.stroke();
+    }
+  });
+
+  // Draw accumulated arrows
+  resolvedArrows.forEach((arr, idx) => {
+    if(arr.from === arr.to) {
+      // Self-loop (cache hit check)
+      const pos = getNodePos(arr.from, W, H);
+      ctx.strokeStyle = arr.color + '88';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4,3]);
+      ctx.beginPath();
+      ctx.arc(pos.x + 45, pos.y - 20, 18, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = arr.color; ctx.font='9px system-ui'; ctx.textAlign='center';
+      ctx.fillText('缓存?', pos.x + 45, pos.y - 18);
+      return;
+    }
+    const p1 = getNodePos(arr.from, W, H);
+    const p2 = getNodePos(arr.to, W, H);
+    const isLast = idx === resolvedArrows.length - 1;
+    ctx.strokeStyle = isLast ? arr.color : arr.color + '44';
+    ctx.lineWidth = isLast ? 2 : 1;
+    ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+
+    // Arrow head
+    const angle = Math.atan2(p2.y-p1.y, p2.x-p1.x);
+    const ax = p2.x - 38 * Math.cos(angle);
+    const ay = p2.y - 38 * Math.sin(angle);
+    ctx.fillStyle = isLast ? arr.color : arr.color + '44';
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ax - 10*Math.cos(angle-0.4), ay - 10*Math.sin(angle-0.4));
+    ctx.lineTo(ax - 10*Math.cos(angle+0.4), ay - 10*Math.sin(angle+0.4));
+    ctx.closePath(); ctx.fill();
+
+    // Label
+    if(isLast && arr.label) {
+      const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+      ctx.fillStyle = arr.color;
+      ctx.font = '9px monospace'; ctx.textAlign = 'center';
+      const lines = arr.label.split(':');
+      lines.forEach((line, li) => ctx.fillText(line.trim(), mx, my - 4 + li * 12));
+    }
+  });
+
+  // Step count label
+  if(s.hitCache) {
+    ctx.fillStyle = '#4ade80'; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('✓ DNS 解析完成！返回 IP 地址', W/2, H - 14);
+  }
+
+  // TTL explanation
+  ctx.fillStyle = '#64748b'; ctx.font = '9px monospace'; ctx.textAlign = 'right';
+  ctx.fillText('TTL = 缓存存活时间 (Time To Live)', W - 10, H - 10);
+}
+
+function addArrow(step) {
+  const activeN = DNS_NODES.find(n => n.id === step.activeNode);
+  const color = activeN ? activeN.color : '#94a3b8';
+  if(step.arrow && step.arrow.from !== step.arrow.to) {
+    resolvedArrows.push({...step.arrow, color});
+  } else if(step.arrow) {
+    resolvedArrows.push({...step.arrow, color});
+  }
+  if(resolvedArrows.length > 8) resolvedArrows = resolvedArrows.slice(-8);
+}
+
+function renderCode() {
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current)) || CODE_LINES;
+  const hl = LangSwitcher.getHL(STEPS[cur]);
+  document.getElementById('codeBody').innerHTML = lines.map((l,i) =>
+    `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
+      <span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
+  ).join('');
+  const el = document.querySelector('.code-line.active');
+  if(el) el.scrollIntoView({block:'nearest'});
+}
+
+function jumpToLine(ln) {
+  let best=cur,bestDist=Infinity;
+  STEPS.forEach((s,i) => {
+    if((s.highlightLines||[]).includes(ln)){const d=Math.abs(i-cur);if(d<bestDist){bestDist=d;best=i;}}
+  });
+  cur=best; rebuildArrows(); render();
+}
+
+function rebuildArrows() {
+  resolvedArrows = [];
+  for(let i=0;i<=cur;i++) { addArrow(STEPS[i]); }
+}
+
+function render() {
+  drawViz();
+  renderCode();
+  document.getElementById('descText').textContent = STEPS[cur].description;
+  document.getElementById('stepCounter').textContent = `${cur+1} / ${STEPS.length}`;
+  document.getElementById('btnPrev').disabled = cur===0;
+  document.getElementById('btnNext').disabled = cur===STEPS.length-1;
+}
+
+function play(){if(cur>=STEPS.length-1)cur=0;playing=true;document.getElementById('btnPlay').innerHTML='⏸ 暂停';tick();}
+function pause(){playing=false;clearTimeout(timer);document.getElementById('btnPlay').innerHTML='▶ 播放';}
+function tick(){
+  if(!playing)return;
+  if(cur<STEPS.length-1){
+    cur++;
+    addArrow(STEPS[cur]);
+    render();
+    timer=setTimeout(tick,SPEED[parseInt(document.getElementById('speedRange').value)-1]);
+  }else pause();
+}
+
+document.getElementById('btnPlay').addEventListener('click',()=>playing?pause():play());
+document.getElementById('btnPrev').addEventListener('click',()=>{
+  pause();
+  if(cur>0){cur--;rebuildArrows();render();}
+});
+document.getElementById('btnNext').addEventListener('click',()=>{
+  pause();
+  if(cur<STEPS.length-1){cur++;addArrow(STEPS[cur]);render();}
+});
+document.getElementById('btnReset').addEventListener('click',()=>{
+  pause();cur=0;resolvedArrows=[];render();
+});
+
+LangSwitcher.init(renderCode);
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('load', resizeCanvas);
+setTimeout(resizeCanvas,50);
+render();
+</script>
+</body>
+</html>

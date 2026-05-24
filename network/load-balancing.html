@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>负载均衡算法 - 可视化学习</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}.tags{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;overflow:hidden;background:var(--panel2);}
+.desc-box{padding:12px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:44px;display:flex;align-items:center;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background .15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,.04);}.code-line.active{background:rgba(251,191,36,.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;font-style:italic;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:.85rem;transition:all .15s;}
+.btn:hover{background:rgba(255,255,255,.12);}.btn.primary{background:rgba(56,189,248,.15);border-color:rgba(56,189,248,.3);color:var(--blue);}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
+@media(max-width:768px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;}
+  nav{flex-wrap:wrap;padding:10px 16px;gap:6px;height:auto!important;}
+  nav h1{font-size:1rem;flex:1;}.tags{margin-left:0!important;width:100%;order:3;margin-top:4px;}
+  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
+  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:320px!important;flex:none!important;}
+  .code-panel{width:100%!important;min-width:unset!important;height:340px!important;flex:none!important;}
+  .code-line{font-size:.76rem!important;}.ln{min-width:36px!important;padding:0 8px!important;}
+  .controls{flex-wrap:wrap!important;padding:10px 14px!important;gap:6px!important;height:auto!important;}
+  .btn{padding:6px 10px!important;font-size:.8rem!important;}.speed-wrap{margin-left:0!important;width:100%;}
+  .desc-box{padding:8px 14px!important;font-size:.8rem!important;}
+}
+</style>
+<script src="../nav.js"></script>
+<script src="../lang.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>负载均衡算法</h1>
+  <div class="tags">
+    <span class="badge" style="background:rgba(45,212,191,.15);color:#2dd4bf">轮询</span>
+    <span class="badge" style="background:rgba(192,132,252,.15);color:#c084fc">一致性哈希</span>
+    <span class="badge" style="background:rgba(74,222,128,.15);color:#4ade80">最少连接</span>
+  </div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="viz-area">
+      <svg width="100%" height="100%" viewBox="0 0 760 360" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#94a3b8"/></marker>
+          <marker id="arrT" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#2dd4bf"/></marker>
+          <marker id="arrG" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#4ade80"/></marker>
+        </defs>
+
+        <!-- LB box -->
+        <rect x="295" y="20" width="170" height="55" rx="10" fill="rgba(45,212,191,.06)" stroke="#2dd4bf" stroke-width="1.5" id="rLB"/>
+        <text x="380" y="44" text-anchor="middle" font-size="12" fill="#2dd4bf" font-weight="600" font-family="'Segoe UI',sans-serif">负载均衡器</text>
+        <text x="380" y="60" text-anchor="middle" font-size="9" fill="#64748b" font-family="monospace" id="tAlgo">算法: 轮询 Round Robin</text>
+
+        <!-- Servers -->
+        <rect x="50" y="160" width="130" height="90" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5" id="rS1"/>
+        <text x="115" y="188" text-anchor="middle" font-size="11" fill="#e2e8f0" font-weight="600" font-family="'Segoe UI',sans-serif">Server 1</text>
+        <text x="115" y="205" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="monospace" id="tS1load">连接数: 0</text>
+        <rect x="65" y="218" width="100" height="20" rx="3" fill="rgba(255,255,255,.03)" stroke="#334155" stroke-width="1"/>
+        <rect id="rS1bar" x="65" y="218" width="0" height="20" rx="3" fill="rgba(56,189,248,.4)"/>
+
+        <rect x="315" y="160" width="130" height="90" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5" id="rS2"/>
+        <text x="380" y="188" text-anchor="middle" font-size="11" fill="#e2e8f0" font-weight="600" font-family="'Segoe UI',sans-serif">Server 2</text>
+        <text x="380" y="205" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="monospace" id="tS2load">连接数: 0</text>
+        <rect x="330" y="218" width="100" height="20" rx="3" fill="rgba(255,255,255,.03)" stroke="#334155" stroke-width="1"/>
+        <rect id="rS2bar" x="330" y="218" width="0" height="20" rx="3" fill="rgba(192,132,252,.4)"/>
+
+        <rect x="580" y="160" width="130" height="90" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5" id="rS3"/>
+        <text x="645" y="188" text-anchor="middle" font-size="11" fill="#e2e8f0" font-weight="600" font-family="'Segoe UI',sans-serif">Server 3</text>
+        <text x="645" y="205" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="monospace" id="tS3load">连接数: 0</text>
+        <rect x="595" y="218" width="100" height="20" rx="3" fill="rgba(255,255,255,.03)" stroke="#334155" stroke-width="1"/>
+        <rect id="rS3bar" x="595" y="218" width="0" height="20" rx="3" fill="rgba(251,191,36,.4)"/>
+
+        <!-- Arrows LB → Servers -->
+        <line id="aLB1" x1="340" y1="75" x2="165" y2="158" stroke="#334155" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr)"/>
+        <line id="aLB2" x1="380" y1="75" x2="380" y2="158" stroke="#334155" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr)"/>
+        <line id="aLB3" x1="420" y1="75" x2="615" y2="158" stroke="#334155" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr)"/>
+
+        <!-- Consistent hash ring (shown in later steps) -->
+        <circle id="cRing" cx="380" cy="295" r="45" fill="none" stroke="#334155" stroke-width="1.5" opacity="0"/>
+        <circle id="cS1pos" cx="380" cy="250" r="10" fill="rgba(56,189,248,.3)" stroke="#38bdf8" stroke-width="1.5" opacity="0"/>
+        <circle id="cS2pos" cx="419" cy="317" r="10" fill="rgba(192,132,252,.3)" stroke="#c084fc" stroke-width="1.5" opacity="0"/>
+        <circle id="cS3pos" cx="341" cy="317" r="10" fill="rgba(251,191,36,.3)" stroke="#fbbf24" stroke-width="1.5" opacity="0"/>
+        <text id="tRingLabel" x="380" y="295" text-anchor="middle" font-size="8" fill="#64748b" font-family="monospace" opacity="0">哈希环</text>
+
+        <text id="tStatus" x="380" y="355" text-anchor="middle" font-size="11" fill="#94a3b8" font-family="'Segoe UI',sans-serif">点击播放，了解各种负载均衡策略</text>
+      </svg>
+    </div>
+    <div class="desc-box">
+      <span id="descText">负载均衡：将请求分散到多台服务器，提高系统吞吐量和可用性</span>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#2dd4bf"></div>
+      <span data-base="load_balancer">load_balancer.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" onclick="reset()">⏮ 重置</button>
+  <button class="btn" id="btnPrev" onclick="prev()">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+  <button class="btn" id="btnNext" onclick="next()">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedSlider" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+const CODE_LINES=[
+  {html:'<span class="kw">package</span> main'},
+  {html:'<span class="kw">import</span> (<span class="st">"fmt"</span>; <span class="st">"hash/crc32"</span>; <span class="st">"sort"</span>; <span class="st">"sync/atomic"</span>)'},
+  {html:''},
+  {html:'<span class="cm">// 轮询负载均衡</span>'},
+  {html:'<span class="kw">type</span> <span class="fn">RoundRobin</span> <span class="kw">struct</span> { servers []<span class="kw">string</span>; counter <span class="kw">uint64</span> }'},
+  {html:'<span class="kw">func</span> (r *<span class="fn">RoundRobin</span>) <span class="fn">Next</span>() <span class="kw">string</span> {'},
+  {html:'&nbsp;&nbsp;idx := atomic.<span class="fn">AddUint64</span>(&r.counter, <span class="num">1</span>)'},
+  {html:'&nbsp;&nbsp;<span class="kw">return</span> r.servers[idx%<span class="kw">uint64</span>(<span class="kw">len</span>(r.servers))]'},
+  {html:'}'},
+  {html:''},
+  {html:'<span class="cm">// 一致性哈希</span>'},
+  {html:'<span class="kw">type</span> <span class="fn">ConsistentHash</span> <span class="kw">struct</span> { ring <span class="kw">map</span>[<span class="kw">uint32</span>]<span class="kw">string</span>; sorted []<span class="kw">uint32</span>; replicas <span class="kw">int</span> }'},
+  {html:'<span class="kw">func</span> (c *<span class="fn">ConsistentHash</span>) <span class="fn">Add</span>(server <span class="kw">string</span>) {'},
+  {html:'&nbsp;&nbsp;<span class="kw">for</span> i := <span class="num">0</span>; i < c.replicas; i++ {'},
+  {html:'&nbsp;&nbsp;&nbsp;&nbsp;key := crc32.<span class="fn">ChecksumIEEE</span>([]<span class="kw">byte</span>(<span class="pkg">fmt</span>.<span class="fn">Sprintf</span>(<span class="st">"%s:%d"</span>, server, i)))'},
+  {html:'&nbsp;&nbsp;&nbsp;&nbsp;c.ring[key] = server; c.sorted = <span class="kw">append</span>(c.sorted, key)'},
+  {html:'&nbsp;&nbsp;} sort.<span class="fn">Slice</span>(c.sorted, <span class="kw">func</span>(i, j <span class="kw">int</span>) <span class="kw">bool</span> { <span class="kw">return</span> c.sorted[i] < c.sorted[j] })'},
+  {html:'}'},
+  {html:'<span class="kw">func</span> (c *<span class="fn">ConsistentHash</span>) <span class="fn">Get</span>(key <span class="kw">string</span>) <span class="kw">string</span> {'},
+  {html:'&nbsp;&nbsp;hash := crc32.<span class="fn">ChecksumIEEE</span>([]<span class="kw">byte</span>(key))'},
+  {html:'&nbsp;&nbsp;idx := sort.<span class="fn">Search</span>(<span class="kw">len</span>(c.sorted), <span class="kw">func</span>(i <span class="kw">int</span>) <span class="kw">bool</span> { <span class="kw">return</span> c.sorted[i] >= hash })'},
+  {html:'&nbsp;&nbsp;<span class="kw">if</span> idx == <span class="kw">len</span>(c.sorted) { idx = <span class="num">0</span> }'},
+  {html:'&nbsp;&nbsp;<span class="kw">return</span> c.ring[c.sorted[idx]]'},
+  {html:'}'},
+  {html:''},
+  {html:'<span class="kw">func</span> <span class="fn">main</span>() {'},
+  {html:'&nbsp;&nbsp;rr := &<span class="fn">RoundRobin</span>{servers: []<span class="kw">string</span>{<span class="st">"S1"</span>,<span class="st">"S2"</span>,<span class="st">"S3"</span>}}'},
+  {html:'&nbsp;&nbsp;<span class="kw">for</span> i := <span class="num">0</span>; i < <span class="num">6</span>; i++ { <span class="pkg">fmt</span>.<span class="fn">Println</span>(rr.<span class="fn">Next</span>()) }'},
+  {html:'&nbsp;&nbsp;ch := &<span class="fn">ConsistentHash</span>{ring:<span class="kw">make</span>(<span class="kw">map</span>[<span class="kw">uint32</span>]<span class="kw">string</span>),replicas:<span class="num">100</span>}'},
+  {html:'&nbsp;&nbsp;ch.<span class="fn">Add</span>(<span class="st">"S1"</span>); ch.<span class="fn">Add</span>(<span class="st">"S2"</span>); ch.<span class="fn">Add</span>(<span class="st">"S3"</span>)'},
+  {html:'&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Println</span>(ch.<span class="fn">Get</span>(<span class="st">"user:1"</span>))'},
+  {html:'}'},
+];
+
+window.LANG_PLAIN={
+  js:`// 轮询负载均衡
+class RoundRobin {
+  constructor(servers) {
+    this.servers = servers;
+    this.counter = 0;
+  }
+  next() {
+    const idx = this.counter++ % this.servers.length;
+    return this.servers[idx];
+  }
+}
+
+// 一致性哈希
+class ConsistentHash {
+  constructor(replicas = 100) {
+    this.replicas = replicas;
+    this.ring = new Map();
+    this.sorted = [];
+  }
+  add(server) {
+    for (let i = 0; i < this.replicas; i++) {
+      const hash = crc32(\`\${server}:\${i}\`);
+      this.ring.set(hash, server);
+      this.sorted.push(hash);
+    }
+    this.sorted.sort((a,b) => a - b);
+  }
+  get(key) {
+    const hash = crc32(key);
+    const idx = this.sorted.findIndex(h => h >= hash);
+    return this.ring.get(this.sorted[idx === -1 ? 0 : idx]);
+  }
+}`,
+  py:`import hashlib
+from bisect import bisect_left, insort
+
+class RoundRobin:
+    def __init__(self, servers):
+        self.servers = servers
+        self.counter = 0
+    def next(self):
+        srv = self.servers[self.counter % len(self.servers)]
+        self.counter += 1
+        return srv
+
+class ConsistentHash:
+    def __init__(self, replicas=100):
+        self.replicas = replicas
+        self.ring = {}
+        self.sorted_keys = []
+    def add(self, server):
+        for i in range(self.replicas):
+            key = int(hashlib.md5(f'{server}:{i}'.encode()).hexdigest(), 16)
+            self.ring[key] = server
+            insort(self.sorted_keys, key)
+    def get(self, key):
+        h = int(hashlib.md5(key.encode()).hexdigest(), 16)
+        idx = bisect_left(self.sorted_keys, h)
+        if idx >= len(self.sorted_keys): idx = 0
+        return self.ring[self.sorted_keys[idx]]`
+};
+
+const STEPS=[
+  {highlightLines:[4,5,6,7,8,9],hlJs:[1,2,3,4,5,6,7,8,9,10],hlPy:[2,3,4,5,6,7,8,9,10],description:'轮询 Round Robin: 请求依次分发到每台服务器，R1→S1, R2→S2, R3→S3, R4→S1...'},
+  {highlightLines:[6,7,8],hlJs:[6,7,8,9],hlPy:[6,7,8,9],description:'请求 1 → Server 1（counter=0, 0%3=0）'},
+  {highlightLines:[6,7,8],hlJs:[6,7,8,9],hlPy:[6,7,8,9],description:'请求 2 → Server 2（counter=1, 1%3=1）'},
+  {highlightLines:[6,7,8],hlJs:[6,7,8,9],hlPy:[6,7,8,9],description:'请求 3 → Server 3（counter=2, 2%3=2）— 依此类推，均匀分发'},
+  {highlightLines:[11,12,13,14,15,16,17,18],hlJs:[13,14,15,16,17,18,19,20,21],hlPy:[13,14,15,16,17,18,19,20],description:'一致性哈希: 服务器和 key 都映射到 [0, 2^32) 哈希环上'},
+  {highlightLines:[13,14,15,16,17],hlJs:[14,15,16,17,18,19,20,21],hlPy:[14,15,16,17,18,19],description:'每台服务器添加 100 个虚拟节点（replicas=100），使分布更均匀'},
+  {highlightLines:[19,20,21,22,23],hlJs:[22,23,24,25,26,27,28,29],hlPy:[21,22,23,24,25,26,27],description:'查找: hash("user:1") → 在环上顺时针找第一个节点 → 路由到对应服务器'},
+  {highlightLines:[19,20,21,22,23],hlJs:[22,23,24,25,26,27,28,29],hlPy:[21,22,23,24,25,26,27],description:'扩容优势: 新增 Server 4 只影响相邻区域的 key，其余 key 路由不变（传统哈希: 全部重新分配）'},
+  {highlightLines:[26,27,28,29,30,31],hlJs:[2,3,4,5,6,7,8,9,10],hlPy:[2,3,4,5,6,7,8,9,10],description:'最少连接算法: 将请求发到当前活跃连接数最少的服务器 — 适合长连接场景'},
+  {highlightLines:[26,27,28,29,30,31],hlJs:[2,3,4,5,6,7,8,9,10],hlPy:[2,3,4,5,6,7,8,9,10],description:'IP Hash: hash(clientIP) % n — 同一用户总路由到同一服务器，保证会话一致性（Session Sticky）'},
+];
+
+const LOADS=[
+  [0,0,0],[2,0,0],[2,2,0],[2,2,2],[0,0,0],[0,0,0],[3,1,2],[3,1,2],[2,5,1],[2,5,1]
+];
+
+let step=0,playing=false,timer=null;
+function getSpeed(){return 1600-(parseInt(document.getElementById('speedSlider').value)-1)*300;}
+const ALGO_NAMES=['轮询 Round Robin','轮询 Round Robin','轮询 Round Robin','轮询 Round Robin','一致性哈希','一致性哈希（添加虚拟节点）','一致性哈希（查找）','一致性哈希（扩容稳定）','最少连接','IP Hash'];
+const COLORS=[['#38bdf8','#c084fc','#fbbf24'],['#38bdf8','#334155','#334155'],['#334155','#c084fc','#334155'],['#334155','#334155','#fbbf24'],['#38bdf8','#c084fc','#fbbf24'],['#38bdf8','#c084fc','#fbbf24'],['#38bdf8','#c084fc','#fbbf24'],['#38bdf8','#c084fc','#fbbf24'],['#334155','#c084fc','#38bdf8'],['#38bdf8','#334155','#334155']];
+
+function renderViz(){
+  const loads=LOADS[Math.min(step,LOADS.length-1)];
+  const colors=COLORS[Math.min(step,COLORS.length-1)];
+  ['S1','S2','S3'].forEach((s,i)=>{
+    document.getElementById(`tS${i+1}load`).textContent=`连接数: ${loads[i]}`;
+    const w=Math.min(loads[i]*18,100);
+    document.getElementById(`rS${i+1}bar`).setAttribute('width',w);
+    document.getElementById(`rS${i+1}`).style.stroke=colors[i];
+  });
+  const showRing=step>=4;
+  ['cRing','cS1pos','cS2pos','cS3pos','tRingLabel'].forEach(id=>{
+    document.getElementById(id).setAttribute('opacity',showRing?'1':'0');
+  });
+  document.getElementById('tAlgo').textContent=`算法: ${ALGO_NAMES[Math.min(step,ALGO_NAMES.length-1)]}`;
+}
+
+function renderCode(){
+  const lines=LangSwitcher.getLines(LangSwitcher.current)||CODE_LINES;
+  const hl=step<STEPS.length?LangSwitcher.getHL(STEPS[step]):[];
+  document.getElementById('codeBody').innerHTML=lines.map((l,i)=>
+    `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
+      <span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
+  ).join('');
+  const a=document.querySelector('.code-line.active');if(a)a.scrollIntoView({block:'nearest'});
+}
+
+function render(){
+  renderViz();renderCode();
+  document.getElementById('descText').textContent=step<STEPS.length?STEPS[step].description:'演示完成';
+  document.getElementById('stepCounter').textContent=`${Math.min(step+1,STEPS.length)} / ${STEPS.length}`;
+  document.getElementById('btnPrev').disabled=step===0;
+  document.getElementById('btnNext').disabled=step>=STEPS.length-1;
+}
+
+function jumpToLine(ln){for(let i=STEPS.length-1;i>=0;i--){if(LangSwitcher.getHL(STEPS[i]).includes(ln)){step=i;render();return;}}}
+function next(){if(step<STEPS.length-1){step++;render();}}
+function prev(){if(step>0){step--;render();}}
+function reset(){step=0;render();if(playing){playing=false;clearInterval(timer);document.getElementById('btnPlay').textContent='▶ 播放';}}
+function togglePlay(){
+  playing=!playing;
+  document.getElementById('btnPlay').textContent=playing?'⏸ 暂停':'▶ 播放';
+  if(playing){timer=setInterval(()=>{if(step>=STEPS.length-1){playing=false;clearInterval(timer);document.getElementById('btnPlay').textContent='▶ 播放';return;}step++;render();},getSpeed());}
+  else clearInterval(timer);
+}
+
+LangSwitcher.init(renderCode);
+render();
+if(window.NavTracker)NavTracker.track('负载均衡算法','network/load-balancing.html','🌐','网络');
+</script>
+</body>
+</html>

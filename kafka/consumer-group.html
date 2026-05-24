@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>消费者组与 Rebalance - 可视化学习</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}.tags{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;overflow:hidden;position:relative;background:var(--panel2);}
+.desc-box{padding:12px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:44px;display:flex;align-items:center;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;font-style:italic;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.3);color:var(--blue);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
+@media(max-width:768px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;}
+  nav{flex-wrap:wrap;padding:10px 16px;gap:6px;height:auto!important;}
+  nav h1{font-size:1rem;flex:1;}.tags{margin-left:0!important;width:100%;order:3;margin-top:4px;}
+  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
+  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:320px!important;flex:none!important;overflow:hidden;}
+  .code-panel{width:100%!important;min-width:unset!important;height:340px!important;flex:none!important;}
+  .code-line{font-size:0.76rem!important;}.ln{min-width:36px!important;padding:0 8px!important;}
+  .controls{flex-wrap:wrap!important;padding:10px 14px!important;gap:6px!important;height:auto!important;}
+  .btn{padding:6px 10px!important;font-size:0.8rem!important;}.speed-wrap{margin-left:0!important;width:100%;}
+  .desc-box{padding:8px 14px!important;font-size:0.8rem!important;}
+}
+</style>
+<script src="../nav.js"></script>
+<script src="../lang.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>消费者组与 Rebalance</h1>
+  <div class="tags">
+    <span class="badge" style="background:rgba(192,132,252,0.15);color:#c084fc">Consumer Group</span>
+    <span class="badge" style="background:rgba(251,191,36,0.15);color:#fbbf24">Rebalance</span>
+    <span class="badge" style="background:rgba(56,189,248,0.15);color:#38bdf8">Coordinator</span>
+  </div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="viz-area">
+      <svg id="mainSvg" width="100%" height="100%" viewBox="0 0 760 360" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#94a3b8"/></marker>
+          <marker id="arrP" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#c084fc"/></marker>
+          <marker id="arrG" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#4ade80"/></marker>
+          <marker id="arrY" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#fbbf24"/></marker>
+        </defs>
+
+        <!-- Group Coordinator (Broker side) -->
+        <rect x="280" y="20" width="200" height="80" rx="10" fill="rgba(192,132,252,0.06)" stroke="#c084fc" stroke-width="1.5" id="rCoord"/>
+        <text x="380" y="48" text-anchor="middle" font-size="12" fill="#c084fc" font-weight="600" font-family="'Segoe UI',sans-serif">Group Coordinator</text>
+        <text x="380" y="65" text-anchor="middle" font-size="10" fill="#94a3b8" font-family="monospace">(Broker 上的特殊角色)</text>
+        <text id="tCoordStatus" x="380" y="82" text-anchor="middle" font-size="9" fill="#64748b" font-family="monospace">等待 JoinGroup...</text>
+
+        <!-- Partition boxes (top) -->
+        <rect x="30" y="20" width="70" height="40" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1" id="rTP0"/>
+        <text x="65" y="38" text-anchor="middle" font-size="10" fill="#38bdf8" font-weight="600" font-family="monospace" id="tTP0">P0</text>
+        <text x="65" y="52" text-anchor="middle" font-size="9" fill="#64748b" font-family="monospace" id="tTP0Owner">-</text>
+
+        <rect x="110" y="20" width="70" height="40" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1" id="rTP1"/>
+        <text x="145" y="38" text-anchor="middle" font-size="10" fill="#38bdf8" font-weight="600" font-family="monospace" id="tTP1">P1</text>
+        <text x="145" y="52" text-anchor="middle" font-size="9" fill="#64748b" font-family="monospace" id="tTP1Owner">-</text>
+
+        <rect x="190" y="20" width="70" height="40" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1" id="rTP2"/>
+        <text x="225" y="38" text-anchor="middle" font-size="10" fill="#38bdf8" font-weight="600" font-family="monospace" id="tTP2">P2</text>
+        <text x="225" y="52" text-anchor="middle" font-size="9" fill="#64748b" font-family="monospace" id="tTP2Owner">-</text>
+
+        <!-- Consumer 1 -->
+        <rect x="30" y="160" width="160" height="70" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5" id="rC1"/>
+        <text x="110" y="188" text-anchor="middle" font-size="11" fill="#e2e8f0" font-weight="600" font-family="'Segoe UI',sans-serif">Consumer-1</text>
+        <text id="tC1Status" x="110" y="205" text-anchor="middle" font-size="9" fill="#64748b" font-family="monospace">GroupID: order-svc</text>
+        <text id="tC1Assign" x="110" y="220" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="monospace">分区: -</text>
+
+        <!-- Consumer 2 -->
+        <rect x="300" y="160" width="160" height="70" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5" id="rC2"/>
+        <text x="380" y="188" text-anchor="middle" font-size="11" fill="#e2e8f0" font-weight="600" font-family="'Segoe UI',sans-serif">Consumer-2</text>
+        <text id="tC2Status" x="380" y="205" text-anchor="middle" font-size="9" fill="#64748b" font-family="monospace">GroupID: order-svc</text>
+        <text id="tC2Assign" x="380" y="220" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="monospace">分区: -</text>
+
+        <!-- Consumer 3 (initially invisible) -->
+        <rect x="560" y="160" width="160" height="70" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5" id="rC3" opacity="0.2"/>
+        <text id="tC3Name" x="640" y="188" text-anchor="middle" font-size="11" fill="#94a3b8" font-weight="600" font-family="'Segoe UI',sans-serif">Consumer-3</text>
+        <text id="tC3Status" x="640" y="205" text-anchor="middle" font-size="9" fill="#64748b" font-family="monospace">（即将加入）</text>
+        <text id="tC3Assign" x="640" y="220" text-anchor="middle" font-size="9" fill="#64748b" font-family="monospace">分区: -</text>
+
+        <!-- Arrows C1→Coord -->
+        <line id="aJ1" x1="160" y1="185" x2="280" y2="80" stroke="#334155" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr)" opacity="0"/>
+        <!-- Arrows C2→Coord -->
+        <line id="aJ2" x1="380" y1="160" x2="380" y2="100" stroke="#334155" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr)" opacity="0"/>
+        <!-- Arrows C3→Coord -->
+        <line id="aJ3" x1="560" y1="185" x2="480" y2="80" stroke="#334155" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr)" opacity="0"/>
+        <!-- SyncGroup down arrows -->
+        <line id="aS1" x1="280" y1="80" x2="180" y2="155" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrP)" opacity="0"/>
+        <line id="aS2" x1="380" y1="100" x2="380" y2="155" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrP)" opacity="0"/>
+        <line id="aS3" x1="480" y1="80" x2="570" y2="155" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrP)" opacity="0"/>
+
+        <!-- Partition ownership lines -->
+        <line id="oP0C1" x1="65" y1="60" x2="80" y2="158" stroke="#4ade80" stroke-width="1.5" marker-end="url(#arrG)" opacity="0"/>
+        <line id="oP1C1" x1="145" y1="60" x2="120" y2="158" stroke="#4ade80" stroke-width="1.5" marker-end="url(#arrG)" opacity="0"/>
+        <line id="oP2C2" x1="225" y1="60" x2="320" y2="158" stroke="#38bdf8" stroke-width="1.5" marker-end="url(#arr)" opacity="0"/>
+
+        <!-- After rebalance with C3 -->
+        <line id="oP0C1b" x1="65" y1="60" x2="75" y2="158" stroke="#4ade80" stroke-width="1.5" marker-end="url(#arrG)" opacity="0"/>
+        <line id="oP1C2b" x1="145" y1="60" x2="340" y2="158" stroke="#38bdf8" stroke-width="1.5" marker-end="url(#arr)" opacity="0"/>
+        <line id="oP2C3b" x1="225" y1="60" x2="595" y2="158" stroke="#c084fc" stroke-width="1.5" marker-end="url(#arrP)" opacity="0"/>
+
+        <!-- Rebalance indicator -->
+        <rect id="rRebAlert" x="240" y="130" width="280" height="24" rx="6" fill="rgba(251,191,36,0.1)" stroke="#fbbf24" stroke-width="1" opacity="0"/>
+        <text id="tRebAlert" x="380" y="146" text-anchor="middle" font-size="10" fill="#fbbf24" font-family="monospace" opacity="0">⚠ Rebalance 触发 — 所有消费者暂停消费</text>
+
+        <text id="tStatus" x="380" y="280" text-anchor="middle" font-size="11" fill="#94a3b8" font-family="'Segoe UI',sans-serif">点击播放，了解 Consumer Group 工作原理</text>
+      </svg>
+    </div>
+    <div class="desc-box">
+      <span id="descText">消费者组：同一 GroupID 的 Consumer 共同消费一个 Topic，每个 Partition 只被一个 Consumer 消费</span>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#c084fc"></div>
+      <span data-base="consumer_group">consumer_group.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" onclick="reset()">⏮ 重置</button>
+  <button class="btn" id="btnPrev" onclick="prev()">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+  <button class="btn" id="btnNext" onclick="next()">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedSlider" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+const CODE_LINES=[
+  {html:'<span class="kw">package</span> main'},
+  {html:''},
+  {html:'<span class="kw">import</span> ('},
+  {html:'&nbsp;&nbsp;<span class="st">"context"</span>'},
+  {html:'&nbsp;&nbsp;<span class="st">"fmt"</span>'},
+  {html:'&nbsp;&nbsp;<span class="st">"github.com/segmentio/kafka-go"</span>'},
+  {html:')'},
+  {html:''},
+  {html:'<span class="kw">func</span> <span class="fn">startConsumer</span>(id <span class="kw">string</span>) {'},
+  {html:'&nbsp;&nbsp;<span class="fn">r</span> := <span class="fn">kafka.NewReader</span>(<span class="fn">kafka.ReaderConfig</span>{'},
+  {html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">Brokers</span>: []<span class="kw">string</span>{<span class="st">"localhost:9092"</span>},'},
+  {html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">GroupID</span>: <span class="st">"order-svc"</span>, <span class="cm">// 同一 GroupID</span>'},
+  {html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">Topic</span>:&nbsp;&nbsp; <span class="st">"orders"</span>,'},
+  {html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">GroupBalancers</span>: []<span class="fn">kafka.GroupBalancer</span>{'},
+  {html:'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">kafka.RangeGroupBalancer</span>{}, <span class="cm">// Range 分区策略</span>'},
+  {html:'&nbsp;&nbsp;&nbsp;&nbsp;},'},
+  {html:'&nbsp;&nbsp;})'},
+  {html:'&nbsp;&nbsp;<span class="kw">defer</span> <span class="fn">r.Close</span>()'},
+  {html:''},
+  {html:'&nbsp;&nbsp;<span class="cm">// JoinGroup + SyncGroup 由 SDK 自动处理</span>'},
+  {html:'&nbsp;&nbsp;<span class="kw">for</span> {'},
+  {html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">msg</span>, _ := <span class="fn">r.ReadMessage</span>(<span class="fn">context.Background</span>())'},
+  {html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"[%s] partition=%d offset=%d\\n"</span>,'},
+  {html:'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">id</span>, <span class="fn">msg.Partition</span>, <span class="fn">msg.Offset</span>)'},
+  {html:'&nbsp;&nbsp;}'},
+  {html:'}'},
+  {html:''},
+  {html:'<span class="kw">func</span> <span class="fn">main</span>() {'},
+  {html:'&nbsp;&nbsp;<span class="cm">// 启动 2 个 Consumer 实例，SDK 自动分配分区</span>'},
+  {html:'&nbsp;&nbsp;<span class="kw">go</span> <span class="fn">startConsumer</span>(<span class="st">"C1"</span>)'},
+  {html:'&nbsp;&nbsp;<span class="kw">go</span> <span class="fn">startConsumer</span>(<span class="st">"C2"</span>)'},
+  {html:'&nbsp;&nbsp;<span class="cm">// C3 加入后触发 Rebalance，分区重新分配</span>'},
+  {html:'&nbsp;&nbsp;<span class="kw">go</span> <span class="fn">startConsumer</span>(<span class="st">"C3"</span>)'},
+  {html:'&nbsp;&nbsp;<span class="kw">select</span>{}'},
+  {html:'}'},
+];
+
+window.LANG_PLAIN={
+  js:`const { Kafka } = require('kafkajs');
+const kafka = new Kafka({ clientId:'app', brokers:['localhost:9092'] });
+
+async function startConsumer(consumerId) {
+  // 同一 GroupID 的所有 consumer 共享 partition
+  const consumer = kafka.consumer({ groupId: 'order-svc' });
+  await consumer.connect();
+  await consumer.subscribe({ topic: 'orders' });
+
+  await consumer.run({
+    eachMessage: async ({ partition, message }) => {
+      console.log(\`[\${consumerId}] partition=\${partition} offset=\${message.offset}\`);
+    },
+  });
+}
+
+// 启动 2 个 Consumer，SDK 自动分配分区
+startConsumer('C1');
+startConsumer('C2');
+// C3 加入时触发 Rebalance
+startConsumer('C3');`,
+  py:`from kafka import KafkaConsumer
+import threading
+
+def start_consumer(consumer_id):
+    # 同一 group_id 的所有 consumer 共享 partition
+    consumer = KafkaConsumer(
+        'orders',
+        group_id='order-svc',
+        bootstrap_servers=['localhost:9092'],
+    )
+    for msg in consumer:
+        print(f'[{consumer_id}] partition={msg.partition} offset={msg.offset}')
+
+# 启动 2 个 Consumer
+t1 = threading.Thread(target=start_consumer, args=('C1',))
+t2 = threading.Thread(target=start_consumer, args=('C2',))
+t1.start(); t2.start()
+
+# C3 加入时触发 Rebalance
+t3 = threading.Thread(target=start_consumer, args=('C3',))
+t3.start()`
+};
+
+const STEPS=[
+  {highlightLines:[9,10,11,12,13],hlJs:[3,4,5,6],hlPy:[4,5,6,7,8],description:'Consumer-1 启动，向 Group Coordinator 发送 JoinGroup 请求，携带 GroupID 和 Topic 订阅信息'},
+  {highlightLines:[9,10,11,12,13],hlJs:[3,4,5,6],hlPy:[4,5,6,7,8],description:'Consumer-2 启动，同样发送 JoinGroup — Coordinator 等待所有成员加入（session.timeout.ms 内）'},
+  {highlightLines:[14,15,16],hlJs:[6],hlPy:[6],description:'Group Leader 选举 — Coordinator 从第一个 JoinGroup 的 Consumer 中选 Group Leader'},
+  {highlightLines:[14,15,16],hlJs:[6],hlPy:[6],description:'Group Leader 制定分区分配方案（Range 策略）: P0→C1, P1→C1, P2→C2'},
+  {highlightLines:[20,21,22,23,24],hlJs:[9,10,11,12],hlPy:[10,11],description:'SyncGroup — Coordinator 将分配方案下发给所有 Consumer，各自开始消费指定 Partition'},
+  {highlightLines:[20,21,22,23,24],hlJs:[9,10,11,12],hlPy:[10,11],description:'稳定消费中 — C1 消费 P0+P1，C2 消费 P2，Consumer Lag 持续减少'},
+  {highlightLines:[32,33],hlJs:[18,19],hlPy:[16,17],description:'Consumer-3 加入 — 发送 JoinGroup 请求，触发 Rebalance'},
+  {highlightLines:[20,21],hlJs:[9,10],hlPy:[10,11],description:'⚠ Stop-The-World — 所有 Consumer 暂停消费，等待新分配方案（这是 Kafka 的主要痛点）'},
+  {highlightLines:[14,15,16],hlJs:[6],hlPy:[6],description:'新分配方案（3个Consumer平均）: P0→C1, P1→C2, P2→C3 — 每人各负责一个 Partition'},
+  {highlightLines:[20,21,22,23,24],hlJs:[9,10,11,12],hlPy:[10,11],description:'Rebalance 完成 — 3 个 Consumer 重新开始消费，吞吐量提升，系统恢复稳定'},
+];
+
+let step=0,playing=false,timer=null;
+function getSpeed(){return 1600-(parseInt(document.getElementById('speedSlider').value)-1)*300;}
+
+function setOpacity(id,v){const e=document.getElementById(id);if(e)e.setAttribute('opacity',v);}
+function setStroke(id,c){const e=document.getElementById(id);if(e)e.style.stroke=c;}
+function setTextFill(id,c){const e=document.getElementById(id);if(e)e.style.fill=c;}
+
+function renderViz(){
+  // Reset
+  ['aJ1','aJ2','aJ3','aS1','aS2','aS3','oP0C1','oP1C1','oP2C2','oP0C1b','oP1C2b','oP2C3b','rRebAlert','tRebAlert'].forEach(id=>setOpacity(id,'0'));
+  setOpacity('rC3','0.2');
+  setStroke('rC1','#334155'); setStroke('rC2','#334155'); setStroke('rC3','#334155');
+  document.getElementById('tC1Assign').textContent='分区: -';
+  document.getElementById('tC2Assign').textContent='分区: -';
+  document.getElementById('tC3Assign').textContent='分区: -';
+  document.getElementById('tCoordStatus').textContent='等待 JoinGroup...';
+  document.getElementById('tTP0Owner').textContent='-'; document.getElementById('rTP0').style.stroke='#334155';
+  document.getElementById('tTP1Owner').textContent='-'; document.getElementById('rTP1').style.stroke='#334155';
+  document.getElementById('tTP2Owner').textContent='-'; document.getElementById('rTP2').style.stroke='#334155';
+
+  if(step>=0){
+    setOpacity('aJ1','1'); setStroke('rC1','#c084fc');
+    document.getElementById('tC1Status').textContent='→ JoinGroup';
+    document.getElementById('tCoordStatus').textContent='收到 C1 JoinGroup';
+  }
+  if(step>=1){
+    setOpacity('aJ2','1'); setStroke('rC2','#c084fc');
+    document.getElementById('tC2Status').textContent='→ JoinGroup';
+    document.getElementById('tCoordStatus').textContent='所有成员已加入，选举 Leader';
+  }
+  if(step>=2){
+    document.getElementById('tCoordStatus').textContent='C1 = Group Leader';
+    setStroke('rC1','#fbbf24');
+    document.getElementById('tC1Status').textContent='Group Leader ★';
+  }
+  if(step>=3){
+    document.getElementById('tCoordStatus').textContent='制定分配方案中...';
+    document.getElementById('tC1Status').textContent='计算 Range 分配';
+  }
+  if(step>=4){
+    setOpacity('aS1','1'); setOpacity('aS2','1');
+    setOpacity('oP0C1','1'); setOpacity('oP1C1','1'); setOpacity('oP2C2','1');
+    document.getElementById('tC1Assign').textContent='分区: P0, P1';
+    document.getElementById('tC2Assign').textContent='分区: P2';
+    document.getElementById('tCoordStatus').textContent='SyncGroup 完成';
+    document.getElementById('tTP0Owner').textContent='→C1'; document.getElementById('rTP0').style.stroke='#4ade80';
+    document.getElementById('tTP1Owner').textContent='→C1'; document.getElementById('rTP1').style.stroke='#4ade80';
+    document.getElementById('tTP2Owner').textContent='→C2'; document.getElementById('rTP2').style.stroke='#38bdf8';
+  }
+  if(step>=5){
+    setStroke('rC1','#4ade80'); setStroke('rC2','#4ade80');
+    document.getElementById('tC1Status').textContent='消费中 ✓';
+    document.getElementById('tC2Status').textContent='消费中 ✓';
+  }
+  if(step>=6){
+    setOpacity('rC3','1'); setOpacity('aJ3','1');
+    setStroke('rC3','#c084fc');
+    document.getElementById('tC3Status').textContent='→ JoinGroup';
+    document.getElementById('tCoordStatus').textContent='C3 加入！触发 Rebalance';
+    setStroke('rCoord','#fbbf24');
+  }
+  if(step>=7){
+    setOpacity('rRebAlert','1'); setOpacity('tRebAlert','1');
+    setStroke('rC1','#fbbf24'); setStroke('rC2','#fbbf24'); setStroke('rC3','#fbbf24');
+    document.getElementById('tC1Status').textContent='暂停消费 ⚠';
+    document.getElementById('tC2Status').textContent='暂停消费 ⚠';
+    document.getElementById('tC3Status').textContent='暂停消费 ⚠';
+    setOpacity('oP0C1','0'); setOpacity('oP1C1','0'); setOpacity('oP2C2','0');
+  }
+  if(step>=8){
+    setOpacity('rRebAlert','0'); setOpacity('tRebAlert','0');
+    setOpacity('aS1','1'); setOpacity('aS2','1'); setOpacity('aS3','1');
+    setOpacity('oP0C1b','1'); setOpacity('oP1C2b','1'); setOpacity('oP2C3b','1');
+    document.getElementById('tC1Assign').textContent='分区: P0';
+    document.getElementById('tC2Assign').textContent='分区: P1';
+    document.getElementById('tC3Assign').textContent='分区: P2';
+    document.getElementById('tTP0Owner').textContent='→C1'; document.getElementById('rTP0').style.stroke='#4ade80';
+    document.getElementById('tTP1Owner').textContent='→C2'; document.getElementById('rTP1').style.stroke='#38bdf8';
+    document.getElementById('tTP2Owner').textContent='→C3'; document.getElementById('rTP2').style.stroke='#c084fc';
+  }
+  if(step>=9){
+    setStroke('rC1','#4ade80'); setStroke('rC2','#4ade80'); setStroke('rC3','#4ade80');
+    document.getElementById('tC1Status').textContent='消费中 ✓';
+    document.getElementById('tC2Status').textContent='消费中 ✓';
+    document.getElementById('tC3Status').textContent='消费中 ✓';
+    document.getElementById('tCoordStatus').textContent='Rebalance 完成';
+    setStroke('rCoord','#c084fc');
+  }
+}
+
+function renderCode(){
+  const lines=LangSwitcher.getLines(LangSwitcher.current)||CODE_LINES;
+  const hl=step<STEPS.length?LangSwitcher.getHL(STEPS[step]):[];
+  document.getElementById('codeBody').innerHTML=lines.map((l,i)=>
+    `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
+      <span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
+  ).join('');
+  const a=document.querySelector('.code-line.active');if(a)a.scrollIntoView({block:'nearest'});
+}
+
+function render(){
+  renderViz();renderCode();
+  document.getElementById('descText').textContent=step<STEPS.length?STEPS[step].description:'演示完成';
+  document.getElementById('stepCounter').textContent=`${Math.min(step+1,STEPS.length)} / ${STEPS.length}`;
+  document.getElementById('btnPrev').disabled=step===0;
+  document.getElementById('btnNext').disabled=step>=STEPS.length-1;
+}
+
+function jumpToLine(ln){for(let i=STEPS.length-1;i>=0;i--){if(LangSwitcher.getHL(STEPS[i]).includes(ln)){step=i;render();return;}}}
+function next(){if(step<STEPS.length-1){step++;render();}}
+function prev(){if(step>0){step--;render();}}
+function reset(){step=0;render();if(playing){playing=false;clearInterval(timer);document.getElementById('btnPlay').textContent='▶ 播放';}}
+function togglePlay(){
+  playing=!playing;
+  document.getElementById('btnPlay').textContent=playing?'⏸ 暂停':'▶ 播放';
+  if(playing){timer=setInterval(()=>{if(step>=STEPS.length-1){playing=false;clearInterval(timer);document.getElementById('btnPlay').textContent='▶ 播放';return;}step++;render();},getSpeed());}
+  else clearInterval(timer);
+}
+
+LangSwitcher.init(renderCode);
+render();
+if(window.NavTracker)NavTracker.track('消费者组Rebalance','kafka/consumer-group.html','📦','Kafka');
+</script>
+</body>
+</html>

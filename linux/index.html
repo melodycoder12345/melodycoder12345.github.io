@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Linux 内核原理 - 可视化学习</title>
+<style>
+:root{
+  --bg:#0f172a; --panel:#1e293b; --panel2:#0d1117;
+  --border:#334155; --text:#e2e8f0; --dim:#94a3b8; --dim2:#64748b;
+  --blue:#38bdf8; --yellow:#fbbf24; --orange:#fb923c;
+  --green:#4ade80; --purple:#c084fc; --red:#f87171; --teal:#2dd4bf;
+  --linux:#f7c948;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;}
+header{padding:48px 40px 32px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,#0f172a 0%,#1a1505 60%,#0f172a 100%);}
+header h1{font-size:2.4rem;font-weight:700;background:linear-gradient(90deg,var(--linux),#fb923c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;}
+header p{color:var(--dim);font-size:1.05rem;max-width:600px;}
+.legend{display:flex;gap:20px;margin-top:20px;flex-wrap:wrap;}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:0.85rem;color:var(--dim);}
+.legend-dot{width:10px;height:10px;border-radius:50%;}
+main{padding:40px;max-width:1200px;margin:0 auto;}
+
+/* Concept section */
+.concept-section{margin-bottom:48px;background:var(--panel);border:1px solid var(--border);border-radius:16px;overflow:hidden;}
+.concept-header{padding:20px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.02);}
+.concept-header h2{font-size:1.15rem;font-weight:600;}
+.concept-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);padding:0 24px;overflow-x:auto;}
+.tab-btn{background:none;border:none;color:var(--dim);padding:12px 20px;cursor:pointer;font-size:0.88rem;white-space:nowrap;border-bottom:2px solid transparent;transition:all 0.15s;font-family:inherit;}
+.tab-btn:hover{color:var(--text);}
+.tab-btn.active{color:var(--linux);border-bottom-color:var(--linux);}
+.tab-panel{display:none;padding:28px;}
+.tab-panel.active{display:block;}
+
+/* Info cards */
+.concept-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;}
+.concept-card{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:18px 20px;}
+.concept-card h3{font-size:0.95rem;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:8px;}
+.concept-card p{font-size:0.83rem;color:var(--dim);line-height:1.6;}
+.concept-card ul{font-size:0.83rem;color:var(--dim);line-height:1.8;padding-left:16px;}
+
+/* Kernel/user space diagram */
+.arch-diagram{display:flex;flex-direction:column;gap:8px;max-width:600px;}
+.arch-row{padding:12px 20px;border-radius:8px;font-size:0.88rem;font-weight:500;text-align:center;border:1px solid;}
+.arch-row.user{background:rgba(56,189,248,0.08);border-color:rgba(56,189,248,0.25);color:var(--blue);}
+.arch-row.syscall{background:rgba(247,201,72,0.08);border-color:rgba(247,201,72,0.25);color:var(--linux);font-size:0.78rem;letter-spacing:0.05em;}
+.arch-row.kernel{background:rgba(251,146,60,0.08);border-color:rgba(251,146,60,0.25);color:var(--orange);}
+.arch-row.hw{background:rgba(74,222,128,0.08);border-color:rgba(74,222,128,0.25);color:var(--green);}
+.arch-arrow{text-align:center;color:var(--dim2);font-size:0.75rem;}
+
+/* Roadmap */
+.roadmap{display:flex;flex-direction:column;gap:12px;}
+.road-level{display:flex;gap:12px;align-items:flex-start;}
+.road-badge{min-width:72px;padding:4px 10px;border-radius:6px;font-size:0.75rem;font-weight:600;text-align:center;flex-shrink:0;}
+.road-items{font-size:0.83rem;color:var(--dim);line-height:1.7;}
+
+/* Cards */
+.section{margin-bottom:40px;}
+.section-title{font-size:1.1rem;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+.section-title::before{content:'';display:inline-block;width:3px;height:16px;border-radius:2px;background:var(--linux);}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px;text-decoration:none;color:inherit;transition:all 0.2s;position:relative;overflow:hidden;}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:12px 12px 0 0;background:var(--linux);}
+.card:hover{transform:translateY(-3px);border-color:#475569;box-shadow:0 8px 24px rgba(0,0,0,0.4);}
+.card-icon{font-size:1.8rem;margin-bottom:10px;}
+.card-name{font-size:1.15rem;font-weight:600;margin-bottom:6px;}
+.card-desc{font-size:0.85rem;color:var(--dim);line-height:1.5;margin-bottom:14px;}
+.card-meta{display:flex;gap:8px;flex-wrap:wrap;}
+.badge{font-size:0.72rem;padding:2px 8px;border-radius:100px;font-family:monospace;font-weight:500;}
+.badge.linux{background:rgba(247,201,72,0.15);color:var(--linux);}
+.badge.sys{background:rgba(251,146,60,0.15);color:var(--orange);}
+.badge.hard{background:rgba(248,113,113,0.15);color:var(--red);}
+.badge.medium{background:rgba(251,191,36,0.15);color:var(--yellow);}
+
+/* Subsystem table */
+.sys-table{width:100%;border-collapse:collapse;font-size:0.85rem;}
+.sys-table th{padding:9px 14px;text-align:left;color:var(--dim);font-weight:600;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;border-bottom:2px solid var(--border);}
+.sys-table td{padding:10px 14px;border-bottom:1px solid rgba(51,65,85,0.4);vertical-align:top;line-height:1.5;}
+.sys-table tr:last-child td{border-bottom:none;}
+.sys-table tr:hover td{background:rgba(255,255,255,0.03);}
+.tag{display:inline-block;padding:1px 7px;border-radius:3px;font-size:0.72rem;font-family:monospace;margin:0 2px 2px 0;}
+
+@media(max-width:640px){
+  header{padding:28px 16px 20px!important;}
+  header h1{font-size:1.6rem!important;}
+  main{padding:24px 16px!important;}
+  .cards{grid-template-columns:1fr!important;}
+  .card{padding:16px!important;}
+  .concept-tabs{padding:0 12px!important;}
+  .tab-btn{padding:10px 12px!important;font-size:0.82rem!important;}
+  .tab-panel{padding:16px!important;}
+  .road-level{flex-direction:column;gap:6px;}
+}
+</style>
+<script src="../nav.js"></script>
+</head>
+<body>
+<header>
+  <h1>Linux 内核原理</h1>
+  <p>深入理解操作系统 · 进程 · 内存 · IO · 文件系统</p>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#f7c948"></div>进程管理</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#38bdf8"></div>内存管理</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#4ade80"></div>文件系统</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#c084fc"></div>IO 子系统</div>
+  </div>
+</header>
+
+<main>
+  <div class="concept-section">
+    <div class="concept-header">
+      <span style="font-size:1.4rem">🐧</span>
+      <h2>基础概念</h2>
+      <span style="color:var(--dim);font-size:0.85rem;margin-left:8px">操作系统核心原理</span>
+    </div>
+    <div class="concept-tabs">
+      <button class="tab-btn active" onclick="switchTab('intro',this)">Linux 简介</button>
+      <button class="tab-btn" onclick="switchTab('subsys',this)">核心子系统</button>
+      <button class="tab-btn" onclick="switchTab('roadmap',this)">学习路线</button>
+    </div>
+
+    <!-- Tab: Linux 简介 -->
+    <div class="tab-panel active" id="tab-intro">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start;">
+        <div>
+          <h3 style="font-size:0.95rem;margin-bottom:16px;color:var(--text)">内核空间 vs 用户空间</h3>
+          <div class="arch-diagram">
+            <div class="arch-row user">用户进程 (User Space)<br><span style="font-size:0.75rem;opacity:0.7">shell · 浏览器 · nginx · Go程序</span></div>
+            <div class="arch-arrow">↑ 系统调用 (syscall) ↓</div>
+            <div class="arch-row syscall">─────── syscall 边界 ───────<br><span style="font-size:0.72rem">write() read() fork() mmap() socket()</span></div>
+            <div class="arch-row kernel">Linux 内核 (Kernel Space)<br><span style="font-size:0.75rem;opacity:0.7">进程调度 · 内存管理 · VFS · 网络栈</span></div>
+            <div class="arch-arrow">↑ 驱动接口 ↓</div>
+            <div class="arch-row hw">硬件 (Hardware)<br><span style="font-size:0.75rem;opacity:0.7">CPU · RAM · 磁盘 · 网卡 · 键盘</span></div>
+          </div>
+        </div>
+        <div>
+          <h3 style="font-size:0.95rem;margin-bottom:14px;color:var(--text)">为什么要有内核态/用户态分离?</h3>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="padding:12px 16px;background:rgba(247,201,72,0.06);border-radius:8px;border-left:3px solid var(--linux);font-size:0.83rem;color:var(--dim);line-height:1.7">
+              <strong style="color:var(--text)">安全隔离</strong><br>
+              用户程序无法直接访问硬件或其他进程的内存，崩溃不影响系统
+            </div>
+            <div style="padding:12px 16px;background:rgba(56,189,248,0.06);border-radius:8px;border-left:3px solid var(--blue);font-size:0.83rem;color:var(--dim);line-height:1.7">
+              <strong style="color:var(--text)">资源管理</strong><br>
+              内核统一管理 CPU、内存、IO 资源，实现多进程共享硬件
+            </div>
+            <div style="padding:12px 16px;background:rgba(74,222,128,0.06);border-radius:8px;border-left:3px solid var(--green);font-size:0.83rem;color:var(--dim);line-height:1.7">
+              <strong style="color:var(--text)">系统调用开销</strong><br>
+              用户态→内核态切换需保存寄存器，约 100-300ns，设计时需最小化 syscall 次数
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: 核心子系统 -->
+    <div class="tab-panel" id="tab-subsys">
+      <table class="sys-table">
+        <thead>
+          <tr><th>子系统</th><th>功能</th><th>关键概念</th><th>相关页面</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong style="color:var(--linux)">进程管理</strong></td>
+            <td style="color:var(--dim)">创建/销毁进程，调度 CPU 时间</td>
+            <td>
+              <span class="tag" style="background:rgba(247,201,72,0.1);color:var(--linux)">fork/exec</span>
+              <span class="tag" style="background:rgba(247,201,72,0.1);color:var(--linux)">CFS</span>
+              <span class="tag" style="background:rgba(247,201,72,0.1);color:var(--linux)">进程状态</span>
+            </td>
+            <td><a href="process-lifecycle.html" style="color:var(--blue);text-decoration:none">进程生命周期 →</a><br><a href="scheduling.html" style="color:var(--blue);text-decoration:none">CFS 调度 →</a></td>
+          </tr>
+          <tr>
+            <td><strong style="color:var(--blue)">内存管理</strong></td>
+            <td style="color:var(--dim)">虚拟地址映射，物理内存分配</td>
+            <td>
+              <span class="tag" style="background:rgba(56,189,248,0.1);color:var(--blue)">页表</span>
+              <span class="tag" style="background:rgba(56,189,248,0.1);color:var(--blue)">TLB</span>
+              <span class="tag" style="background:rgba(56,189,248,0.1);color:var(--blue)">缺页异常</span>
+            </td>
+            <td><a href="virtual-memory.html" style="color:var(--blue);text-decoration:none">虚拟内存 →</a></td>
+          </tr>
+          <tr>
+            <td><strong style="color:var(--green)">VFS 文件系统</strong></td>
+            <td style="color:var(--dim)">统一文件操作接口，支持多种 FS</td>
+            <td>
+              <span class="tag" style="background:rgba(74,222,128,0.1);color:var(--green)">inode</span>
+              <span class="tag" style="background:rgba(74,222,128,0.1);color:var(--green)">dentry</span>
+              <span class="tag" style="background:rgba(74,222,128,0.1);color:var(--green)">ext4</span>
+            </td>
+            <td><a href="filesystem.html" style="color:var(--blue);text-decoration:none">文件系统 →</a></td>
+          </tr>
+          <tr>
+            <td><strong style="color:var(--purple)">IO 子系统</strong></td>
+            <td style="color:var(--dim)">处理设备 IO，实现多路复用</td>
+            <td>
+              <span class="tag" style="background:rgba(192,132,252,0.1);color:var(--purple)">epoll</span>
+              <span class="tag" style="background:rgba(192,132,252,0.1);color:var(--purple)">select</span>
+              <span class="tag" style="background:rgba(192,132,252,0.1);color:var(--purple)">io_uring</span>
+            </td>
+            <td><a href="io-models.html" style="color:var(--blue);text-decoration:none">IO 模型 →</a></td>
+          </tr>
+          <tr>
+            <td><strong style="color:var(--teal)">网络栈</strong></td>
+            <td style="color:var(--dim)">TCP/IP 协议栈，socket 接口</td>
+            <td>
+              <span class="tag" style="background:rgba(45,212,191,0.1);color:var(--teal)">socket</span>
+              <span class="tag" style="background:rgba(45,212,191,0.1);color:var(--teal)">TCP/IP</span>
+              <span class="tag" style="background:rgba(45,212,191,0.1);color:var(--teal)">sk_buff</span>
+            </td>
+            <td style="color:var(--dim2)">敬请期待</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Tab: 学习路线 -->
+    <div class="tab-panel" id="tab-roadmap">
+      <div class="roadmap">
+        <div class="road-level">
+          <div class="road-badge" style="background:rgba(74,222,128,0.15);color:var(--green)">入门</div>
+          <div class="road-items">
+            进程的概念与生命周期 → 虚拟地址空间布局 → 文件描述符与 IO → 信号机制 → 基础 shell 命令原理
+          </div>
+        </div>
+        <div style="padding-left:36px;color:var(--dim2);font-size:0.75rem">↓</div>
+        <div class="road-level">
+          <div class="road-badge" style="background:rgba(251,191,36,0.15);color:var(--yellow)">进阶</div>
+          <div class="road-items">
+            页表与 TLB 机制 → mmap 与零拷贝 → epoll 事件驱动 → CFS 完全公平调度器 → ext4 文件系统 inode 结构 → 内存映射与 Copy-on-Write
+          </div>
+        </div>
+        <div style="padding-left:36px;color:var(--dim2);font-size:0.75rem">↓</div>
+        <div class="road-level">
+          <div class="road-badge" style="background:rgba(248,113,113,0.15);color:var(--red)">深入</div>
+          <div class="road-items">
+            NUMA 架构 → io_uring 异步 IO → eBPF 内核可编程 → cgroup v2 资源隔离 → 内核网络收发路径 → 内存 SLAB 分配器 → 实时调度 SCHED_FIFO
+          </div>
+        </div>
+        <div style="padding-left:36px;color:var(--dim2);font-size:0.75rem">↓</div>
+        <div class="road-level">
+          <div class="road-badge" style="background:rgba(192,132,252,0.15);color:var(--purple)">内核</div>
+          <div class="road-items">
+            阅读 Linux 内核源码 (linux/kernel/) → 编写内核模块 → 内核调试 ftrace/kprobe → 贡献 upstream patch
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cards Section -->
+  <div class="section">
+    <div class="section-title">Linux 内核子系统可视化</div>
+    <div class="cards">
+      <a href="process-lifecycle.html" class="card">
+        <div class="card-icon">🔄</div>
+        <div class="card-name">进程生命周期</div>
+        <div class="card-desc">fork/exec/wait/zombie 完整状态机动画，孤儿进程与守护进程原理</div>
+        <div class="card-meta">
+          <span class="badge linux">进程管理</span>
+          <span class="badge medium">中级</span>
+        </div>
+      </a>
+      <a href="virtual-memory.html" class="card">
+        <div class="card-icon">🗺️</div>
+        <div class="card-name">虚拟内存</div>
+        <div class="card-desc">页表结构、TLB 命中/缺失、缺页异常处理流程，mmap 文件映射</div>
+        <div class="card-meta">
+          <span class="badge linux">内存管理</span>
+          <span class="badge hard">进阶</span>
+        </div>
+      </a>
+      <a href="io-models.html" class="card">
+        <div class="card-icon">⚡</div>
+        <div class="card-name">IO 模型</div>
+        <div class="card-desc">阻塞/非阻塞/IO多路复用/epoll/io_uring 5种模型对比时序图</div>
+        <div class="card-meta">
+          <span class="badge linux">IO 子系统</span>
+          <span class="badge hard">进阶</span>
+        </div>
+      </a>
+      <a href="filesystem.html" class="card">
+        <div class="card-icon">📁</div>
+        <div class="card-name">文件系统</div>
+        <div class="card-desc">inode 结构、目录项、硬链接与软链接、VFS 抽象层原理</div>
+        <div class="card-meta">
+          <span class="badge linux">VFS</span>
+          <span class="badge medium">中级</span>
+        </div>
+      </a>
+      <a href="scheduling.html" class="card">
+        <div class="card-icon">⚖️</div>
+        <div class="card-name">进程调度 CFS</div>
+        <div class="card-desc">完全公平调度器红黑树动画，virtual_runtime 与 nice 值机制</div>
+        <div class="card-meta">
+          <span class="badge linux">调度器</span>
+          <span class="badge hard">进阶</span>
+        </div>
+      </a>
+    </div>
+  </div>
+</main>
+
+<script>
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+if (window.NavTracker) {
+  NavTracker.track('Linux 内核原理', window.location.href, '🐧', 'Linux');
+}
+</script>
+<script src="../footer.js"></script>
+</body>
+</html>

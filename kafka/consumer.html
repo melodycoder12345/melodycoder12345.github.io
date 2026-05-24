@@ -1,0 +1,427 @@
+<!-- FILE: kafka/consumer.html -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kafka Consumer 消费原理 - 可视化学习</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;--teal:#2dd4bf;--kafka:#ff6b35;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}.tags{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;overflow:hidden;position:relative;background:var(--panel2);}
+.desc-box{padding:12px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.9rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;font-style:italic;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.3);color:var(--blue);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
+
+@media(max-width:768px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;overflow-x:hidden;}
+  nav{flex-wrap:wrap;padding:10px 16px;gap:6px;height:auto!important;}
+  nav h1{font-size:1rem;flex:1;}
+  .tags{margin-left:0!important;width:100%;order:3;margin-top:4px;}
+  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
+  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:360px!important;min-height:360px!important;flex:none!important;overflow:hidden;}
+  .code-panel{width:100%!important;min-width:unset!important;height:340px!important;flex:none!important;}
+  .code-line{font-size:0.76rem!important;}
+  .ln{min-width:36px!important;padding:0 8px!important;}
+  .controls{flex-wrap:wrap!important;padding:10px 14px!important;gap:6px!important;height:auto!important;}
+  .btn{padding:6px 10px!important;font-size:0.8rem!important;}
+  .speed-wrap{margin-left:0!important;width:100%;justify-content:flex-end;}
+  .desc-box{padding:8px 14px!important;font-size:0.8rem!important;}
+}
+</style>
+<script src="../nav.js"></script>
+<script src="../lang.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn" onclick="if(window.NavTracker)NavTracker.track('Kafka','kafka/index.html','📦','Kafka')">← 返回</a>
+  <h1>Kafka Consumer 消费原理</h1>
+  <div class="tags">
+    <span class="badge" style="background:rgba(74,222,128,0.15);color:#4ade80">Consumer</span>
+    <span class="badge" style="background:rgba(56,189,248,0.15);color:#38bdf8">Offset</span>
+    <span class="badge" style="background:rgba(251,191,36,0.15);color:#fbbf24">Commit</span>
+  </div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="viz-area" id="vizArea">
+      <svg id="mainSvg" width="100%" height="100%" viewBox="0 0 760 380" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#94a3b8"/>
+          </marker>
+          <marker id="arrowGreen" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#4ade80"/>
+          </marker>
+          <marker id="arrowBlue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#38bdf8"/>
+          </marker>
+          <marker id="arrowYellow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#fbbf24"/>
+          </marker>
+          <marker id="arrowRed" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#f87171"/>
+          </marker>
+        </defs>
+
+        <!-- Partition log -->
+        <g id="gPartition">
+          <rect x="20" y="60" width="380" height="120" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+          <text x="210" y="88" text-anchor="middle" font-size="12" fill="#38bdf8" font-family="'Segoe UI',sans-serif" font-weight="600">Partition 0 (Topic: orders)</text>
+
+          <!-- Log segments -->
+          <g id="gLog">
+            <!-- offset 0 -->
+            <rect x="32" y="98" width="52" height="30" rx="4" fill="rgba(74,222,128,0.15)" stroke="rgba(74,222,128,0.35)" stroke-width="1"/>
+            <text x="58" y="113" text-anchor="middle" font-size="9" fill="#4ade80" font-family="monospace" font-weight="600">off:0</text>
+            <text x="58" y="124" text-anchor="middle" font-size="8" fill="#64748b" font-family="monospace">已消费</text>
+            <!-- offset 1 -->
+            <rect x="88" y="98" width="52" height="30" rx="4" fill="rgba(74,222,128,0.15)" stroke="rgba(74,222,128,0.35)" stroke-width="1"/>
+            <text x="114" y="113" text-anchor="middle" font-size="9" fill="#4ade80" font-family="monospace" font-weight="600">off:1</text>
+            <text x="114" y="124" text-anchor="middle" font-size="8" fill="#64748b" font-family="monospace">已消费</text>
+            <!-- offset 2 (current) -->
+            <rect x="144" y="98" width="52" height="30" rx="4" id="rOff2" fill="rgba(251,191,36,0.2)" stroke="rgba(251,191,36,0.5)" stroke-width="1.5"/>
+            <text x="170" y="113" text-anchor="middle" font-size="9" fill="#fbbf24" font-family="monospace" font-weight="600">off:2</text>
+            <text x="170" y="124" text-anchor="middle" font-size="8" fill="#fbbf24" font-family="monospace">当前</text>
+            <!-- offset 3 -->
+            <rect x="200" y="98" width="52" height="30" rx="4" fill="rgba(56,189,248,0.1)" stroke="rgba(56,189,248,0.2)" stroke-width="1"/>
+            <text x="226" y="113" text-anchor="middle" font-size="9" fill="#38bdf8" font-family="monospace" font-weight="600">off:3</text>
+            <text x="226" y="124" text-anchor="middle" font-size="8" fill="#64748b" font-family="monospace">未消费</text>
+            <!-- offset 4 -->
+            <rect x="256" y="98" width="52" height="30" rx="4" fill="rgba(56,189,248,0.1)" stroke="rgba(56,189,248,0.2)" stroke-width="1"/>
+            <text x="282" y="113" text-anchor="middle" font-size="9" fill="#38bdf8" font-family="monospace" font-weight="600">off:4</text>
+            <text x="282" y="124" text-anchor="middle" font-size="8" fill="#64748b" font-family="monospace">未消费</text>
+            <!-- newest -->
+            <rect x="312" y="98" width="78" height="30" rx="4" fill="rgba(56,189,248,0.05)" stroke="rgba(56,189,248,0.15)" stroke-width="1" stroke-dasharray="4,2"/>
+            <text x="351" y="113" text-anchor="middle" font-size="9" fill="#64748b" font-family="monospace">off:5 (最新)</text>
+          </g>
+
+          <!-- Offset pointer -->
+          <line id="offsetPointer" x1="170" y1="132" x2="170" y2="152" stroke="#fbbf24" stroke-width="2" marker-end="url(#arrowYellow)"/>
+          <text id="tConsumerOffset" x="170" y="168" text-anchor="middle" font-size="10" fill="#fbbf24" font-family="monospace">consumer offset: 2</text>
+
+          <!-- Lag indicator -->
+          <line x1="170" y1="138" x2="350" y2="138" stroke="#f87171" stroke-width="1" stroke-dasharray="3,2" opacity="0.6"/>
+          <text x="270" y="148" text-anchor="middle" font-size="9" fill="#f87171" font-family="monospace" opacity="0.6">lag = 3</text>
+        </g>
+
+        <!-- Arrow: fetch request -->
+        <line id="arrowFetch" x1="400" y1="120" x2="490" y2="120" stroke="#334155" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+        <text x="445" y="113" text-anchor="middle" font-size="9" fill="#64748b" font-family="monospace">Fetch</text>
+
+        <!-- Consumer -->
+        <g id="gConsumer">
+          <rect x="490" y="60" width="120" height="120" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+          <text x="550" y="90" text-anchor="middle" font-size="12" fill="#4ade80" font-family="'Segoe UI',sans-serif" font-weight="600">Consumer</text>
+          <text x="550" y="106" text-anchor="middle" font-size="9" fill="#64748b" font-family="monospace">payment-service</text>
+
+          <rect x="502" y="114" width="96" height="22" rx="4" fill="rgba(251,191,36,0.1)" stroke="rgba(251,191,36,0.3)" stroke-width="1" id="rProcessing"/>
+          <text x="550" y="129" text-anchor="middle" font-size="9" fill="#fbbf24" font-family="monospace" id="tProcessing">处理消息...</text>
+          <rect x="502" y="142" width="96" height="22" rx="4" fill="rgba(74,222,128,0.08)" stroke="rgba(74,222,128,0.2)" stroke-width="1"/>
+          <text x="550" y="157" text-anchor="middle" font-size="9" fill="#4ade80" font-family="monospace" id="tCommit">commit offset</text>
+        </g>
+
+        <!-- Offset Store -->
+        <g id="gOffsetStore">
+          <rect x="630" y="60" width="120" height="80" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+          <text x="690" y="88" text-anchor="middle" font-size="10" fill="#c084fc" font-family="'Segoe UI',sans-serif" font-weight="600">__consumer_offsets</text>
+          <text x="690" y="103" text-anchor="middle" font-size="9" fill="#64748b" font-family="monospace">Kafka 内部 Topic</text>
+          <text x="690" y="120" text-anchor="middle" font-size="10" fill="#94a3b8" font-family="monospace" id="tStoredOffset">stored: 2</text>
+        </g>
+
+        <!-- Commit arrow -->
+        <path id="arrowCommit" d="M 550 162 C 550 185 690 185 690 142" fill="none" stroke="#334155" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arrowhead)"/>
+        <text x="630" y="198" text-anchor="middle" font-size="9" fill="#64748b" font-family="monospace" id="tCommitLabel">CommitMessages</text>
+
+        <!-- Rebalance section -->
+        <g id="gRebalance" opacity="0.3">
+          <rect x="20" y="230" width="740" height="130" rx="10" fill="rgba(248,113,113,0.04)" stroke="rgba(248,113,113,0.2)" stroke-width="1" stroke-dasharray="5,3"/>
+          <text x="380" y="255" text-anchor="middle" font-size="12" fill="#f87171" font-family="'Segoe UI',sans-serif" font-weight="600">Rebalance 触发场景</text>
+
+          <!-- Consumer offline icon -->
+          <rect x="40" y="265" width="130" height="80" rx="8" fill="rgba(248,113,113,0.08)" stroke="rgba(248,113,113,0.25)" stroke-width="1"/>
+          <text x="105" y="287" text-anchor="middle" font-size="10" fill="#f87171" font-family="'Segoe UI',sans-serif" font-weight="600">Consumer 下线</text>
+          <text x="105" y="301" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="monospace">心跳超时</text>
+          <text x="105" y="315" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="monospace">session.timeout.ms</text>
+          <text x="105" y="330" text-anchor="middle" font-size="9" fill="#f87171" font-family="monospace">→ 分区重新分配</text>
+
+          <!-- Consumer join -->
+          <rect x="200" y="265" width="130" height="80" rx="8" fill="rgba(74,222,128,0.08)" stroke="rgba(74,222,128,0.25)" stroke-width="1"/>
+          <text x="265" y="287" text-anchor="middle" font-size="10" fill="#4ade80" font-family="'Segoe UI',sans-serif" font-weight="600">新 Consumer 加入</text>
+          <text x="265" y="301" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="monospace">JoinGroup 请求</text>
+          <text x="265" y="315" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="monospace">触发重新平衡</text>
+          <text x="265" y="330" text-anchor="middle" font-size="9" fill="#4ade80" font-family="monospace">→ 分区重新分配</text>
+
+          <!-- Stop the world -->
+          <rect x="360" y="265" width="160" height="80" rx="8" fill="rgba(251,191,36,0.08)" stroke="rgba(251,191,36,0.25)" stroke-width="1"/>
+          <text x="440" y="287" text-anchor="middle" font-size="10" fill="#fbbf24" font-family="'Segoe UI',sans-serif" font-weight="600">Stop-The-World</text>
+          <text x="440" y="301" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="monospace">Rebalance 期间</text>
+          <text x="440" y="315" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="monospace">所有消费者暂停</text>
+          <text x="440" y="330" text-anchor="middle" font-size="9" fill="#fbbf24" font-family="monospace">→ 性能影响</text>
+
+          <!-- Sticky -->
+          <rect x="550" y="265" width="190" height="80" rx="8" fill="rgba(196,132,252,0.08)" stroke="rgba(196,132,252,0.25)" stroke-width="1"/>
+          <text x="645" y="287" text-anchor="middle" font-size="10" fill="#c084fc" font-family="'Segoe UI',sans-serif" font-weight="600">StickyAssignor 优化</text>
+          <text x="645" y="301" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="monospace">尽量保持原有分配</text>
+          <text x="645" y="315" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="monospace">减少不必要迁移</text>
+          <text x="645" y="330" text-anchor="middle" font-size="9" fill="#c084fc" font-family="monospace">→ 降低抖动</text>
+        </g>
+
+        <!-- Message ball -->
+        <circle id="msgBall" cx="400" cy="120" r="5" fill="#4ade80" opacity="0"/>
+      </svg>
+    </div>
+    <div class="desc-box">
+      <span id="descText">点击播放查看 Consumer 消费流程</span>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px" data-base="kafka_consumer">kafka_consumer.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+const CODE_LINES = [
+  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
+  {html:``},
+  {html:`<span class="kw">import</span> (`},
+  {html:`&nbsp;&nbsp;<span class="st">"context"</span>`},
+  {html:`&nbsp;&nbsp;<span class="st">"fmt"</span>`},
+  {html:`&nbsp;&nbsp;<span class="st">"github.com/segmentio/kafka-go"</span>`},
+  {html:`)`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">consumeWithManualCommit</span>() {`},
+  {html:`&nbsp;&nbsp;<span class="cm">// 创建 Reader，加入 consumer group</span>`},
+  {html:`&nbsp;&nbsp;r := kafka.<span class="fn">NewReader</span>(kafka.<span class="fn">ReaderConfig</span>{`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">Brokers</span>:  []<span class="kw">string</span>{<span class="st">"localhost:9092"</span>},`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">GroupID</span>:  <span class="st">"payment-service"</span>,`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">Topic</span>:    <span class="st">"orders"</span>,`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">MinBytes</span>: <span class="num">1</span>,    <span class="cm">// 至少读 1 字节才返回</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">MaxBytes</span>: <span class="num">10e6</span>, <span class="cm">// 最多 10MB</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// CommitInterval=0 → 禁用自动提交 (手动模式)</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">CommitInterval</span>: <span class="num">0</span>,`},
+  {html:`&nbsp;&nbsp;})`},
+  {html:`&nbsp;&nbsp;<span class="kw">defer</span> r.<span class="fn">Close</span>()`},
+  {html:``},
+  {html:`&nbsp;&nbsp;<span class="kw">for</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// FetchMessage 获取消息，不提交 offset</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;msg, err := r.<span class="fn">FetchMessage</span>(context.<span class="fn">Background</span>())`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">break</span> }`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 业务处理</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"处理消息: offset=%d\n"</span>, msg.<span class="fn">Offset</span>)`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 处理成功后手动提交 offset</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> err := r.<span class="fn">CommitMessages</span>(context.<span class="fn">Background</span>(), msg); err != <span class="kw">nil</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"提交失败: %v\n"</span>, err)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;}`},
+  {html:`}`},
+];
+
+window.LANG_PLAIN = {
+  js: `const { Kafka } = require('kafkajs');
+
+const kafka = new Kafka({ brokers: ['localhost:9092'] });
+const consumer = kafka.consumer({ groupId: 'payment-service' });
+
+await consumer.connect();
+await consumer.subscribe({ topic: 'orders', fromBeginning: false });
+
+// 禁用自动提交，使用手动提交
+await consumer.run({
+  autoCommit: false,
+  eachMessage: async ({ topic, partition, message, heartbeat, resolveOffset }) => {
+    const offset = message.offset;
+
+    // 从上次提交的 Offset 开始消费
+    console.log(\`处理消息: partition=\${partition} offset=\${offset}\`);
+
+    // 业务处理
+    await processOrder(message.value.toString());
+
+    // 手动提交 Offset（处理成功后）
+    await consumer.commitOffsets([{
+      topic, partition,
+      offset: (Number(offset) + 1).toString()
+    }]);
+    console.log(\`Offset \${offset} 提交成功\`);
+  }
+});`,
+  py: `from kafka import KafkaConsumer
+from kafka.structs import OffsetAndMetadata, TopicPartition
+
+# 手动提交模式
+consumer = KafkaConsumer(
+    'orders',
+    group_id='payment-service',
+    bootstrap_servers=['localhost:9092'],
+    enable_auto_commit=False,   # 禁用自动提交
+    auto_offset_reset='latest'  # 从最新位置开始
+)
+
+# 消费循环
+for msg in consumer:
+    partition = msg.partition
+    offset = msg.offset
+
+    # 从上次提交的 Offset 开始读取
+    print(f'处理消息: partition={partition} offset={offset}')
+
+    try:
+        # 业务处理
+        process_order(msg.value)
+
+        # 手动提交 Offset
+        tp = TopicPartition(msg.topic, partition)
+        consumer.commit({tp: OffsetAndMetadata(offset + 1, None)})
+        print(f'Offset {offset} 提交成功')
+    except Exception as e:
+        print(f'处理失败，不提交 offset: {e}')`
+};
+
+const STEPS = [
+  { highlightLines:[9,10,11,12,13,14,15,16,17,18,19], hlJs:[2,3,4,5,6,7,8,9,10], hlPy:[3,4,5,6,7,8,9,10,11,12], description:"Consumer 订阅 Topic 'orders'，GroupID='payment-service'，CommitInterval=0 启用手动提交" },
+  { highlightLines:[22,23,24,25], hlJs:[14,15,16], hlPy:[14,15,16], description:"Step 1: 发送 Fetch Request 给 Broker，从上次提交的 Offset=2 位置开始拉取消息" },
+  { highlightLines:[23,24], hlJs:[14,15], hlPy:[14,15], description:"Step 2: FetchMessage 返回 offset=2 的消息，消费者开始处理业务逻辑" },
+  { highlightLines:[27,28], hlJs:[17,18,19,20], hlPy:[18,19,20,21,22], description:"Step 3: 业务处理完成，调用 CommitMessages 手动提交 Offset" },
+  { highlightLines:[30,31,32], hlJs:[21,22,23,24,25,26], hlPy:[24,25,26,27,28], description:"Step 4: Offset 写入 Kafka 内部 Topic __consumer_offsets，stored offset 更新为 3" },
+  { highlightLines:[17,18], hlJs:[8,9,10], hlPy:[5,6,7,8,9,10,11,12], description:"Step 5: auto-commit 模式 (CommitInterval > 0)：定时自动提交，简单但可能重复消费" },
+  { highlightLines:[22,23,24], hlJs:[14,15,16], hlPy:[14,15,16,17], description:"Step 6: 消费者崩溃/下线 → 心跳超时 (session.timeout.ms) → 触发 Rebalance" },
+  { highlightLines:[33,34,35], hlJs:[26,27,28,29,30,31], hlPy:[23,24,25,26,27,28,29,30,31], description:"Step 7: Rebalance 期间所有消费者暂停 (Stop-The-World)，Coordinator 重新分配分区" },
+  { highlightLines:[11,12,13,14,15,16,17,18,19], hlJs:[2,3,4,5,6,7,8,9], hlPy:[3,4,5,6,7,8,9,10,11], description:"Step 8: Rebalance 完成，消费者重新从已提交的 Offset 开始消费，保证 at-least-once 语义" },
+];
+
+let cur = 0, playing = false, timer = null;
+const SPEED = [1200,800,500,300,150];
+
+function setOpacity(ids, val) {
+  ids.forEach(id => { const el = document.getElementById(id); if(el){ el.style.opacity=val; el.style.transition='opacity 0.4s'; }});
+}
+
+function highlightSVG(step) {
+  setOpacity(['gPartition','gConsumer','gOffsetStore','gRebalance'], '0.3');
+  document.getElementById('arrowCommit').setAttribute('stroke','#334155');
+  document.getElementById('arrowCommit').setAttribute('stroke-dasharray','5,3');
+
+  if(step === 0){
+    setOpacity(['gPartition','gConsumer'],'1');
+    document.getElementById('tConsumerOffset').textContent = 'consumer offset: 2';
+    document.getElementById('tStoredOffset').textContent = 'stored: 2';
+  } else if(step === 1){
+    setOpacity(['gPartition','gConsumer'],'1');
+    document.getElementById('arrowFetch').setAttribute('stroke','#38bdf8');
+    document.getElementById('arrowFetch').setAttribute('marker-end','url(#arrowBlue)');
+    animateBall(490, 400, '#38bdf8');
+  } else if(step === 2){
+    setOpacity(['gPartition','gConsumer'],'1');
+    document.getElementById('tProcessing').textContent = '处理 offset:2';
+    animateBall(400, 490, '#4ade80');
+  } else if(step === 3){
+    setOpacity(['gConsumer','gOffsetStore'],'1');
+    document.getElementById('arrowCommit').setAttribute('stroke','#4ade80');
+    document.getElementById('arrowCommit').setAttribute('stroke-dasharray','0');
+  } else if(step === 4){
+    setOpacity(['gConsumer','gOffsetStore'],'1');
+    document.getElementById('arrowCommit').setAttribute('stroke','#4ade80');
+    document.getElementById('arrowCommit').setAttribute('stroke-dasharray','0');
+    document.getElementById('tConsumerOffset').textContent = 'consumer offset: 3';
+    document.getElementById('tStoredOffset').textContent = 'stored: 3';
+  } else if(step === 5){
+    setOpacity(['gPartition','gConsumer','gOffsetStore'],'1');
+    document.getElementById('tCommit').textContent = 'auto commit';
+  } else if(step === 6 || step === 7){
+    setOpacity(['gPartition','gConsumer','gRebalance'],'1');
+    document.getElementById('gRebalance').style.opacity = '1';
+  } else if(step === 8){
+    setOpacity(['gPartition','gConsumer','gOffsetStore'],'1');
+    document.getElementById('arrowCommit').setAttribute('stroke','#4ade80');
+    document.getElementById('arrowCommit').setAttribute('stroke-dasharray','0');
+  }
+}
+
+let ballTimer = null;
+function animateBall(x1, x2, color) {
+  const ball = document.getElementById('msgBall');
+  ball.setAttribute('cx', x1); ball.setAttribute('cy', 120);
+  ball.setAttribute('fill', color); ball.setAttribute('opacity','1');
+  let prog = 0;
+  if(ballTimer) clearInterval(ballTimer);
+  ballTimer = setInterval(() => {
+    prog += 0.05;
+    if(prog >= 1) { clearInterval(ballTimer); ball.setAttribute('opacity','0'); return; }
+    ball.setAttribute('cx', x1 + (x2-x1)*prog);
+  }, 30);
+}
+
+function renderCode() {
+  const step = STEPS[cur];
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current)) || CODE_LINES;
+  const hl = LangSwitcher.getHL(step);
+  const body = document.getElementById('codeBody');
+  body.innerHTML = lines.map((line, i) => {
+    const active = hl.includes(i) ? ' active' : '';
+    return `<div class="code-line${active}"><span class="ln">${i+1}</span><span class="lc">${line.html||'&nbsp;'}</span></div>`;
+  }).join('');
+  const el = body.querySelector('.code-line.active');
+  if(el) el.scrollIntoView({block:'nearest'});
+}
+
+function render() {
+  const s = STEPS[cur];
+  highlightSVG(cur);
+  renderCode();
+  document.getElementById('descText').textContent = s.description;
+  document.getElementById('stepCounter').textContent = `${cur+1} / ${STEPS.length}`;
+  document.getElementById('btnPrev').disabled = cur === 0;
+  document.getElementById('btnNext').disabled = cur === STEPS.length - 1;
+}
+
+function play(){if(cur>=STEPS.length-1)cur=0;playing=true;document.getElementById('btnPlay').innerHTML='⏸ 暂停';tick();}
+function pause(){playing=false;clearTimeout(timer);document.getElementById('btnPlay').innerHTML='▶ 播放';}
+function tick(){if(!playing)return;if(cur<STEPS.length-1){cur++;render();timer=setTimeout(tick,SPEED[parseInt(document.getElementById('speedRange').value)-1]);}else pause();}
+document.getElementById('btnPlay').addEventListener('click',()=>playing?pause():play());
+document.getElementById('btnPrev').addEventListener('click',()=>{pause();if(cur>0){cur--;render();}});
+document.getElementById('btnNext').addEventListener('click',()=>{pause();if(cur<STEPS.length-1){cur++;render();}});
+document.getElementById('btnReset').addEventListener('click',()=>{pause();cur=0;render();});
+LangSwitcher.init(renderCode);
+render();
+</script>
+</body>
+</html>

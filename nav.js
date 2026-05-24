@@ -6,7 +6,7 @@
 
   const H = 44;
   const RKEY = 'recentPages_v2';
-  const HOME = /\/(algo|db)\//.test(window.location.pathname) ? '../index.html' : 'index.html';
+  const HOME = /\/(algo|db|kafka|redis|linux|network)\//.test(window.location.pathname) ? '../index.html' : 'index.html';
 
   // ── Inject body padding IMMEDIATELY (sync, before body renders) ──
   // This prevents the layout-shift flash

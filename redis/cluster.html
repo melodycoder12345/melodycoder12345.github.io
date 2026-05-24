@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Redis 集群原理 - 可视化学习</title>
+<style>
+:root{
+  --bg:#0f172a; --panel:#1e293b; --panel2:#0d1117;
+  --border:#334155; --text:#e2e8f0; --dim:#94a3b8; --dim2:#64748b;
+  --blue:#38bdf8; --yellow:#fbbf24; --orange:#fb923c;
+  --green:#4ade80; --purple:#c084fc; --red:#f87171; --teal:#2dd4bf;
+  --redis:#dc382c;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;flex-wrap:wrap;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;transition:color 0.15s;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.15rem;font-weight:600;}
+.badges{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;}
+.badge{font-size:0.72rem;padding:3px 10px;border-radius:100px;font-family:monospace;font-weight:500;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;overflow-y:auto;padding:20px 24px;}
+.desc-box{padding:10px 20px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:48px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:46%;min-width:360px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:10px 0;background:var(--panel2);}
+.code-body::-webkit-scrollbar{width:5px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:0;cursor:pointer;transition:background 0.12s;font-family:'JetBrains Mono',monospace;font-size:0.8rem;line-height:1.65;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:44px;padding:0 10px 0 14px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.76rem;}
+.lc{padding:0 14px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;}.id{color:#e6edf3;}
+.controls{display:flex;align-items:center;gap:8px;padding:10px 20px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:6px 14px;border-radius:7px;cursor:pointer;font-size:0.83rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(220,56,44,0.15);border-color:rgba(220,56,44,0.4);color:var(--redis);}
+.btn:disabled{opacity:0.38;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:6px;margin-left:auto;font-size:0.78rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:80px;height:3px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--redis);cursor:pointer;}
+
+/* Cluster visualization */
+.cluster-grid{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;margin:10px 0 16px;}
+.node-pair{display:flex;flex-direction:column;align-items:center;gap:8px;}
+.node{width:110px;height:70px;border-radius:10px;border:2px solid;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.8rem;font-weight:600;transition:all 0.4s;cursor:default;text-align:center;padding:4px;}
+.node .node-name{font-size:0.85rem;font-weight:700;}
+.node .node-slots{font-size:0.68rem;opacity:0.8;font-family:monospace;margin-top:2px;}
+.node .node-port{font-size:0.65rem;color:var(--dim2);}
+.replica-line{width:2px;height:16px;background:var(--border);border-radius:1px;}
+.node.master{background:rgba(56,189,248,0.08);border-color:rgba(56,189,248,0.4);color:var(--blue);}
+.node.slave{background:rgba(255,255,255,0.03);border-color:rgba(255,255,255,0.12);color:var(--dim);}
+.node.active{box-shadow:0 0 16px currentColor;transform:scale(1.05);}
+.node.failed{background:rgba(248,113,113,0.1);border-color:rgba(248,113,113,0.4);color:var(--red);opacity:0.7;}
+.node.promoted{background:rgba(74,222,128,0.1);border-color:rgba(74,222,128,0.5);color:var(--green);box-shadow:0 0 14px rgba(74,222,128,0.4);}
+.slot-bar{display:flex;height:18px;border-radius:4px;overflow:hidden;margin-bottom:12px;}
+.slot-seg{display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:600;transition:all 0.4s;}
+.slot-seg.active{box-shadow:inset 0 0 0 2px rgba(255,255,255,0.5);}
+.info-row{display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap;}
+.info-box{padding:10px 14px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;font-size:0.8rem;flex:1;min-width:140px;}
+.info-box strong{color:var(--text);display:block;margin-bottom:4px;}
+.gossip-row{display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:7px;margin-bottom:8px;font-size:0.8rem;}
+.gossip-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.pulse{animation:pulse 1s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
+.moved-box{padding:10px 14px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.3);border-radius:8px;font-family:monospace;font-size:0.8rem;color:var(--yellow);margin-bottom:12px;}
+
+@media(max-width:768px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;}
+  nav{flex-wrap:wrap;padding:8px 14px;gap:6px;}
+  nav h1{font-size:0.95rem;}
+  .badges{margin-left:0!important;width:100%;order:3;}
+  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
+  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:360px!important;min-height:360px!important;flex:none!important;}
+  .code-panel{width:100%!important;min-width:unset!important;height:320px!important;flex:none!important;}
+  .controls{flex-wrap:wrap!important;gap:5px!important;height:auto!important;}
+  .speed-wrap{margin-left:0!important;width:100%;justify-content:flex-end;}
+  .cluster-grid{gap:12px!important;}
+  .node{width:90px!important;height:60px!important;}
+}
+</style>
+<script src="../nav.js"></script>
+<script src="../lang.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>Redis 集群原理</h1>
+  <div class="badges">
+    <span class="badge" style="background:rgba(220,56,44,0.15);color:#dc382c">Cluster</span>
+    <span class="badge" style="background:rgba(56,189,248,0.15);color:#38bdf8">哈希槽</span>
+    <span class="badge" style="background:rgba(74,222,128,0.15);color:#4ade80">故障转移</span>
+  </div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="viz-area" id="vizArea">
+      <div style="color:var(--dim);font-size:0.9rem;padding:20px 0;">点击"下一步"开始演示</div>
+    </div>
+    <div class="desc-box">
+      <span id="descText">Redis Cluster 通过哈希槽分片实现水平扩展，3 主 3 从提供高可用。</span>
+      <span class="step-counter" id="stepCounter">0 / 10</span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px" data-base="cluster">cluster.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+NavTracker.track('Redis 集群', 'redis/cluster.html', '🌐', 'Redis');
+
+const CODE_LINES = [
+  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
+  {html:``},
+  {html:`<span class="kw">import</span> (`},
+  {html:`&nbsp;&nbsp;<span class="st">"context"</span>`},
+  {html:`&nbsp;&nbsp;<span class="st">"fmt"</span>`},
+  {html:`&nbsp;&nbsp;<span class="st">"github.com/redis/go-redis/v9"</span>`},
+  {html:`)`},
+  {html:``},
+  {html:`<span class="kw">var</span> <span class="id">ctx</span> = <span class="pkg">context</span>.<span class="fn">Background</span>()`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">main</span>() {`},
+  {html:`&nbsp;&nbsp;<span class="cm">// 创建集群客户端</span>`},
+  {html:`&nbsp;&nbsp;<span class="id">rdb</span> := <span class="id">redis</span>.<span class="fn">NewClusterClient</span>(&amp;<span class="id">redis</span>.<span class="fn">ClusterOptions</span>{`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">Addrs</span>: []<span class="kw">string</span>{`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"localhost:7000"</span>,`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"localhost:7001"</span>,`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"localhost:7002"</span>,`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"localhost:7003"</span>,`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"localhost:7004"</span>,`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"localhost:7005"</span>,`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;},`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 自动重定向 MOVED 响应</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">RouteByLatency</span>: <span class="kw">true</span>,`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">RouteRandomly</span>: <span class="kw">false</span>,`},
+  {html:`&nbsp;&nbsp;})`},
+  {html:`&nbsp;&nbsp;<span class="kw">defer</span> <span class="id">rdb</span>.<span class="fn">Close</span>()`},
+  {html:``},
+  {html:`&nbsp;&nbsp;<span class="cm">// 集群自动路由 key 到正确节点</span>`},
+  {html:`&nbsp;&nbsp;<span class="id">err</span> := <span class="id">rdb</span>.<span class="fn">Set</span>(<span class="id">ctx</span>, <span class="st">"user:1"</span>, <span class="st">"Alice"</span>, <span class="num">0</span>).<span class="fn">Err</span>()`},
+  {html:`&nbsp;&nbsp;<span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">panic</span>(<span class="id">err</span>)`},
+  {html:`&nbsp;&nbsp;}`},
+  {html:``},
+  {html:`&nbsp;&nbsp;<span class="cm">// {} 标签保证同一 slot</span>`},
+  {html:`&nbsp;&nbsp;<span class="id">rdb</span>.<span class="fn">Set</span>(<span class="id">ctx</span>, <span class="st">"{user:1}.name"</span>, <span class="st">"Alice"</span>, <span class="num">0</span>)`},
+  {html:`&nbsp;&nbsp;<span class="id">rdb</span>.<span class="fn">Set</span>(<span class="id">ctx</span>, <span class="st">"{user:1}.age"</span>, <span class="st">"25"</span>, <span class="num">0</span>)`},
+  {html:``},
+  {html:`&nbsp;&nbsp;<span class="cm">// 查看 key 所在槽</span>`},
+  {html:`&nbsp;&nbsp;<span class="id">slot</span> := <span class="id">redis</span>.<span class="fn">SlotForKey</span>(<span class="st">"user:1"</span>)`},
+  {html:`&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"user:1 在槽 %d\\n"</span>, <span class="id">slot</span>)`},
+  {html:`}`},
+];
+
+window.LANG_PLAIN = {
+  js: `const { createCluster } = require('redis');
+
+// Create cluster client
+const cluster = createCluster({
+    rootNodes: [
+        { url: 'redis://localhost:7000' },
+        { url: 'redis://localhost:7001' },
+        { url: 'redis://localhost:7002' },
+        { url: 'redis://localhost:7003' },
+        { url: 'redis://localhost:7004' },
+        { url: 'redis://localhost:7005' },
+    ],
+    // Automatically handles MOVED redirections
+    defaults: {
+        socket: { connectTimeout: 500 }
+    }
+});
+await cluster.connect();
+
+// Cluster auto-routes key to correct node
+await cluster.set('user:1', 'Alice');
+
+// {} tag ensures same slot (for multi-key operations)
+await cluster.set('{user:1}.name', 'Alice');
+await cluster.set('{user:1}.age', '25');
+
+// MGET requires keys in same slot
+const [name, age] = await cluster.mGet(['{user:1}.name', '{user:1}.age']);
+console.log(name, age);`,
+
+  py: `from redis.cluster import RedisCluster, ClusterNode
+
+# Create cluster client
+nodes = [
+    ClusterNode('localhost', 7000),
+    ClusterNode('localhost', 7001),
+    ClusterNode('localhost', 7002),
+]
+rc = RedisCluster(startup_nodes=nodes, decode_responses=True)
+
+# Cluster auto-routes key to correct node
+rc.set('user:1', 'Alice')
+
+# {} tag ensures same slot
+rc.set('{user:1}.name', 'Alice')
+rc.set('{user:1}.age', '25')
+
+# Multi-key ops require same slot
+rc.mset({'{user:1}.name': 'Alice', '{user:1}.age': '25'})
+result = rc.mget(['{user:1}.name', '{user:1}.age'])
+print(result)
+
+# Get cluster info
+info = rc.cluster_info()
+print('cluster_state:', info['cluster_state'])
+print('cluster_slots_assigned:', info['cluster_slots_assigned'])`
+};
+
+function clusterNodes(activeM, activeSlave, failedM, promotedSlave) {
+  const masters = [
+    {name:'Node 1', port:'7000', slots:'0-5460', color:'var(--blue)'},
+    {name:'Node 2', port:'7001', slots:'5461-10922', color:'var(--green)'},
+    {name:'Node 3', port:'7002', slots:'10923-16383', color:'var(--purple)'},
+  ];
+  const slaves = [
+    {name:'Slave 1', port:'7003', of:'Node 1'},
+    {name:'Slave 2', port:'7004', of:'Node 2'},
+    {name:'Slave 3', port:'7005', of:'Node 3'},
+  ];
+  return `<div class="cluster-grid">
+    ${masters.map((m, i) => {
+      const mClass = i === failedM ? 'failed' : i === activeM ? 'master active' : 'master';
+      const sClass = i === promotedSlave ? 'node promoted' : 'node slave';
+      return `<div class="node-pair">
+        <div class="node ${mClass}" style="${i===failedM?'':'color:'+m.color+';border-color:'+m.color.replace('var(--','rgba(').replace(')',',0.4)'+';background:'+m.color.replace('var(--','rgba(').replace(')',',0.06)'))}">
+          <div class="node-name">${i===failedM?'✗ '+m.name:m.name}</div>
+          <div class="node-slots">${m.slots}</div>
+          <div class="node-port">:${m.port}</div>
+        </div>
+        <div class="replica-line"></div>
+        <div class="${sClass}">
+          <div class="node-name">${i===promotedSlave?'✓ New Master':slaves[i].name}</div>
+          <div class="node-slots">${i===promotedSlave?masters[i].slots:'replica of '+m.name}</div>
+          <div class="node-port">:${slaves[i].port}</div>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+const STEPS = [
+  {
+    highlightLines:[11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26],
+    hlJs:[1,2,3,4,5,6,7,8,9,10,11,12,13], hlPy:[1,2,3,4,5,6,7,8],
+    description:"Redis Cluster: 3 主节点 + 3 从节点，主节点负责读写，从节点提供高可用备份",
+    render: () => renderOverview()
+  },
+  {
+    highlightLines:[27,28,29,30,31,32],
+    hlJs:[18,19], hlPy:[11,12],
+    description:"哈希槽分配: 16384 个槽平均分配给 3 个主节点，每个节点负责约 5461 个槽",
+    render: () => renderSlots()
+  },
+  {
+    highlightLines:[38,39,40],
+    hlJs:[18,19], hlPy:[11,12],
+    description:"Node 1: 槽 0-5460；Node 2: 5461-10922；Node 3: 10923-16383，槽映射存储在 cluster.conf",
+    render: () => renderSlotAssign()
+  },
+  {
+    highlightLines:[27,28,29,30,31,32,38,39,40],
+    hlJs:[18,19,20,21,22], hlPy:[11,12,13,14,15],
+    description:"写入 key 'user:1': CRC16('user:1') % 16384 = 5474 → 路由到 Node 2（槽 5461-10922）",
+    render: () => renderRouting()
+  },
+  {
+    highlightLines:[21,22,23,24],
+    hlJs:[18,19], hlPy:[11,12],
+    description:"MOVED 重定向: 客户端连接到错误节点时，收到 MOVED 5474 127.0.0.1:7001，自动重连",
+    render: () => renderMoved()
+  },
+  {
+    highlightLines:[33,34,35,36,37],
+    hlJs:[22,23,24,25,26], hlPy:[17,18,19,20],
+    description:"主从复制: Master 处理写命令后，异步将命令同步给 Slave（replication_offset 跟踪进度）",
+    render: () => renderReplication()
+  },
+  {
+    highlightLines:[38,39,40,41],
+    hlJs:[18,19,20], hlPy:[11,12,13],
+    description:"Gossip 协议: 每个节点随机选择一些节点交换 cluster_state，传播心跳和状态信息",
+    render: () => renderGossip()
+  },
+  {
+    highlightLines:[12,13,21,22,23,24],
+    hlJs:[4,5,6,7,8,9,10,11,12,13], hlPy:[4,5,6,7,8],
+    description:"Master 1 故障: 超过 cluster-node-timeout (默认 15s) 未响应心跳，被标记为 PFAIL",
+    render: () => renderFailure()
+  },
+  {
+    highlightLines:[12,13,21,22,23,24],
+    hlJs:[4,5,6,7,8,9,10], hlPy:[4,5,6,7,8],
+    description:"Slave 1 发起选举: 向其他 Master 广播 FAILOVER_AUTH_REQUEST，获得多数节点投票（≥ N/2+1）",
+    render: () => renderElection()
+  },
+  {
+    highlightLines:[12,13,21,22,23,24,25,26],
+    hlJs:[4,5,6,7,8,9,10,11,12,13], hlPy:[4,5,6,7,8],
+    description:"Slave 1 晋升为 Master: 接管槽 0-5460，集群恢复全部 16384 槽服务，客户端更新路由表",
+    render: () => renderPromotion()
+  },
+];
+
+let step = 0, playing = false, timer = null;
+const SPEED = [900,550,320,180,80];
+
+function renderOverview() {
+  document.getElementById('vizArea').innerHTML = `
+    <div style="font-size:0.88rem;font-weight:600;color:var(--blue);margin-bottom:14px;">Redis Cluster — 3 主 3 从架构</div>
+    ${clusterNodes(-1, -1, -1, -1)}
+    <div class="info-row">
+      <div class="info-box"><strong>总槽数</strong>16,384 个哈希槽</div>
+      <div class="info-box"><strong>最少节点</strong>3 主 (可选 + 从)</div>
+      <div class="info-box"><strong>可用性</strong>多数主节点存活即可服务</div>
+    </div>`;
+}
+
+function renderSlots() {
+  document.getElementById('vizArea').innerHTML = `
+    <div style="font-size:0.88rem;font-weight:600;color:var(--yellow);margin-bottom:12px;">哈希槽 — 16,384 个槽分配</div>
+    <div style="font-size:0.8rem;color:var(--dim);margin-bottom:8px;">16384 槽（0 ~ 16383）平均分配给 3 个主节点：</div>
+    <div class="slot-bar" style="margin-bottom:6px;">
+      <div class="slot-seg" style="width:33.3%;background:rgba(56,189,248,0.3);color:var(--blue);">0-5460</div>
+      <div class="slot-seg" style="width:33.3%;background:rgba(74,222,128,0.3);color:var(--green);">5461-10922</div>
+      <div class="slot-seg" style="width:33.4%;background:rgba(196,132,252,0.3);color:var(--purple);">10923-16383</div>
+    </div>
+    <div style="display:flex;gap:12px;font-size:0.75rem;margin-bottom:14px;">
+      <span style="color:var(--blue)">Node 1: 5461 槽</span>
+      <span style="color:var(--green)">Node 2: 5462 槽</span>
+      <span style="color:var(--purple)">Node 3: 5461 槽</span>
+    </div>
+    <div style="padding:12px 16px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.82rem;color:var(--dim);line-height:1.7;">
+      <strong style="color:var(--text)">为什么是 16384？</strong>
+      Redis 作者认为 16384 个槽足够大（16K 节点），
+      同时 CLUSTER GOSSIP 心跳包中用 2KB 位图表示槽信息，16384 / 8 = 2048 字节，
+      节省带宽。而 65536 需要 8KB，包太大。
+    </div>`;
+}
+
+function renderSlotAssign() {
+  document.getElementById('vizArea').innerHTML = `
+    <div style="font-size:0.88rem;font-weight:600;color:var(--blue);margin-bottom:12px;">槽分配 — 每个节点负责的槽范围</div>
+    ${clusterNodes(-1, -1, -1, -1)}
+    <div style="background:var(--panel2);border-radius:8px;padding:12px 16px;font-family:monospace;font-size:0.78rem;line-height:2;color:var(--dim2);">
+      <div><span style="color:var(--blue)">Node 1 (:7000)</span> → slots: 0-5460 &nbsp;&nbsp;(5461 slots)</div>
+      <div><span style="color:var(--green)">Node 2 (:7001)</span> → slots: 5461-10922 (5462 slots)</div>
+      <div><span style="color:var(--purple)">Node 3 (:7002)</span> → slots: 10923-16383 (5461 slots)</div>
+    </div>`;
+}
+
+function renderRouting() {
+  document.getElementById('vizArea').innerHTML = `
+    <div style="font-size:0.88rem;font-weight:600;color:var(--yellow);margin-bottom:12px;">Key 路由 — CRC16 哈希</div>
+    <div style="background:var(--panel2);border-radius:8px;padding:14px 16px;font-family:monospace;font-size:0.82rem;line-height:2;margin-bottom:14px;">
+      <div><span style="color:var(--dim)">// 计算 key 所在槽</span></div>
+      <div>slot = CRC16(<span style="color:var(--yellow)">"user:1"</span>) % 16384</div>
+      <div>&nbsp;&nbsp;&nbsp;&nbsp; = <span style="color:var(--orange)">55229</span> % 16384</div>
+      <div>&nbsp;&nbsp;&nbsp;&nbsp; = <span style="color:var(--green)">5474</span></div>
+      <div>&nbsp;</div>
+      <div>5474 ∈ [5461, 10922] → <span style="color:var(--green)">Node 2 (:7001)</span></div>
+    </div>
+    ${clusterNodes(1, -1, -1, -1)}`;
+}
+
+function renderMoved() {
+  document.getElementById('vizArea').innerHTML = `
+    <div style="font-size:0.88rem;font-weight:600;color:var(--yellow);margin-bottom:12px;">MOVED 重定向</div>
+    <div class="moved-box">
+      SET user:1 Alice &nbsp;&nbsp;<span style="color:var(--dim)">// 客户端发到 Node 1</span><br>
+      &lt; -MOVED 5474 127.0.0.1:7001<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--dim)">// 重定向到 Node 2</span>
+    </div>
+    <div style="padding:12px 16px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.82rem;color:var(--dim);line-height:1.7;margin-bottom:12px;">
+      <strong style="color:var(--text)">Smart Client：</strong>
+      go-redis 等客户端会缓存槽映射表，直接路由到正确节点（避免 MOVED 开销）。
+      只有槽迁移期间才会收到 MOVED，客户端自动更新路由表并重试。
+    </div>
+    <div style="padding:10px 14px;background:rgba(56,189,248,0.06);border-radius:8px;font-size:0.8rem;color:var(--blue);">
+      {} hash tag：SET {user:1}.name Alice → CRC16("user:1") 确保同一个 slot，允许多 key 操作
+    </div>`;
+}
+
+function renderReplication() {
+  document.getElementById('vizArea').innerHTML = `
+    <div style="font-size:0.88rem;font-weight:600;color:var(--green);margin-bottom:12px;">主从复制流程</div>
+    ${clusterNodes(-1, -1, -1, -1)}
+    <div class="timeline" style="margin-top:8px;padding-left:24px;">
+      <div style="position:relative;margin-bottom:10px;padding-left:20px;">
+        <div style="position:absolute;left:0;top:4px;width:10px;height:10px;border-radius:50%;background:var(--blue);border:2px solid var(--blue)"></div>
+        <div style="font-size:0.8rem;color:var(--dim)"><strong style="color:var(--text)">全量复制（首次）：</strong>Slave 发送 PSYNC，Master 执行 BGSAVE + 发送 RDB + 缓冲区</div>
+      </div>
+      <div style="position:relative;margin-bottom:10px;padding-left:20px;">
+        <div style="position:absolute;left:0;top:4px;width:10px;height:10px;border-radius:50%;background:var(--green);border:2px solid var(--green)"></div>
+        <div style="font-size:0.8rem;color:var(--dim)"><strong style="color:var(--text)">增量复制（持续）：</strong>Master 异步发送 replication backlog，Slave 执行追赶</div>
+      </div>
+      <div style="position:relative;padding-left:20px;">
+        <div style="position:absolute;left:0;top:4px;width:10px;height:10px;border-radius:50%;background:var(--yellow);border:2px solid var(--yellow)"></div>
+        <div style="font-size:0.8rem;color:var(--dim)"><strong style="color:var(--text)">断线重连：</strong>基于 replication_offset 判断是否需要全量 vs 增量同步</div>
+      </div>
+    </div>`;
+}
+
+function renderGossip() {
+  document.getElementById('vizArea').innerHTML = `
+    <div style="font-size:0.88rem;font-weight:600;color:var(--teal);margin-bottom:12px;">Gossip 协议 — 节点心跳</div>
+    ${[
+      {from:'Node 1', to:'Node 2', type:'PING', status:'alive'},
+      {from:'Node 2', to:'Node 3', type:'PING', status:'alive'},
+      {from:'Node 3', to:'Node 1', type:'PONG', status:'alive'},
+      {from:'Node 1', to:'Node 3', type:'MEET', status:''},
+    ].map(({from,to,type,status}) => `
+    <div class="gossip-row">
+      <div class="gossip-dot pulse" style="background:var(--teal)"></div>
+      <div style="font-family:monospace;font-size:0.8rem;color:var(--teal);">${type}</div>
+      <div style="flex:1;font-size:0.8rem;color:var(--dim);">${from} → ${to}</div>
+      ${status ? `<div style="font-size:0.72rem;color:var(--green);">${status}</div>` : ''}
+    </div>`).join('')}
+    <div style="margin-top:12px;padding:12px 16px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.82rem;color:var(--dim);line-height:1.7;">
+      每隔 1 秒，节点随机选 1 个节点发送 PING，携带集群状态信息（槽信息、节点状态）。
+      超过 cluster-node-timeout/2 未响应，标记为 PFAIL（可能失败），超过 timeout 标记为 FAIL。
+    </div>`;
+}
+
+function renderFailure() {
+  document.getElementById('vizArea').innerHTML = `
+    <div style="font-size:0.88rem;font-weight:600;color:var(--red);margin-bottom:12px;">主节点故障检测</div>
+    ${clusterNodes(-1, -1, 0, -1)}
+    <div style="padding:12px 16px;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.3);border-radius:8px;font-family:monospace;font-size:0.8rem;margin-top:12px;">
+      <div style="color:var(--red)">Node 1 (:7000) → PFAIL</div>
+      <div style="color:var(--dim);margin-top:4px;"># cluster-node-timeout 15000 ms 未响应心跳</div>
+      <div style="color:var(--red);margin-top:4px;">Node 1 (:7000) → FAIL</div>
+      <div style="color:var(--dim);margin-top:4px;"># 多数节点确认 → 开始故障转移</div>
+    </div>
+    <div style="margin-top:10px;padding:10px 14px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.8rem;color:var(--dim);">
+      此时槽 0-5460 不可用，客户端对这些 key 的操作返回 CLUSTERDOWN 错误。
+    </div>`;
+}
+
+function renderElection() {
+  document.getElementById('vizArea').innerHTML = `
+    <div style="font-size:0.88rem;font-weight:600;color:var(--yellow);margin-bottom:12px;">选举流程 — Slave 发起投票</div>
+    ${clusterNodes(-1, -1, 0, -1)}
+    <div style="margin-top:12px;">
+      ${[
+        {text:'Slave 1 发现 Master 1 FAIL，等待 election_delay（基于 replication_offset 排序）', color:'var(--yellow)'},
+        {text:'Slave 1 广播 FAILOVER_AUTH_REQUEST（包含 currentEpoch 和 configEpoch）', color:'var(--yellow)'},
+        {text:'Node 2 和 Node 3 回复 FAILOVER_AUTH_ACK（每个 epoch 只投一票）', color:'var(--green)'},
+        {text:'Slave 1 获得 2/3 票（超过多数），赢得选举', color:'var(--green)'},
+      ].map((item, i) => `
+      <div style="display:flex;gap:10px;margin-bottom:8px;font-size:0.8rem;">
+        <div style="color:${item.color};min-width:18px;font-weight:700;">${i+1}.</div>
+        <div style="color:var(--dim);">${item.text}</div>
+      </div>`).join('')}
+    </div>`;
+}
+
+function renderPromotion() {
+  document.getElementById('vizArea').innerHTML = `
+    <div style="font-size:0.88rem;font-weight:600;color:var(--green);margin-bottom:12px;">故障转移完成 — 集群恢复</div>
+    ${clusterNodes(-1, -1, 0, 0)}
+    <div style="padding:12px 16px;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.3);border-radius:8px;font-family:monospace;font-size:0.8rem;margin-top:12px;">
+      <div style="color:var(--green)">New Master (:7003) 接管槽 0-5460</div>
+      <div style="color:var(--dim);margin-top:4px;"># 广播新的 configEpoch 通知所有节点</div>
+      <div style="color:var(--green);margin-top:4px;">集群状态: CLUSTER_OK</div>
+      <div style="color:var(--dim);margin-top:4px;"># 所有 16384 槽重新可用，服务恢复</div>
+    </div>
+    <div style="margin-top:10px;padding:10px 14px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.8rem;color:var(--dim);">
+      原 Master 恢复后自动成为新 Master 的 Slave，集群恢复为 3 主 3 从配置。
+    </div>`;
+}
+
+function render() {
+  STEPS[step].render();
+  renderCode();
+  document.getElementById('descText').textContent = STEPS[step].description;
+  document.getElementById('stepCounter').textContent = `${step + 1} / ${STEPS.length}`;
+  document.getElementById('btnPrev').disabled = step === 0;
+  document.getElementById('btnNext').disabled = step === STEPS.length - 1;
+}
+
+function renderCode() {
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current)) || CODE_LINES;
+  const hl = LangSwitcher.getHL(STEPS[step]) || [];
+  const body = document.getElementById('codeBody');
+  body.innerHTML = lines.map((l, i) =>
+    `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
+      <span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
+  ).join('');
+  const el = body.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
+}
+
+function jumpToLine(lineNum) {
+  for (let i = STEPS.length-1; i >= 0; i--) {
+    const hl = LangSwitcher.getHL(STEPS[i]);
+    if (hl.includes(lineNum)) { step = i; render(); return; }
+  }
+}
+
+function play() { if (step >= STEPS.length-1) step = 0; playing = true; document.getElementById('btnPlay').innerHTML = '⏸ 暂停'; tick(); }
+function pause() { playing = false; clearTimeout(timer); document.getElementById('btnPlay').innerHTML = '▶ 播放'; }
+function tick() { if (!playing) return; if (step < STEPS.length-1) { step++; render(); timer = setTimeout(tick, SPEED[parseInt(document.getElementById('speedRange').value)-1]); } else pause(); }
+
+document.getElementById('btnPlay').addEventListener('click', () => playing ? pause() : play());
+document.getElementById('btnPrev').addEventListener('click', () => { pause(); if(step>0){step--;render();} });
+document.getElementById('btnNext').addEventListener('click', () => { pause(); if(step<STEPS.length-1){step++;render();} });
+document.getElementById('btnReset').addEventListener('click', () => { pause(); step=0; render(); });
+
+LangSwitcher.init(renderCode);
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文件系统原理 - Linux 内核原理</title>
+<style>
+:root{
+  --bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;
+  --border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;
+  --blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;
+  --green:#4ade80;--purple:#c084fc;--red:#f87171;--teal:#2dd4bf;
+  --linux:#f7c948;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:12px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;flex-wrap:wrap;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.1rem;font-weight:600;}
+.badge{font-size:0.72rem;padding:2px 8px;border-radius:100px;font-family:monospace;font-weight:500;}
+.complexity{margin-left:auto;display:flex;gap:8px;align-items:center;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;overflow:auto;padding:18px 20px;display:flex;align-items:flex-start;justify-content:center;}
+.desc-box{padding:10px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(247,201,72,0.12);}.code-line.active .ln{color:var(--linux);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;font-style:italic;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;font-family:inherit;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(247,201,72,0.15);border-color:rgba(247,201,72,0.3);color:var(--linux);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--linux);cursor:pointer;}
+
+/* FS viz */
+.fs-container{width:100%;max-width:700px;}
+.vfs-layers{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+.vfs-layer{padding:8px 16px;border-radius:7px;border:1px solid var(--border);text-align:center;font-size:0.82rem;transition:all 0.3s;}
+.vfs-layer.active{border-width:2px;}
+.vfs-layer.syscall-layer{background:rgba(56,189,248,0.07);border-color:rgba(56,189,248,0.25);color:var(--blue);}
+.vfs-layer.vfs-layer-inner{background:rgba(247,201,72,0.07);border-color:rgba(247,201,72,0.25);color:var(--linux);}
+.vfs-layer.fs-layer{display:flex;gap:6px;justify-content:center;background:transparent;border:none;padding:0;}
+.vfs-fs-box{flex:1;padding:8px;border-radius:7px;border:1px solid var(--border);text-align:center;font-size:0.78rem;transition:all 0.3s;}
+.vfs-fs-box.active{border-width:2px;box-shadow:0 0 8px currentColor;}
+
+.inode-box{background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;}
+.inode-title{font-size:0.8rem;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:8px;}
+.inode-fields{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.inode-field{padding:5px 9px;border-radius:5px;border:1px solid var(--border);font-size:0.75rem;font-family:monospace;transition:all 0.3s;}
+.inode-field.active{background:rgba(247,201,72,0.1);border-color:var(--linux);}
+.inode-field .field-key{color:var(--dim2);}
+.inode-field .field-val{color:var(--text);}
+
+.dir-tree{font-family:monospace;font-size:0.82rem;line-height:1.9;}
+.dir-entry{padding:2px 0;transition:all 0.2s;}
+.dir-entry.active{color:var(--linux);background:rgba(247,201,72,0.08);border-radius:4px;padding:2px 6px;margin:-2px -6px;}
+.dir-entry.highlight{color:var(--green);}
+
+.link-demo{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;}
+.link-box{flex:1;min-width:140px;padding:10px;border:1px solid var(--border);border-radius:7px;font-size:0.78rem;text-align:center;transition:all 0.3s;}
+.link-box.active{border-color:var(--linux);background:rgba(247,201,72,0.07);}
+.link-arrow{display:flex;align-items:center;font-size:0.8rem;color:var(--dim2);}
+
+@media(max-width:768px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;}
+  nav{flex-wrap:wrap;padding:10px 16px;gap:6px;}
+  nav h1{font-size:1rem;flex:1;}
+  .complexity{margin-left:0!important;width:100%;}
+  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
+  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:420px!important;min-height:420px!important;flex:none!important;overflow:hidden;}
+  .code-panel{width:100%!important;min-width:unset!important;height:320px!important;flex:none!important;}
+  .controls{flex-wrap:wrap!important;padding:10px 14px!important;gap:6px!important;height:auto!important;}
+  .btn{padding:6px 10px!important;font-size:0.8rem!important;}
+  .speed-wrap{margin-left:0!important;width:100%;}
+  .inode-fields{grid-template-columns:1fr!important;}
+  .link-demo{flex-direction:column;}
+}
+</style>
+<script src="../nav.js"></script>
+<script src="../lang.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>Linux 文件系统原理</h1>
+  <div class="complexity">
+    <span class="badge" style="background:rgba(247,201,72,0.15);color:#f7c948">inode</span>
+    <span class="badge" style="background:rgba(74,222,128,0.15);color:#4ade80">VFS</span>
+    <span class="badge" style="background:rgba(56,189,248,0.15);color:#38bdf8">文件系统</span>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="viz-panel">
+    <div class="viz-area" id="vizArea">
+      <div class="fs-container" id="fsContainer"></div>
+    </div>
+    <div class="desc-box">
+      <span id="descText">点击播放开始演示</span>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+  </div>
+
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px" data-base="filesystem">filesystem.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+
+<script>
+const STEPS = [
+  {
+    view: 'vfs', activeLayer: 'all',
+    highlightLines:[1,2,3,4,5], hlJs:[1], hlPy:[1],
+    description:'VFS (Virtual File System)：抽象层，统一 read/write/open 系统调用接口，屏蔽底层 FS 差异'
+  },
+  {
+    view: 'inode', activeFields: [],
+    highlightLines:[11,12,13,14,15,16], hlJs:[2], hlPy:[2],
+    description:'inode：存储文件元数据的数据结构，不包含文件名。每个文件对应唯一一个 inode'
+  },
+  {
+    view: 'inode', activeFields: ['type','perm','uid','gid','size','times','blocks'],
+    highlightLines:[17,18,19,20,21,22,23,24,25,26], hlJs:[3], hlPy:[3],
+    description:'inode 包含：文件类型/权限/UID/GID/大小/时间戳/数据块指针，不含文件名'
+  },
+  {
+    view: 'dentry', activePath: ['/', 'home'],
+    highlightLines:[27,28,29,30,31,32,33], hlJs:[4], hlPy:[4],
+    description:'目录项 (dentry)：文件名 → inode号 的映射，目录本身也是文件，内容是 dentry 列表'
+  },
+  {
+    view: 'dentry', activePath: ['/', 'home', 'alice', 'file.txt'],
+    highlightLines:[34,35,36,37,38], hlJs:[5], hlPy:[5],
+    description:'路径解析 /home/alice/file.txt：逐级查 dentry，每次找到 inode 再继续下一级'
+  },
+  {
+    view: 'inode', activeFields: ['blocks'],
+    highlightLines:[39,40,41,42], hlJs:[6], hlPy:[6],
+    description:'直接块+间接块：小文件用直接块指针（12个），大文件用单/双/三级间接块'
+  },
+  {
+    view: 'inode', activeFields: ['blocks','size'],
+    highlightLines:[43,44,45], hlJs:[7], hlPy:[7],
+    description:'ext4 Extent：用连续块范围代替逐块指针，减少碎片，大文件性能更好'
+  },
+  {
+    view: 'links', linkType: 'hard',
+    highlightLines:[47,48,49,50,51,52,53,54,55,56], hlJs:[8], hlPy:[8],
+    description:'硬链接：多个目录项指向同一 inode，inode 引用计数 +1，删除文件只减少计数'
+  },
+  {
+    view: 'links', linkType: 'soft',
+    highlightLines:[57,58,59,60,61,62,63,64,65], hlJs:[9], hlPy:[9],
+    description:'软链接 (符号链接)：存储目标路径字符串的特殊文件，拥有自己的 inode，可跨文件系统'
+  },
+  {
+    view: 'links', linkType: 'delete',
+    highlightLines:[67,68,69,70,71,72,73,74,75,76,77,78], hlJs:[10], hlPy:[10],
+    description:'文件删除：link_count-- 直到 0 才真正释放 inode 和数据块。ls -i 可查看 inode 号'
+  },
+];
+
+function buildVFSView(s) {
+  const active = s.activeLayer === 'all';
+  return `<div class="vfs-layers">
+    <div class="vfs-layer syscall-layer${active?' active':''}">
+      <strong>系统调用层</strong>：open() read() write() stat() unlink()
+    </div>
+    <div style="text-align:center;color:var(--dim2);font-size:0.75rem">↓</div>
+    <div class="vfs-layer vfs-layer-inner${active?' active':''}">
+      <strong>VFS (虚拟文件系统)</strong>：inode / dentry / file / super_block 对象
+    </div>
+    <div style="text-align:center;color:var(--dim2);font-size:0.75rem">↓</div>
+    <div class="vfs-layer fs-layer">
+      <div class="vfs-fs-box${active?' active':''}" style="color:var(--green);border-color:rgba(74,222,128,0.3)">ext4<br><span style="font-size:0.7rem;color:var(--dim2)">常规磁盘</span></div>
+      <div class="vfs-fs-box${active?' active':''}" style="color:var(--blue);border-color:rgba(56,189,248,0.3)">xfs<br><span style="font-size:0.7rem;color:var(--dim2)">大文件</span></div>
+      <div class="vfs-fs-box${active?' active':''}" style="color:var(--purple);border-color:rgba(192,132,252,0.3)">tmpfs<br><span style="font-size:0.7rem;color:var(--dim2)">内存FS</span></div>
+      <div class="vfs-fs-box${active?' active':''}" style="color:var(--teal);border-color:rgba(45,212,191,0.3)">proc<br><span style="font-size:0.7rem;color:var(--dim2)">内核信息</span></div>
+      <div class="vfs-fs-box${active?' active':''}" style="color:var(--orange);border-color:rgba(251,146,60,0.3)">nfs<br><span style="font-size:0.7rem;color:var(--dim2)">网络FS</span></div>
+    </div>
+    <div style="text-align:center;color:var(--dim2);font-size:0.75rem">↓</div>
+    <div class="vfs-layer" style="background:rgba(255,255,255,0.02);color:var(--dim);">
+      <strong>块设备层</strong>：磁盘 / SSD / 网络存储
+    </div>
+  </div>
+  <div style="padding:10px 14px;background:rgba(247,201,72,0.06);border-radius:8px;border-left:3px solid var(--linux);font-size:0.82rem;color:var(--dim);">
+    VFS 核心对象：<span style="color:var(--linux)">inode</span>（文件元数据）· <span style="color:var(--blue)">dentry</span>（路径缓存）· <span style="color:var(--green)">file</span>（打开的文件）· <span style="color:var(--orange)">super_block</span>（挂载信息）
+  </div>`;
+}
+
+function buildInodeView(s) {
+  const af = s.activeFields || [];
+  const fields = [
+    {key:'i_mode', label:'文件类型/权限', val:'-rwxr-xr-x', id:'type'},
+    {key:'i_uid / i_gid', label:'所有者', val:'1000 / 1000', id:'uid'},
+    {key:'i_size', label:'文件大小', val:'4096 bytes', id:'size'},
+    {key:'i_atime / mtime', label:'访问/修改时间', val:'2026-05-24', id:'times'},
+    {key:'i_nlink', label:'硬链接计数', val:'2', id:'nlink'},
+    {key:'i_blocks', label:'数据块指针', val:'12直接 + 3间接', id:'blocks'},
+  ];
+  const fieldsHtml = fields.map(f =>
+    `<div class="inode-field${af.includes(f.id)||af.includes('uid')||af.includes('perm')||af.includes('gid')&&(f.id==='uid')?' active':''}${af.includes(f.id)?' active':''}">
+      <span class="field-key">${f.key}: </span><span class="field-val">${f.val}</span>
+    </div>`
+  ).join('');
+  return `<div class="inode-box">
+    <div class="inode-title">
+      <span style="color:var(--linux)">inode #2847</span>
+      <span style="font-size:0.72rem;color:var(--dim2)">/home/alice/file.txt</span>
+    </div>
+    <div class="inode-fields">${fieldsHtml}</div>
+  </div>
+  <div style="padding:10px 14px;background:rgba(255,255,255,0.02);border-radius:7px;border:1px solid var(--border);font-size:0.8rem;color:var(--dim);">
+    <strong style="color:var(--text)">inode 不包含文件名！</strong><br>文件名存储在目录的 dentry 中，多个文件名可指向同一 inode（硬链接）
+  </div>`;
+}
+
+function buildDentryView(s) {
+  const ap = s.activePath || [];
+  const entries = [
+    {indent:0, icon:'📁', name:'/', inode:'2', active: ap.includes('/')},
+    {indent:1, icon:'📁', name:'home/', inode:'256', active: ap.includes('home')},
+    {indent:2, icon:'📁', name:'alice/', inode:'1024', active: ap.includes('alice')},
+    {indent:3, icon:'📄', name:'file.txt', inode:'2847', active: ap.includes('file.txt')},
+    {indent:3, icon:'📄', name:'notes.md', inode:'2848', active: false},
+    {indent:2, icon:'📁', name:'bob/', inode:'1025', active: false},
+    {indent:1, icon:'📁', name:'etc/', inode:'512', active: false},
+    {indent:2, icon:'📄', name:'passwd', inode:'612', active: false},
+  ];
+  const treeHtml = entries.map(e => {
+    const pad = '&nbsp;'.repeat(e.indent * 4);
+    const ac = e.active ? ' active' : '';
+    return `<div class="dir-entry${ac}">${pad}${e.icon} ${e.name} <span style="color:var(--dim2);font-size:0.72rem">inode=${e.inode}</span></div>`;
+  }).join('');
+  return `<div style="margin-bottom:10px;font-size:0.82rem;color:var(--dim);">
+    <strong style="color:var(--text)">路径解析：</strong> /home/alice/file.txt
+  </div>
+  <div style="background:var(--panel2);border-radius:8px;padding:14px 16px;border:1px solid var(--border);">
+    <div class="dir-tree">${treeHtml}</div>
+  </div>
+  <div style="margin-top:10px;padding:10px 14px;background:rgba(56,189,248,0.06);border-radius:7px;border-left:3px solid var(--blue);font-size:0.8rem;color:var(--dim);">
+    每级目录：查找 dentry → 获取 inode → 再查子目录 dentry → 直到目标文件
+  </div>`;
+}
+
+function buildLinksView(s) {
+  const lt = s.linkType;
+  return `<div style="margin-bottom:10px;font-size:0.82rem;color:var(--dim);">
+    <strong style="color:var(--text)">硬链接 vs 软链接</strong>
+  </div>
+  <div class="link-demo">
+    <div class="link-box${lt==='hard'?' active':''}" style="border-color:${lt==='hard'?'var(--green)':'var(--border)'}">
+      <div style="font-size:1.2rem;margin-bottom:6px">📄</div>
+      <div style="color:var(--text);font-weight:600">file.txt</div>
+      <div style="color:var(--dim2);font-size:0.7rem;margin-top:3px">dentry 1</div>
+      <div style="color:var(--green);font-size:0.72rem">→ inode #2847</div>
+    </div>
+    <div class="link-arrow">→</div>
+    <div class="link-box${lt==='hard'||lt==='soft'||lt==='delete'?' active':''}" style="background:rgba(247,201,72,0.06);border-color:var(--linux);">
+      <div style="font-size:1.2rem;margin-bottom:6px">🗄️</div>
+      <div style="color:var(--linux);font-weight:600">inode #2847</div>
+      <div style="color:var(--dim2);font-size:0.7rem;margin-top:3px">link_count: ${lt==='delete'?'0 (删除!)':lt==='hard'?'2':'1'}</div>
+      <div style="color:var(--dim2);font-size:0.7rem">数据块指针...</div>
+    </div>
+    ${lt==='hard' ? `<div class="link-arrow">←</div>
+    <div class="link-box active" style="border-color:var(--green)">
+      <div style="font-size:1.2rem;margin-bottom:6px">📄</div>
+      <div style="color:var(--text);font-weight:600">hardlink</div>
+      <div style="color:var(--dim2);font-size:0.7rem;margin-top:3px">dentry 2</div>
+      <div style="color:var(--green);font-size:0.72rem">→ inode #2847 (相同!)</div>
+    </div>` : ''}
+    ${lt==='soft' ? `<div class="link-arrow">←</div>
+    <div class="link-box active" style="border-color:var(--purple)">
+      <div style="font-size:1.2rem;margin-bottom:6px">🔗</div>
+      <div style="color:var(--text);font-weight:600">symlink</div>
+      <div style="color:var(--dim2);font-size:0.7rem;margin-top:3px">inode #3000 (不同!)</div>
+      <div style="color:var(--purple);font-size:0.72rem">内容="./file.txt"</div>
+    </div>` : ''}
+    ${lt==='delete' ? `<div class="link-arrow">✖</div>
+    <div class="link-box" style="opacity:0.4;border-color:var(--red)">
+      <div style="font-size:1.2rem;margin-bottom:6px">🗑️</div>
+      <div style="color:var(--red);font-weight:600">已释放</div>
+      <div style="color:var(--dim2);font-size:0.7rem;margin-top:3px">inode 归还</div>
+      <div style="color:var(--dim2);font-size:0.7rem">数据块归还</div>
+    </div>` : ''}
+  </div>
+  <div style="margin-top:10px;padding:10px 14px;background:rgba(255,255,255,0.02);border-radius:7px;border:1px solid var(--border);font-size:0.8rem;color:var(--dim);">
+    ${lt==='hard' ? '<strong style="color:var(--green)">硬链接</strong>：link_count=2，删除任意一个，另一个仍可访问文件' :
+      lt==='soft' ? '<strong style="color:var(--purple)">软链接</strong>：独立 inode，内容是路径字符串，原文件删除则链接失效' :
+      '<strong style="color:var(--red)">unlink()</strong>：link_count--，count=0 时内核才真正释放 inode 和数据块'}
+  </div>`;
+}
+
+function buildViz(step) {
+  const s = STEPS[step];
+  const container = document.getElementById('fsContainer');
+  switch(s.view) {
+    case 'vfs': container.innerHTML = buildVFSView(s); break;
+    case 'inode': container.innerHTML = buildInodeView(s); break;
+    case 'dentry': container.innerHTML = buildDentryView(s); break;
+    case 'links': container.innerHTML = buildLinksView(s); break;
+  }
+}
+
+const CODE_LINES = [
+  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
+  {html:``},
+  {html:`<span class="kw">import</span> (`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"fmt"</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"io/fs"</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"os"</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"syscall"</span>`},
+  {html:`)`},
+  {html:``},
+  {html:`<span class="cm">// 读取 inode 信息</span>`},
+  {html:`<span class="kw">func</span> <span class="fn">inodeInfo</span>(path <span class="kw">string</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;fi, err := <span class="pkg">os</span>.<span class="fn">Stat</span>(path)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">panic</span>(err) }`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;stat := fi.<span class="fn">Sys</span>().(*<span class="pkg">syscall</span>.<span class="fn">Stat_t</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"文件: %s\n"</span>, path)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"inode 号: %d\n"</span>, stat.<span class="id">Ino</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"硬链接数: %d\n"</span>, stat.<span class="id">Nlink</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"大小: %d 字节\n"</span>, fi.<span class="fn">Size</span>())`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"权限: %s\n"</span>, fi.<span class="fn">Mode</span>())`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"块数: %d\n"</span>, stat.<span class="id">Blocks</span>)`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">createLinks</span>(src, hardLink, softLink <span class="kw">string</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">os</span>.<span class="fn">WriteFile</span>(src, []<span class="kw">byte</span>(<span class="st">"Hello, Links!"</span>), <span class="num">0644</span>)`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 硬链接: 指向同一 inode</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">os</span>.<span class="fn">Link</span>(src, hardLink)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 软链接: 存储路径字符串</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">os</span>.<span class="fn">Symlink</span>(src, softLink)`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 验证: 硬链接和原文件 inode 相同</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;fi1, _ := <span class="pkg">os</span>.<span class="fn">Stat</span>(src)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;fi2, _ := <span class="pkg">os</span>.<span class="fn">Stat</span>(hardLink)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;s1 := fi1.<span class="fn">Sys</span>().(*<span class="pkg">syscall</span>.<span class="fn">Stat_t</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;s2 := fi2.<span class="fn">Sys</span>().(*<span class="pkg">syscall</span>.<span class="fn">Stat_t</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"原文件 inode: %d\n"</span>, s1.<span class="id">Ino</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"硬链接 inode: %d\n"</span>, s2.<span class="id">Ino</span>) <span class="cm">// 相同!</span>`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 符号链接的 inode 不同</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;fi3, _ := <span class="pkg">os</span>.<span class="fn">Lstat</span>(softLink)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;s3 := fi3.<span class="fn">Sys</span>().(*<span class="pkg">syscall</span>.<span class="fn">Stat_t</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"软链接 inode: %d\n"</span>, s3.<span class="id">Ino</span>) <span class="cm">// 不同!</span>`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">walkDir</span>(root <span class="kw">string</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fs</span>.<span class="fn">WalkDir</span>(<span class="pkg">os</span>.<span class="fn">DirFS</span>(root), <span class="st">"."</span>,`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">func</span>(path <span class="kw">string</span>, d <span class="pkg">fs</span>.<span class="fn">DirEntry</span>, err <span class="kw">error</span>) <span class="kw">error</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">return</span> err }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;info, _ := d.<span class="fn">Info</span>()`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"%s %s\n"</span>, info.<span class="fn">Mode</span>(), path)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="kw">nil</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;})`},
+  {html:`}`},
+];
+
+window.LANG_PLAIN = {
+  js: `// JavaScript (Node.js) — 文件系统操作
+const fs = require('fs');
+const path = require('path');
+
+// 读取 inode 信息 (stat)
+function inodeInfo(filePath) {
+  const stat = fs.statSync(filePath);
+  console.log('文件:', filePath);
+  console.log('inode:', stat.ino);     // inode 号
+  console.log('硬链接数:', stat.nlink);
+  console.log('大小:', stat.size, '字节');
+  console.log('权限:', (stat.mode & 0o777).toString(8));
+  console.log('修改时间:', stat.mtime);
+}
+
+// 硬链接 vs 软链接
+function createLinks(src, hardLink, softLink) {
+  fs.writeFileSync(src, 'Hello, Links!');
+
+  // 硬链接: 同一 inode
+  fs.linkSync(src, hardLink);
+  // 软链接: 不同 inode
+  fs.symlinkSync(src, softLink);
+
+  const s1 = fs.statSync(src);
+  const s2 = fs.statSync(hardLink);
+  const s3 = fs.lstatSync(softLink); // lstat 不跟随链接
+
+  console.log('原文件 inode:', s1.ino);
+  console.log('硬链接 inode:', s2.ino); // 相同
+  console.log('软链接 inode:', s3.ino); // 不同
+}
+
+// 遍历目录
+function walkDir(root) {
+  const entries = fs.readdirSync(root, { withFileTypes: true });
+  entries.forEach(entry => {
+    const full = path.join(root, entry.name);
+    const stat = fs.statSync(full);
+    console.log(stat.mode.toString(8), entry.name);
+  });
+}`,
+  py: `# Python — 文件系统操作
+import os
+import stat
+
+# 读取 inode 信息
+def inode_info(path):
+    s = os.stat(path)
+    print(f'文件: {path}')
+    print(f'inode 号: {s.st_ino}')
+    print(f'硬链接数: {s.st_nlink}')
+    print(f'大小: {s.st_size} 字节')
+    print(f'权限: {oct(s.st_mode)}')
+    print(f'块数: {s.st_blocks}')
+
+# 硬链接 vs 软链接
+def create_links(src, hard_link, soft_link):
+    with open(src, 'w') as f:
+        f.write('Hello, Links!')
+
+    # 硬链接: 相同 inode
+    os.link(src, hard_link)
+    # 软链接: 存储路径
+    os.symlink(src, soft_link)
+
+    s1 = os.stat(src)
+    s2 = os.stat(hard_link)
+    s3 = os.lstat(soft_link)  # lstat 不跟随链接
+
+    print(f'原文件 inode: {s1.st_ino}')
+    print(f'硬链接 inode: {s2.st_ino}')  # 相同
+    print(f'软链接 inode: {s3.st_ino}')  # 不同
+
+# 遍历目录
+def walk_dir(root):
+    for entry in os.scandir(root):
+        s = entry.stat()
+        print(f'{oct(s.st_mode)} {entry.name}')
+
+inode_info('/etc/passwd')
+create_links('/tmp/orig.txt', '/tmp/hard.txt', '/tmp/soft.txt')`
+};
+
+function renderCode() {
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current)) || CODE_LINES;
+  const hl = LangSwitcher.getHL(STEPS[cur]);
+  const body = document.getElementById('codeBody');
+  body.innerHTML = lines.map((line, i) => {
+    const active = hl.includes(i+1) ? ' active' : '';
+    return `<div class="code-line${active}" onclick="jumpToLine(${i+1})"><span class="ln">${i+1}</span><span class="lc">${line.html||'&nbsp;'}</span></div>`;
+  }).join('');
+  const el = body.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
+}
+
+function jumpToLine(ln) {
+  let t = cur, b = Infinity;
+  STEPS.forEach((s,i) => {
+    if ((s.highlightLines||[]).includes(ln)) { const d = Math.abs(i-cur); if(d<b){b=d;t=i;} }
+  });
+  cur = t; render();
+}
+
+let cur = 0, playing = false, timer = null;
+const SPEED = [1800,1200,700,400,180];
+
+function render() {
+  buildViz(cur);
+  renderCode();
+  document.getElementById('descText').textContent = STEPS[cur].description;
+  document.getElementById('stepCounter').textContent = `${cur+1} / ${STEPS.length}`;
+  document.getElementById('btnPrev').disabled = cur === 0;
+  document.getElementById('btnNext').disabled = cur === STEPS.length-1;
+}
+function play(){if(cur>=STEPS.length-1)cur=0;playing=true;document.getElementById('btnPlay').innerHTML='⏸ 暂停';tick();}
+function pause(){playing=false;clearTimeout(timer);document.getElementById('btnPlay').innerHTML='▶ 播放';}
+function tick(){if(!playing)return;if(cur<STEPS.length-1){cur++;render();timer=setTimeout(tick,SPEED[parseInt(document.getElementById('speedRange').value)-1]);}else pause();}
+document.getElementById('btnPlay').addEventListener('click',()=>playing?pause():play());
+document.getElementById('btnPrev').addEventListener('click',()=>{pause();if(cur>0){cur--;render();}});
+document.getElementById('btnNext').addEventListener('click',()=>{pause();if(cur<STEPS.length-1){cur++;render();}});
+document.getElementById('btnReset').addEventListener('click',()=>{pause();cur=0;render();});
+
+LangSwitcher.init(renderCode);
+render();
+if (window.NavTracker) NavTracker.track('文件系统', window.location.href, '📁', 'Linux');
+</script>
+</body>
+</html>

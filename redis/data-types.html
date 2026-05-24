@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Redis 五种数据类型 - 可视化学习</title>
+<style>
+:root{
+  --bg:#0f172a; --panel:#1e293b; --panel2:#0d1117;
+  --border:#334155; --text:#e2e8f0; --dim:#94a3b8; --dim2:#64748b;
+  --blue:#38bdf8; --yellow:#fbbf24; --orange:#fb923c;
+  --green:#4ade80; --purple:#c084fc; --red:#f87171; --teal:#2dd4bf;
+  --redis:#dc382c;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;flex-wrap:wrap;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;transition:color 0.15s;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.15rem;font-weight:600;}
+.badges{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;}
+.badge{font-size:0.72rem;padding:3px 10px;border-radius:100px;font-family:monospace;font-weight:500;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;overflow-y:auto;padding:20px 24px;}
+.desc-box{padding:10px 20px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:48px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:46%;min-width:360px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:10px 0;background:var(--panel2);}
+.code-body::-webkit-scrollbar{width:5px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:0;cursor:pointer;transition:background 0.12s;font-family:'JetBrains Mono',monospace;font-size:0.8rem;line-height:1.65;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:44px;padding:0 10px 0 14px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.76rem;}
+.lc{padding:0 14px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;}.id{color:#e6edf3;}
+.controls{display:flex;align-items:center;gap:8px;padding:10px 20px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:6px 14px;border-radius:7px;cursor:pointer;font-size:0.83rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(220,56,44,0.15);border-color:rgba(220,56,44,0.4);color:var(--redis);}
+.btn:disabled{opacity:0.38;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:6px;margin-left:auto;font-size:0.78rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:80px;height:3px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--redis);cursor:pointer;}
+
+/* Viz elements */
+.type-header{font-size:0.9rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.kv-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.kv-key-box{background:rgba(220,56,44,0.1);border:1px solid rgba(220,56,44,0.4);border-radius:6px;padding:6px 12px;font-family:monospace;font-size:0.85rem;color:var(--redis);min-width:80px;}
+.kv-arrow{color:var(--dim);font-size:1.2rem;}
+.kv-val-box{background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.3);border-radius:6px;padding:6px 12px;font-family:monospace;font-size:0.85rem;color:var(--blue);transition:all 0.4s;}
+.kv-val-box.highlight{background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.5);color:var(--yellow);box-shadow:0 0 10px rgba(251,191,36,0.3);}
+.list-node{display:inline-flex;align-items:center;gap:0;margin-bottom:8px;}
+.list-item{background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.3);border-radius:6px;padding:6px 14px;font-family:monospace;font-size:0.85rem;color:var(--blue);transition:all 0.4s;margin:0 2px;}
+.list-item.highlight{background:rgba(74,222,128,0.15);border-color:rgba(74,222,128,0.5);color:var(--green);box-shadow:0 0 8px rgba(74,222,128,0.3);}
+.list-item.pop{background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.5);color:var(--yellow);}
+.list-ptr{color:var(--dim);margin:0 4px;}
+.hash-grid{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;align-items:center;}
+.hash-field{font-family:monospace;font-size:0.82rem;color:var(--yellow);text-align:right;}
+.hash-value{background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.25);border-radius:5px;padding:4px 10px;font-family:monospace;font-size:0.82rem;color:var(--green);transition:all 0.4s;}
+.hash-value.highlight{background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.5);color:var(--yellow);box-shadow:0 0 8px rgba(251,191,36,0.3);}
+.set-members{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
+.set-item{background:rgba(196,132,252,0.1);border:1px solid rgba(196,132,252,0.3);border-radius:20px;padding:5px 14px;font-family:monospace;font-size:0.83rem;color:var(--purple);transition:all 0.4s;}
+.set-item.highlight{background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.5);color:var(--yellow);box-shadow:0 0 8px rgba(251,191,36,0.3);}
+.zset-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.zset-score{background:rgba(45,212,191,0.1);border:1px solid rgba(45,212,191,0.3);border-radius:5px;padding:4px 10px;font-family:monospace;font-size:0.82rem;color:var(--teal);min-width:60px;text-align:center;}
+.zset-member{background:rgba(196,132,252,0.08);border:1px solid rgba(196,132,252,0.25);border-radius:5px;padding:4px 12px;font-family:monospace;font-size:0.82rem;color:var(--purple);transition:all 0.4s;}
+.zset-member.highlight{background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.5);color:var(--yellow);}
+.zset-rank{color:var(--dim2);font-size:0.75rem;min-width:20px;}
+.encoding-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.72rem;font-family:monospace;margin-left:8px;}
+.section-card{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:16px;}
+.cmd-tag{display:inline-block;padding:2px 8px;background:rgba(220,56,44,0.1);border:1px solid rgba(220,56,44,0.25);border-radius:4px;font-family:monospace;font-size:0.8rem;color:var(--redis);margin:2px;}
+
+@media(max-width:768px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;}
+  nav{flex-wrap:wrap;padding:8px 14px;gap:6px;}
+  nav h1{font-size:0.95rem;}
+  .badges{margin-left:0!important;width:100%;order:3;}
+  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
+  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:320px!important;min-height:320px!important;flex:none!important;}
+  .code-panel{width:100%!important;min-width:unset!important;height:320px!important;flex:none!important;}
+  .controls{flex-wrap:wrap!important;gap:5px!important;height:auto!important;}
+  .speed-wrap{margin-left:0!important;width:100%;justify-content:flex-end;}
+}
+</style>
+<script src="../nav.js"></script>
+<script src="../lang.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>Redis 五种数据类型</h1>
+  <div class="badges">
+    <span class="badge" style="background:rgba(220,56,44,0.15);color:#dc382c">数据结构</span>
+    <span class="badge" style="background:rgba(56,189,248,0.15);color:#38bdf8">内部编码</span>
+    <span class="badge" style="background:rgba(74,222,128,0.15);color:#4ade80">12 步</span>
+  </div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="viz-area" id="vizArea">
+      <div style="color:var(--dim);font-size:0.9rem;padding:20px 0;">点击"下一步"开始演示</div>
+    </div>
+    <div class="desc-box">
+      <span id="descText">Redis 五种数据类型：String、List、Hash、Set、ZSet。每种类型都有独特的内部编码策略。</span>
+      <span class="step-counter" id="stepCounter">0 / 12</span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px" data-base="redis_types">redis_types.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+NavTracker.track('Redis 数据类型', 'redis/data-types.html', '🗂️', 'Redis');
+
+const CODE_LINES = [
+  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
+  {html:``},
+  {html:`<span class="kw">import</span> (`},
+  {html:`&nbsp;&nbsp;<span class="st">"context"</span>`},
+  {html:`&nbsp;&nbsp;<span class="st">"fmt"</span>`},
+  {html:`&nbsp;&nbsp;<span class="st">"github.com/redis/go-redis/v9"</span>`},
+  {html:`)`},
+  {html:``},
+  {html:`<span class="kw">var</span> <span class="id">ctx</span> = <span class="pkg">context</span>.<span class="fn">Background</span>()`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">main</span>() {`},
+  {html:`&nbsp;&nbsp;<span class="id">rdb</span> := <span class="id">redis</span>.<span class="fn">NewClient</span>(&amp;<span class="id">redis</span>.<span class="fn">Options</span>{`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">Addr</span>: <span class="st">"localhost:6379"</span>,`},
+  {html:`&nbsp;&nbsp;})`},
+  {html:`&nbsp;&nbsp;<span class="kw">defer</span> <span class="id">rdb</span>.<span class="fn">Close</span>()`},
+  {html:``},
+  {html:`&nbsp;&nbsp;<span class="cm">// String: 基本 get/set</span>`},
+  {html:`&nbsp;&nbsp;<span class="id">rdb</span>.<span class="fn">Set</span>(<span class="id">ctx</span>, <span class="st">"user:1:name"</span>, <span class="st">"Alice"</span>, <span class="num">0</span>)`},
+  {html:`&nbsp;&nbsp;<span class="id">name</span>, _ := <span class="id">rdb</span>.<span class="fn">Get</span>(<span class="id">ctx</span>, <span class="st">"user:1:name"</span>).<span class="fn">Result</span>()`},
+  {html:`&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="st">"name:"</span>, <span class="id">name</span>)`},
+  {html:``},
+  {html:`&nbsp;&nbsp;<span class="cm">// String: 原子计数器</span>`},
+  {html:`&nbsp;&nbsp;<span class="id">rdb</span>.<span class="fn">Incr</span>(<span class="id">ctx</span>, <span class="st">"page:views"</span>)`},
+  {html:`&nbsp;&nbsp;<span class="id">views</span>, _ := <span class="id">rdb</span>.<span class="fn">Get</span>(<span class="id">ctx</span>, <span class="st">"page:views"</span>).<span class="fn">Result</span>()`},
+  {html:`&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="st">"views:"</span>, <span class="id">views</span>)`},
+  {html:``},
+  {html:`&nbsp;&nbsp;<span class="cm">// List: 消息队列</span>`},
+  {html:`&nbsp;&nbsp;<span class="id">rdb</span>.<span class="fn">LPush</span>(<span class="id">ctx</span>, <span class="st">"queue"</span>, <span class="st">"task1"</span>, <span class="st">"task2"</span>, <span class="st">"task3"</span>)`},
+  {html:`&nbsp;&nbsp;<span class="id">task</span>, _ := <span class="id">rdb</span>.<span class="fn">RPop</span>(<span class="id">ctx</span>, <span class="st">"queue"</span>).<span class="fn">Result</span>()`},
+  {html:`&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="st">"task:"</span>, <span class="id">task</span>)`},
+  {html:``},
+  {html:`&nbsp;&nbsp;<span class="cm">// Hash: 用户信息</span>`},
+  {html:`&nbsp;&nbsp;<span class="id">rdb</span>.<span class="fn">HSet</span>(<span class="id">ctx</span>, <span class="st">"user:1"</span>, <span class="st">"name"</span>, <span class="st">"Alice"</span>, <span class="st">"age"</span>, <span class="st">"25"</span>)`},
+  {html:`&nbsp;&nbsp;<span class="id">user</span>, _ := <span class="id">rdb</span>.<span class="fn">HGetAll</span>(<span class="id">ctx</span>, <span class="st">"user:1"</span>).<span class="fn">Result</span>()`},
+  {html:`&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="st">"user:"</span>, <span class="id">user</span>)`},
+  {html:``},
+  {html:`&nbsp;&nbsp;<span class="cm">// Set: 标签系统</span>`},
+  {html:`&nbsp;&nbsp;<span class="id">rdb</span>.<span class="fn">SAdd</span>(<span class="id">ctx</span>, <span class="st">"tags"</span>, <span class="st">"redis"</span>, <span class="st">"cache"</span>, <span class="st">"nosql"</span>)`},
+  {html:`&nbsp;&nbsp;<span class="id">tags</span>, _ := <span class="id">rdb</span>.<span class="fn">SMembers</span>(<span class="id">ctx</span>, <span class="st">"tags"</span>).<span class="fn">Result</span>()`},
+  {html:`&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="st">"tags:"</span>, <span class="id">tags</span>)`},
+  {html:``},
+  {html:`&nbsp;&nbsp;<span class="cm">// ZSet: 排行榜</span>`},
+  {html:`&nbsp;&nbsp;<span class="id">rdb</span>.<span class="fn">ZAdd</span>(<span class="id">ctx</span>, <span class="st">"leaderboard"</span>,`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">redis</span>.<span class="fn">Z</span>{<span class="id">Score</span>: <span class="num">100</span>, <span class="id">Member</span>: <span class="st">"Alice"</span>},`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">redis</span>.<span class="fn">Z</span>{<span class="id">Score</span>: <span class="num">95</span>, <span class="id">Member</span>: <span class="st">"Bob"</span>},`},
+  {html:`&nbsp;&nbsp;)`},
+  {html:`&nbsp;&nbsp;<span class="id">top</span>, _ := <span class="id">rdb</span>.<span class="fn">ZRevRangeWithScores</span>(<span class="id">ctx</span>, <span class="st">"leaderboard"</span>, <span class="num">0</span>, <span class="num">9</span>).<span class="fn">Result</span>()`},
+  {html:`&nbsp;&nbsp;<span class="kw">for</span> _, z := <span class="kw">range</span> <span class="id">top</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"%s: %.0f\\n"</span>, z.<span class="id">Member</span>, z.<span class="id">Score</span>)`},
+  {html:`&nbsp;&nbsp;}`},
+  {html:`}`},
+];
+
+window.LANG_PLAIN = {
+  js: `const { createClient } = require('redis');
+
+const client = createClient({ url: 'redis://localhost:6379' });
+await client.connect();
+
+// String: basic set/get
+await client.set('user:1:name', 'Alice');
+const name = await client.get('user:1:name');
+console.log('name:', name);
+
+// String: atomic counter
+await client.incr('page:views');
+const views = await client.get('page:views');
+console.log('views:', views);
+
+// List: message queue
+await client.lPush('queue', ['task1', 'task2', 'task3']);
+const task = await client.rPop('queue');
+console.log('task:', task);
+
+// Hash: user info
+await client.hSet('user:1', { name: 'Alice', age: '25' });
+const user = await client.hGetAll('user:1');
+console.log('user:', user);
+
+// Set: tag system
+await client.sAdd('tags', ['redis', 'cache', 'nosql']);
+const tags = await client.sMembers('tags');
+console.log('tags:', tags);
+
+// ZSet: leaderboard
+await client.zAdd('leaderboard', [
+  { score: 100, value: 'Alice' },
+  { score: 95,  value: 'Bob' },
+]);
+const top = await client.zRangeWithScores('leaderboard', 0, -1, { REV: true });
+top.forEach(({ value, score }) => console.log(\`\${value}: \${score}\`));`,
+
+  py: `import redis
+
+r = redis.Redis(host='localhost', port=6379, decode_responses=True)
+
+# String: basic set/get
+r.set('user:1:name', 'Alice')
+name = r.get('user:1:name')
+print('name:', name)
+
+# String: atomic counter
+r.incr('page:views')
+views = r.get('page:views')
+print('views:', views)
+
+# List: message queue
+r.lpush('queue', 'task1', 'task2', 'task3')
+task = r.rpop('queue')
+print('task:', task)
+
+# Hash: user info
+r.hset('user:1', mapping={'name': 'Alice', 'age': '25'})
+user = r.hgetall('user:1')
+print('user:', user)
+
+# Set: tag system
+r.sadd('tags', 'redis', 'cache', 'nosql')
+tags = r.smembers('tags')
+print('tags:', tags)
+
+# ZSet: leaderboard
+r.zadd('leaderboard', {'Alice': 100, 'Bob': 95})
+top = r.zrevrange('leaderboard', 0, -1, withscores=True)
+for member, score in top:
+    print(f'{member}: {score}')`
+};
+
+const STEPS = [
+  {
+    highlightLines:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],
+    hlJs:[1], hlPy:[1],
+    description:"Redis 五种数据类型概览：String、List、Hash、Set、ZSet，每种类型有不同的内部编码",
+    render: () => renderOverview()
+  },
+  {
+    highlightLines:[17,18,19,20],
+    hlJs:[6,7,8,9], hlPy:[3,4,5,6],
+    description:"String: SET user:1:name 'Alice' — 最基础的键值存储，内部编码：embstr（≤44字节）",
+    render: () => renderString1()
+  },
+  {
+    highlightLines:[22,23,24,25],
+    hlJs:[11,12,13,14], hlPy:[8,9,10,11],
+    description:"String: INCR page:views — 原子计数器，底层 int 编码，无需 GET + SET，天然线程安全",
+    render: () => renderString2()
+  },
+  {
+    highlightLines:[27,28],
+    hlJs:[16,17], hlPy:[13,14],
+    description:"List: LPUSH queue task1 task2 task3 — 从头部插入，内部使用 quicklist（多个 listpack 组成）",
+    render: () => renderList1()
+  },
+  {
+    highlightLines:[29,30],
+    hlJs:[18,19], hlPy:[15,16],
+    description:"List: RPOP queue — 从尾部弹出 task1（先进先出队列），FIFO 消息队列的经典实现",
+    render: () => renderList2()
+  },
+  {
+    highlightLines:[32,33],
+    hlJs:[22,23], hlPy:[19,20],
+    description:"Hash: HSET user:1 name 'Alice' age '25' — 存储对象字段，内部编码：listpack（字段少时）",
+    render: () => renderHash1()
+  },
+  {
+    highlightLines:[34,35],
+    hlJs:[24,25], hlPy:[21,22],
+    description:"Hash: HGETALL user:1 — 获取所有字段和值，O(N) 操作，N 为字段数量",
+    render: () => renderHash2()
+  },
+  {
+    highlightLines:[37,38],
+    hlJs:[28,29], hlPy:[25,26],
+    description:"Set: SADD tags redis cache nosql — 无序集合，自动去重，内部编码：listpack 或 hashtable",
+    render: () => renderSet1()
+  },
+  {
+    highlightLines:[39,40],
+    hlJs:[30,31], hlPy:[27,28],
+    description:"Set: SINTER tags1 tags2 — 集合交集，用于求共同标签/好友。时间复杂度 O(N*M)",
+    render: () => renderSet2()
+  },
+  {
+    highlightLines:[42,43,44,45],
+    hlJs:[33,34,35,36], hlPy:[31,32],
+    description:"ZSet: ZADD leaderboard 100 Alice 95 Bob — 有序集合，按 score 排序，底层跳表+哈希表",
+    render: () => renderZSet1()
+  },
+  {
+    highlightLines:[46,47,48,49],
+    hlJs:[37,38,39,40], hlPy:[33,34],
+    description:"ZSet: ZREVRANGE leaderboard 0 -1 WITHSCORES — 按分数降序获取排名，O(log N + M)",
+    render: () => renderZSet2()
+  },
+  {
+    highlightLines:[1,2,3,4,5,6,7,8,9,10],
+    hlJs:[1,2], hlPy:[1,2],
+    description:"内部编码自动升级：元素超过阈值时 listpack → hashtable/skiplist，平衡内存与性能",
+    render: () => renderEncoding()
+  },
+];
+
+let step = 0, playing = false, timer = null;
+const SPEED = [900, 550, 320, 180, 80];
+
+function renderViz() {
+  if (step >= 0 && step < STEPS.length) {
+    STEPS[step].render();
+  }
+}
+
+function renderOverview() {
+  document.getElementById('vizArea').innerHTML = `
+    <div class="type-header" style="color:var(--redis)">Redis 五种数据类型</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;">
+      ${[
+        ['String','var(--redis)','key → value','SET GET INCR'],
+        ['List','var(--blue)','head ← → tail','LPUSH RPOP'],
+        ['Hash','var(--green)','field → value','HSET HGETALL'],
+        ['Set','var(--yellow)','{member...}','SADD SMEMBERS'],
+        ['ZSet','var(--purple)','score → member','ZADD ZRANGE'],
+      ].map(([t,c,d,cmds]) => `
+        <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;padding:14px;">
+          <div style="font-weight:700;color:${c};margin-bottom:6px;">${t}</div>
+          <div style="font-size:0.8rem;color:var(--dim);margin-bottom:8px;">${d}</div>
+          <div style="font-family:monospace;font-size:0.72rem;color:var(--dim2)">${cmds}</div>
+        </div>`).join('')}
+    </div>`;
+}
+
+function renderString1() {
+  document.getElementById('vizArea').innerHTML = `
+    <div class="type-header" style="color:var(--redis)">String — SET</div>
+    <div class="kv-row">
+      <div class="kv-key-box">user:1:name</div>
+      <div class="kv-arrow">→</div>
+      <div class="kv-val-box highlight">"Alice"</div>
+    </div>
+    <div style="margin-top:16px;padding:12px 16px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.83rem;color:var(--dim);line-height:1.8;">
+      <div><span style="color:var(--text)">内部编码：</span>
+        <span class="encoding-badge" style="background:rgba(56,189,248,0.1);color:var(--blue)">embstr</span>
+        (字符串 ≤ 44 字节，连续内存，比 raw 更快)
+      </div>
+      <div style="margin-top:6px;"><span style="color:var(--text)">命令：</span>
+        <span class="cmd-tag">SET key value</span>
+        <span class="cmd-tag">GET key</span>
+        <span class="cmd-tag">SET key value EX 3600</span>
+      </div>
+    </div>`;
+}
+
+function renderString2() {
+  document.getElementById('vizArea').innerHTML = `
+    <div class="type-header" style="color:var(--redis)">String — INCR 原子计数器</div>
+    <div class="kv-row">
+      <div class="kv-key-box">page:views</div>
+      <div class="kv-arrow">→</div>
+      <div class="kv-val-box highlight" style="color:var(--green)">42</div>
+      <div style="color:var(--green);font-size:0.85rem;margin-left:8px;">+1 (INCR)</div>
+    </div>
+    <div style="margin-top:16px;padding:12px 16px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.83rem;color:var(--dim);line-height:1.8;">
+      <div><span style="color:var(--text)">内部编码：</span>
+        <span class="encoding-badge" style="background:rgba(74,222,128,0.1);color:var(--green)">int</span>
+        (整数值，直接存为 long，无字符串开销)
+      </div>
+      <div style="margin-top:6px;"><span style="color:var(--text)">原子性：</span>单线程模型保证 INCR 不会出现竞态条件</div>
+      <div style="margin-top:4px;"><span style="color:var(--text)">命令：</span>
+        <span class="cmd-tag">INCR key</span>
+        <span class="cmd-tag">INCRBY key n</span>
+        <span class="cmd-tag">DECR key</span>
+      </div>
+    </div>`;
+}
+
+function renderList1() {
+  document.getElementById('vizArea').innerHTML = `
+    <div class="type-header" style="color:var(--blue)">List — LPUSH (消息队列)</div>
+    <div style="margin-bottom:10px;font-size:0.8rem;color:var(--dim);">← HEAD &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; TAIL →</div>
+    <div class="list-node">
+      <div class="list-item highlight">task3</div><div class="list-ptr">←→</div>
+      <div class="list-item">task2</div><div class="list-ptr">←→</div>
+      <div class="list-item">task1</div>
+    </div>
+    <div style="margin-top:16px;padding:12px 16px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.83rem;color:var(--dim);line-height:1.8;">
+      <div><span style="color:var(--text)">内部编码：</span>
+        <span class="encoding-badge" style="background:rgba(56,189,248,0.1);color:var(--blue)">quicklist</span>
+        (多个 listpack 节点组成的双向链表，Redis 7.0+)
+      </div>
+      <div style="margin-top:6px;"><span style="color:var(--text)">LPUSH</span> task1 task2 task3 — task3 在头部（最新插入）</div>
+    </div>`;
+}
+
+function renderList2() {
+  document.getElementById('vizArea').innerHTML = `
+    <div class="type-header" style="color:var(--blue)">List — RPOP (先进先出)</div>
+    <div style="margin-bottom:10px;font-size:0.8rem;color:var(--dim);">← HEAD &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; TAIL →</div>
+    <div class="list-node">
+      <div class="list-item">task3</div><div class="list-ptr">←→</div>
+      <div class="list-item">task2</div><div class="list-ptr">←→</div>
+      <div class="list-item pop">task1 ← RPOP</div>
+    </div>
+    <div style="margin-top:16px;padding:12px 16px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.83rem;color:var(--dim);line-height:1.8;">
+      <div>RPOP 从右侧弹出 <strong style="color:var(--yellow)">"task1"</strong>（最先入队的任务）</div>
+      <div style="margin-top:6px;"><span style="color:var(--text)">FIFO 队列：</span> LPUSH 入队 + RPOP 出队</div>
+      <div style="margin-top:4px;"><span style="color:var(--text)">命令：</span>
+        <span class="cmd-tag">LPUSH</span>
+        <span class="cmd-tag">RPUSH</span>
+        <span class="cmd-tag">LPOP</span>
+        <span class="cmd-tag">RPOP</span>
+        <span class="cmd-tag">LRANGE key 0 -1</span>
+      </div>
+    </div>`;
+}
+
+function renderHash1() {
+  document.getElementById('vizArea').innerHTML = `
+    <div class="type-header" style="color:var(--green)">Hash — HSET</div>
+    <div style="font-size:0.82rem;color:var(--dim);margin-bottom:10px;">key: <strong style="color:var(--text)">user:1</strong></div>
+    <div class="hash-grid" style="max-width:300px;">
+      <div class="hash-field">name</div><div class="hash-value highlight">"Alice"</div>
+      <div class="hash-field">age</div><div class="hash-value highlight">"25"</div>
+    </div>
+    <div style="margin-top:16px;padding:12px 16px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.83rem;color:var(--dim);line-height:1.8;">
+      <div><span style="color:var(--text)">内部编码：</span>
+        <span class="encoding-badge" style="background:rgba(251,191,36,0.1);color:var(--yellow)">listpack</span>
+        (字段 ≤ 128 且每个值 ≤ 64字节时使用，紧凑存储)
+      </div>
+      <div style="margin-top:6px;"><span style="color:var(--text)">优势：</span>比 String 序列化方案节省内存，支持单字段更新</div>
+    </div>`;
+}
+
+function renderHash2() {
+  document.getElementById('vizArea').innerHTML = `
+    <div class="type-header" style="color:var(--green)">Hash — HGETALL</div>
+    <div style="font-size:0.82rem;color:var(--dim);margin-bottom:10px;">HGETALL user:1 → 返回所有字段和值</div>
+    <div class="hash-grid" style="max-width:320px;">
+      <div class="hash-field">name</div><div class="hash-value highlight">"Alice"</div>
+      <div class="hash-field">age</div><div class="hash-value highlight">"25"</div>
+      <div class="hash-field">city</div><div class="hash-value">"Beijing"</div>
+      <div class="hash-field">score</div><div class="hash-value">"99"</div>
+    </div>
+    <div style="margin-top:12px;padding:10px 14px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.82rem;color:var(--dim);">
+      <span style="color:var(--text)">注意：</span>HGETALL 返回所有字段，字段数量大时慎用。建议用 HMGET 指定字段。
+    </div>`;
+}
+
+function renderSet1() {
+  document.getElementById('vizArea').innerHTML = `
+    <div class="type-header" style="color:var(--yellow)">Set — SADD</div>
+    <div style="font-size:0.82rem;color:var(--dim);margin-bottom:12px;">key: <strong style="color:var(--text)">tags</strong>（无序，自动去重）</div>
+    <div class="set-members">
+      <div class="set-item highlight">"redis"</div>
+      <div class="set-item highlight">"cache"</div>
+      <div class="set-item highlight">"nosql"</div>
+    </div>
+    <div style="margin-top:12px;padding:12px 16px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.83rem;color:var(--dim);line-height:1.8;">
+      <div><span style="color:var(--text)">内部编码：</span>
+        <span class="encoding-badge" style="background:rgba(196,132,252,0.1);color:var(--purple)">listpack</span>
+        → (超过128成员)
+        <span class="encoding-badge" style="background:rgba(196,132,252,0.1);color:var(--purple)">hashtable</span>
+      </div>
+      <div style="margin-top:6px;"><span style="color:var(--text)">集合运算：</span>SINTER（交集）SUNION（并集）SDIFF（差集）</div>
+    </div>`;
+}
+
+function renderSet2() {
+  document.getElementById('vizArea').innerHTML = `
+    <div class="type-header" style="color:var(--yellow)">Set — SINTER 集合交集</div>
+    <div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">
+      <div>
+        <div style="font-size:0.8rem;color:var(--dim);margin-bottom:6px;">tags:user1</div>
+        <div class="set-members">
+          <div class="set-item">"redis"</div>
+          <div class="set-item">"go"</div>
+          <div class="set-item">"cache"</div>
+        </div>
+      </div>
+      <div style="font-size:1.5rem;color:var(--dim)">∩</div>
+      <div>
+        <div style="font-size:0.8rem;color:var(--dim);margin-bottom:6px;">tags:user2</div>
+        <div class="set-members">
+          <div class="set-item">"redis"</div>
+          <div class="set-item">"mysql"</div>
+          <div class="set-item">"cache"</div>
+        </div>
+      </div>
+      <div style="font-size:1.5rem;color:var(--dim)">=</div>
+      <div>
+        <div style="font-size:0.8rem;color:var(--dim);margin-bottom:6px;">交集结果</div>
+        <div class="set-members">
+          <div class="set-item highlight">"redis"</div>
+          <div class="set-item highlight">"cache"</div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:10px 14px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.82rem;color:var(--dim);">
+      SINTER tags:user1 tags:user2 → 求共同标签。类似操作：共同好友、共同关注。
+    </div>`;
+}
+
+function renderZSet1() {
+  document.getElementById('vizArea').innerHTML = `
+    <div class="type-header" style="color:var(--purple)">ZSet — ZADD (有序集合)</div>
+    <div style="font-size:0.82rem;color:var(--dim);margin-bottom:12px;">key: <strong style="color:var(--text)">leaderboard</strong>（按 score 升序存储）</div>
+    <div class="zset-row">
+      <div class="zset-rank">#2</div>
+      <div class="zset-score">95</div>
+      <div class="kv-arrow">→</div>
+      <div class="zset-member">"Bob"</div>
+    </div>
+    <div class="zset-row">
+      <div class="zset-rank">#1</div>
+      <div class="zset-score">100</div>
+      <div class="kv-arrow">→</div>
+      <div class="zset-member highlight">"Alice"</div>
+    </div>
+    <div style="margin-top:12px;padding:12px 16px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.83rem;color:var(--dim);line-height:1.8;">
+      <div><span style="color:var(--text)">内部编码：</span>
+        <span class="encoding-badge" style="background:rgba(45,212,191,0.1);color:var(--teal)">skiplist</span>
+        +
+        <span class="encoding-badge" style="background:rgba(45,212,191,0.1);color:var(--teal)">hashtable</span>
+        （skiplist 支持范围查询，hashtable 支持 O(1) 分数查询）
+      </div>
+    </div>`;
+}
+
+function renderZSet2() {
+  document.getElementById('vizArea').innerHTML = `
+    <div class="type-header" style="color:var(--purple)">ZSet — ZREVRANGE WITHSCORES</div>
+    <div style="font-size:0.82rem;color:var(--dim);margin-bottom:12px;">ZREVRANGE leaderboard 0 -1 WITHSCORES（按分数降序）</div>
+    ${[
+      {rank:1, score:100, member:'Alice', hl:true},
+      {rank:2, score:95, member:'Bob', hl:false},
+      {rank:3, score:88, member:'Charlie', hl:false},
+    ].map(({rank,score,member,hl}) => `
+    <div class="zset-row">
+      <div class="zset-rank" style="color:${rank===1?'var(--yellow)':'var(--dim2)'}">
+        ${rank===1?'🥇':rank===2?'🥈':'🥉'}
+      </div>
+      <div class="zset-score">${score}</div>
+      <div class="kv-arrow">→</div>
+      <div class="zset-member${hl?' highlight':''}">"${member}"</div>
+    </div>`).join('')}
+    <div style="margin-top:12px;padding:10px 14px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.82rem;color:var(--dim);">
+      ZREVRANGEBYSCORE、ZRANK 获取排名，ZINCRBY 更新分数。跳表支持 O(log N) 范围查询。
+    </div>`;
+}
+
+function renderEncoding() {
+  document.getElementById('vizArea').innerHTML = `
+    <div class="type-header" style="color:var(--orange)">内部编码自动升级</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+      <div style="padding:14px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid var(--border);">
+        <div style="font-size:0.82rem;font-weight:600;color:var(--green);margin-bottom:8px;">listpack（紧凑）</div>
+        <div style="font-size:0.78rem;color:var(--dim);line-height:1.8;">
+          ✓ 连续内存，节省空间<br>
+          ✓ 元素少时 CPU 缓存友好<br>
+          ✗ 修改需重新分配内存<br>
+          适用：小数据集
+        </div>
+      </div>
+      <div style="padding:14px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid var(--border);">
+        <div style="font-size:0.82rem;font-weight:600;color:var(--blue);margin-bottom:8px;">hashtable/skiplist（高效）</div>
+        <div style="font-size:0.78rem;color:var(--dim);line-height:1.8;">
+          ✓ O(1) 查找/插入/删除<br>
+          ✓ skiplist O(log N) 范围查询<br>
+          ✗ 占用更多内存<br>
+          适用：大数据集
+        </div>
+      </div>
+    </div>
+    <div style="padding:12px 16px;background:rgba(251,146,60,0.06);border-radius:8px;border-left:3px solid var(--orange);font-size:0.83rem;color:var(--dim);line-height:1.8;">
+      <strong style="color:var(--text)">升级触发条件（Hash 为例）：</strong><br>
+      字段数 > 128 或任意 field/value > 64字节 → listpack 升级为 hashtable（单向，不可降级）
+    </div>`;
+}
+
+function render() {
+  renderViz();
+  renderCode();
+  document.getElementById('descText').textContent = STEPS[step].description;
+  document.getElementById('stepCounter').textContent = `${step + 1} / ${STEPS.length}`;
+  document.getElementById('btnPrev').disabled = step === 0;
+  document.getElementById('btnNext').disabled = step === STEPS.length - 1;
+}
+
+function renderCode() {
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current)) || CODE_LINES;
+  const hl = LangSwitcher.getHL(STEPS[step]) || [];
+  const body = document.getElementById('codeBody');
+  body.innerHTML = lines.map((l, i) =>
+    `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
+      <span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
+  ).join('');
+  const el = body.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
+}
+
+function jumpToLine(lineNum) {
+  for (let i = STEPS.length-1; i >= 0; i--) {
+    const hl = LangSwitcher.getHL(STEPS[i]);
+    if (hl.includes(lineNum)) { step = i; render(); return; }
+  }
+}
+
+function play() { if (step >= STEPS.length-1) step = 0; playing = true; document.getElementById('btnPlay').innerHTML = '⏸ 暂停'; tick(); }
+function pause() { playing = false; clearTimeout(timer); document.getElementById('btnPlay').innerHTML = '▶ 播放'; }
+function tick() { if (!playing) return; if (step < STEPS.length-1) { step++; render(); timer = setTimeout(tick, SPEED[parseInt(document.getElementById('speedRange').value)-1]); } else pause(); }
+
+document.getElementById('btnPlay').addEventListener('click', () => playing ? pause() : play());
+document.getElementById('btnPrev').addEventListener('click', () => { pause(); if(step>0){step--;render();} });
+document.getElementById('btnNext').addEventListener('click', () => { pause(); if(step<STEPS.length-1){step++;render();} });
+document.getElementById('btnReset').addEventListener('click', () => { pause(); step=0; render(); });
+
+LangSwitcher.init(renderCode);
+render();
+</script>
+</body>
+</html>

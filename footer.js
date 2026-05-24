@@ -28,9 +28,17 @@
     '<nav class="sf-links">' +
       '<a href="../index.html">主页</a>' +
       '<span class="sf-sep">·</span>' +
-      '<a href="../algo/index.html">算法可视化</a>' +
+      '<a href="../algo/index.html">算法</a>' +
       '<span class="sf-sep">·</span>' +
-      '<a href="../db/index.html">数据库原理</a>' +
+      '<a href="../db/index.html">数据库</a>' +
+      '<span class="sf-sep">·</span>' +
+      '<a href="../kafka/index.html">Kafka</a>' +
+      '<span class="sf-sep">·</span>' +
+      '<a href="../redis/index.html">Redis</a>' +
+      '<span class="sf-sep">·</span>' +
+      '<a href="../linux/index.html">Linux</a>' +
+      '<span class="sf-sep">·</span>' +
+      '<a href="../network/index.html">网络</a>' +
     '</nav>';
 
   function init() {

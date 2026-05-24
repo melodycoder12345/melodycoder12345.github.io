@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TCP 三次握手 & 四次挥手 - 网络可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;
+  --border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;
+  --blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;
+  --green:#4ade80;--purple:#c084fc;--red:#f87171;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}
+.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;}
+.desc-box{padding:12px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.9rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(45,212,191,0.12);}.code-line.active .ln{color:var(--teal);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(45,212,191,0.15);border-color:rgba(45,212,191,0.3);color:var(--teal);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--teal);cursor:pointer;}
+
+/* ── TCP Visualization ── */
+.tcp-canvas-wrap{flex:1;padding:20px;display:flex;flex-direction:column;min-height:0;}
+#tcpCanvas{width:100%;flex:1;display:block;border-radius:8px;background:var(--panel2);}
+
+/* MOBILE */
+@media(max-width:768px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;}
+  nav{flex-wrap:wrap;padding:10px 16px;gap:6px;}
+  nav h1{font-size:1rem;flex:1;}
+  .complexity{margin-left:0!important;width:100%;order:3;margin-top:4px;}
+  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
+  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:300px!important;min-height:300px!important;flex:none!important;overflow:hidden;}
+  .code-panel{width:100%!important;min-width:unset!important;height:340px!important;flex:none!important;}
+  .code-line{font-size:0.76rem!important;}
+  .ln{min-width:36px!important;padding:0 8px!important;}
+  .controls{flex-wrap:wrap!important;padding:10px 14px!important;gap:6px!important;}
+  .btn{padding:6px 10px!important;font-size:0.8rem!important;}
+  .speed-wrap{margin-left:0!important;width:100%;justify-content:flex-end;}
+  .desc-box{padding:8px 14px!important;font-size:0.8rem!important;}
+}
+</style>
+<script src="../nav.js"></script>
+<script src="../lang.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>TCP 三次握手 &amp; 四次挥手</h1>
+  <div class="complexity">
+    <span class="badge" style="background:rgba(45,212,191,0.15);color:#2dd4bf">TCP</span>
+    <span class="badge" style="background:rgba(56,189,248,0.15);color:#38bdf8">SYN/ACK/FIN</span>
+    <span class="badge" style="background:rgba(251,191,36,0.15);color:#fbbf24">状态机</span>
+  </div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="tcp-canvas-wrap">
+      <canvas id="tcpCanvas"></canvas>
+    </div>
+    <div class="desc-box">
+      <span id="descText">点击播放开始演示三次握手过程</span>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px" data-base="tcp_handshake">tcp_handshake.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+NavTracker.track('TCP 握手与挥手', window.location.href, '🤝', '网络');
+
+const CODE_LINES = [
+  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
+  {html:``},
+  {html:`<span class="kw">import</span> (<br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"fmt"</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"net"</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"time"</span><br>)`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">tcpClient</span>() {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 三次握手在 Dial() 内部完成</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;conn, err := <span class="pkg">net</span>.<span class="fn">DialTimeout</span>(<span class="st">"tcp"</span>, <span class="st">"example.com:80"</span>, <span class="num">5</span>*<span class="pkg">time</span>.Second)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> err != <span class="kw">nil</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"连接失败: %v\n"</span>, err)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">defer</span> conn.<span class="fn">Close</span>() <span class="cm">// 四次挥手在 Close() 内部完成</span>`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// TCP 连接已建立，发送 HTTP 请求</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Fprintln</span>(conn, <span class="st">"GET / HTTP/1.1"</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Fprintln</span>(conn, <span class="st">"Host: example.com"</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Fprintln</span>(conn, <span class="st">"Connection: close"</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Fprintln</span>(conn)`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;buf := <span class="fn">make</span>([]<span class="kw">byte</span>, <span class="num">4096</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;n, _ := conn.<span class="fn">Read</span>(buf)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"收到 %d 字节\n"</span>, n)`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">tcpServer</span>() {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;ln, err := <span class="pkg">net</span>.<span class="fn">Listen</span>(<span class="st">"tcp"</span>, <span class="st">":8080"</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> err != <span class="kw">nil</span> { <span class="fn">panic</span>(err) }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">defer</span> ln.<span class="fn">Close</span>()`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="st">"Server 监听 :8080"</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// Accept() 完成三次握手后返回连接</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;conn, err := ln.<span class="fn">Accept</span>()`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">continue</span> }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">go</span> <span class="fn">handleConn</span>(conn)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`}`},
+];
+
+window.LANG_PLAIN = {
+  js: `// JavaScript (Node.js) TCP Client
+const net = require('net');
+
+// 三次握手在 connect() 内部完成
+const client = net.createConnection({ port: 80, host: 'example.com' }, () => {
+    console.log('TCP 连接建立（三次握手完成）');
+    client.write('GET / HTTP/1.1\r\nHost: example.com\r\n\r\n');
+});
+
+client.on('data', (data) => {
+    console.log(\`收到 \${data.length} 字节\`);
+    client.end(); // 四次挥手
+});
+
+client.on('end', () => console.log('连接关闭'));
+
+// TCP Server
+const server = net.createServer((conn) => {
+    // Accept 完成握手后进入此回调
+    conn.on('data', (data) => {
+        conn.write('HTTP/1.1 200 OK\r\n\r\nHello!');
+        conn.end();
+    });
+});
+server.listen(8080);`,
+  py: `import socket
+
+# TCP Client - 三次握手在 connect() 内部完成
+def tcp_client():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(5)
+    sock.connect(('example.com', 80))  # 三次握手
+
+    # 发送 HTTP 请求
+    sock.sendall(b'GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n')
+
+    data = sock.recv(4096)
+    print(f'收到 {len(data)} 字节')
+    sock.close()  # 四次挥手
+
+# TCP Server
+def tcp_server():
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind(('', 8080))
+    server.listen(5)
+    print('Server 监听 :8080')
+
+    while True:
+        conn, addr = server.accept()  # 三次握手完成后返回
+        data = conn.recv(1024)
+        conn.send(b'HTTP/1.1 200 OK\r\n\r\nHello!')
+        conn.close()  # 四次挥手`
+};
+
+// Steps: 15 total
+const STEPS = [
+  {highlightLines:[4,5],hlJs:[4,5],hlPy:[4,5],description:'初始状态: Client CLOSED, Server LISTEN（等待连接）',phase:'handshake',draw:{cState:'CLOSED',sState:'LISTEN',arrows:[]}},
+  {highlightLines:[6,7],hlJs:[5,6],hlPy:[8,9],description:'Client 发送 SYN (seq=x): Client → SYN_SENT',phase:'handshake',draw:{cState:'SYN_SENT',sState:'LISTEN',arrows:[{from:'c',to:'s',label:'SYN seq=1000',color:'#2dd4bf',progress:1}]}},
+  {highlightLines:[25,26],hlJs:[17,18],hlPy:[17,18],description:'Server 收到 SYN → 发送 SYN+ACK (seq=y, ack=x+1): Server → SYN_RCVD',phase:'handshake',draw:{cState:'SYN_SENT',sState:'SYN_RCVD',arrows:[{from:'s',to:'c',label:'SYN+ACK seq=2000 ack=1001',color:'#38bdf8',progress:1}]}},
+  {highlightLines:[30,31,32],hlJs:[5,6],hlPy:[8,9],description:'Client 收到 SYN+ACK → 发送 ACK (ack=y+1): Client → ESTABLISHED',phase:'handshake',draw:{cState:'ESTABLISHED',sState:'SYN_RCVD',arrows:[{from:'c',to:'s',label:'ACK ack=2001',color:'#4ade80',progress:1}]}},
+  {highlightLines:[30,31,32,33],hlJs:[17,18,19],hlPy:[17,18],description:'Server 收到 ACK → Server ESTABLISHED，连接建立！',phase:'handshake',draw:{cState:'ESTABLISHED',sState:'ESTABLISHED',arrows:[]}},
+  {highlightLines:[13,14,15,16,17],hlJs:[7,8],hlPy:[11,12],description:'连接建立！开始数据传输 (GET / HTTP/1.1)',phase:'data',draw:{cState:'ESTABLISHED',sState:'ESTABLISHED',arrows:[{from:'c',to:'s',label:'HTTP Request',color:'#fbbf24',progress:1}]}},
+  {highlightLines:[19,20,21],hlJs:[11,12],hlPy:[13],description:'为什么是三次？两次无法确认双向通信（Server 无法知道 Client 能收到数据）',phase:'handshake',draw:{cState:'ESTABLISHED',sState:'ESTABLISHED',arrows:[{from:'s',to:'c',label:'HTTP Response',color:'#fbbf24',progress:1}]}},
+  {highlightLines:[11,12],hlJs:[13,14],hlPy:[14],description:'四次挥手开始: 主动关闭方（Client）发送 FIN',phase:'teardown',draw:{cState:'FIN_WAIT_1',sState:'ESTABLISHED',arrows:[{from:'c',to:'s',label:'FIN seq=3000',color:'#f87171',progress:1}]}},
+  {highlightLines:[11,12],hlJs:[14],hlPy:[14],description:'Client 发送 FIN: Client → FIN_WAIT_1',phase:'teardown',draw:{cState:'FIN_WAIT_1',sState:'CLOSE_WAIT',arrows:[{from:'s',to:'c',label:'ACK ack=3001',color:'#fb923c',progress:1}]}},
+  {highlightLines:[34,35],hlJs:[19,20],hlPy:[19,20],description:'Server 收到 FIN → 发送 ACK: Server → CLOSE_WAIT（等待上层数据发完）',phase:'teardown',draw:{cState:'FIN_WAIT_2',sState:'CLOSE_WAIT',arrows:[]}},
+  {highlightLines:[34,35],hlJs:[20,21],hlPy:[20],description:'Server 发送 FIN（数据发送完毕）: Server → LAST_ACK',phase:'teardown',draw:{cState:'FIN_WAIT_2',sState:'LAST_ACK',arrows:[{from:'s',to:'c',label:'FIN seq=4000',color:'#f87171',progress:1}]}},
+  {highlightLines:[11,12],hlJs:[14],hlPy:[14],description:'Client 收到 FIN → 发送 ACK: Client → TIME_WAIT',phase:'teardown',draw:{cState:'TIME_WAIT',sState:'LAST_ACK',arrows:[{from:'c',to:'s',label:'ACK ack=4001',color:'#fb923c',progress:1}]}},
+  {highlightLines:[11,12],hlJs:[14],hlPy:[14],description:'TIME_WAIT: 等待 2MSL (Maximum Segment Lifetime)，保证最后 ACK 能到达',phase:'teardown',draw:{cState:'TIME_WAIT',sState:'LAST_ACK',arrows:[]}},
+  {highlightLines:[34,35,36],hlJs:[20,21],hlPy:[19,20],description:'Server 收到 ACK → Server CLOSED',phase:'teardown',draw:{cState:'TIME_WAIT',sState:'CLOSED',arrows:[]}},
+  {highlightLines:[11,12],hlJs:[14,15],hlPy:[14],description:'Client TIME_WAIT 超时 → Client CLOSED。四次挥手完成！',phase:'teardown',draw:{cState:'CLOSED',sState:'CLOSED',arrows:[]}},
+];
+
+let cur = 0, playing = false, timer = null;
+const SPEED = [1200, 800, 500, 300, 150];
+
+// ── Canvas Drawing ──
+const canvas = document.getElementById('tcpCanvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  canvas.style.width = rect.width + 'px';
+  canvas.style.height = rect.height + 'px';
+  ctx.scale(dpr, dpr);
+  drawStep();
+}
+
+function drawStep() {
+  const s = STEPS[cur];
+  const d = s.draw;
+  const rect = canvas.getBoundingClientRect();
+  const W = rect.width, H = rect.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const cX = W * 0.15, sX = W * 0.85, boxW = Math.min(130, W * 0.18), boxH = 52;
+  const midY = H * 0.5;
+
+  // Phase label
+  const phaseColors = {handshake:'#2dd4bf',data:'#fbbf24',teardown:'#f87171'};
+  const phaseNames = {handshake:'三次握手',data:'数据传输',teardown:'四次挥手'};
+  ctx.font = 'bold 12px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = phaseColors[s.phase] || '#94a3b8';
+  ctx.fillText(phaseNames[s.phase] || '', W/2, 20);
+
+  // Timeline lines
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([4,4]);
+  ctx.beginPath(); ctx.moveTo(cX, 40); ctx.lineTo(cX, H - 20); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(sX, 40); ctx.lineTo(sX, H - 20); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // State colors
+  const stateColor = (state) => {
+    if(state==='ESTABLISHED') return '#4ade80';
+    if(state==='CLOSED') return '#64748b';
+    if(state==='LISTEN') return '#38bdf8';
+    if(state==='TIME_WAIT') return '#fbbf24';
+    if(state.includes('FIN')) return '#f87171';
+    if(state.includes('SYN')) return '#2dd4bf';
+    return '#94a3b8';
+  };
+
+  // Draw boxes
+  function drawBox(x, label, state) {
+    const color = stateColor(state);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.fillStyle = 'rgba(30,41,59,0.9)';
+    const bx = x - boxW/2, by = midY - boxH/2;
+    ctx.beginPath(); ctx.roundRect(bx, by, boxW, boxH, 8); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = 'bold 13px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x, midY - 6);
+    ctx.fillStyle = color;
+    ctx.font = '10px monospace';
+    ctx.fillText(state, x, midY + 12);
+  }
+  drawBox(cX, 'Client', d.cState);
+  drawBox(sX, 'Server', d.sState);
+
+  // Draw arrows
+  if (d.arrows && d.arrows.length > 0) {
+    d.arrows.forEach(function(arrow) {
+      const fromX = arrow.from === 'c' ? cX : sX;
+      const toX = arrow.from === 'c' ? sX : cX;
+      const arrowY = midY - 70;
+
+      ctx.strokeStyle = arrow.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(fromX + (fromX < toX ? boxW/2+4 : -boxW/2-4), arrowY);
+      ctx.lineTo(toX + (toX < fromX ? boxW/2+4 : -boxW/2-4), arrowY);
+      ctx.stroke();
+
+      // Arrowhead
+      const dir = toX > fromX ? 1 : -1;
+      const ax = toX + (toX < fromX ? boxW/2+4 : -boxW/2-4);
+      ctx.fillStyle = arrow.color;
+      ctx.beginPath();
+      ctx.moveTo(ax, arrowY);
+      ctx.lineTo(ax - dir*10, arrowY - 5);
+      ctx.lineTo(ax - dir*10, arrowY + 5);
+      ctx.closePath();
+      ctx.fill();
+
+      // Label
+      ctx.fillStyle = arrow.color;
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(arrow.label, W/2, arrowY - 8);
+    });
+  }
+
+  // Legend
+  const legendItems = [
+    {color:'#2dd4bf', label:'SYN / 握手'},
+    {color:'#38bdf8', label:'ACK / 确认'},
+    {color:'#4ade80', label:'ESTABLISHED'},
+    {color:'#f87171', label:'FIN / 挥手'},
+    {color:'#fbbf24', label:'TIME_WAIT'},
+  ];
+  const legX = 16, legStartY = H - 20 - legendItems.length * 18;
+  ctx.font = '10px system-ui'; ctx.textAlign = 'left';
+  legendItems.forEach(function(item, i) {
+    const ly = legStartY + i * 18;
+    ctx.fillStyle = item.color;
+    ctx.beginPath(); ctx.arc(legX + 5, ly, 4, 0, Math.PI*2); ctx.fill();
+    ctx.fillText(item.label, legX + 14, ly + 4);
+  });
+}
+
+// ── Code Panel ──
+function renderCode() {
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current)) || CODE_LINES;
+  const hl = LangSwitcher.getHL(STEPS[cur]);
+  document.getElementById('codeBody').innerHTML = lines.map((l, i) =>
+    `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
+      <span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
+  ).join('');
+  const el = document.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
+}
+
+function jumpToLine(ln) {
+  let best = cur, bestDist = Infinity;
+  STEPS.forEach((s,i) => {
+    if((s.highlightLines||[]).includes(ln)) {
+      const d = Math.abs(i-cur);
+      if(d < bestDist) { bestDist=d; best=i; }
+    }
+  });
+  cur = best; render();
+}
+
+function render() {
+  drawStep();
+  renderCode();
+  document.getElementById('descText').textContent = STEPS[cur].description;
+  document.getElementById('stepCounter').textContent = `${cur+1} / ${STEPS.length}`;
+  document.getElementById('btnPrev').disabled = cur === 0;
+  document.getElementById('btnNext').disabled = cur === STEPS.length - 1;
+}
+
+function play() { if(cur>=STEPS.length-1) cur=0; playing=true; document.getElementById('btnPlay').innerHTML='⏸ 暂停'; tick(); }
+function pause() { playing=false; clearTimeout(timer); document.getElementById('btnPlay').innerHTML='▶ 播放'; }
+function tick() { if(!playing) return; if(cur<STEPS.length-1){cur++;render();timer=setTimeout(tick,SPEED[parseInt(document.getElementById('speedRange').value)-1]);}else pause(); }
+
+document.getElementById('btnPlay').addEventListener('click', () => playing ? pause() : play());
+document.getElementById('btnPrev').addEventListener('click', () => { pause(); if(cur>0){cur--;render();} });
+document.getElementById('btnNext').addEventListener('click', () => { pause(); if(cur<STEPS.length-1){cur++;render();} });
+document.getElementById('btnReset').addEventListener('click', () => { pause(); cur=0; render(); });
+
+LangSwitcher.init(renderCode);
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('load', resizeCanvas);
+setTimeout(resizeCanvas, 50);
+render();
+</script>
+</body>
+</html>

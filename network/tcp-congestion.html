@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TCP 拥塞控制 - 网络可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;
+  --border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;
+  --blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;
+  --green:#4ade80;--purple:#c084fc;--red:#f87171;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}
+.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;display:flex;flex-direction:column;min-height:0;padding:16px;}
+#congCanvas{width:100%;flex:1;display:block;border-radius:8px;background:var(--panel2);}
+.desc-box{padding:12px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.9rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(45,212,191,0.12);}.code-line.active .ln{color:var(--teal);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(45,212,191,0.15);border-color:rgba(45,212,191,0.3);color:var(--teal);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--teal);cursor:pointer;}
+@media(max-width:768px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;}
+  nav{flex-wrap:wrap;padding:10px 16px;gap:6px;}
+  nav h1{font-size:1rem;flex:1;}
+  .complexity{margin-left:0!important;width:100%;order:3;margin-top:4px;}
+  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
+  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:300px!important;min-height:300px!important;flex:none!important;overflow:hidden;}
+  .code-panel{width:100%!important;min-width:unset!important;height:340px!important;flex:none!important;}
+  .code-line{font-size:0.76rem!important;}
+  .ln{min-width:36px!important;padding:0 8px!important;}
+  .controls{flex-wrap:wrap!important;padding:10px 14px!important;gap:6px!important;}
+  .btn{padding:6px 10px!important;font-size:0.8rem!important;}
+  .speed-wrap{margin-left:0!important;width:100%;justify-content:flex-end;}
+  .desc-box{padding:8px 14px!important;font-size:0.8rem!important;}
+}
+</style>
+<script src="../nav.js"></script>
+<script src="../lang.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>TCP 拥塞控制</h1>
+  <div class="complexity">
+    <span class="badge" style="background:rgba(45,212,191,0.15);color:#2dd4bf">拥塞控制</span>
+    <span class="badge" style="background:rgba(56,189,248,0.15);color:#38bdf8">AIMD</span>
+    <span class="badge" style="background:rgba(196,132,252,0.15);color:#c084fc">慢启动</span>
+  </div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="viz-area">
+      <canvas id="congCanvas"></canvas>
+    </div>
+    <div class="desc-box">
+      <span id="descText">点击播放，观察拥塞窗口 cwnd 的变化曲线</span>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px" data-base="tcp_congestion">tcp_congestion.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+NavTracker.track('TCP 拥塞控制', window.location.href, '📈', '网络');
+
+const CODE_LINES = [
+  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
+  {html:``},
+  {html:`<span class="kw">import</span> (<br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"fmt"</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"net"</span><br>)`},
+  {html:``},
+  {html:`<span class="cm">// TCP 拥塞控制由内核自动处理，Go 应用层可以配置参数</span>`},
+  {html:`<span class="kw">func</span> <span class="fn">configureTCPConn</span>() {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;conn, _ := <span class="pkg">net</span>.<span class="fn">Dial</span>(<span class="st">"tcp"</span>, <span class="st">"example.com:80"</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;tcpConn := conn.(*<span class="pkg">net</span>.<span class="fn">TCPConn</span>)`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 设置发送/接收缓冲区大小 (影响吞吐量)</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;tcpConn.<span class="fn">SetWriteBuffer</span>(<span class="num">262144</span>) <span class="cm">// 256KB 发送缓冲</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;tcpConn.<span class="fn">SetReadBuffer</span>(<span class="num">262144</span>)  <span class="cm">// 256KB 接收缓冲</span>`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 禁用 Nagle 算法 (减少延迟，适合实时应用)</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;tcpConn.<span class="fn">SetNoDelay</span>(<span class="kw">true</span>)`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="st">"TCP 连接已配置"</span>)`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="cm">// 实际拥塞控制在内核: /proc/sys/net/ipv4/tcp_congestion_control</span>`},
+  {html:`<span class="cm">// cat /proc/.../tcp_congestion_control → "cubic" or "bbr"</span>`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">showTCPInfo</span>() {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 通过 /proc/net/tcp 获取 TCP 状态</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;conn, _ := <span class="pkg">net</span>.<span class="fn">Dial</span>(<span class="st">"tcp"</span>, <span class="st">"google.com:80"</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">defer</span> conn.<span class="fn">Close</span>()`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;local := conn.<span class="fn">LocalAddr</span>().(*<span class="pkg">net</span>.<span class="fn">TCPAddr</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;remote := conn.<span class="fn">RemoteAddr</span>().(*<span class="pkg">net</span>.<span class="fn">TCPAddr</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"本地: %s → 远端: %s\n"</span>, local, remote)`},
+  {html:`}`},
+];
+
+window.LANG_PLAIN = {
+  js: `// Node.js - TCP 拥塞控制由操作系统处理
+const net = require('net');
+
+function configureTCPConn() {
+    const socket = new net.Socket();
+    socket.connect(80, 'example.com', () => {
+        // 设置 keep-alive (影响 TCP 连接维持)
+        socket.setKeepAlive(true, 60000);
+
+        // 禁用 Nagle 算法 (减少延迟)
+        socket.setNoDelay(true);
+
+        console.log('TCP 连接已配置');
+
+        // 查看连接信息
+        console.log(\`本地: \${socket.localAddress}:\${socket.localPort}\`);
+        console.log(\`远端: \${socket.remoteAddress}:\${socket.remotePort}\`);
+    });
+}
+
+// 实际拥塞控制在内核层面:
+// Linux: cat /proc/sys/net/ipv4/tcp_congestion_control
+// 常见算法: cubic (Linux默认), bbr, reno`,
+  py: `import socket
+
+def configure_tcp_conn():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    # 设置接收缓冲区 (影响吞吐量)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 262144)
+    # 设置发送缓冲区
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 262144)
+
+    # 禁用 Nagle 算法 (TCP_NODELAY)
+    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
+    sock.connect(('example.com', 80))
+    print('TCP 连接已配置')
+
+    # 查看连接信息
+    local = sock.getsockname()
+    remote = sock.getpeername()
+    print(f'本地: {local} → 远端: {remote}')
+    sock.close()
+
+# 实际拥塞控制在内核:
+# cat /proc/sys/net/ipv4/tcp_congestion_control -> cubic/bbr`
+};
+
+// cwnd data points per step: {t, cwnd, ssthresh, phase, event}
+const CWN_DATA = [
+  // Slow start
+  {t:0,cwnd:1,ssthresh:16,phase:'slow_start'},
+  {t:1,cwnd:2,ssthresh:16,phase:'slow_start'},
+  {t:2,cwnd:4,ssthresh:16,phase:'slow_start'},
+  {t:3,cwnd:8,ssthresh:16,phase:'slow_start'},
+  {t:4,cwnd:16,ssthresh:16,phase:'ca'},         // hit ssthresh -> congestion avoidance
+  // Congestion avoidance
+  {t:5,cwnd:17,ssthresh:16,phase:'ca'},
+  {t:6,cwnd:18,ssthresh:16,phase:'ca'},
+  {t:7,cwnd:19,ssthresh:16,phase:'ca'},
+  // Timeout loss
+  {t:8,cwnd:1,ssthresh:9,phase:'slow_start',event:'timeout'},
+  {t:9,cwnd:2,ssthresh:9,phase:'slow_start'},
+  {t:10,cwnd:4,ssthresh:9,phase:'slow_start'},
+  {t:11,cwnd:8,ssthresh:9,phase:'slow_start'},
+  // CA after recovery
+  {t:12,cwnd:9,ssthresh:9,phase:'ca'},
+  {t:13,cwnd:10,ssthresh:9,phase:'ca'},
+  // 3-dup ACK -> fast recovery
+  {t:14,cwnd:5,ssthresh:5,phase:'fast_recovery',event:'3dupack'},
+  {t:15,cwnd:6,ssthresh:5,phase:'ca'},
+  {t:16,cwnd:7,ssthresh:5,phase:'ca'},
+  {t:17,cwnd:8,ssthresh:5,phase:'ca'},
+];
+
+const STEPS = [
+  {highlightLines:[5,6],hlJs:[4,5],hlPy:[4,5],description:'拥塞窗口 cwnd: 控制发送速率的核心变量（单位: MSS）',dataIdx:0},
+  {highlightLines:[10,11],hlJs:[8,9],hlPy:[8,9],description:'慢启动: cwnd = 1 MSS，每个 RTT 翻倍（指数增长）',dataIdx:1},
+  {highlightLines:[10,11],hlJs:[8,9],hlPy:[8,9],description:'慢启动继续: cwnd = 4，每收到 ACK 就 +1 MSS',dataIdx:2},
+  {highlightLines:[10,11],hlJs:[8,9],hlPy:[8,9],description:'慢启动: cwnd = 8，ssthresh = 16（初始慢启动阈值）',dataIdx:3},
+  {highlightLines:[13,14,15],hlJs:[10,11],hlPy:[10,11],description:'cwnd 达到 ssthresh=16 → 进入拥塞避免阶段（线性增）',dataIdx:4},
+  {highlightLines:[13,14,15],hlJs:[10,11],hlPy:[10,11],description:'拥塞避免: 每个 RTT 仅 cwnd += 1 MSS（加法增）',dataIdx:5},
+  {highlightLines:[13,14,15],hlJs:[10,11],hlPy:[10,11],description:'拥塞避免: cwnd = 18，线性增长，谨慎探测带宽上限',dataIdx:6},
+  {highlightLines:[13,14,15],hlJs:[10,11],hlPy:[10,11],description:'拥塞避免: cwnd = 19，继续线性增长',dataIdx:7},
+  {highlightLines:[19,20],hlJs:[20,21],hlPy:[22,23],description:'超时检测到丢包! ssthresh = cwnd/2 = 9，cwnd 重置为 1',dataIdx:8},
+  {highlightLines:[10,11],hlJs:[8,9],hlPy:[8,9],description:'重新从慢启动开始，cwnd = 2（倍增）',dataIdx:9},
+  {highlightLines:[10,11],hlJs:[8,9],hlPy:[8,9],description:'慢启动恢复: cwnd = 4，快速爬升至新的 ssthresh',dataIdx:10},
+  {highlightLines:[10,11],hlJs:[8,9],hlPy:[8,9],description:'慢启动: cwnd = 8，接近 ssthresh=9',dataIdx:11},
+  {highlightLines:[13,14,15],hlJs:[10,11],hlPy:[10,11],description:'再次进入拥塞避免: cwnd = 9 = ssthresh',dataIdx:12},
+  {highlightLines:[13,14,15],hlJs:[10,11],hlPy:[10,11],description:'拥塞避免: cwnd = 10，线性增长',dataIdx:13},
+  {highlightLines:[13,14,15],hlJs:[20,21],hlPy:[22,23],description:'快速重传: 收到 3 个重复 ACK → ssthresh=cwnd/2=5，cwnd=ssthresh（不回到慢启动）',dataIdx:14},
+  {highlightLines:[13,14,15],hlJs:[10,11],hlPy:[10,11],description:'快速恢复后进入拥塞避免: cwnd = 6',dataIdx:15},
+  {highlightLines:[13,14,15],hlJs:[10,11],hlPy:[10,11],description:'CUBIC 算法（Linux 默认）: 更激进的增长曲线，比 Reno 吞吐量更高',dataIdx:16},
+  {highlightLines:[19,20,21],hlJs:[20,21],hlPy:[22,23],description:'BBR: 基于带宽和延迟模型，而非丢包信号，减少缓冲膨胀',dataIdx:17},
+];
+
+let cur = 0, playing = false, timer = null;
+const SPEED = [1200,800,500,300,150];
+
+const canvas = document.getElementById('congCanvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  canvas.style.width = rect.width + 'px';
+  canvas.style.height = rect.height + 'px';
+  ctx.scale(dpr, dpr);
+  drawChart();
+}
+
+function drawChart() {
+  const rect = canvas.getBoundingClientRect();
+  const W = rect.width, H = rect.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const PAD = {top:32,right:20,bottom:40,left:52};
+  const cW = W - PAD.left - PAD.right;
+  const cH = H - PAD.top - PAD.bottom;
+  const maxT = 17, maxCwnd = 22;
+
+  const tx = (t) => PAD.left + (t / maxT) * cW;
+  const ty = (c) => PAD.top + cH - (c / maxCwnd) * cH;
+
+  // Background
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1;
+  for(let i=0;i<=4;i++) {
+    const y = PAD.top + (i/4)*cH;
+    ctx.beginPath(); ctx.moveTo(PAD.left,y); ctx.lineTo(W-PAD.right,y); ctx.stroke();
+    ctx.fillStyle='#4b5563'; ctx.font='10px monospace'; ctx.textAlign='right';
+    ctx.fillText(Math.round(maxCwnd*(1-i/4)), PAD.left-4, y+3);
+  }
+  for(let i=0;i<=maxT;i++) {
+    const x = tx(i);
+    ctx.beginPath(); ctx.moveTo(x,PAD.top); ctx.lineTo(x,H-PAD.bottom); ctx.stroke();
+    if(i%2===0) {
+      ctx.fillStyle='#4b5563'; ctx.font='10px monospace'; ctx.textAlign='center';
+      ctx.fillText('RTT'+i, x, H-PAD.bottom+14);
+    }
+  }
+
+  // Axis labels
+  ctx.fillStyle='#64748b'; ctx.font='11px system-ui'; ctx.textAlign='center';
+  ctx.fillText('时间 (RTT)', W/2, H-2);
+  ctx.save(); ctx.translate(12, H/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText('cwnd (MSS)', 0, 0); ctx.restore();
+
+  // Axes
+  ctx.strokeStyle='#334155'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(PAD.left,PAD.top); ctx.lineTo(PAD.left,H-PAD.bottom); ctx.lineTo(W-PAD.right,H-PAD.bottom); ctx.stroke();
+
+  // ssthresh line (dashed, up to current step)
+  const dataUpTo = STEPS[cur].dataIdx;
+  ctx.strokeStyle='#f87171'; ctx.lineWidth=1.5; ctx.setLineDash([5,3]);
+  let prevSS = null;
+  for(let i=0;i<=dataUpTo;i++) {
+    const pt = CWN_DATA[i];
+    const x = tx(pt.t), y = ty(pt.ssthresh);
+    if(prevSS===null) { ctx.beginPath(); ctx.moveTo(x,y); }
+    else ctx.lineTo(x,y);
+    prevSS = y;
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // cwnd line
+  const phaseColors = {slow_start:'#2dd4bf',ca:'#38bdf8',fast_recovery:'#fbbf24'};
+  let prevX = null, prevY = null, prevPhase = null;
+  for(let i=0;i<=dataUpTo;i++) {
+    const pt = CWN_DATA[i];
+    const x = tx(pt.t), y = ty(pt.cwnd);
+    const color = phaseColors[pt.phase] || '#e2e8f0';
+    if(prevX !== null) {
+      ctx.strokeStyle = phaseColors[prevPhase] || '#e2e8f0';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(prevX,prevY); ctx.lineTo(x,y); ctx.stroke();
+    }
+    // Dot
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI*2); ctx.fill();
+    // Event markers
+    if(pt.event === 'timeout') {
+      ctx.fillStyle = '#f87171';
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('超时!', x, y - 10);
+    }
+    if(pt.event === '3dupack') {
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('3×DupACK', x, y - 10);
+    }
+    prevX = x; prevY = y; prevPhase = pt.phase;
+  }
+
+  // Current point highlight
+  const cur_pt = CWN_DATA[dataUpTo];
+  const cx2 = tx(cur_pt.t), cy2 = ty(cur_pt.cwnd);
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath(); ctx.arc(cx2, cy2, 6, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = phaseColors[cur_pt.phase] || '#38bdf8';
+  ctx.beginPath(); ctx.arc(cx2, cy2, 4, 0, Math.PI*2); ctx.fill();
+
+  // Labels
+  ctx.fillStyle = '#e2e8f0'; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'left';
+  ctx.fillText(`cwnd = ${cur_pt.cwnd} MSS`, cx2+8, cy2+4);
+  ctx.fillStyle = '#f87171';
+  ctx.fillText(`ssthresh = ${cur_pt.ssthresh}`, cx2+8, cy2+18);
+
+  // Phase label box
+  const phaseNames = {slow_start:'慢启动 Slow Start',ca:'拥塞避免 Congestion Avoidance',fast_recovery:'快速恢复 Fast Recovery'};
+  const phaseName = phaseNames[cur_pt.phase] || '';
+  const pColor = phaseColors[cur_pt.phase] || '#94a3b8';
+  ctx.fillStyle = pColor + '33';
+  ctx.strokeStyle = pColor;
+  ctx.lineWidth = 1;
+  const lw = ctx.measureText(phaseName).width + 20;
+  ctx.beginPath(); ctx.roundRect(W/2 - lw/2, 8, lw, 20, 4); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = pColor; ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center';
+  ctx.fillText(phaseName, W/2, 22);
+
+  // Legend
+  const legend = [{color:'#2dd4bf',label:'慢启动'},{color:'#38bdf8',label:'拥塞避免'},{color:'#fbbf24',label:'快速恢复'},{color:'#f87171',label:'ssthresh'}];
+  legend.forEach((item,i) => {
+    const lx = PAD.left + 8 + i * 90;
+    const ly = H - PAD.bottom + 26;
+    ctx.fillStyle = item.color;
+    ctx.fillRect(lx, ly-6, 14, 3);
+    ctx.font='9px system-ui'; ctx.textAlign='left';
+    ctx.fillText(item.label, lx+18, ly);
+  });
+}
+
+function renderCode() {
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current)) || CODE_LINES;
+  const hl = LangSwitcher.getHL(STEPS[cur]);
+  document.getElementById('codeBody').innerHTML = lines.map((l,i) =>
+    `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
+      <span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
+  ).join('');
+  const el = document.querySelector('.code-line.active');
+  if(el) el.scrollIntoView({block:'nearest'});
+}
+
+function jumpToLine(ln) {
+  let best=cur,bestDist=Infinity;
+  STEPS.forEach((s,i) => {
+    if((s.highlightLines||[]).includes(ln)){const d=Math.abs(i-cur);if(d<bestDist){bestDist=d;best=i;}}
+  });
+  cur=best; render();
+}
+
+function render() {
+  drawChart();
+  renderCode();
+  document.getElementById('descText').textContent = STEPS[cur].description;
+  document.getElementById('stepCounter').textContent = `${cur+1} / ${STEPS.length}`;
+  document.getElementById('btnPrev').disabled = cur===0;
+  document.getElementById('btnNext').disabled = cur===STEPS.length-1;
+}
+
+function play(){if(cur>=STEPS.length-1)cur=0;playing=true;document.getElementById('btnPlay').innerHTML='⏸ 暂停';tick();}
+function pause(){playing=false;clearTimeout(timer);document.getElementById('btnPlay').innerHTML='▶ 播放';}
+function tick(){if(!playing)return;if(cur<STEPS.length-1){cur++;render();timer=setTimeout(tick,SPEED[parseInt(document.getElementById('speedRange').value)-1]);}else pause();}
+
+document.getElementById('btnPlay').addEventListener('click',()=>playing?pause():play());
+document.getElementById('btnPrev').addEventListener('click',()=>{pause();if(cur>0){cur--;render();}});
+document.getElementById('btnNext').addEventListener('click',()=>{pause();if(cur<STEPS.length-1){cur++;render();}});
+document.getElementById('btnReset').addEventListener('click',()=>{pause();cur=0;render();});
+
+LangSwitcher.init(renderCode);
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('load', resizeCanvas);
+setTimeout(resizeCanvas,50);
+render();
+</script>
+</body>
+</html>

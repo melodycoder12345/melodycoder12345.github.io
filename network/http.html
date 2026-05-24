@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HTTP/HTTPS 原理 - 网络可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;
+  --border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;
+  --blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;
+  --green:#4ade80;--purple:#c084fc;--red:#f87171;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}
+.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.viz-area{flex:1;display:flex;flex-direction:column;min-height:0;padding:16px;}
+#httpCanvas{width:100%;flex:1;display:block;border-radius:8px;background:var(--panel2);}
+.desc-box{padding:12px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.9rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(45,212,191,0.12);}.code-line.active .ln{color:var(--teal);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(45,212,191,0.15);border-color:rgba(45,212,191,0.3);color:var(--teal);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--teal);cursor:pointer;}
+@media(max-width:768px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;}
+  nav{flex-wrap:wrap;padding:10px 16px;gap:6px;}
+  nav h1{font-size:1rem;flex:1;}
+  .complexity{margin-left:0!important;width:100%;order:3;margin-top:4px;}
+  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
+  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:300px!important;min-height:300px!important;flex:none!important;overflow:hidden;}
+  .code-panel{width:100%!important;min-width:unset!important;height:340px!important;flex:none!important;}
+  .code-line{font-size:0.76rem!important;}
+  .ln{min-width:36px!important;padding:0 8px!important;}
+  .controls{flex-wrap:wrap!important;padding:10px 14px!important;gap:6px!important;}
+  .btn{padding:6px 10px!important;font-size:0.8rem!important;}
+  .speed-wrap{margin-left:0!important;width:100%;justify-content:flex-end;}
+  .desc-box{padding:8px 14px!important;font-size:0.8rem!important;}
+}
+</style>
+<script src="../nav.js"></script>
+<script src="../lang.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>HTTP/HTTPS 原理</h1>
+  <div class="complexity">
+    <span class="badge" style="background:rgba(45,212,191,0.15);color:#2dd4bf">HTTP/2</span>
+    <span class="badge" style="background:rgba(56,189,248,0.15);color:#38bdf8">TLS 1.3</span>
+    <span class="badge" style="background:rgba(74,222,128,0.15);color:#4ade80">HTTP/3 QUIC</span>
+  </div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="viz-area">
+      <canvas id="httpCanvas"></canvas>
+    </div>
+    <div class="desc-box">
+      <span id="descText">点击播放，观察 HTTP 版本演进与 TLS 握手过程</span>
+      <span class="step-counter" id="stepCounter">0 / 0</span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px" data-base="http_client">http_client.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+NavTracker.track('HTTP/HTTPS 原理', window.location.href, '🌐', '网络');
+
+const CODE_LINES = [
+  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
+  {html:``},
+  {html:`<span class="kw">import</span> (<br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"crypto/tls"</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"fmt"</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"io"</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"net/http"</span><br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"time"</span><br>)`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">httpGet</span>(url <span class="kw">string</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;client := &amp;<span class="pkg">http</span>.<span class="fn">Client</span>{`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">Timeout</span>: <span class="num">10</span> * <span class="pkg">time</span>.Second,`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">Transport</span>: &amp;<span class="pkg">http</span>.<span class="fn">Transport</span>{`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">TLSClientConfig</span>: &amp;<span class="pkg">tls</span>.<span class="fn">Config</span>{`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">MinVersion</span>: <span class="pkg">tls</span>.<span class="fn">VersionTLS13</span>, <span class="cm">// 强制 TLS 1.3</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;},`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">MaxIdleConns</span>:    <span class="num">100</span>,  <span class="cm">// 连接池大小</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">IdleConnTimeout</span>: <span class="num">90</span> * <span class="pkg">time</span>.Second,`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// HTTP/2 自动启用 (需要 TLS)</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;},`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;req, _ := <span class="pkg">http</span>.<span class="fn">NewRequest</span>(<span class="st">"GET"</span>, url, <span class="kw">nil</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;req.Header.<span class="fn">Set</span>(<span class="st">"User-Agent"</span>, <span class="st">"GoClient/1.0"</span>)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;req.Header.<span class="fn">Set</span>(<span class="st">"Accept-Encoding"</span>, <span class="st">"gzip"</span>)`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;resp, err := client.<span class="fn">Do</span>(req)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> err != <span class="kw">nil</span> { <span class="fn">panic</span>(err) }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">defer</span> resp.Body.<span class="fn">Close</span>()`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"状态: %s\n"</span>, resp.Status)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"协议: %s\n"</span>, resp.Proto) <span class="cm">// "HTTP/2.0" or "HTTP/1.1"</span>`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;body, _ := <span class="pkg">io</span>.<span class="fn">ReadAll</span>(resp.Body)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"Body 大小: %d 字节\n"</span>, <span class="fn">len</span>(body))`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">tlsInfo</span>(host <span class="kw">string</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;conn, err := <span class="pkg">tls</span>.<span class="fn">Dial</span>(<span class="st">"tcp"</span>, host+<span class="st">":443"</span>, &amp;<span class="pkg">tls</span>.<span class="fn">Config</span>{})`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> err != <span class="kw">nil</span> { <span class="fn">panic</span>(err) }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">defer</span> conn.<span class="fn">Close</span>()`},
+  {html:``},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;state := conn.<span class="fn">ConnectionState</span>()`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"TLS 版本: %x\n"</span>, state.Version)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"加密套件: %s\n"</span>, <span class="pkg">tls</span>.<span class="fn">CipherSuiteName</span>(state.CipherSuite))`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"证书主题: %s\n"</span>, state.PeerCertificates[<span class="num">0</span>].Subject)`},
+  {html:`}`},
+];
+
+window.LANG_PLAIN = {
+  js: `const https = require('https');
+const tls = require('tls');
+
+function httpGet(url) {
+    const options = {
+        // HTTP/2 需要安装 node-fetch 或使用 http2 模块
+        headers: { 'User-Agent': 'NodeClient/1.0' },
+        timeout: 10000,
+        // 最低 TLS 版本
+        minVersion: 'TLSv1.3',
+    };
+
+    https.get(url, options, (resp) => {
+        console.log(\`状态: \${resp.statusCode}\`);
+        console.log(\`协议: HTTP/\${resp.httpVersion}\`);
+
+        let data = '';
+        resp.on('data', chunk => data += chunk);
+        resp.on('end', () => console.log(\`Body 大小: \${data.length} 字节\`));
+    });
+}
+
+function tlsInfo(host) {
+    const socket = tls.connect(443, host, {}, () => {
+        const proto = socket.getProtocol(); // TLSv1.3
+        const cipher = socket.getCipher();  // { name, version }
+        console.log(\`TLS 版本: \${proto}\`);
+        console.log(\`加密套件: \${cipher.name}\`);
+        socket.end();
+    });
+}`,
+  py: `import http.client
+import ssl
+
+def http_get(hostname, path='/'):
+    # 创建 TLS 1.3 上下文
+    context = ssl.create_default_context()
+    context.minimum_version = ssl.TLSVersion.TLSv1_3
+
+    # HTTPS 连接 (TLS 在 connect 时握手)
+    conn = http.client.HTTPSConnection(hostname, context=context)
+    conn.request('GET', path, headers={
+        'User-Agent': 'PyClient/1.0',
+        'Accept-Encoding': 'gzip'
+    })
+
+    resp = conn.getresponse()
+    print(f'状态: {resp.status} {resp.reason}')
+    print(f'HTTP 版本: {resp.version}')  # 11 = HTTP/1.1
+
+    body = resp.read()
+    print(f'Body 大小: {len(body)} 字节')
+    conn.close()
+
+def tls_info(hostname):
+    context = ssl.create_default_context()
+    with context.wrap_socket(
+        __import__('socket').create_connection((hostname, 443)),
+        server_hostname=hostname
+    ) as s:
+        print(f'TLS 版本: {s.version()}')
+        print(f'加密套件: {s.cipher()[0]}')`
+};
+
+const STEPS = [
+  {highlightLines:[4,5],hlJs:[3,4],hlPy:[3,4],description:'HTTP 请求结构: Method + URL + Headers + Body',mode:'http11',phase:0},
+  {highlightLines:[17,18,19],hlJs:[12,13],hlPy:[10,11],description:'HTTP/1.0: 每次请求建立新 TCP 连接，开销极大',mode:'http10',phase:1},
+  {highlightLines:[12,13,14],hlJs:[6,7,8],hlPy:[6,7,8],description:'HTTP/1.1: Keep-Alive 持久连接，复用同一 TCP 连接',mode:'http11',phase:2},
+  {highlightLines:[17,18,19],hlJs:[12,13],hlPy:[10,11],description:'HTTP/1.1 队头阻塞: 前一个响应未完成，后续请求必须等待',mode:'http11_hol',phase:3},
+  {highlightLines:[5,6,7,8],hlJs:[4,5,6],hlPy:[4,5,6],description:'HTTP/2: 二进制帧（Frame），多路复用（Multiplexing）',mode:'http2',phase:4},
+  {highlightLines:[21,22,23],hlJs:[12,13,14],hlPy:[13,14],description:'HTTP/2: 请求/响应并行发送，互不阻塞，stream ID 区分',mode:'http2',phase:5},
+  {highlightLines:[11,12],hlJs:[7,8],hlPy:[7,8],description:'HTTP/2: 头部压缩 (HPACK)，减少重复 Header 开销',mode:'http2',phase:6},
+  {highlightLines:[13,14],hlJs:[8,9],hlPy:[8,9],description:'HTTP/2: 服务端推送 (Server Push)，主动推送资源',mode:'http2',phase:7},
+  {highlightLines:[32,33,34],hlJs:[22,23,24],hlPy:[18,19],description:'HTTPS: TLS 握手开始，建立加密通道',mode:'tls',phase:8},
+  {highlightLines:[32,33,34],hlJs:[22,23,24],hlPy:[18,19],description:'TLS 1.3: Client Hello（支持的加密算法、随机数）',mode:'tls',phase:9},
+  {highlightLines:[37,38,39],hlJs:[25,26],hlPy:[22,23],description:'TLS 1.3: Server Hello + 证书 + 使用 ECDHE 密钥交换',mode:'tls',phase:10},
+  {highlightLines:[37,38,39],hlJs:[25,26],hlPy:[22,23],description:'TLS 1.3: 1-RTT 握手完成（TLS 1.2 需要 2-RTT）',mode:'tls',phase:11},
+  {highlightLines:[9,10],hlJs:[6,7],hlPy:[5,6],description:'对称加密通信开始：AES-256-GCM，前向安全保证',mode:'tls',phase:12},
+  {highlightLines:[5,6,7,8],hlJs:[4,5,6],hlPy:[4,5,6],description:'HTTP/3: 基于 QUIC (UDP)，解决 TCP 层队头阻塞，0-RTT 重连',mode:'http3',phase:13},
+];
+
+let cur = 0, playing = false, timer = null;
+const SPEED = [1200,800,500,300,150];
+
+const canvas = document.getElementById('httpCanvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  canvas.style.width = rect.width + 'px';
+  canvas.style.height = rect.height + 'px';
+  ctx.scale(dpr, dpr);
+  drawViz();
+}
+
+function drawViz() {
+  const s = STEPS[cur];
+  const rect = canvas.getBoundingClientRect();
+  const W = rect.width, H = rect.height;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, W, H);
+
+  const mode = s.mode, phase = s.phase;
+
+  // Title
+  const titles = {
+    http10:'HTTP/1.0 — 短连接', http11:'HTTP/1.1 — 持久连接 Keep-Alive',
+    http11_hol:'HTTP/1.1 — 队头阻塞 (Head-of-Line Blocking)',
+    http2:'HTTP/2 — 多路复用 (Multiplexing)',
+    tls:'HTTPS — TLS 1.3 握手过程',
+    http3:'HTTP/3 — QUIC over UDP'
+  };
+  const titleColors = {
+    http10:'#94a3b8', http11:'#38bdf8', http11_hol:'#f87171',
+    http2:'#4ade80', tls:'#c084fc', http3:'#2dd4bf'
+  };
+  ctx.fillStyle = titleColors[mode] || '#94a3b8';
+  ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center';
+  ctx.fillText(titles[mode] || '', W/2, 22);
+
+  const cX = W*0.12, sX = W*0.88, midX = W*0.5;
+  const topY = 50, botY = H - 30;
+
+  // Client & Server boxes
+  function drawNode(x, label, color) {
+    ctx.fillStyle = color + '22'; ctx.strokeStyle = color; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(x-45, topY-10, 90, 34, 8); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = color; ctx.font = 'bold 12px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText(label, x, topY+10);
+    // Timeline
+    ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 2; ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(x, topY+24); ctx.lineTo(x, botY); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  drawNode(cX, 'Client', '#38bdf8');
+  drawNode(sX, 'Server', '#4ade80');
+
+  if (mode === 'http10') {
+    // Show 2 separate connections
+    const yList = [topY+60, topY+130];
+    const labels = ['GET /index.html → 新TCP连接', 'GET /style.css → 又一个新TCP连接'];
+    const colors = ['#f87171','#fb923c'];
+    yList.forEach((y,i) => {
+      ctx.strokeStyle = colors[i]; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(cX,y); ctx.lineTo(sX,y); ctx.stroke();
+      ctx.fillStyle = colors[i]; ctx.font = '10px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText(labels[i], midX, y-6);
+      // Response
+      ctx.strokeStyle = colors[i]; ctx.setLineDash([3,2]);
+      ctx.beginPath(); ctx.moveTo(sX,y+20); ctx.lineTo(cX,y+20); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillText('200 OK (断开)', midX, y+34);
+    });
+  } else if (mode === 'http11' || mode === 'http11_hol') {
+    const reqs = [
+      {y:topY+50,label:'GET /index.html',color:'#38bdf8'},
+      {y:topY+100,label:'GET /style.css',color:mode==='http11_hol'?'#f87171':'#38bdf8'},
+      {y:topY+150,label:'GET /script.js',color:mode==='http11_hol'?'#f87171':'#38bdf8'},
+    ];
+    reqs.forEach((r,i) => {
+      ctx.strokeStyle = r.color; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(cX,r.y); ctx.lineTo(sX,r.y); ctx.stroke();
+      ctx.fillStyle = r.color; ctx.font = '10px monospace'; ctx.textAlign = 'center';
+      ctx.fillText(r.label, midX, r.y-6);
+      if(mode === 'http11_hol' && i > 0) {
+        ctx.fillStyle = '#f87171'; ctx.font = 'bold 10px system-ui';
+        ctx.fillText('⏳ 等待 Response 1...', midX, r.y+14);
+      }
+    });
+    if(mode === 'http11') {
+      ctx.strokeStyle='#4ade80'; ctx.lineWidth=1.5; ctx.setLineDash([6,3]);
+      ctx.beginPath(); ctx.moveTo(cX,topY+45); ctx.lineTo(cX,topY+180); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle='#4ade80'; ctx.font='9px system-ui'; ctx.textAlign='center';
+      ctx.fillText('Keep-Alive', cX-50, topY+115);
+    }
+  } else if (mode === 'http2') {
+    // Multiplexed streams
+    const streams = [
+      {id:1,label:'Stream 1: GET /index',color:'#38bdf8',yOff:0},
+      {id:3,label:'Stream 3: GET /style',color:'#4ade80',yOff:30},
+      {id:5,label:'Stream 5: GET /image',color:'#fbbf24',yOff:60},
+    ];
+    streams.forEach((st) => {
+      const y = topY + 60 + st.yOff;
+      ctx.strokeStyle = st.color; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(cX,y); ctx.lineTo(sX,y); ctx.stroke();
+      ctx.fillStyle = st.color; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'center';
+      ctx.fillText(`[${st.id}] ${st.label}`, midX, y-6);
+    });
+    streams.forEach((st) => {
+      const y = topY + 180 + st.yOff;
+      ctx.strokeStyle = st.color; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(sX,y); ctx.lineTo(cX,y); ctx.stroke();
+      ctx.fillStyle = st.color; ctx.font = '10px monospace'; ctx.textAlign = 'center';
+      ctx.fillText(`[${st.id}] 200 OK`, midX, y-6);
+    });
+    ctx.fillStyle = '#4ade80'; ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText('▲ 同时并行，互不阻塞', W/2, H-50);
+  } else if (mode === 'tls') {
+    const tlsSteps = [
+      {from:'c',label:'Client Hello (TLS1.3, cipher_suites, random)',color:'#c084fc',y:topY+55},
+      {from:'s',label:'Server Hello + 证书 + ECDHE key_share',color:'#38bdf8',y:topY+105},
+      {from:'s',label:'(Encrypted Handshake Data)',color:'#4ade80',y:topY+130},
+      {from:'c',label:'Finished (验证证书)',color:'#c084fc',y:topY+165},
+      {from:'both',label:'← AES-256-GCM 加密通信 →',color:'#fbbf24',y:topY+215},
+    ];
+    const visibleCount = Math.min(phase - 7, tlsSteps.length);
+    for(let i=0;i<visibleCount;i++) {
+      const ts = tlsSteps[i];
+      const fromX = ts.from === 'c' ? cX : sX;
+      const toX = ts.from === 'c' ? sX : cX;
+      if(ts.from === 'both') {
+        ctx.strokeStyle = ts.color; ctx.lineWidth = 2; ctx.setLineDash([6,3]);
+        ctx.beginPath(); ctx.moveTo(cX+50, ts.y); ctx.lineTo(sX-50, ts.y); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = ts.color; ctx.font='bold 10px system-ui'; ctx.textAlign='center';
+        ctx.fillText(ts.label, midX, ts.y-6);
+      } else {
+        ctx.strokeStyle = ts.color; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(fromX,ts.y); ctx.lineTo(toX,ts.y); ctx.stroke();
+        const arrowDir = toX > fromX ? 1 : -1;
+        ctx.fillStyle = ts.color;
+        ctx.beginPath(); ctx.moveTo(toX, ts.y); ctx.lineTo(toX-arrowDir*10, ts.y-5); ctx.lineTo(toX-arrowDir*10, ts.y+5); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = ts.color; ctx.font='10px monospace'; ctx.textAlign='center';
+        ctx.fillText(ts.label, midX, ts.y-7);
+      }
+    }
+    if(visibleCount >= 4) {
+      ctx.fillStyle='#4ade80'; ctx.font='bold 11px system-ui'; ctx.textAlign='center';
+      ctx.fillText('✓ 1-RTT 握手完成 (TLS 1.2 需要 2-RTT)', W/2, H-50);
+    }
+  } else if (mode === 'http3') {
+    // Show QUIC streams
+    ctx.fillStyle = '#2dd4bf'; ctx.font='11px system-ui'; ctx.textAlign='center';
+    ctx.fillText('QUIC over UDP — 每个 Stream 独立，丢包不影响其他 Stream', W/2, topY+45);
+    const quicStreams = [
+      {id:0,label:'QUIC Stream 0: GET /index',color:'#2dd4bf',y:topY+80},
+      {id:4,label:'QUIC Stream 4: GET /api',color:'#38bdf8',y:topY+110},
+      {id:8,label:'QUIC Stream 8: GET /img (丢包!)',color:'#f87171',y:topY+140},
+      {id:12,label:'QUIC Stream 12: GET /font',color:'#4ade80',y:topY+170},
+    ];
+    quicStreams.forEach(st => {
+      ctx.strokeStyle = st.color; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(cX,st.y); ctx.lineTo(sX,st.y); ctx.stroke();
+      ctx.fillStyle = st.color; ctx.font='10px monospace'; ctx.textAlign='center';
+      ctx.fillText(st.label, midX, st.y-6);
+    });
+    ctx.fillStyle='#4ade80'; ctx.font='bold 11px system-ui'; ctx.textAlign='center';
+    ctx.fillText('Stream 8 丢包只影响自己，其他 Stream 正常响应', W/2, H-50);
+    ctx.fillStyle='#2dd4bf'; ctx.font='10px monospace';
+    ctx.fillText('0-RTT: 使用之前会话密钥，直接发请求，不需要握手', W/2, H-30);
+  }
+}
+
+function renderCode() {
+  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current)) || CODE_LINES;
+  const hl = LangSwitcher.getHL(STEPS[cur]);
+  document.getElementById('codeBody').innerHTML = lines.map((l,i) =>
+    `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
+      <span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
+  ).join('');
+  const el = document.querySelector('.code-line.active');
+  if(el) el.scrollIntoView({block:'nearest'});
+}
+
+function jumpToLine(ln) {
+  let best=cur,bestDist=Infinity;
+  STEPS.forEach((s,i) => {
+    if((s.highlightLines||[]).includes(ln)){const d=Math.abs(i-cur);if(d<bestDist){bestDist=d;best=i;}}
+  });
+  cur=best; render();
+}
+
+function render() {
+  drawViz();
+  renderCode();
+  document.getElementById('descText').textContent = STEPS[cur].description;
+  document.getElementById('stepCounter').textContent = `${cur+1} / ${STEPS.length}`;
+  document.getElementById('btnPrev').disabled = cur===0;
+  document.getElementById('btnNext').disabled = cur===STEPS.length-1;
+}
+
+function play(){if(cur>=STEPS.length-1)cur=0;playing=true;document.getElementById('btnPlay').innerHTML='⏸ 暂停';tick();}
+function pause(){playing=false;clearTimeout(timer);document.getElementById('btnPlay').innerHTML='▶ 播放';}
+function tick(){if(!playing)return;if(cur<STEPS.length-1){cur++;render();timer=setTimeout(tick,SPEED[parseInt(document.getElementById('speedRange').value)-1]);}else pause();}
+
+document.getElementById('btnPlay').addEventListener('click',()=>playing?pause():play());
+document.getElementById('btnPrev').addEventListener('click',()=>{pause();if(cur>0){cur--;render();}});
+document.getElementById('btnNext').addEventListener('click',()=>{pause();if(cur<STEPS.length-1){cur++;render();}});
+document.getElementById('btnReset').addEventListener('click',()=>{pause();cur=0;render();});
+
+LangSwitcher.init(renderCode);
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('load', resizeCanvas);
+setTimeout(resizeCanvas,50);
+render();
+</script>
+</body>
+</html>
