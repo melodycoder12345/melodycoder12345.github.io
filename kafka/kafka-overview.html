@@ -64,7 +64,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
-<script src="../lang.js"></script>
+<script src="../concept.js"></script>
 </head>
 <body>
 <nav>
@@ -205,6 +205,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
   <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
 </div>
 <script>
+window.PAGE_CONCEPTS = [
+  { title: '什么是 Kafka', body: `Apache Kafka 是一个分布式流处理平台，基于发布-订阅模型，以高吞吐、低延迟和持久化著称，广泛用于日志收集、事件流和数据管道。` },
+  { title: 'Topic & Partition', body: `Topic 是消息的逻辑分类。每个 Topic 被切分为多个 Partition（分区），分区是 Kafka 并行处理的基本单元，允许多个 Consumer 同时消费。`, tag: 'O(1) 写' },
+  { title: 'Broker', body: `Broker 是独立的 Kafka 服务进程，负责存储分区数据。多个 Broker 组成集群，ZooKeeper（或 KRaft）负责协调元数据。` },
+  { title: 'Producer & Consumer', body: `Producer 将消息追加写入分区末尾（顺序写磁盘）。Consumer 以 Pull 方式拉取消息，通过 Offset 记录消费位置。` },
+  { title: 'Consumer Group', body: `同一 Group 内多个 Consumer 共同消费 Topic，每个 Partition 同时只由组内一个 Consumer 消费，实现负载均衡与水平扩展。` }
+];
+
 const CODE_LINES = [
   {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
   {html:``},
@@ -251,70 +259,6 @@ const CODE_LINES = [
   {html:`}`},
 ];
 
-window.LANG_PLAIN = {
-  js: `const { Kafka } = require('kafkajs');
-
-const kafka = new Kafka({
-  clientId: 'my-app',
-  brokers: ['localhost:9092']
-});
-
-// 创建 Producer
-const producer = kafka.producer();
-await producer.connect();
-
-await producer.send({
-  topic: 'orders',
-  messages: [
-    {
-      key: 'order-1',
-      value: JSON.stringify({ id: 1, amount: 100 })
-    }
-  ]
-});
-console.log('消息发送成功');
-
-// 创建 Consumer
-const consumer = kafka.consumer({ groupId: 'order-service' });
-await consumer.connect();
-await consumer.subscribe({ topic: 'orders' });
-
-await consumer.run({
-  eachMessage: async ({ topic, partition, message }) => {
-    console.log(\`partition=\${partition} offset=\${message.offset}\`);
-  }
-});`,
-  py: `from kafka import KafkaProducer, KafkaConsumer
-import json
-
-# 创建 Producer
-producer = KafkaProducer(
-    bootstrap_servers=['localhost:9092'],
-    value_serializer=lambda v: json.dumps(v).encode('utf-8'),
-    key_serializer=lambda k: k.encode('utf-8')
-)
-
-# 发送消息
-producer.send(
-    'orders',
-    key='order-1',
-    value={'id': 1, 'amount': 100}
-)
-producer.flush()
-print('消息发送成功')
-
-# 创建 Consumer
-consumer = KafkaConsumer(
-    'orders',
-    group_id='order-service',
-    bootstrap_servers=['localhost:9092'],
-    value_deserializer=lambda m: json.loads(m.decode('utf-8'))
-)
-
-# 消费消息
-for msg in consumer:
-    print(f'partition={msg.partition} offset={msg.offset}')`
-};
 
 const STEPS = [
   { highlightLines:[9,10,11,12,13,14,15,16], hlJs:[2,3,4,5,6], hlPy:[1,2,3,4,5,6], description:"全景概览：Producer 发送消息，Broker 存储，Consumer Group 消费" },
@@ -399,8 +343,8 @@ function animateBall(x1, x2, color) {
 
 function renderCode() {
   const step = STEPS[cur];
-  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current)) || CODE_LINES;
-  const hl = LangSwitcher.getHL(step);
+  const lines = CODE_LINES;
+  const hl = ((step||{}).highlightLines||[]);
   const body = document.getElementById('codeBody');
   body.innerHTML = lines.map((line, i) => {
     const active = hl.includes(i) ? ' active' : '';
@@ -427,7 +371,6 @@ document.getElementById('btnPlay').addEventListener('click',()=>playing?pause():
 document.getElementById('btnPrev').addEventListener('click',()=>{pause();if(cur>0){cur--;render();}});
 document.getElementById('btnNext').addEventListener('click',()=>{pause();if(cur<STEPS.length-1){cur++;render();}});
 document.getElementById('btnReset').addEventListener('click',()=>{pause();cur=0;render();});
-LangSwitcher.init(renderCode);
 render();
 </script>
 </body>

@@ -80,7 +80,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
 }
 </style>
 <script src="../nav.js"></script>
-<script src="../lang.js"></script>
+<script src="../concept.js"></script>
 </head>
 <body>
 <nav>
@@ -121,6 +121,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
 </div>
 <script>
 NavTracker.track('Redis 持久化', 'redis/persistence.html', '💾', 'Redis');
+
+window.PAGE_CONCEPTS = [
+  { title: 'RDB 快照', body: `定期对整个数据集做全量快照，fork 子进程执行 BGSAVE，主进程不阻塞。恢复速度快，适合备份，但可能丢失最后一次快照后的数据。` },
+  { title: 'AOF 日志', body: `每条写命令追加到 AOF 文件。三种 fsync 策略：always（每条都刷盘，最安全）、everysec（每秒一次，推荐）、no（由 OS 决定）。` },
+  { title: 'AOF Rewrite', body: `AOF 文件随时间膨胀，BGREWRITEAOF 启动子进程重写，将内存数据序列化为等效的最小命令集，压缩文件大小。`, tag: 'BGREWRITEAOF' },
+  { title: '混合持久化', body: `Redis 4.0+ 推荐方案：AOF 文件头部嵌入 RDB 快照，后半段是增量 AOF 命令。重启时先加载 RDB 再重放 AOF，兼顾速度与完整性。`, tag: '推荐' },
+  { title: '持久化选型', body: `纯缓存（可丢）：关闭两者。数据不可丢：AOF everysec + 定期 RDB 备份。高频快照：RDB（注意 fork 开销）。生产推荐：混合持久化。` }
+];
 
 const CODE_LINES = [
   {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
@@ -165,51 +173,6 @@ const CODE_LINES = [
   {html:`<span class="cm">// appendfsync everysec  # 每秒同步</span>`},
 ];
 
-window.LANG_PLAIN = {
-  js: `const { createClient } = require('redis');
-const client = createClient();
-await client.connect();
-
-// Trigger background RDB snapshot
-const bgsaveResult = await client.bgSave();
-console.log('BGSAVE:', bgsaveResult);
-
-// Trigger AOF rewrite
-const bgrewriteResult = await client.bgRewriteAof();
-console.log('BGREWRITEAOF:', bgrewriteResult);
-
-// Check persistence info
-const info = await client.info('persistence');
-console.log(info);
-
-// CONFIG GET persistence settings
-const rdbEnabled = await client.configGet('save');
-const aofEnabled = await client.configGet('appendonly');
-console.log('RDB config:', rdbEnabled);
-console.log('AOF config:', aofEnabled);`,
-
-  py: `import redis
-
-r = redis.Redis(host='localhost', port=6379, decode_responses=True)
-
-# Trigger background RDB snapshot
-result = r.bgsave()
-print('BGSAVE:', result)
-
-# Trigger AOF rewrite
-result2 = r.bgrewriteaof()
-print('BGREWRITEAOF:', result2)
-
-# Check persistence info
-info = r.info('persistence')
-print('rdb_enabled:', info['rdb_last_bgsave_status'])
-print('aof_enabled:', info['aof_enabled'])
-print('aof_rewrite_in_progress:', info['aof_rewrite_in_progress'])
-
-# Get last save time
-last_save = r.lastsave()
-print('last_save:', last_save)`
-};
 
 const STEPS = [
   {
@@ -559,8 +522,8 @@ function render() {
 }
 
 function renderCode() {
-  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current)) || CODE_LINES;
-  const hl = LangSwitcher.getHL(STEPS[step]) || [];
+  const lines = CODE_LINES;
+  const hl = (STEPS[step]||{}).highlightLines || [];
   const body = document.getElementById('codeBody');
   body.innerHTML = lines.map((l, i) =>
     `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
@@ -572,7 +535,7 @@ function renderCode() {
 
 function jumpToLine(lineNum) {
   for (let i = STEPS.length-1; i >= 0; i--) {
-    const hl = LangSwitcher.getHL(STEPS[i]);
+    const hl = (STEPS[i]||{}).highlightLines || [];
     if (hl.includes(lineNum)) { step = i; render(); return; }
   }
 }
@@ -586,7 +549,6 @@ document.getElementById('btnPrev').addEventListener('click', () => { pause(); if
 document.getElementById('btnNext').addEventListener('click', () => { pause(); if(step<STEPS.length-1){step++;render();} });
 document.getElementById('btnReset').addEventListener('click', () => { pause(); step=0; render(); });
 
-LangSwitcher.init(renderCode);
 render();
 </script>
 </body>

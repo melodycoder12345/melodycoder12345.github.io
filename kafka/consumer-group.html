@@ -48,7 +48,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
-<script src="../lang.js"></script>
+<script src="../concept.js"></script>
 </head>
 <body>
 <nav>
@@ -157,6 +157,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
   <div class="speed-wrap"><span>🐢</span><input type="range" id="speedSlider" min="1" max="5" value="3"><span>🐇</span></div>
 </div>
 <script>
+window.PAGE_CONCEPTS = [
+  { title: 'Group Coordinator', body: `每个 Consumer Group 有一个对应的 Broker 担任 Group Coordinator，负责管理成员列表、触发和协调 Rebalance。` },
+  { title: 'Rebalance 触发条件', body: `1) 成员加入/离开 Group；2) Topic Partition 数量变化；3) 订阅的 Topic 发生变化；4) 超过 session.timeout.ms 未收到心跳。` },
+  { title: 'JoinGroup / SyncGroup', body: `JoinGroup：所有成员向 Coordinator 发送加入请求，选出 Group Leader（第一个加入者）。SyncGroup：Leader 计算分配方案并通过 Coordinator 下发给所有成员。`, tag: '两阶段协议' },
+  { title: '分区分配策略', body: `RangeAssignor（默认）按范围分配。RoundRobinAssignor 轮询分配更均匀。StickyAssignor 尽量保持原分配，减少迁移。CooperativeStickyAssignor 增量 Rebalance，减少停顿。` },
+  { title: '静态成员', body: `group.instance.id 标识静态成员。静态成员重启不触发 Rebalance，直到 session.timeout.ms 超时，适合有状态的 Consumer（如本地聚合）。`, tag: '减少抖动' }
+];
+
 const CODE_LINES=[
   {html:'<span class="kw">package</span> main'},
   {html:''},
@@ -195,50 +203,6 @@ const CODE_LINES=[
   {html:'}'},
 ];
 
-window.LANG_PLAIN={
-  js:`const { Kafka } = require('kafkajs');
-const kafka = new Kafka({ clientId:'app', brokers:['localhost:9092'] });
-
-async function startConsumer(consumerId) {
-  // 同一 GroupID 的所有 consumer 共享 partition
-  const consumer = kafka.consumer({ groupId: 'order-svc' });
-  await consumer.connect();
-  await consumer.subscribe({ topic: 'orders' });
-
-  await consumer.run({
-    eachMessage: async ({ partition, message }) => {
-      console.log(\`[\${consumerId}] partition=\${partition} offset=\${message.offset}\`);
-    },
-  });
-}
-
-// 启动 2 个 Consumer，SDK 自动分配分区
-startConsumer('C1');
-startConsumer('C2');
-// C3 加入时触发 Rebalance
-startConsumer('C3');`,
-  py:`from kafka import KafkaConsumer
-import threading
-
-def start_consumer(consumer_id):
-    # 同一 group_id 的所有 consumer 共享 partition
-    consumer = KafkaConsumer(
-        'orders',
-        group_id='order-svc',
-        bootstrap_servers=['localhost:9092'],
-    )
-    for msg in consumer:
-        print(f'[{consumer_id}] partition={msg.partition} offset={msg.offset}')
-
-# 启动 2 个 Consumer
-t1 = threading.Thread(target=start_consumer, args=('C1',))
-t2 = threading.Thread(target=start_consumer, args=('C2',))
-t1.start(); t2.start()
-
-# C3 加入时触发 Rebalance
-t3 = threading.Thread(target=start_consumer, args=('C3',))
-t3.start()`
-};
 
 const STEPS=[
   {highlightLines:[9,10,11,12,13],hlJs:[3,4,5,6],hlPy:[4,5,6,7,8],description:'Consumer-1 启动，向 Group Coordinator 发送 JoinGroup 请求，携带 GroupID 和 Topic 订阅信息'},
@@ -344,8 +308,8 @@ function renderViz(){
 }
 
 function renderCode(){
-  const lines=LangSwitcher.getLines(LangSwitcher.current)||CODE_LINES;
-  const hl=step<STEPS.length?LangSwitcher.getHL(STEPS[step]):[];
+  const lines=CODE_LINES;
+  const hl=step<STEPS.length?(STEPS[step].highlightLines||[]):[];
   document.getElementById('codeBody').innerHTML=lines.map((l,i)=>
     `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
       <span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
@@ -361,7 +325,7 @@ function render(){
   document.getElementById('btnNext').disabled=step>=STEPS.length-1;
 }
 
-function jumpToLine(ln){for(let i=STEPS.length-1;i>=0;i--){if(LangSwitcher.getHL(STEPS[i]).includes(ln)){step=i;render();return;}}}
+function jumpToLine(ln){for(let i=STEPS.length-1;i>=0;i--){if((STEPS[i].highlightLines||[]).includes(ln)){step=i;render();return;}}}
 function next(){if(step<STEPS.length-1){step++;render();}}
 function prev(){if(step>0){step--;render();}}
 function reset(){step=0;render();if(playing){playing=false;clearInterval(timer);document.getElementById('btnPlay').textContent='▶ 播放';}}
@@ -372,7 +336,6 @@ function togglePlay(){
   else clearInterval(timer);
 }
 
-LangSwitcher.init(renderCode);
 render();
 if(window.NavTracker)NavTracker.track('消费者组Rebalance','kafka/consumer-group.html','📦','Kafka');
 </script>

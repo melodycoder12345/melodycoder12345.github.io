@@ -91,7 +91,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
-<script src="../lang.js"></script>
+<script src="../concept.js"></script>
 </head>
 <body>
 <nav>
@@ -273,6 +273,14 @@ const STEPS = [
   },
 ];
 
+window.PAGE_CONCEPTS = [
+  { title: '阻塞 IO (BIO)', body: `调用 read()/recv() 后进程挂起，直到数据就绪且从内核复制到用户空间。实现简单，但一个线程同时只能处理一个连接，并发能力差。` },
+  { title: '非阻塞 IO (NIO)', body: `fd 设置 O_NONBLOCK 后，read() 立即返回 EAGAIN（无数据）。需应用层轮询检查，浪费 CPU；通常与 IO 多路复用配合使用。` },
+  { title: 'select / poll', body: `将多个 fd 传入内核，内核扫描哪些就绪后返回。select 有 1024 fd 限制；poll 无上限但仍是 O(N) 遍历。每次调用都需重传 fd 集合，连接数大时性能差。`, tag: 'O(N)' },
+  { title: 'epoll', body: `Linux 特有：epoll_create 创建实例，epoll_ctl 注册 fd（只注册一次），epoll_wait 返回就绪 fd 列表。内核用红黑树管理注册 fd，就绪队列传递事件，O(1) 获取事件，是高并发服务器的首选。`, tag: 'O(1) 推荐' },
+  { title: '信号驱动 & 异步 IO', body: `信号驱动 (SIGIO)：数据就绪时内核发信号，应用再 read（仍同步）。真正异步 IO（io_uring / AIO）：IO 完成后内核通知，无需任何同步等待，io_uring 是 Linux 5.1+ 的现代方案。` }
+];
+
 const CODE_LINES = [
   {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
   {html:``},
@@ -332,86 +340,6 @@ const CODE_LINES = [
   {html:`}`},
 ];
 
-window.LANG_PLAIN = {
-  js: `// JavaScript — Node.js 事件驱动 IO (基于 epoll/kqueue)
-const net = require('net');
-const fs = require('fs');
-
-// Node.js 天然非阻塞 IO
-// 回调 = 数据就绪时执行
-const server = net.createServer(socket => {
-  socket.on('data', data => {
-    // 事件驱动：有数据才触发
-    console.log('收到数据:', data.toString());
-    socket.write('响应: ' + data);
-  });
-  socket.on('error', err => console.error(err));
-});
-
-server.listen(8080, () => console.log('监听 8080'));
-
-// Promise + async/await 封装异步 IO
-async function readFileAsync(path) {
-  return new Promise((resolve, reject) => {
-    fs.readFile(path, 'utf8', (err, data) => {
-      if (err) reject(err);
-      else resolve(data);
-    });
-  });
-}
-
-// 并发 IO 多路复用
-async function concurrentIO() {
-  const [a, b, c] = await Promise.all([
-    readFileAsync('/etc/hostname'),
-    readFileAsync('/etc/os-release'),
-    readFileAsync('/proc/version'),
-  ]);
-  console.log(a.trim(), b.slice(0,30), c.slice(0,30));
-}`,
-  py: `# Python — 异步 IO (asyncio 基于 epoll/kqueue)
-import asyncio
-import socket
-
-# 阻塞 IO (传统方式)
-def blocking_io():
-    with socket.socket() as s:
-        s.connect(('httpbin.org', 80))
-        s.sendall(b'GET / HTTP/1.0\r\nHost: httpbin.org\r\n\r\n')
-        data = s.recv(1024)  # 阻塞等待
-        return data
-
-# 非阻塞 IO
-def nonblocking_io():
-    s = socket.socket()
-    s.setblocking(False)  # 设为非阻塞
-    try:
-        s.connect(('127.0.0.1', 8080))
-    except BlockingIOError:
-        pass  # EAGAIN/EINPROGRESS
-
-# select 多路复用
-import select
-def select_io(fds):
-    readable, _, _ = select.select(fds, [], [], timeout=1.0)
-    for fd in readable:
-        data = fd.recv(1024)
-        print('就绪 FD 收到:', len(data), 'bytes')
-
-# asyncio — 基于 epoll 的协程 IO
-async def async_server():
-    server = await asyncio.start_server(
-        handle_client, '127.0.0.1', 8888
-    )
-    async with server:
-        await server.serve_forever()
-
-async def handle_client(reader, writer):
-    data = await reader.read(100)  # 非阻塞
-    writer.write(b'响应: ' + data)
-    await writer.drain()
-    writer.close()`
-};
 
 function buildModels(activeId, highlightIds) {
   const container = document.getElementById('ioModels');
@@ -435,8 +363,8 @@ function buildModels(activeId, highlightIds) {
 }
 
 function renderCode() {
-  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current)) || CODE_LINES;
-  const hl = LangSwitcher.getHL(STEPS[cur]);
+  const lines = CODE_LINES;
+  const hl = ((STEPS[cur]||{}).highlightLines||[]);
   const body = document.getElementById('codeBody');
   body.innerHTML = lines.map((line, i) => {
     const active = hl.includes(i+1) ? ' active' : '';
@@ -474,7 +402,6 @@ document.getElementById('btnPrev').addEventListener('click',()=>{pause();if(cur>
 document.getElementById('btnNext').addEventListener('click',()=>{pause();if(cur<STEPS.length-1){cur++;render();}});
 document.getElementById('btnReset').addEventListener('click',()=>{pause();cur=0;render();});
 
-LangSwitcher.init(renderCode);
 render();
 if (window.NavTracker) NavTracker.track('IO 模型', window.location.href, '⚡', 'Linux');
 </script>

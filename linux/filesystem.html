@@ -87,7 +87,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
-<script src="../lang.js"></script>
+<script src="../concept.js"></script>
 </head>
 <body>
 <nav>
@@ -325,6 +325,14 @@ function buildViz(step) {
   }
 }
 
+window.PAGE_CONCEPTS = [
+  { title: 'VFS 虚拟文件系统', body: `VFS 是内核的抽象层，统一了 ext4、xfs、tmpfs、NFS 等不同文件系统的接口。应用通过 open/read/write 系统调用操作文件，无需关心底层实现。` },
+  { title: 'inode', body: `inode 存储文件元数据：权限、所有者、大小、时间戳、磁盘块指针。文件名不在 inode 中，而在目录项里。每个 inode 有唯一编号（inode number）。` },
+  { title: '目录项 (dentry)', body: `dentry 是文件名到 inode 的映射，内核用 dentry cache（dcache）缓存，加速路径解析。路径查找本质是逐级解析 dentry，找到最终 inode。`, tag: 'dcache' },
+  { title: '硬链接 vs 软链接', body: `硬链接：共享同一 inode，删除一个链接不影响其他，引用计数减为 0 才真正删除数据；不能跨文件系统。软链接（符号链接）：独立 inode，存储目标路径字符串，可跨文件系统，目标删除后成悬挂链接。` },
+  { title: '块分配与碎片', body: `ext4 使用 extent 树（连续块范围）代替间接块指针，减少碎片和元数据开销。Delayed Allocation（延迟分配）在写入时才分配磁盘块，提升连续性。` }
+];
+
 const CODE_LINES = [
   {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
   {html:``},
@@ -382,94 +390,10 @@ const CODE_LINES = [
   {html:`}`},
 ];
 
-window.LANG_PLAIN = {
-  js: `// JavaScript (Node.js) — 文件系统操作
-const fs = require('fs');
-const path = require('path');
-
-// 读取 inode 信息 (stat)
-function inodeInfo(filePath) {
-  const stat = fs.statSync(filePath);
-  console.log('文件:', filePath);
-  console.log('inode:', stat.ino);     // inode 号
-  console.log('硬链接数:', stat.nlink);
-  console.log('大小:', stat.size, '字节');
-  console.log('权限:', (stat.mode & 0o777).toString(8));
-  console.log('修改时间:', stat.mtime);
-}
-
-// 硬链接 vs 软链接
-function createLinks(src, hardLink, softLink) {
-  fs.writeFileSync(src, 'Hello, Links!');
-
-  // 硬链接: 同一 inode
-  fs.linkSync(src, hardLink);
-  // 软链接: 不同 inode
-  fs.symlinkSync(src, softLink);
-
-  const s1 = fs.statSync(src);
-  const s2 = fs.statSync(hardLink);
-  const s3 = fs.lstatSync(softLink); // lstat 不跟随链接
-
-  console.log('原文件 inode:', s1.ino);
-  console.log('硬链接 inode:', s2.ino); // 相同
-  console.log('软链接 inode:', s3.ino); // 不同
-}
-
-// 遍历目录
-function walkDir(root) {
-  const entries = fs.readdirSync(root, { withFileTypes: true });
-  entries.forEach(entry => {
-    const full = path.join(root, entry.name);
-    const stat = fs.statSync(full);
-    console.log(stat.mode.toString(8), entry.name);
-  });
-}`,
-  py: `# Python — 文件系统操作
-import os
-import stat
-
-# 读取 inode 信息
-def inode_info(path):
-    s = os.stat(path)
-    print(f'文件: {path}')
-    print(f'inode 号: {s.st_ino}')
-    print(f'硬链接数: {s.st_nlink}')
-    print(f'大小: {s.st_size} 字节')
-    print(f'权限: {oct(s.st_mode)}')
-    print(f'块数: {s.st_blocks}')
-
-# 硬链接 vs 软链接
-def create_links(src, hard_link, soft_link):
-    with open(src, 'w') as f:
-        f.write('Hello, Links!')
-
-    # 硬链接: 相同 inode
-    os.link(src, hard_link)
-    # 软链接: 存储路径
-    os.symlink(src, soft_link)
-
-    s1 = os.stat(src)
-    s2 = os.stat(hard_link)
-    s3 = os.lstat(soft_link)  # lstat 不跟随链接
-
-    print(f'原文件 inode: {s1.st_ino}')
-    print(f'硬链接 inode: {s2.st_ino}')  # 相同
-    print(f'软链接 inode: {s3.st_ino}')  # 不同
-
-# 遍历目录
-def walk_dir(root):
-    for entry in os.scandir(root):
-        s = entry.stat()
-        print(f'{oct(s.st_mode)} {entry.name}')
-
-inode_info('/etc/passwd')
-create_links('/tmp/orig.txt', '/tmp/hard.txt', '/tmp/soft.txt')`
-};
 
 function renderCode() {
-  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current)) || CODE_LINES;
-  const hl = LangSwitcher.getHL(STEPS[cur]);
+  const lines = CODE_LINES;
+  const hl = ((STEPS[cur]||{}).highlightLines||[]);
   const body = document.getElementById('codeBody');
   body.innerHTML = lines.map((line, i) => {
     const active = hl.includes(i+1) ? ' active' : '';
@@ -506,7 +430,6 @@ document.getElementById('btnPrev').addEventListener('click',()=>{pause();if(cur>
 document.getElementById('btnNext').addEventListener('click',()=>{pause();if(cur<STEPS.length-1){cur++;render();}});
 document.getElementById('btnReset').addEventListener('click',()=>{pause();cur=0;render();});
 
-LangSwitcher.init(renderCode);
 render();
 if (window.NavTracker) NavTracker.track('文件系统', window.location.href, '📁', 'Linux');
 </script>

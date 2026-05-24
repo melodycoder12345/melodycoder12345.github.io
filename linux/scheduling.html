@@ -48,7 +48,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
-<script src="../lang.js"></script>
+<script src="../concept.js"></script>
 </head>
 <body>
 <nav>
@@ -120,6 +120,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
   <div class="speed-wrap"><span>🐢</span><input type="range" id="speedSlider" min="1" max="5" value="3"><span>🐇</span></div>
 </div>
 <script>
+window.PAGE_CONCEPTS = [
+  { title: 'CFS 完全公平调度器', body: `Linux 默认调度算法（2.6.23+）。核心思想：让所有可运行进程"公平"地使用 CPU。通过 virtual runtime（vruntime）衡量进程已使用的加权 CPU 时间。` },
+  { title: 'virtual runtime', body: `vruntime = 实际运行时间 × (NICE_0_LOAD / 进程权重)。优先级（nice）越低权重越大，vruntime 增长越慢，获得更多 CPU 时间。CFS 始终调度 vruntime 最小的进程。` },
+  { title: '红黑树调度队列', body: `就绪进程按 vruntime 存入红黑树，最左节点（vruntime 最小）就是下一个被调度的进程。插入/删除/查找均为 O(log N)。`, tag: 'O(log N)' },
+  { title: '调度延迟 & 时间片', body: `sched_latency_ns（默认 6ms）：所有就绪进程轮流执行一遍的时间窗口。进程数多时每个进程时间片 = latency/N（有最小保证 min_granularity_ns=0.75ms）。` },
+  { title: '组调度 & 多队列', body: `cgroups 可按组（容器、用户）限制 CPU 份额。SMP 系统每个 CPU 有独立运行队列，内核定期做负载均衡（load balance），避免 CPU 空闲而其他 CPU 过载。`, tag: 'cgroups' }
+];
+
 const CODE_LINES=[
   {html:'<span class="kw">package</span> main'},
   {html:'<span class="kw">import</span> (<span class="st">"fmt"</span>; <span class="st">"os"</span>; <span class="st">"runtime"</span>; <span class="st">"syscall"</span>)'},
@@ -149,40 +157,6 @@ const CODE_LINES=[
   {html:'}'},
 ];
 
-window.LANG_PLAIN={
-  js:`const { execSync } = require('child_process');
-const os = require('os');
-
-// 查看 CPU 信息
-console.log('CPU核数:', os.cpus().length);
-
-// 设置进程优先级 (Node.js 通过 libuv)
-// 范围: -20 (高) ~ 19 (低)
-process.setPriority(10); // nice=10，低优先级后台任务
-
-// CFS 调度在内核处理，应用层看到的是 nice 值
-console.log('进程优先级:', process.getPriority());
-
-// Go goroutine 映射到 OS 线程，由 Go runtime 调度
-// Linux CFS 以 OS 线程为调度单位`,
-  py:`import os
-import ctypes
-
-# 查看 CPU 信息  
-import multiprocessing
-print('CPU核数:', multiprocessing.cpu_count())
-
-# 设置进程优先级 (nice 值)
-pid = os.getpid()
-print('当前 nice:', os.getpriority(os.PRIO_PROCESS, pid))
-
-# 设置为低优先级 (nice=10)
-os.setpriority(os.PRIO_PROCESS, pid, 10)
-print('新 nice:', os.getpriority(os.PRIO_PROCESS, pid))
-
-# CPU 亲和性（需要 root 权限）
-# os.sched_setaffinity(pid, {0, 1})  # 只使用 CPU 0 和 1`
-};
 
 const STEPS=[
   {highlightLines:[4,5],hlJs:[7,8],hlPy:[7,8],description:'CFS 核心公式: vruntime = 实际运行时间 × (1024 / weight)。nice=-20 权重大，vruntime 增速慢'},
@@ -233,8 +207,8 @@ function renderViz(){
 }
 
 function renderCode(){
-  const lines=LangSwitcher.getLines(LangSwitcher.current)||CODE_LINES;
-  const hl=step<STEPS.length?LangSwitcher.getHL(STEPS[step]):[];
+  const lines=CODE_LINES;
+  const hl=step<STEPS.length?(STEPS[step].highlightLines||[]):[];
   document.getElementById('codeBody').innerHTML=lines.map((l,i)=>
     `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
       <span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
@@ -250,7 +224,7 @@ function render(){
   document.getElementById('btnNext').disabled=step>=STEPS.length-1;
 }
 
-function jumpToLine(ln){for(let i=STEPS.length-1;i>=0;i--){if(LangSwitcher.getHL(STEPS[i]).includes(ln)){step=i;render();return;}}}
+function jumpToLine(ln){for(let i=STEPS.length-1;i>=0;i--){if((STEPS[i].highlightLines||[]).includes(ln)){step=i;render();return;}}}
 function next(){if(step<STEPS.length-1){step++;render();}}
 function prev(){if(step>0){step--;render();}}
 function reset(){step=0;render();if(playing){playing=false;clearInterval(timer);document.getElementById('btnPlay').textContent='▶ 播放';}}
@@ -261,7 +235,6 @@ function togglePlay(){
   else clearInterval(timer);
 }
 
-LangSwitcher.init(renderCode);
 render();
 if(window.NavTracker)NavTracker.track('CFS进程调度','linux/scheduling.html','🐧','Linux');
 </script>

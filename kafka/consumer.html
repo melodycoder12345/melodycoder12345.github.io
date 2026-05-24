@@ -53,7 +53,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
-<script src="../lang.js"></script>
+<script src="../concept.js"></script>
 </head>
 <body>
 <nav>
@@ -217,6 +217,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
   <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
 </div>
 <script>
+window.PAGE_CONCEPTS = [
+  { title: 'Poll 拉取模型', body: `Consumer 主动调用 poll() 向 Broker 拉取消息，避免服务端推送导致消费方过载。poll() 同时驱动心跳、Rebalance 等后台逻辑。` },
+  { title: 'Offset 消费位移', body: `Offset 标记 Consumer 在 Partition 中的读取位置，存储在内部 Topic __consumer_offsets。Broker 宕机重启后 Consumer 可从上次位置继续消费。` },
+  { title: '手动提交 vs 自动提交', body: `enable.auto.commit=true：每隔 auto.commit.interval.ms 自动提交（简单但可能重复消费）。手动 commitSync/commitAsync 可精确控制提交时机，适合 At-Least-Once 保障。` },
+  { title: 'max.poll.records', body: `单次 poll() 返回的最大消息条数（默认 500）。需与 max.poll.interval.ms 配合：处理时间过长会触发 Rebalance。` },
+  { title: 'Lag 监控', body: `Lag = LEO（末尾位移）− CommittedOffset。Lag 持续增大说明消费跟不上生产速度，需扩容 Consumer 或优化消费逻辑。`, tag: '运维指标' }
+];
+
 const CODE_LINES = [
   {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
   {html:``},
@@ -255,66 +263,6 @@ const CODE_LINES = [
   {html:`}`},
 ];
 
-window.LANG_PLAIN = {
-  js: `const { Kafka } = require('kafkajs');
-
-const kafka = new Kafka({ brokers: ['localhost:9092'] });
-const consumer = kafka.consumer({ groupId: 'payment-service' });
-
-await consumer.connect();
-await consumer.subscribe({ topic: 'orders', fromBeginning: false });
-
-// 禁用自动提交，使用手动提交
-await consumer.run({
-  autoCommit: false,
-  eachMessage: async ({ topic, partition, message, heartbeat, resolveOffset }) => {
-    const offset = message.offset;
-
-    // 从上次提交的 Offset 开始消费
-    console.log(\`处理消息: partition=\${partition} offset=\${offset}\`);
-
-    // 业务处理
-    await processOrder(message.value.toString());
-
-    // 手动提交 Offset（处理成功后）
-    await consumer.commitOffsets([{
-      topic, partition,
-      offset: (Number(offset) + 1).toString()
-    }]);
-    console.log(\`Offset \${offset} 提交成功\`);
-  }
-});`,
-  py: `from kafka import KafkaConsumer
-from kafka.structs import OffsetAndMetadata, TopicPartition
-
-# 手动提交模式
-consumer = KafkaConsumer(
-    'orders',
-    group_id='payment-service',
-    bootstrap_servers=['localhost:9092'],
-    enable_auto_commit=False,   # 禁用自动提交
-    auto_offset_reset='latest'  # 从最新位置开始
-)
-
-# 消费循环
-for msg in consumer:
-    partition = msg.partition
-    offset = msg.offset
-
-    # 从上次提交的 Offset 开始读取
-    print(f'处理消息: partition={partition} offset={offset}')
-
-    try:
-        # 业务处理
-        process_order(msg.value)
-
-        # 手动提交 Offset
-        tp = TopicPartition(msg.topic, partition)
-        consumer.commit({tp: OffsetAndMetadata(offset + 1, None)})
-        print(f'Offset {offset} 提交成功')
-    except Exception as e:
-        print(f'处理失败，不提交 offset: {e}')`
-};
 
 const STEPS = [
   { highlightLines:[9,10,11,12,13,14,15,16,17,18,19], hlJs:[2,3,4,5,6,7,8,9,10], hlPy:[3,4,5,6,7,8,9,10,11,12], description:"Consumer 订阅 Topic 'orders'，GroupID='payment-service'，CommitInterval=0 启用手动提交" },
@@ -392,8 +340,8 @@ function animateBall(x1, x2, color) {
 
 function renderCode() {
   const step = STEPS[cur];
-  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current)) || CODE_LINES;
-  const hl = LangSwitcher.getHL(step);
+  const lines = CODE_LINES;
+  const hl = ((step||{}).highlightLines||[]);
   const body = document.getElementById('codeBody');
   body.innerHTML = lines.map((line, i) => {
     const active = hl.includes(i) ? ' active' : '';
@@ -420,7 +368,6 @@ document.getElementById('btnPlay').addEventListener('click',()=>playing?pause():
 document.getElementById('btnPrev').addEventListener('click',()=>{pause();if(cur>0){cur--;render();}});
 document.getElementById('btnNext').addEventListener('click',()=>{pause();if(cur<STEPS.length-1){cur++;render();}});
 document.getElementById('btnReset').addEventListener('click',()=>{pause();cur=0;render();});
-LangSwitcher.init(renderCode);
 render();
 </script>
 </body>

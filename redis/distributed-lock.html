@@ -48,7 +48,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
-<script src="../lang.js"></script>
+<script src="../concept.js"></script>
 </head>
 <body>
 <nav>
@@ -136,6 +136,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
   <div class="speed-wrap"><span>🐢</span><input type="range" id="speedSlider" min="1" max="5" value="3"><span>🐇</span></div>
 </div>
 <script>
+window.PAGE_CONCEPTS = [
+  { title: 'SETNX 加锁', body: `SET key value NX PX ttl：原子性"不存在则设置"，同时设置过期时间。NX 保证只有一个客户端能成功加锁，PX 防止客户端崩溃后锁永不释放。` },
+  { title: '唯一 Value', body: `锁的 value 必须是客户端唯一标识（UUID）。释放时先校验 value 是否匹配，防止误删其他客户端的锁（锁过期后被他人持有的场景）。` },
+  { title: 'Lua 脚本原子释放', body: `GET + DEL 两步操作不是原子的。用 Lua 脚本将"比较+删除"合为一个原子操作，Broker 端保证脚本不被打断。` },
+  { title: '锁续期 (Watchdog)', body: `Redisson 等客户端内置 Watchdog：每隔 TTL/3 时间检查锁是否仍被持有，自动续期。业务未完成时锁不会过期。`, tag: '自动续期' },
+  { title: 'Redlock 算法', body: `向 N（奇数，通常 5）个独立 Redis 节点申请锁，超过半数成功且总耗时 < TTL 才算加锁成功。防止单节点故障导致锁失效，代价是性能开销与实现复杂度。`, tag: '多数派' }
+];
+
 const CODE_LINES=[
   {html:'<span class="kw">package</span> main'},
   {html:'<span class="kw">import</span> (<span class="st">"context"</span>;<span class="st">"crypto/rand"</span>;<span class="st">"encoding/hex"</span>;<span class="st">"time"</span>;<span class="st">"github.com/redis/go-redis/v9"</span>)'},
@@ -173,69 +181,6 @@ const CODE_LINES=[
   {html:'}'},
 ];
 
-window.LANG_PLAIN={
-  js:`const redis = require('redis').createClient();
-
-async function acquireLock(key, ttl) {
-  const token = crypto.randomUUID();
-  // SET key token NX PX ttl_ms (原子操作)
-  const ok = await redis.set(key, token, { NX: true, PX: ttl });
-  return ok ? token : null;
-}
-
-async function releaseLock(key, token) {
-  // Lua 脚本保证原子性
-  const script = \`
-    if redis.call("get",KEYS[1])==ARGV[1] then
-      return redis.call("del",KEYS[1])
-    else return 0 end\`;
-  return await redis.eval(script, { keys: [key], arguments: [token] });
-}
-
-async function processOrder(orderId) {
-  const lockKey = 'lock:order:' + orderId;
-  const token = await acquireLock(lockKey, 30000);
-  if (!token) { console.log('获取锁失败'); return; }
-  try {
-    // 安全处理订单
-  } finally {
-    await releaseLock(lockKey, token);
-  }
-}`,
-  py:`import redis
-import uuid
-import time
-
-r = redis.Redis(host='localhost', port=6379)
-
-LOCK_SCRIPT = """
-if redis.call("get",KEYS[1])==ARGV[1] then
-    return redis.call("del",KEYS[1])
-else return 0 end
-"""
-
-def acquire_lock(key, ttl_ms):
-    token = str(uuid.uuid4())
-    # SET key token NX PX ttl_ms (原子操作)
-    ok = r.set(key, token, nx=True, px=ttl_ms)
-    return token if ok else None
-
-def release_lock(key, token):
-    # Lua 脚本保证 GET+DEL 原子性
-    return r.eval(LOCK_SCRIPT, 1, key, token)
-
-def process_order(order_id):
-    lock_key = f'lock:order:{order_id}'
-    token = acquire_lock(lock_key, 30000)
-    if not token:
-        print('获取锁失败')
-        return
-    try:
-        # 安全处理订单
-        pass
-    finally:
-        release_lock(lock_key, token)`
-};
 
 const STEPS=[
   {highlightLines:[27,28,29],hlJs:[18,19,20],hlPy:[20,21,22,23,24],description:'场景：两个服务实例同时处理 order-123，需要分布式锁防止并发冲突'},
@@ -309,8 +254,8 @@ function renderViz(){
 }
 
 function renderCode(){
-  const lines=LangSwitcher.getLines(LangSwitcher.current)||CODE_LINES;
-  const hl=step<STEPS.length?LangSwitcher.getHL(STEPS[step]):[];
+  const lines=CODE_LINES;
+  const hl=step<STEPS.length?(STEPS[step].highlightLines||[]):[];
   document.getElementById('codeBody').innerHTML=lines.map((l,i)=>
     `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
       <span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
@@ -326,7 +271,7 @@ function render(){
   document.getElementById('btnNext').disabled=step>=STEPS.length-1;
 }
 
-function jumpToLine(ln){for(let i=STEPS.length-1;i>=0;i--){if(LangSwitcher.getHL(STEPS[i]).includes(ln)){step=i;render();return;}}}
+function jumpToLine(ln){for(let i=STEPS.length-1;i>=0;i--){if((STEPS[i].highlightLines||[]).includes(ln)){step=i;render();return;}}}
 function next(){if(step<STEPS.length-1){step++;render();}}
 function prev(){if(step>0){step--;render();}}
 function reset(){step=0;render();if(playing){playing=false;clearInterval(timer);document.getElementById('btnPlay').textContent='▶ 播放';}}
@@ -337,7 +282,6 @@ function togglePlay(){
   else clearInterval(timer);
 }
 
-LangSwitcher.init(renderCode);
 render();
 if(window.NavTracker)NavTracker.track('Redis分布式锁','redis/distributed-lock.html','🔴','Redis');
 </script>

@@ -48,7 +48,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
-<script src="../lang.js"></script>
+<script src="../concept.js"></script>
 </head>
 <body>
 <nav>
@@ -130,6 +130,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
   <div class="speed-wrap"><span>🐢</span><input type="range" id="speedSlider" min="1" max="5" value="3"><span>🐇</span></div>
 </div>
 <script>
+window.PAGE_CONCEPTS = [
+  { title: '四层 vs 七层负载均衡', body: `L4（传输层）：基于 IP + Port 转发 TCP/UDP，不解析应用层内容，延迟低、吞吐高（LVS、DPVS）。L7（应用层）：解析 HTTP/gRPC 头，按路径/域名/Header 路由，功能强（Nginx、Envoy）。` },
+  { title: 'Round Robin & 加权', body: `Round Robin：请求轮流分配，适合同构服务器。Weighted Round Robin：按服务器权重比分配，适合异构节点（高配机器接收更多请求）。` },
+  { title: '最少连接 (Least Conn)', body: `将请求转发给当前活跃连接数最少的服务器，适合长连接或请求处理时间不均匀的场景，比轮询更能避免负载堆积。` },
+  { title: '一致性哈希', body: `将服务器和 key 均匀映射到哈希环，key 路由到顺时针最近的服务器。增减节点时只影响相邻槽，最小化缓存失效（适合有状态服务、分布式缓存）。虚拟节点提高均匀性。`, tag: '哈希环' },
+  { title: '健康检查 & 熔断', body: `定期发送探针（TCP 握手/HTTP 检查）检测后端存活，将异常节点从池中摘除。熔断器（Circuit Breaker）在错误率超阈值时快速失败，防止级联雪崩。` }
+];
+
 const CODE_LINES=[
   {html:'<span class="kw">package</span> main'},
   {html:'<span class="kw">import</span> (<span class="st">"fmt"</span>; <span class="st">"hash/crc32"</span>; <span class="st">"sort"</span>; <span class="st">"sync/atomic"</span>)'},
@@ -165,68 +173,6 @@ const CODE_LINES=[
   {html:'}'},
 ];
 
-window.LANG_PLAIN={
-  js:`// 轮询负载均衡
-class RoundRobin {
-  constructor(servers) {
-    this.servers = servers;
-    this.counter = 0;
-  }
-  next() {
-    const idx = this.counter++ % this.servers.length;
-    return this.servers[idx];
-  }
-}
-
-// 一致性哈希
-class ConsistentHash {
-  constructor(replicas = 100) {
-    this.replicas = replicas;
-    this.ring = new Map();
-    this.sorted = [];
-  }
-  add(server) {
-    for (let i = 0; i < this.replicas; i++) {
-      const hash = crc32(\`\${server}:\${i}\`);
-      this.ring.set(hash, server);
-      this.sorted.push(hash);
-    }
-    this.sorted.sort((a,b) => a - b);
-  }
-  get(key) {
-    const hash = crc32(key);
-    const idx = this.sorted.findIndex(h => h >= hash);
-    return this.ring.get(this.sorted[idx === -1 ? 0 : idx]);
-  }
-}`,
-  py:`import hashlib
-from bisect import bisect_left, insort
-
-class RoundRobin:
-    def __init__(self, servers):
-        self.servers = servers
-        self.counter = 0
-    def next(self):
-        srv = self.servers[self.counter % len(self.servers)]
-        self.counter += 1
-        return srv
-
-class ConsistentHash:
-    def __init__(self, replicas=100):
-        self.replicas = replicas
-        self.ring = {}
-        self.sorted_keys = []
-    def add(self, server):
-        for i in range(self.replicas):
-            key = int(hashlib.md5(f'{server}:{i}'.encode()).hexdigest(), 16)
-            self.ring[key] = server
-            insort(self.sorted_keys, key)
-    def get(self, key):
-        h = int(hashlib.md5(key.encode()).hexdigest(), 16)
-        idx = bisect_left(self.sorted_keys, h)
-        if idx >= len(self.sorted_keys): idx = 0
-        return self.ring[self.sorted_keys[idx]]`
-};
 
 const STEPS=[
   {highlightLines:[4,5,6,7,8,9],hlJs:[1,2,3,4,5,6,7,8,9,10],hlPy:[2,3,4,5,6,7,8,9,10],description:'轮询 Round Robin: 请求依次分发到每台服务器，R1→S1, R2→S2, R3→S3, R4→S1...'},
@@ -267,8 +213,8 @@ function renderViz(){
 }
 
 function renderCode(){
-  const lines=LangSwitcher.getLines(LangSwitcher.current)||CODE_LINES;
-  const hl=step<STEPS.length?LangSwitcher.getHL(STEPS[step]):[];
+  const lines=CODE_LINES;
+  const hl=step<STEPS.length?(STEPS[step].highlightLines||[]):[];
   document.getElementById('codeBody').innerHTML=lines.map((l,i)=>
     `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
       <span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
@@ -284,7 +230,7 @@ function render(){
   document.getElementById('btnNext').disabled=step>=STEPS.length-1;
 }
 
-function jumpToLine(ln){for(let i=STEPS.length-1;i>=0;i--){if(LangSwitcher.getHL(STEPS[i]).includes(ln)){step=i;render();return;}}}
+function jumpToLine(ln){for(let i=STEPS.length-1;i>=0;i--){if((STEPS[i].highlightLines||[]).includes(ln)){step=i;render();return;}}}
 function next(){if(step<STEPS.length-1){step++;render();}}
 function prev(){if(step>0){step--;render();}}
 function reset(){step=0;render();if(playing){playing=false;clearInterval(timer);document.getElementById('btnPlay').textContent='▶ 播放';}}
@@ -295,7 +241,6 @@ function togglePlay(){
   else clearInterval(timer);
 }
 
-LangSwitcher.init(renderCode);
 render();
 if(window.NavTracker)NavTracker.track('负载均衡算法','network/load-balancing.html','🌐','网络');
 </script>

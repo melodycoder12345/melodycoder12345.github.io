@@ -83,7 +83,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
 }
 </style>
 <script src="../nav.js"></script>
-<script src="../lang.js"></script>
+<script src="../concept.js"></script>
 </head>
 <body>
 <nav>
@@ -124,6 +124,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
 </div>
 <script>
 NavTracker.track('Redis 数据类型', 'redis/data-types.html', '🗂️', 'Redis');
+
+window.PAGE_CONCEPTS = [
+  { title: 'String', body: `最基础的类型，底层为 SDS（Simple Dynamic String）。值可以是文本、数字或二进制（最大 512MB）。支持原子递增 INCR，可用于计数器、缓存、分布式 ID。` },
+  { title: 'List', body: `按插入顺序的有序列表，支持两端 O(1) 操作。元素少且小时用 listpack（原 ziplist）节省内存，否则升级为 quicklist（双向链表+listpack 块）。` },
+  { title: 'Hash', body: `字段-值映射表。小数据用 listpack 存储，超过阈值升级为 hashtable。适合存对象（如用户 Profile），避免序列化整个 JSON。` },
+  { title: 'Set', body: `无序不重复集合。整数全集用 intset 紧凑存储，否则用 hashtable。支持集合运算（SUNION/SINTER/SDIFF），适合标签、好友关系。` },
+  { title: 'ZSet (Sorted Set)', body: `带分数的有序集合。小数据用 listpack，大数据用 skiplist（跳表）+dict 双索引结构。O(log N) 按分数增删查，适合排行榜、延迟队列。`, tag: 'skiplist' }
+];
 
 const CODE_LINES = [
   {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
@@ -179,80 +187,6 @@ const CODE_LINES = [
   {html:`}`},
 ];
 
-window.LANG_PLAIN = {
-  js: `const { createClient } = require('redis');
-
-const client = createClient({ url: 'redis://localhost:6379' });
-await client.connect();
-
-// String: basic set/get
-await client.set('user:1:name', 'Alice');
-const name = await client.get('user:1:name');
-console.log('name:', name);
-
-// String: atomic counter
-await client.incr('page:views');
-const views = await client.get('page:views');
-console.log('views:', views);
-
-// List: message queue
-await client.lPush('queue', ['task1', 'task2', 'task3']);
-const task = await client.rPop('queue');
-console.log('task:', task);
-
-// Hash: user info
-await client.hSet('user:1', { name: 'Alice', age: '25' });
-const user = await client.hGetAll('user:1');
-console.log('user:', user);
-
-// Set: tag system
-await client.sAdd('tags', ['redis', 'cache', 'nosql']);
-const tags = await client.sMembers('tags');
-console.log('tags:', tags);
-
-// ZSet: leaderboard
-await client.zAdd('leaderboard', [
-  { score: 100, value: 'Alice' },
-  { score: 95,  value: 'Bob' },
-]);
-const top = await client.zRangeWithScores('leaderboard', 0, -1, { REV: true });
-top.forEach(({ value, score }) => console.log(\`\${value}: \${score}\`));`,
-
-  py: `import redis
-
-r = redis.Redis(host='localhost', port=6379, decode_responses=True)
-
-# String: basic set/get
-r.set('user:1:name', 'Alice')
-name = r.get('user:1:name')
-print('name:', name)
-
-# String: atomic counter
-r.incr('page:views')
-views = r.get('page:views')
-print('views:', views)
-
-# List: message queue
-r.lpush('queue', 'task1', 'task2', 'task3')
-task = r.rpop('queue')
-print('task:', task)
-
-# Hash: user info
-r.hset('user:1', mapping={'name': 'Alice', 'age': '25'})
-user = r.hgetall('user:1')
-print('user:', user)
-
-# Set: tag system
-r.sadd('tags', 'redis', 'cache', 'nosql')
-tags = r.smembers('tags')
-print('tags:', tags)
-
-# ZSet: leaderboard
-r.zadd('leaderboard', {'Alice': 100, 'Bob': 95})
-top = r.zrevrange('leaderboard', 0, -1, withscores=True)
-for member, score in top:
-    print(f'{member}: {score}')`
-};
 
 const STEPS = [
   {
@@ -614,8 +548,8 @@ function render() {
 }
 
 function renderCode() {
-  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current)) || CODE_LINES;
-  const hl = LangSwitcher.getHL(STEPS[step]) || [];
+  const lines = CODE_LINES;
+  const hl = (STEPS[step]||{}).highlightLines || [];
   const body = document.getElementById('codeBody');
   body.innerHTML = lines.map((l, i) =>
     `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
@@ -627,7 +561,7 @@ function renderCode() {
 
 function jumpToLine(lineNum) {
   for (let i = STEPS.length-1; i >= 0; i--) {
-    const hl = LangSwitcher.getHL(STEPS[i]);
+    const hl = (STEPS[i]||{}).highlightLines || [];
     if (hl.includes(lineNum)) { step = i; render(); return; }
   }
 }
@@ -641,7 +575,6 @@ document.getElementById('btnPrev').addEventListener('click', () => { pause(); if
 document.getElementById('btnNext').addEventListener('click', () => { pause(); if(step<STEPS.length-1){step++;render();} });
 document.getElementById('btnReset').addEventListener('click', () => { pause(); step=0; render(); });
 
-LangSwitcher.init(renderCode);
 render();
 </script>
 </body>

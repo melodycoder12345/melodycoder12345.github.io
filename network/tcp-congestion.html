@@ -56,7 +56,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
-<script src="../lang.js"></script>
+<script src="../concept.js"></script>
 </head>
 <body>
 <nav>
@@ -98,6 +98,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 <script>
 NavTracker.track('TCP 拥塞控制', window.location.href, '📈', '网络');
 
+window.PAGE_CONCEPTS = [
+  { title: '慢启动 (Slow Start)', body: `cwnd 从 1 MSS 开始，每收到一个 ACK 增加 1 MSS（指数增长）。直到 cwnd ≥ ssthresh 切换为拥塞避免，或发生丢包。`, tag: 'cwnd × 2' },
+  { title: '拥塞避免 (CA)', body: `cwnd 超过 ssthresh 后，每经过一个 RTT 增加 1 MSS（线性增长），探测网络可用带宽上限，避免突然拥塞。`, tag: '线性增长' },
+  { title: '快重传 & 快恢复', body: `收到 3 个重复 ACK：立即重传丢失段（不等 RTO），ssthresh = cwnd/2，cwnd = ssthresh（New Reno）/ cwnd = ssthresh + 3（Reno）。网络未完全拥塞，快速恢复到拥塞避免阶段。` },
+  { title: '超时重传 (RTO)', body: `定时器超时仍未收到 ACK：ssthresh = cwnd/2，cwnd 重置为 1 MSS，重新慢启动。代价高昂，是最严重的拥塞信号。`, tag: '最严重' },
+  { title: 'CUBIC & BBR', body: `CUBIC（Linux 默认）：基于丢包，cwnd 以三次函数增长，在高 BDP 网络效果好。BBR（Google）：基于带宽-延迟模型，测量 BtlBw 和 RTprop，不依赖丢包，在有轻微丢包的网络（卫星、无线）表现更优。`, tag: '现代算法' }
+];
+
 const CODE_LINES = [
   {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
   {html:``},
@@ -132,55 +140,6 @@ const CODE_LINES = [
   {html:`}`},
 ];
 
-window.LANG_PLAIN = {
-  js: `// Node.js - TCP 拥塞控制由操作系统处理
-const net = require('net');
-
-function configureTCPConn() {
-    const socket = new net.Socket();
-    socket.connect(80, 'example.com', () => {
-        // 设置 keep-alive (影响 TCP 连接维持)
-        socket.setKeepAlive(true, 60000);
-
-        // 禁用 Nagle 算法 (减少延迟)
-        socket.setNoDelay(true);
-
-        console.log('TCP 连接已配置');
-
-        // 查看连接信息
-        console.log(\`本地: \${socket.localAddress}:\${socket.localPort}\`);
-        console.log(\`远端: \${socket.remoteAddress}:\${socket.remotePort}\`);
-    });
-}
-
-// 实际拥塞控制在内核层面:
-// Linux: cat /proc/sys/net/ipv4/tcp_congestion_control
-// 常见算法: cubic (Linux默认), bbr, reno`,
-  py: `import socket
-
-def configure_tcp_conn():
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-    # 设置接收缓冲区 (影响吞吐量)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 262144)
-    # 设置发送缓冲区
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 262144)
-
-    # 禁用 Nagle 算法 (TCP_NODELAY)
-    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-
-    sock.connect(('example.com', 80))
-    print('TCP 连接已配置')
-
-    # 查看连接信息
-    local = sock.getsockname()
-    remote = sock.getpeername()
-    print(f'本地: {local} → 远端: {remote}')
-    sock.close()
-
-# 实际拥塞控制在内核:
-# cat /proc/sys/net/ipv4/tcp_congestion_control -> cubic/bbr`
-};
 
 // cwnd data points per step: {t, cwnd, ssthresh, phase, event}
 const CWN_DATA = [
@@ -375,8 +334,8 @@ function drawChart() {
 }
 
 function renderCode() {
-  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current)) || CODE_LINES;
-  const hl = LangSwitcher.getHL(STEPS[cur]);
+  const lines = CODE_LINES;
+  const hl = ((STEPS[cur]||{}).highlightLines||[]);
   document.getElementById('codeBody').innerHTML = lines.map((l,i) =>
     `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
       <span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
@@ -411,7 +370,6 @@ document.getElementById('btnPrev').addEventListener('click',()=>{pause();if(cur>
 document.getElementById('btnNext').addEventListener('click',()=>{pause();if(cur<STEPS.length-1){cur++;render();}});
 document.getElementById('btnReset').addEventListener('click',()=>{pause();cur=0;render();});
 
-LangSwitcher.init(renderCode);
 window.addEventListener('resize', resizeCanvas);
 window.addEventListener('load', resizeCanvas);
 setTimeout(resizeCanvas,50);

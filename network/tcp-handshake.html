@@ -61,7 +61,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
-<script src="../lang.js"></script>
+<script src="../concept.js"></script>
 </head>
 <body>
 <nav>
@@ -103,6 +103,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 <script>
 NavTracker.track('TCP 握手与挥手', window.location.href, '🤝', '网络');
 
+window.PAGE_CONCEPTS = [
+  { title: '三次握手', body: `SYN → SYN+ACK → ACK，建立全双工连接并同步 ISN（初始序号）。三次是最少能确认双方收发能力的次数。半连接队列（SYN Queue）和全连接队列（Accept Queue）分别缓冲两个阶段。` },
+  { title: '四次挥手', body: `FIN → ACK（客户端半关闭）→ FIN → ACK（服务端半关闭）。双向独立关闭，允许服务端继续发送剩余数据后再发 FIN。` },
+  { title: 'TIME_WAIT 状态', body: `主动关闭方在收到最后的 FIN 后进入 TIME_WAIT，等待 2MSL（通常 60–120 秒）。目的：确保最后一个 ACK 到达对端；防止旧连接的延迟报文干扰新连接。`, tag: '2MSL' },
+  { title: 'SYN Flood 防御', body: `攻击者发送大量 SYN 但不回 ACK，耗尽半连接队列。对策：SYN Cookie（无需队列存状态，将 ISN 编码为 cookie）；增大 backlog；启用 tcp_syncookies。` },
+  { title: 'TCP 状态机', body: `11 种状态：CLOSED → LISTEN → SYN_SENT/SYN_RECV → ESTABLISHED → FIN_WAIT_1/2 → TIME_WAIT → CLOSE_WAIT → LAST_ACK → CLOSED。理解状态机有助于排查 netstat 结果。` }
+];
+
 const CODE_LINES = [
   {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
   {html:``},
@@ -143,61 +151,6 @@ const CODE_LINES = [
   {html:`}`},
 ];
 
-window.LANG_PLAIN = {
-  js: `// JavaScript (Node.js) TCP Client
-const net = require('net');
-
-// 三次握手在 connect() 内部完成
-const client = net.createConnection({ port: 80, host: 'example.com' }, () => {
-    console.log('TCP 连接建立（三次握手完成）');
-    client.write('GET / HTTP/1.1\r\nHost: example.com\r\n\r\n');
-});
-
-client.on('data', (data) => {
-    console.log(\`收到 \${data.length} 字节\`);
-    client.end(); // 四次挥手
-});
-
-client.on('end', () => console.log('连接关闭'));
-
-// TCP Server
-const server = net.createServer((conn) => {
-    // Accept 完成握手后进入此回调
-    conn.on('data', (data) => {
-        conn.write('HTTP/1.1 200 OK\r\n\r\nHello!');
-        conn.end();
-    });
-});
-server.listen(8080);`,
-  py: `import socket
-
-# TCP Client - 三次握手在 connect() 内部完成
-def tcp_client():
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.settimeout(5)
-    sock.connect(('example.com', 80))  # 三次握手
-
-    # 发送 HTTP 请求
-    sock.sendall(b'GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n')
-
-    data = sock.recv(4096)
-    print(f'收到 {len(data)} 字节')
-    sock.close()  # 四次挥手
-
-# TCP Server
-def tcp_server():
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server.bind(('', 8080))
-    server.listen(5)
-    print('Server 监听 :8080')
-
-    while True:
-        conn, addr = server.accept()  # 三次握手完成后返回
-        data = conn.recv(1024)
-        conn.send(b'HTTP/1.1 200 OK\r\n\r\nHello!')
-        conn.close()  # 四次挥手`
-};
 
 // Steps: 15 total
 const STEPS = [
@@ -345,8 +298,8 @@ function drawStep() {
 
 // ── Code Panel ──
 function renderCode() {
-  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current)) || CODE_LINES;
-  const hl = LangSwitcher.getHL(STEPS[cur]);
+  const lines = CODE_LINES;
+  const hl = ((STEPS[cur]||{}).highlightLines||[]);
   document.getElementById('codeBody').innerHTML = lines.map((l, i) =>
     `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
       <span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
@@ -384,7 +337,6 @@ document.getElementById('btnPrev').addEventListener('click', () => { pause(); if
 document.getElementById('btnNext').addEventListener('click', () => { pause(); if(cur<STEPS.length-1){cur++;render();} });
 document.getElementById('btnReset').addEventListener('click', () => { pause(); cur=0; render(); });
 
-LangSwitcher.init(renderCode);
 window.addEventListener('resize', resizeCanvas);
 window.addEventListener('load', resizeCanvas);
 setTimeout(resizeCanvas, 50);

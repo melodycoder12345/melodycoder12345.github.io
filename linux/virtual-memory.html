@@ -95,7 +95,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
-<script src="../lang.js"></script>
+<script src="../concept.js"></script>
 </head>
 <body>
 <nav>
@@ -247,6 +247,14 @@ const STEPS = [
   },
 ];
 
+window.PAGE_CONCEPTS = [
+  { title: '虚拟地址空间', body: `每个进程拥有独立的虚拟地址空间（32 位 4GB，64 位理论 128TB），内核空间和用户空间隔离。进程之间互不干扰，提高系统安全性与稳定性。` },
+  { title: '页表与分页', body: `虚拟地址通过多级页表（x86-64 为 4 级）翻译为物理地址。每页 4KB，按需分配（缺页中断时才真正分配物理页），减少内存浪费。`, tag: '4KB/页' },
+  { title: 'TLB 加速', body: `TLB（Translation Lookaside Buffer）是页表的硬件缓存。命中时地址翻译只需 1 个周期；未命中则需 Page Table Walk（数十周期）。进程切换时 TLB 刷新。`, tag: '硬件缓存' },
+  { title: 'COW 写时复制', body: `fork() 后父子进程共享物理页，页表标记为只读。任一进程写入时触发缺页异常，内核复制该页并更新页表。大幅减少 fork 开销。` },
+  { title: 'mmap 内存映射', body: `mmap() 将文件或匿名内存映射到虚拟地址空间。文件映射实现零拷贝读写；匿名映射用于大块内存分配（malloc 底层）。通过 munmap 释放。`, tag: 'mmap()' }
+];
+
 const CODE_LINES = [
   {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
   {html:``},
@@ -296,77 +304,6 @@ const CODE_LINES = [
   {html:`}`},
 ];
 
-window.LANG_PLAIN = {
-  js: `// JavaScript — 内存布局查看 (Node.js)
-const v8 = require('v8');
-const process = require('process');
-
-// 查看堆内存统计
-function showMemoryLayout() {
-  const stats = v8.getHeapStatistics();
-  console.log('堆使用量:', stats.used_heap_size, 'bytes');
-  console.log('堆总量:', stats.total_heap_size, 'bytes');
-  console.log('RSS:', process.memoryUsage().rss, 'bytes');
-}
-
-// SharedArrayBuffer — 类似 mmap 共享内存
-function sharedMemoryExample() {
-  // 创建 1KB 共享内存
-  const shared = new SharedArrayBuffer(1024);
-  const view = new Int32Array(shared);
-
-  // 写入数据
-  view[0] = 42;
-  console.log('共享内存值:', Atomics.load(view, 0));
-
-  // 模拟 COW: 复制后修改不影响原始
-  const copy = new Int32Array(shared.slice(0));
-  copy[0] = 100;
-  console.log('原始值:', view[0]);   // 42
-  console.log('副本值:', copy[0]);   // 100
-}
-
-showMemoryLayout();
-sharedMemoryExample();`,
-  py: `# Python — 虚拟内存操作
-import os
-import mmap
-import ctypes
-import sys
-
-# 查看内存布局
-def show_memory_layout():
-    x = 42
-    print(f'局部变量地址: {id(x):x}')
-
-    p = [1, 2, 3]
-    print(f'列表对象地址: {id(p):x}')
-
-    print(f'函数对象地址: {id(show_memory_layout):x}')
-
-    # Python 进程的 RSS
-    with open(f'/proc/{os.getpid()}/status') as f:
-        for line in f:
-            if 'VmRSS' in line:
-                print('RSS:', line.strip())
-                break
-
-# mmap — 内存映射文件
-def mmap_example():
-    with open('/tmp/mmap_test.txt', 'w+b') as f:
-        f.write(b'Hello, mmap!')
-        f.flush()
-
-        # 内存映射
-        with mmap.mmap(f.fileno(), 0) as mm:
-            print('mmap 读取:', mm.read().decode())
-            # 直接写入内存 = 写入文件
-            mm.seek(0)
-            mm.write(b'Updated!   ')
-
-show_memory_layout()
-mmap_example()`
-};
 
 function buildViz(step) {
   const s = STEPS[step];
@@ -440,8 +377,8 @@ function buildViz(step) {
 }
 
 function renderCode() {
-  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current)) || CODE_LINES;
-  const hl = LangSwitcher.getHL(STEPS[cur]);
+  const lines = CODE_LINES;
+  const hl = ((STEPS[cur]||{}).highlightLines||[]);
   const body = document.getElementById('codeBody');
   body.innerHTML = lines.map((line, i) => {
     const active = hl.includes(i+1) ? ' active' : '';
@@ -478,7 +415,6 @@ document.getElementById('btnPrev').addEventListener('click',()=>{pause();if(cur>
 document.getElementById('btnNext').addEventListener('click',()=>{pause();if(cur<STEPS.length-1){cur++;render();}});
 document.getElementById('btnReset').addEventListener('click',()=>{pause();cur=0;render();});
 
-LangSwitcher.init(renderCode);
 render();
 if (window.NavTracker) NavTracker.track('虚拟内存', window.location.href, '🗺️', 'Linux');
 </script>

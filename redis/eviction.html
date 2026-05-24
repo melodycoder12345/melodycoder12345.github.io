@@ -79,7 +79,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
 }
 </style>
 <script src="../nav.js"></script>
-<script src="../lang.js"></script>
+<script src="../concept.js"></script>
 </head>
 <body>
 <nav>
@@ -120,6 +120,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
 </div>
 <script>
 NavTracker.track('Redis 内存淘汰', 'redis/eviction.html', '🗑️', 'Redis');
+
+window.PAGE_CONCEPTS = [
+  { title: 'maxmemory 配置', body: `当 Redis 内存使用达到 maxmemory 上限时，新写入会触发淘汰策略。未设置则内存无上限，可能导致 OOM。生产必须配置。` },
+  { title: 'noeviction', body: `默认策略：内存满时拒绝新写入，返回 OOM 错误。适合不允许丢数据的场景（如消息队列），需配合监控报警。` },
+  { title: 'LRU 算法', body: `Least Recently Used：淘汰最近最少使用的 key。Redis 用近似 LRU（随机采样 N 个 key），避免维护完整 LRU 链表的开销。`, tag: '近似实现' },
+  { title: 'LFU 算法', body: `Least Frequently Used（Redis 4.0+）：淘汰访问频率最低的 key。用 Morris Counter 近似计数（8 bit），结合访问时间衰减，比 LRU 更适合热点数据保留。`, tag: 'Redis 4.0+' },
+  { title: 'volatile vs allkeys', body: `volatile-* 只淘汰设置了 TTL 的 key，保护无过期时间的 key。allkeys-* 面向所有 key，内存压力大时更激进淘汰。纯缓存场景推荐 allkeys-lru/lfu。` }
+];
 
 const CODE_LINES = [
   {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
@@ -163,67 +171,6 @@ const CODE_LINES = [
   {html:`}`},
 ];
 
-window.LANG_PLAIN = {
-  js: `const { createClient } = require('redis');
-const client = createClient();
-await client.connect();
-
-// Set maxmemory policy
-await client.configSet('maxmemory', '100mb');
-await client.configSet('maxmemory-policy', 'allkeys-lru');
-
-// Keys with TTL (volatile policies prioritize these)
-await client.setEx('session:1', 30 * 60, 'user-data'); // 30min TTL
-await client.setEx('session:2', 5 * 60, 'user-data');  // 5min TTL (evicted first)
-
-// Key without TTL
-await client.set('config:theme', 'dark');
-
-// Check memory usage
-const info = await client.info('memory');
-console.log(info);
-
-// LFU policy
-await client.configSet('maxmemory-policy', 'allkeys-lfu');
-
-// Hot key - accessed frequently, won't be evicted
-for (let i = 0; i < 100; i++) {
-    await client.get('hot:key');
-}
-// Cold key - accessed rarely, more likely to be evicted
-await client.get('cold:key');`,
-
-  py: `import redis
-
-r = redis.Redis(host='localhost', port=6379, decode_responses=True)
-
-# Set maxmemory and eviction policy
-r.config_set('maxmemory', '100mb')
-r.config_set('maxmemory-policy', 'allkeys-lru')
-
-# Keys with TTL (volatile policies prefer these for eviction)
-r.setex('session:1', 30 * 60, 'user-data')  # 30min TTL
-r.setex('session:2', 5 * 60, 'user-data')   # 5min TTL (evicted first)
-
-# Key without TTL
-r.set('config:theme', 'dark')
-
-# Check memory info
-info = r.info('memory')
-print('used_memory_human:', info['used_memory_human'])
-print('maxmemory_human:', info['maxmemory_human'])
-print('maxmemory_policy:', info['maxmemory_policy'])
-
-# LFU policy
-r.config_set('maxmemory-policy', 'allkeys-lfu')
-
-# Hot key - frequently accessed
-for _ in range(100):
-    r.get('hot:key')
-
-# Cold key - rarely accessed, easier to evict
-r.get('cold:key')`
-};
 
 const KEYS = [
   {name:'user:1', color:'var(--blue)', ttl:'30m', access: 5},
@@ -520,8 +467,8 @@ function render() {
 }
 
 function renderCode() {
-  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current)) || CODE_LINES;
-  const hl = LangSwitcher.getHL(STEPS[step]) || [];
+  const lines = CODE_LINES;
+  const hl = (STEPS[step]||{}).highlightLines || [];
   const body = document.getElementById('codeBody');
   body.innerHTML = lines.map((l, i) =>
     `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
@@ -533,7 +480,7 @@ function renderCode() {
 
 function jumpToLine(lineNum) {
   for (let i = STEPS.length-1; i >= 0; i--) {
-    const hl = LangSwitcher.getHL(STEPS[i]);
+    const hl = (STEPS[i]||{}).highlightLines || [];
     if (hl.includes(lineNum)) { step = i; render(); return; }
   }
 }
@@ -547,7 +494,6 @@ document.getElementById('btnPrev').addEventListener('click', () => { pause(); if
 document.getElementById('btnNext').addEventListener('click', () => { pause(); if(step<STEPS.length-1){step++;render();} });
 document.getElementById('btnReset').addEventListener('click', () => { pause(); step=0; render(); });
 
-LangSwitcher.init(renderCode);
 render();
 </script>
 </body>

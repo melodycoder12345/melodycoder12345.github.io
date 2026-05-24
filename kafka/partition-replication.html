@@ -48,7 +48,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
-<script src="../lang.js"></script>
+<script src="../concept.js"></script>
 </head>
 <body>
 <nav>
@@ -140,6 +140,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
   <div class="speed-wrap"><span>🐢</span><input type="range" id="speedSlider" min="1" max="5" value="3"><span>🐇</span></div>
 </div>
 <script>
+window.PAGE_CONCEPTS = [
+  { title: '副本机制', body: `每个 Partition 有一个 Leader 和若干 Follower 副本。所有读写流经 Leader，Follower 异步从 Leader 拉取同步。副本数通常设置为 3。` },
+  { title: 'ISR (In-Sync Replicas)', body: `与 Leader 保持同步的副本集合。判断标准：在 replica.lag.time.max.ms 内有过拉取心跳且落后不超过阈值。落后的副本被踢出 ISR。`, tag: '高可靠' },
+  { title: 'HW & LEO', body: `LEO（Log End Offset）：当前分区写入的最大位移+1。HW（High Watermark）：ISR 中最小的 LEO。Consumer 最多只能读到 HW，保证已复制数据才可见。` },
+  { title: 'Leader 选举', body: `Leader 宕机时，Controller 从 ISR 中选取第一个可用副本为新 Leader。若 ISR 为空且 unclean.leader.election.enable=false，分区暂时不可用。` },
+  { title: 'min.insync.replicas', body: `结合 acks=all 使用：要求至少 N 个副本在 ISR 中才允许写入，防止 ISR 缩减为 1 时的数据丢失风险。`, tag: '数据安全' }
+];
+
 const CODE_LINES=[
   {html:'<span class="kw">package</span> main'},
   {html:''},
@@ -177,44 +185,6 @@ const CODE_LINES=[
   {html:'}'},
 ];
 
-window.LANG_PLAIN={
-  js:`const { Kafka, Partitioners } = require('kafkajs');
-const kafka = new Kafka({ clientId:'app', brokers:['localhost:9092'] });
-const admin = kafka.admin();
-
-async function createTopic() {
-  await admin.connect();
-  await admin.createTopics({
-    topics: [{
-      topic: 'orders',
-      numPartitions: 3,       // 3 个分区
-      replicationFactor: 3,   // 复制因子 3
-    }],
-  });
-  await admin.disconnect();
-}
-
-// 生产者按 key hash 到特定分区
-const producer = kafka.producer({
-  createPartitioner: Partitioners.DefaultPartitioner
-});`,
-  py:`from kafka import KafkaAdminClient
-from kafka.admin import NewTopic
-
-admin = KafkaAdminClient(
-    bootstrap_servers=['localhost:9092']
-)
-
-# 创建 Topic: 3 个分区，复制因子 3
-topic = NewTopic(
-    name='orders',
-    num_partitions=3,
-    replication_factor=3
-)
-admin.create_topics([topic])
-admin.close()
-print('Topic 创建成功: 3 partitions × 3 replicas')`
-};
 
 const STEPS=[
   {highlightLines:[16,17,18,19],hlJs:[7,8,9,10],hlPy:[7,8,9,10],description:'创建 Topic: 3 个 Partition，复制因子=3。每个 Partition 在不同 Broker 上各有一个副本'},
@@ -287,8 +257,8 @@ function renderViz(){
 }
 
 function renderCode(){
-  const lines=LangSwitcher.getLines(LangSwitcher.current)||CODE_LINES;
-  const hl=step<STEPS.length?LangSwitcher.getHL(STEPS[step]):[];
+  const lines=CODE_LINES;
+  const hl=step<STEPS.length?(STEPS[step].highlightLines||[]):[];
   document.getElementById('codeBody').innerHTML=lines.map((l,i)=>
     `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
       <span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
@@ -304,7 +274,7 @@ function render(){
   document.getElementById('btnNext').disabled=step>=STEPS.length-1;
 }
 
-function jumpToLine(ln){for(let i=STEPS.length-1;i>=0;i--){if(LangSwitcher.getHL(STEPS[i]).includes(ln)){step=i;render();return;}}}
+function jumpToLine(ln){for(let i=STEPS.length-1;i>=0;i--){if((STEPS[i].highlightLines||[]).includes(ln)){step=i;render();return;}}}
 function next(){if(step<STEPS.length-1){step++;render();}}
 function prev(){if(step>0){step--;render();}}
 function reset(){step=0;render();if(playing){playing=false;clearInterval(timer);document.getElementById('btnPlay').textContent='▶ 播放';}}
@@ -315,7 +285,6 @@ function togglePlay(){
   else clearInterval(timer);
 }
 
-LangSwitcher.init(renderCode);
 render();
 if(window.NavTracker)NavTracker.track('Kafka分区与副本','kafka/partition-replication.html','📦','Kafka');
 </script>

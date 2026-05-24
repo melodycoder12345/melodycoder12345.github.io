@@ -82,7 +82,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
 }
 </style>
 <script src="../nav.js"></script>
-<script src="../lang.js"></script>
+<script src="../concept.js"></script>
 </head>
 <body>
 <nav>
@@ -123,6 +123,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;heigh
 </div>
 <script>
 NavTracker.track('Redis 集群', 'redis/cluster.html', '🌐', 'Redis');
+
+window.PAGE_CONCEPTS = [
+  { title: 'Hash Slot', body: `Redis 集群将 key 空间划分为 16384 个 slot，用 CRC16(key) % 16384 计算归属。Slot 均匀分配到各节点，增减节点只需迁移部分 slot，不影响整体。`, tag: '16384' },
+  { title: 'MOVED 重定向', body: `客户端请求了错误节点时，节点返回 MOVED <slot> <ip:port>，客户端需重新连接正确节点。Smart Client 会缓存 slot 映射，减少重定向次数。` },
+  { title: 'ASK 重定向', body: `Slot 正在迁移（MIGRATING）时使用。与 MOVED 不同，ASK 是临时指向，客户端只对本次请求跟随，不更新 slot 缓存。`, tag: '迁移中' },
+  { title: '主从复制 & Failover', body: `每个主节点有 N 个从节点。主节点故障时，从节点通过 Gossip 投票选出新主，自动完成 Failover（约 15 秒内）。` },
+  { title: 'Gossip 协议', body: `节点间通过 Gossip 消息定期交换集群状态（节点列表、Slot 分配、Failover 信息）。每个节点都维护完整的集群视图，无单点协调器。`, tag: 'P2P' }
+];
 
 const CODE_LINES = [
   {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
@@ -168,64 +176,6 @@ const CODE_LINES = [
   {html:`}`},
 ];
 
-window.LANG_PLAIN = {
-  js: `const { createCluster } = require('redis');
-
-// Create cluster client
-const cluster = createCluster({
-    rootNodes: [
-        { url: 'redis://localhost:7000' },
-        { url: 'redis://localhost:7001' },
-        { url: 'redis://localhost:7002' },
-        { url: 'redis://localhost:7003' },
-        { url: 'redis://localhost:7004' },
-        { url: 'redis://localhost:7005' },
-    ],
-    // Automatically handles MOVED redirections
-    defaults: {
-        socket: { connectTimeout: 500 }
-    }
-});
-await cluster.connect();
-
-// Cluster auto-routes key to correct node
-await cluster.set('user:1', 'Alice');
-
-// {} tag ensures same slot (for multi-key operations)
-await cluster.set('{user:1}.name', 'Alice');
-await cluster.set('{user:1}.age', '25');
-
-// MGET requires keys in same slot
-const [name, age] = await cluster.mGet(['{user:1}.name', '{user:1}.age']);
-console.log(name, age);`,
-
-  py: `from redis.cluster import RedisCluster, ClusterNode
-
-# Create cluster client
-nodes = [
-    ClusterNode('localhost', 7000),
-    ClusterNode('localhost', 7001),
-    ClusterNode('localhost', 7002),
-]
-rc = RedisCluster(startup_nodes=nodes, decode_responses=True)
-
-# Cluster auto-routes key to correct node
-rc.set('user:1', 'Alice')
-
-# {} tag ensures same slot
-rc.set('{user:1}.name', 'Alice')
-rc.set('{user:1}.age', '25')
-
-# Multi-key ops require same slot
-rc.mset({'{user:1}.name': 'Alice', '{user:1}.age': '25'})
-result = rc.mget(['{user:1}.name', '{user:1}.age'])
-print(result)
-
-# Get cluster info
-info = rc.cluster_info()
-print('cluster_state:', info['cluster_state'])
-print('cluster_slots_assigned:', info['cluster_slots_assigned'])`
-};
 
 function clusterNodes(activeM, activeSlave, failedM, promotedSlave) {
   const masters = [
@@ -500,8 +450,8 @@ function render() {
 }
 
 function renderCode() {
-  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current)) || CODE_LINES;
-  const hl = LangSwitcher.getHL(STEPS[step]) || [];
+  const lines = CODE_LINES;
+  const hl = (STEPS[step]||{}).highlightLines || [];
   const body = document.getElementById('codeBody');
   body.innerHTML = lines.map((l, i) =>
     `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
@@ -513,7 +463,7 @@ function renderCode() {
 
 function jumpToLine(lineNum) {
   for (let i = STEPS.length-1; i >= 0; i--) {
-    const hl = LangSwitcher.getHL(STEPS[i]);
+    const hl = (STEPS[i]||{}).highlightLines || [];
     if (hl.includes(lineNum)) { step = i; render(); return; }
   }
 }
@@ -527,7 +477,6 @@ document.getElementById('btnPrev').addEventListener('click', () => { pause(); if
 document.getElementById('btnNext').addEventListener('click', () => { pause(); if(step<STEPS.length-1){step++;render();} });
 document.getElementById('btnReset').addEventListener('click', () => { pause(); step=0; render(); });
 
-LangSwitcher.init(renderCode);
 render();
 </script>
 </body>

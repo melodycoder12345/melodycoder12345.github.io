@@ -78,7 +78,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 }
 </style>
 <script src="../nav.js"></script>
-<script src="../lang.js"></script>
+<script src="../concept.js"></script>
 </head>
 <body>
 <nav>
@@ -210,6 +210,14 @@ const STEPS = [
   },
 ];
 
+window.PAGE_CONCEPTS = [
+  { title: '进程状态机', body: `Linux 进程有 6 种核心状态：New（新建）→ Ready（就绪）→ Running（运行）→ Blocked（阻塞）→ Zombie（僵尸）→ Terminated（终止）。状态由内核调度器驱动转换。` },
+  { title: 'fork() 与 COW', body: `fork() 创建子进程，父子进程共享物理内存页（写时复制）。子进程写入时才真正复制页面，避免大量内存拷贝。父进程返回子 PID，子进程返回 0。`, tag: '写时复制' },
+  { title: 'exec() 替换映像', body: `exec 系列调用不创建新进程，而是将当前进程的代码段、数据段、堆栈替换为新程序。PID 不变，但进程映像完全刷新。` },
+  { title: 'Zombie 与 wait()', body: `子进程调用 exit() 后进入 Zombie 状态：大部分资源释放，但 PCB（task_struct）保留退出码等待父进程读取。父进程需调用 wait()/waitpid() 收割，否则 Zombie 进程堆积泄漏 PID。`, tag: '防内存泄漏' },
+  { title: '守护进程', body: `double fork + setsid()：第一次 fork 后父进程退出，子进程调用 setsid() 创建新 session 成为 session leader，再 fork 一次确保非 session leader，彻底脱离终端控制。` }
+];
+
 const CODE_LINES = [
   {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
   {html:``},
@@ -262,73 +270,6 @@ const CODE_LINES = [
   {html:`}`},
 ];
 
-window.LANG_PLAIN = {
-  js: `// JavaScript — Node.js 进程管理
-const { spawn, fork } = require('child_process');
-const process = require('process');
-
-// fork 子进程 (类似 fork+exec)
-const child = spawn('/bin/sh', ['-c', 'echo 子进程 PID: $$']);
-child.stdout.on('data', d => console.log(d.toString()));
-
-const pid = child.pid;
-console.log('父进程 PID:', process.pid, '子进程 PID:', pid);
-
-// wait — 监听子进程退出
-child.on('exit', (code, signal) => {
-  console.log('子进程退出码:', code);
-});
-
-// 守护进程模式 — 脱离父进程
-function daemonize() {
-  if (process.env.DAEMONIZED) {
-    // 守护进程逻辑
-    console.log('守护进程 PID:', process.pid);
-    return;
-  }
-  const daemon = spawn(process.execPath, process.argv.slice(1), {
-    detached: true,  // 脱离父进程
-    stdio: 'ignore',
-    env: { ...process.env, DAEMONIZED: '1' }
-  });
-  daemon.unref(); // 父进程可以退出
-  process.exit(0);
-}`,
-  py: `# Python — 进程管理
-import os
-import sys
-import subprocess
-
-# fork 子进程
-def fork_process():
-    proc = subprocess.Popen(
-        ['/bin/sh', '-c', 'echo 子进程 PID: $$'],
-        stdout=subprocess.PIPE
-    )
-    print(f'父进程 PID: {os.getpid()}, 子进程 PID: {proc.pid}')
-
-    # wait() — 防止僵尸进程
-    stdout, _ = proc.communicate()
-    print(stdout.decode().strip())
-    print('子进程已退出, 退出码:', proc.returncode)
-
-# 守护进程 (double fork)
-def daemonize():
-    # 第一次 fork
-    if os.fork() > 0:
-        sys.exit(0)
-
-    os.setsid()  # 创建新 session
-
-    # 第二次 fork — 确保非 session leader
-    if os.fork() > 0:
-        sys.exit(0)
-
-    # 守护进程主逻辑
-    print(f'守护进程运行中, PID: {os.getpid()}')
-
-fork_process()`
-};
 
 // ── SVG rendering ──
 const svg = document.getElementById('smSvg');
@@ -428,8 +369,8 @@ function updateViz(step) {
 }
 
 function renderCode() {
-  const lines = (LangSwitcher.current !== 'go' && LangSwitcher.getLines(LangSwitcher.current)) || CODE_LINES;
-  const hl = LangSwitcher.getHL(STEPS[cur]);
+  const lines = CODE_LINES;
+  const hl = ((STEPS[cur]||{}).highlightLines||[]);
   const body = document.getElementById('codeBody');
   body.innerHTML = lines.map((line, i) => {
     const active = hl.includes(i+1) ? ' active' : '';
@@ -469,7 +410,6 @@ document.getElementById('btnNext').addEventListener('click',()=>{pause();if(cur<
 document.getElementById('btnReset').addEventListener('click',()=>{pause();cur=0;render();});
 
 buildSVG();
-LangSwitcher.init(renderCode);
 render();
 
 if (window.NavTracker) NavTracker.track('进程生命周期', window.location.href, '🔄', 'Linux');
