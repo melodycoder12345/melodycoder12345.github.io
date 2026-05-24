@@ -108,7 +108,17 @@
 .sn-ico{font-size:0.9rem;flex-shrink:0;}
 .sn-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .sn-cat{font-size:0.65rem;color:#64748b;flex-shrink:0;font-family:monospace;}
-@media(max-width:760px){.sn-logo .sn-motto{display:none}.sn-crumbs{order:3;width:100%;flex-basis:100%;margin:0;font-size:.72rem}#__snav{height:auto;min-height:${H}px;flex-wrap:wrap;padding:5px 12px}.sn-panel{right:0}.sn-logo .sn-title{font-size:.86rem}}
+@media(max-width:760px){
+  #__snav{height:auto;min-height:${H}px;flex-wrap:nowrap;padding:5px 12px;gap:8px}
+  .sn-logo .sn-motto{display:none}
+  .sn-logo .sn-title{font-size:.86rem}
+  .sn-uw{margin-left:auto;flex-shrink:0}
+  .sn-panel{right:0}
+  .sn-home .sn-logo{display:flex;min-width:0}
+  .sn-home .sn-crumbs{display:none}
+  .sn-subpage .sn-crumbs{display:flex;order:0;width:auto;flex:1 1 auto;flex-basis:auto;margin:0;font-size:.72rem;min-width:0}
+  .sn-subpage .sn-current{min-width:0}
+}
 `;
   d.head.appendChild(style);
 
