@@ -178,6 +178,7 @@
     applySourceBackLinks();
     hideLocalBackLinks();
     syncNavHeight();
+    scrollHashIntoView();
     d.getElementById('snBtn').addEventListener('click', toggle);
     d.getElementById('snClear').addEventListener('click', function () { saveR([]); renderList(); });
     d.addEventListener('click', function (e) {
@@ -210,8 +211,23 @@
     }
   }
 
+  function scrollHashIntoView() {
+    if (!window.location.hash) return;
+    var id = decodeURIComponent(window.location.hash.slice(1));
+    if (!id) return;
+    var target = d.getElementById(id);
+    if (!target) return;
+    setTimeout(function () {
+      var h = nav.offsetHeight || H;
+      var top = target.getBoundingClientRect().top + window.pageYOffset - h - 12;
+      window.scrollTo({ top: Math.max(0, top), behavior: 'auto' });
+    }, 80);
+  }
+
   function isHomePage() {
-    return /\/index\.html$/.test(window.location.pathname) && !/\/(algo|db|kafka|redis|linux|network)\/index\.html$/.test(window.location.pathname);
+    var path = window.location.pathname;
+    if (/\/(algo|db|kafka|redis|linux|network)\/index\.html$/.test(path)) return false;
+    return path === '/' || /\/index\.html$/.test(path) || /\/blog\/?$/.test(path);
   }
 
   function moduleInfo() {

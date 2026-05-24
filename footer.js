@@ -4,6 +4,13 @@
   const d = document;
   if (d.getElementById('__sfooter')) return;
 
+  function friendLinksHref() {
+    var inModule = /\/(algo|db|kafka|redis|linux|network)\//.test(window.location.pathname);
+    var onHome = window.location.hash === '#friend-links' || (!inModule && (/\/index\.html$/.test(window.location.pathname) || window.location.pathname === '/' || /\/blog\/?$/.test(window.location.pathname)));
+    if (onHome) return '#friend-links';
+    return (inModule ? '../' : '') + 'index.html#friend-links';
+  }
+
   const style = d.createElement('style');
   style.textContent = `
 #__sfooter{
@@ -29,7 +36,7 @@
   footer.innerHTML =
     '<span class="sf-copy">© 2026 码海拾贝 · 纯静态 · Go · SVG</span>' +
     '<nav class="sf-links">' +
-      '<a href="../index.html#friend-links">友情链接</a>' +
+      '<a href="' + friendLinksHref() + '">友情链接</a>' +
     '</nav>';
 
   function init() {
