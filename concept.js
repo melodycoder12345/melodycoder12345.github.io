@@ -2,7 +2,6 @@
 // Each page defines: window.PAGE_CONCEPTS = [{ title, body, tag? }, ...]
 (function () {
   'use strict';
-  if (!window.PAGE_CONCEPTS || !window.PAGE_CONCEPTS.length) return;
 
   const EXPANDED_W = 256;
   const COLLAPSED_W = 32;
@@ -78,6 +77,7 @@
   var expanded = true;
 
   function build() {
+    if (!window.PAGE_CONCEPTS || !window.PAGE_CONCEPTS.length) return;
     var main = document.querySelector('.main');
     if (!main) return;
 
