@@ -93,6 +93,7 @@
     // Returns highlight lines for current step. Fallback keeps the active step visible
     // on pages that have not defined language-specific line maps yet.
     getHL: function (step) {
+      if (!step) return [];
       if (this.current === 'go') return step.highlightLines || [];
       if (this.current === 'js' && step.hlJs) return step.hlJs;
       if (this.current === 'py' && step.hlPy) return step.hlPy;

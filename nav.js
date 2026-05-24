@@ -7,13 +7,22 @@
   const H = 44;
   const RKEY = 'recentPages_v2';
   const HOME = /\/(algo|db|kafka|redis|linux|network)\//.test(window.location.pathname) ? '../index.html' : 'index.html';
+  const ROOT = HOME.replace(/index\.html$/, '');
 
   // ── Inject body padding IMMEDIATELY (sync, before body renders) ──
   // This prevents the layout-shift flash
   const padStyle = d.createElement('style');
   padStyle.id = '__snavPad';
-  padStyle.textContent = 'body{padding-top:' + H + 'px!important;box-sizing:border-box!important;}';
+  padStyle.textContent = 'body{padding-top:var(--snav-h,' + H + 'px)!important;box-sizing:border-box!important;}';
   d.head.appendChild(padStyle);
+
+  if (!d.getElementById('__siteMobileCss')) {
+    const mobile = d.createElement('link');
+    mobile.id = '__siteMobileCss';
+    mobile.rel = 'stylesheet';
+    mobile.href = ROOT + 'mobile.css';
+    d.head.appendChild(mobile);
+  }
 
   function loadR() {
     try { return JSON.parse(localStorage.getItem(RKEY) || '[]'); } catch (e) { return []; }
@@ -164,9 +173,11 @@
 
   function init() {
     d.body.insertBefore(nav, d.body.firstChild);
+    applyBodyClasses();
     renderBreadcrumbs();
     applySourceBackLinks();
     hideLocalBackLinks();
+    syncNavHeight();
     d.getElementById('snBtn').addEventListener('click', toggle);
     d.getElementById('snClear').addEventListener('click', function () { saveR([]); renderList(); });
     d.addEventListener('click', function (e) {
@@ -176,6 +187,27 @@
       }
     });
     autoTrackCurrentPage();
+  }
+
+  function applyBodyClasses() {
+    d.body.classList.toggle('sn-home-body', isHomePage());
+    d.body.classList.toggle('sn-subpage-body', !isHomePage());
+    d.body.classList.toggle('sn-module-index-body', isModuleIndexPage());
+    d.body.classList.toggle('sn-detail-body', !isHomePage() && !isModuleIndexPage() && !/\/graph\.html$/.test(window.location.pathname));
+    d.body.classList.toggle('sn-graph-body', /\/graph\.html$/.test(window.location.pathname));
+  }
+
+  function syncNavHeight() {
+    function setHeight() {
+      var h = nav.offsetHeight || H;
+      d.documentElement.style.setProperty('--snav-h', h + 'px');
+    }
+    setHeight();
+    if (window.ResizeObserver) {
+      new ResizeObserver(setHeight).observe(nav);
+    } else {
+      window.addEventListener('resize', setHeight);
+    }
   }
 
   function isHomePage() {
