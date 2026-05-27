@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>原子操作 - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:44px;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:116px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.side-nav a.active{color:var(--accent);background:rgba(0,173,216,.08);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(0,173,216,.12);color:var(--accent);border:1px solid rgba(0,173,216,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.badge-high{background:rgba(251,146,60,.12);color:#fb923c;border:1px solid rgba(251,146,60,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(0,173,216,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">⚛️ 原子操作</span>
+  <div class="nav-tags">
+    <span class="ntag">atomic</span>
+    <span class="ntag">cas</span>
+    <span class="ntag">memory-order</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <nav class="side-nav">
+    <ul>
+      <li><a href="#basic">基本原子操作</a></li>
+      <li><a href="#cas">CompareAndSwap</a></li>
+      <li><a href="#memorder">内存顺序</a></li>
+      <li><a href="#value">atomic.Value</a></li>
+      <li><a href="#qa">面试问答</a></li>
+      <li><a href="#pitfalls">常见陷阱</a></li>
+    </ul>
+  </nav>
+  <main class="main-content">
+
+    <div class="section" id="basic">
+      <div class="section-title"><div class="title-bar"></div><h2>基本原子操作</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>Add / Load / Store</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>sync/atomic 包提供无锁的原子读写操作，底层映射到 CPU 原子指令（如 LOCK XADD）。Go 1.19+ 推荐使用类型安全的新 API。</p>
+          <ul>
+            <li><code>atomic.AddInt64(&amp;n, delta)</code> — 原子加减，返回新值</li>
+            <li><code>atomic.LoadInt64(&amp;n)</code> — 原子读取</li>
+            <li><code>atomic.StoreInt64(&amp;n, val)</code> — 原子写入</li>
+            <li>Go 1.19+ 新 API：<code>atomic.Int64</code>、<code>atomic.Bool</code>、<code>atomic.Pointer[T]</code></li>
+          </ul>
+          <pre><span class="cm">// Go 1.19+ 推荐写法</span>
+<span class="kw">var</span> <span class="id">counter</span> <span class="pkg">atomic</span>.<span class="id">Int64</span>
+
+<span class="id">counter</span>.<span class="fn">Add</span>(<span class="num">1</span>)
+<span class="id">val</span> := <span class="id">counter</span>.<span class="fn">Load</span>()
+<span class="id">counter</span>.<span class="fn">Store</span>(<span class="num">0</span>)
+
+<span class="cm">// 旧 API（兼容写法）</span>
+<span class="kw">var</span> <span class="id">n</span> <span class="kw">int64</span>
+<span class="pkg">atomic</span>.<span class="fn">AddInt64</span>(&amp;<span class="id">n</span>, <span class="num">1</span>)
+<span class="id">v</span> := <span class="pkg">atomic</span>.<span class="fn">LoadInt64</span>(&amp;<span class="id">n</span>)</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="cas">
+      <div class="section-title"><div class="title-bar"></div><h2>CompareAndSwap</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>CAS 语义与 ABA 问题</h3><span class="badge badge-adv">[进阶]</span></div>
+        <div class="card-body">
+          <p>CAS（Compare-And-Swap）原子地比较内存值与期望值，相等才写入新值，返回是否成功。是无锁数据结构的基础。</p>
+          <ul>
+            <li><strong>ABA 问题</strong>：值从 A 改为 B 再改回 A，CAS 认为未变化，实则状态已改变</li>
+            <li>解决 ABA：引入版本号（stamp），Go 的 <code>atomic.Pointer</code> 或结合时间戳</li>
+            <li>自旋锁：CAS 失败则重试，适合极短临界区</li>
+          </ul>
+          <pre><span class="cm">// CAS 自旋直到成功</span>
+<span class="kw">var</span> <span class="id">state</span> <span class="pkg">atomic</span>.<span class="id">Int32</span>
+
+<span class="kw">func</span> <span class="fn">spinLock</span>() {
+    <span class="kw">for</span> !<span class="id">state</span>.<span class="fn">CompareAndSwap</span>(<span class="num">0</span>, <span class="num">1</span>) {
+        <span class="pkg">runtime</span>.<span class="fn">Gosched</span>() <span class="cm">// 让出 CPU</span>
+    }
+}
+
+<span class="kw">func</span> <span class="fn">spinUnlock</span>() {
+    <span class="id">state</span>.<span class="fn">Store</span>(<span class="num">0</span>)
+}
+
+<span class="cm">// 带版本号防 ABA</span>
+<span class="kw">type</span> <span class="id">Stamped</span> <span class="kw">struct</span> {
+    <span class="id">val</span>   <span class="kw">int64</span>
+    <span class="id">stamp</span> <span class="kw">uint64</span>
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="memorder">
+      <div class="section-title"><div class="title-bar"></div><h2>内存顺序</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>顺序一致性与 happens-before</h3><span class="badge badge-high">[高级]</span></div>
+        <div class="card-body">
+          <p>Go 的 atomic 操作提供<strong>顺序一致性</strong>（Sequential Consistency）保证，所有 CPU 观察到原子操作的顺序一致。</p>
+          <ul>
+            <li>atomic 操作之间有 happens-before 关系，普通变量读写没有</li>
+            <li>用 atomic 做"发布"标志：写 atomic 前的普通写对读 atomic 后的读可见</li>
+            <li>与 Mutex 比较：Mutex 有上下文切换开销；atomic 无调度，但只保护单个值</li>
+            <li>何时用 atomic：简单计数器、flag、单值状态机；复合状态仍需 Mutex</li>
+          </ul>
+          <pre><span class="cm">// 用 atomic 发布初始化结果</span>
+<span class="kw">var</span> (
+    <span class="id">data</span>     []<span class="kw">byte</span>
+    <span class="id">ready</span>   <span class="pkg">atomic</span>.<span class="id">Bool</span>
+)
+
+<span class="kw">func</span> <span class="fn">init</span>() {
+    <span class="id">data</span> = <span class="fn">loadData</span>()   <span class="cm">// 普通写</span>
+    <span class="id">ready</span>.<span class="fn">Store</span>(<span class="kw">true</span>)   <span class="cm">// 原子发布</span>
+}
+
+<span class="kw">func</span> <span class="fn">handler</span>() {
+    <span class="kw">if</span> !<span class="id">ready</span>.<span class="fn">Load</span>() { <span class="kw">return</span> }
+    <span class="cm">// data 此时可见（happens-before 保证）</span>
+    <span class="fn">use</span>(<span class="id">data</span>)
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="value">
+      <div class="section-title"><div class="title-bar"></div><h2>atomic.Value</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>原子存储任意类型</h3><span class="badge badge-adv">[进阶]</span></div>
+        <div class="card-body">
+          <p>atomic.Value 可原子存取 <code>interface{}</code>，适合 copy-on-write 模式：读多写少，每次写创建新副本，原子替换指针。</p>
+          <ul>
+            <li>第一次 Store 后，后续 Store 必须存<strong>相同类型</strong>，否则 panic</li>
+            <li>Store 的值不能为 nil</li>
+            <li>典型用途：原子替换配置、路由表、白名单等只读快照</li>
+          </ul>
+          <pre><span class="kw">var</span> <span class="id">configVal</span> <span class="pkg">atomic</span>.<span class="id">Value</span>
+
+<span class="kw">type</span> <span class="id">Config</span> <span class="kw">struct</span> { <span class="id">Timeout</span> <span class="kw">int</span> }
+
+<span class="kw">func</span> <span class="fn">updateConfig</span>(<span class="id">c</span> *<span class="id">Config</span>) {
+    <span class="id">configVal</span>.<span class="fn">Store</span>(<span class="id">c</span>) <span class="cm">// 原子替换</span>
+}
+
+<span class="kw">func</span> <span class="fn">getConfig</span>() *<span class="id">Config</span> {
+    <span class="kw">return</span> <span class="id">configVal</span>.<span class="fn">Load</span>().(*<span class="id">Config</span>)
+}
+
+<span class="cm">// copy-on-write 更新</span>
+<span class="kw">func</span> <span class="fn">patchConfig</span>(<span class="id">timeout</span> <span class="kw">int</span>) {
+    <span class="id">old</span> := <span class="fn">getConfig</span>()
+    <span class="id">newC</span> := *<span class="id">old</span>           <span class="cm">// 复制</span>
+    <span class="id">newC</span>.<span class="id">Timeout</span> = <span class="id">timeout</span>
+    <span class="fn">updateConfig</span>(&amp;<span class="id">newC</span>)
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="qa">
+      <div class="section-title"><div class="title-bar"></div><h2>面试问答</h2></div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">atomic 和 mutex 的区别？各自适用场景？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">atomic 基于 CPU 原子指令，无系统调用，无上下文切换，延迟约 1-5ns；mutex 在争用时涉及 goroutine 挂起和调度，延迟可达微秒级。atomic 适合单个整数/指针的原子更新（计数器、标志位）；mutex 适合保护复合操作或多个相关变量的一致性更新。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">CAS 的 ABA 问题是什么，Go 中如何解决？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">ABA 问题：线程读到值 A，被抢占后另一线程将 A→B→A，原线程 CAS(A, new) 成功，但中间状态变化被忽略。在链表等结构中可能导致节点已被删除重用但 CAS 仍然成功，引发悬挂指针。Go 中解决方案：使用版本号（将值和版本打包成 struct 用 128bit CAS），或直接使用带 GC 的安全指针（GC 保证不会重用地址），多数场景下 Go GC 已经规避此问题。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">int32 和 int64 在 32 位平台的原子性问题？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">在 32 位平台，64 位的原子操作（atomic.LoadInt64 等）要求变量<strong>8字节对齐</strong>。若 int64 变量在结构体中不对齐（如位于奇数偏移），原子操作会 panic。解决：将 int64 字段放在结构体的首位，或使用 <code>atomic.Int64</code>（Go 1.19+，内部保证对齐）。int32 在 32 位平台天然是原子的，无此问题。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">atomic.Value 为什么要求每次 Store 相同类型？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">atomic.Value 内部存储 interface{} （包含类型指针和数据指针）。若允许不同类型，Load 时类型断言就无法确定应该断言成什么类型，使用者无法安全读取。强制相同类型是为了让使用者可以放心地进行类型断言而不需要额外的类型检查逻辑。Go 1.17+ 引入了 <code>atomic.Pointer[T]</code>，通过泛型在编译期保证类型安全，是更好的选择。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">什么情况下 atomic 操作仍然存在竞态？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">atomic 只保证单次操作的原子性，不保证多步操作的原子性。例如：先 Load 再 Store（read-modify-write）两步之间仍有窗口，其他 goroutine 可以修改值。需要用 CAS 循环替代，或使用 Mutex 保护整个 read-modify-write 序列。检测工具：<code>go test -race</code>（Go race detector）能发现此类竞态。</div>
+      </div>
+    </div>
+
+    <div class="section" id="pitfalls">
+      <div class="section-title"><div class="title-bar"></div><h2>常见陷阱</h2></div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 用 atomic 保护复合操作仍有竞态（vs ✅ CAS 循环或 Mutex）</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// 竞态：Load 和 Store 不是原子的整体</span>
+<span class="kw">var</span> <span class="id">n</span> <span class="pkg">atomic</span>.<span class="id">Int64</span>
+
+<span class="kw">func</span> <span class="fn">doubleIfPositive</span>() {
+    <span class="id">v</span> := <span class="id">n</span>.<span class="fn">Load</span>()      <span class="cm">// 读</span>
+    <span class="kw">if</span> <span class="id">v</span> &gt; <span class="num">0</span> {
+        <span class="id">n</span>.<span class="fn">Store</span>(<span class="id">v</span> * <span class="num">2</span>) <span class="cm">// 写：窗口期内可被修改</span>
+    }
+}</pre>
+            <p>两步之间另一 goroutine 可能修改 n，Store 会覆盖其修改。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 正确：CAS 循环</span>
+<span class="kw">func</span> <span class="fn">doubleIfPositive</span>() {
+    <span class="kw">for</span> {
+        <span class="id">v</span> := <span class="id">n</span>.<span class="fn">Load</span>()
+        <span class="kw">if</span> <span class="id">v</span> &lt;= <span class="num">0</span> { <span class="kw">return</span> }
+        <span class="kw">if</span> <span class="id">n</span>.<span class="fn">CompareAndSwap</span>(<span class="id">v</span>, <span class="id">v</span>*<span class="num">2</span>) {
+            <span class="kw">return</span>
+        }
+        <span class="cm">// CAS 失败则重试</span>
+    }
+}</pre>
+            <p>CAS 失败说明值已被修改，重新读取并重试，保证原子性。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ atomic.Value 存不同类型导致 panic（vs ✅ 固定类型或用泛型指针）</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">var</span> <span class="id">v</span> <span class="pkg">atomic</span>.<span class="id">Value</span>
+<span class="id">v</span>.<span class="fn">Store</span>(<span class="st">"hello"</span>)    <span class="cm">// string</span>
+<span class="id">v</span>.<span class="fn">Store</span>(<span class="num">42</span>)           <span class="cm">// int: panic!</span>
+<span class="cm">// panic: sync/atomic:
+// store of inconsistently
+// typed value into Value</span></pre>
+            <p>第二次 Store 类型与第一次不同，运行时 panic。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 方案1：固定存指针</span>
+<span class="kw">var</span> <span class="id">v</span> <span class="pkg">atomic</span>.<span class="id">Value</span>
+<span class="id">v</span>.<span class="fn">Store</span>((*<span class="id">Config</span>)(<span class="kw">nil</span>)) <span class="cm">// 不行，nil panic</span>
+
+<span class="cm">// 方案2：Go 1.19+ 泛型指针</span>
+<span class="kw">var</span> <span class="id">p</span> <span class="pkg">atomic</span>.<span class="id">Pointer</span>[<span class="id">Config</span>]
+<span class="id">p</span>.<span class="fn">Store</span>(&amp;<span class="id">Config</span>{})
+<span class="id">cfg</span> := <span class="id">p</span>.<span class="fn">Load</span>() <span class="cm">// *Config, 编译期类型安全</span></pre>
+            <p>使用 <code>atomic.Pointer[T]</code> 获得泛型类型安全，无运行时 panic 风险。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 64位原子变量在结构体中未对齐（vs ✅ 放在首字段或用新 API）</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// 32位平台可能 panic</span>
+<span class="kw">type</span> <span class="id">Bad</span> <span class="kw">struct</span> {
+    <span class="id">flag</span> <span class="kw">bool</span>   <span class="cm">// 1 byte</span>
+    <span class="cm">// 3 bytes padding</span>
+    <span class="id">count</span> <span class="kw">int64</span> <span class="cm">// offset=4: 未对齐!</span>
+}
+<span class="kw">var</span> <span class="id">b</span> <span class="id">Bad</span>
+<span class="pkg">atomic</span>.<span class="fn">AddInt64</span>(&amp;<span class="id">b</span>.<span class="id">count</span>, <span class="num">1</span>) <span class="cm">// panic</span></pre>
+            <p>在 32 位平台，int64 原子操作要求 8 字节对齐。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 正确：int64 放首位或用新 API</span>
+<span class="kw">type</span> <span class="id">Good</span> <span class="kw">struct</span> {
+    <span class="id">count</span> <span class="kw">int64</span> <span class="cm">// 首字段，保证对齐</span>
+    <span class="id">flag</span>  <span class="kw">bool</span>
+}
+
+<span class="cm">// 或直接用 Go 1.19+ 类型</span>
+<span class="kw">type</span> <span class="id">Better</span> <span class="kw">struct</span> {
+    <span class="id">count</span> <span class="pkg">atomic</span>.<span class="id">Int64</span> <span class="cm">// 内部对齐</span>
+    <span class="id">flag</span>  <span class="kw">bool</span>
+}</pre>
+            <p>atomic.Int64 内部保证对齐，是最安全的做法。</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>
+function toggleQA(card) {
+  card.classList.toggle('open');
+}
+(function() {
+  var links = document.querySelectorAll('.side-nav a');
+  var sections = Array.from(links).map(function(l) {
+    return document.querySelector(l.getAttribute('href'));
+  }).filter(Boolean);
+  function onScroll() {
+    var scrollY = window.scrollY + 140;
+    var current = sections[0];
+    sections.forEach(function(s) { if (s.offsetTop <= scrollY) current = s; });
+    links.forEach(function(l) {
+      l.classList.toggle('active', l.getAttribute('href') === '#' + current.id);
+    });
+  }
+  window.addEventListener('scroll', onScroll, {passive: true});
+  onScroll();
+})();
+if(typeof NavTracker!=='undefined') NavTracker.track('原子操作','golang/atomic.html','⚛️','Golang');
+</script>
+</body>
+</html>

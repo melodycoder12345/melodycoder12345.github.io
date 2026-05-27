@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>原子指令 — CS 基础</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;--g:#38bdf8;--m:#fb923c;--p:#c084fc;--q:#4ade80;}
+*{box-sizing:border-box;margin:0;padding:0;}
+
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;min-height:100vh;}
+.nav{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);flex-shrink:0;position:sticky;top:var(--snav-h,44px);z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;display:flex;align-items:center;gap:5px;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.main-area{display:flex;flex:none;height:calc(100vh - var(--snav-h,44px) - 88px);min-height:300px;overflow:hidden;}
+.steps-panel{width:270px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid var(--border2);overflow:hidden;background:rgba(15,23,42,.6);}
+.scenarios{display:flex;gap:0;border-bottom:1px solid var(--border2);overflow-x:auto;}
+.sc-btn{flex:1;background:none;border:none;color:var(--dim);padding:9px 6px;cursor:pointer;font-size:.72rem;font-family:inherit;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;text-align:center;}
+.sc-btn:hover{color:var(--text);}
+.sc-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+.step-scroll{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
+.step-desc-card{border:1px solid var(--border2);border-radius:12px;background:rgba(255,255,255,.025);padding:14px;transition:border-color .3s,box-shadow .3s;}
+.step-desc-card.lit{border-color:var(--accent);box-shadow:0 0 20px rgba(0,173,216,.12);}
+.step-desc-card .step-num{font-size:.66rem;font-family:monospace;color:var(--accent);margin-bottom:6px;}
+.step-desc-card h3{font-size:.88rem;font-weight:700;margin-bottom:6px;}
+.step-desc-card p{font-size:.78rem;color:var(--dim);line-height:1.68;}
+.flow-nav{padding:10px 14px;border-top:1px solid var(--border2);display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.fn-dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--border2);background:rgba(255,255,255,.04);cursor:pointer;font-size:.68rem;font-family:monospace;color:var(--dim);display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;}
+.fn-dot:hover{border-color:var(--dim);color:var(--text);}
+.fn-dot.done{border-color:var(--accent);background:rgba(0,173,216,.15);color:var(--accent);}
+.fn-dot.cur{border-color:var(--accent);background:rgba(0,173,216,.25);color:var(--accent);transform:scale(1.12);}
+.step-ctr{margin-left:auto;font-size:.7rem;font-family:monospace;color:var(--dim2);}
+.diagram-panel{flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid var(--border2);overflow:hidden;}
+.diagram-inner{flex:1;overflow:auto;padding:20px;background:radial-gradient(ellipse 70% 50% at 30% 20%,rgba(0,173,216,.07),transparent 60%);}
+.diagram-svg{width:100%;max-width:620px;display:block;}
+.code-panel{width:44%;min-width:360px;flex-shrink:0;display:flex;flex-direction:column;background:var(--panel2);overflow:hidden;}
+.code-hd{padding:10px 16px;border-bottom:1px solid var(--border2);font-size:.8rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);}
+.code-body{flex:1;overflow-y:auto;padding:14px 0;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.78rem;line-height:1.7;}
+.cl{display:flex;border-left:2px solid transparent;transition:background .25s,border-color .25s;}
+.cl.hi{background:rgba(0,173,216,.1);border-left-color:var(--accent);}
+.ln{min-width:42px;padding:0 10px 0 12px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;}
+.lc{padding:0 14px 0 4px;white-space:pre-wrap;word-break:break-word;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.controls{display:flex;align-items:center;gap:10px;padding:11px 22px;border-top:1px solid var(--border2);background:var(--panel);flex-shrink:0;}
+.ctrl-btn{background:rgba(255,255,255,.07);border:1px solid var(--border2);color:var(--text);padding:7px 16px;border-radius:8px;cursor:pointer;font-size:.82rem;font-family:inherit;transition:all .15s;}
+.ctrl-btn:hover{background:rgba(255,255,255,.12);}
+.ctrl-btn:disabled{opacity:.35;cursor:not-allowed;}
+.ctrl-btn.primary{background:rgba(0,173,216,.16);border-color:rgba(0,173,216,.35);color:var(--accent);}
+.ctrl-btn.primary:hover{background:rgba(0,173,216,.25);}
+.node-rect{transition:fill .35s cubic-bezier(.4,0,.2,1),stroke .35s,filter .35s;}
+.node-text{transition:fill .35s;}
+.edge{transition:stroke .35s,opacity .35s,stroke-dashoffset .6s ease-out;}
+@keyframes glow-pulse{0%,100%{filter:drop-shadow(0 0 4px rgba(56,189,248,.6));}50%{filter:drop-shadow(0 0 12px rgba(56,189,248,.95));}}
+@keyframes particle-flow{0%{stroke-dashoffset:200;}100%{stroke-dashoffset:0;}}
+@keyframes bounce-x{0%,100%{transform:translateX(0);}50%{transform:translateX(8px);}}
+@keyframes pulse-scale{0%,100%{transform:scale(1);}50%{transform:scale(1.06);}}
+.flow-arrow{stroke-dasharray:8 5;animation:particle-flow 1.2s linear infinite;}
+.active-node{animation:glow-pulse 2s infinite;}
+.extras{padding:48px 40px;background:var(--bg);border-top:1px solid var(--border2);}
+.ext-section{margin-bottom:48px;}
+.ext-hd{display:flex;align-items:center;gap:12px;margin-bottom:22px;}
+.ext-hd-bar{width:4px;height:20px;border-radius:2px;background:var(--accent);}
+.ext-hd h2{font-size:1.25rem;font-weight:700;}
+.qa-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.qa-card{border:1px solid var(--border2);border-radius:12px;overflow:hidden;}
+.qa-q{padding:13px 16px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);font-size:.84rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .15s;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:13px 16px;font-size:.82rem;color:var(--dim);line-height:1.72;}
+.qa-card.open .qa-a{display:block;}
+.qa-a code{font-family:monospace;color:var(--accent);font-size:.78rem;}
+.pitfall-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.78rem;font-weight:700;border-bottom:1px solid var(--border2);}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;gap:0;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--dim);line-height:1.6;white-space:pre-wrap;}
+.pitfall-col p{font-size:.76rem;color:var(--dim);line-height:1.65;margin-top:6px;}
+.pitfall-col p strong{color:var(--text);}
+@media(max-width:900px){body{overflow-y:auto;height:auto;}.main-area{flex-direction:column;overflow:visible;height:auto;flex:none;}.steps-panel{width:100%;border-right:none;border-bottom:1px solid var(--border2);}.diagram-panel{border-right:none;min-height:340px;}.code-panel{width:100%;min-width:0;height:320px;flex:none;}.qa-grid,.pitfall-grid{grid-template-columns:1fr;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}.extras{padding:32px 20px;}}
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">原子指令 — CS 基础</span>
+  <div class="nav-tags">
+    <span class="ntag">CAS</span>
+    <span class="ntag">LL/SC</span>
+    <span class="ntag">lock-free</span>
+    <span class="ntag">sync/atomic</span>
+  </div>
+</div>
+
+<div class="main-area">
+  <div class="steps-panel">
+    <div class="scenarios" id="scenarios"></div>
+    <div class="step-scroll">
+      <div class="step-desc-card lit" id="stepCard">
+        <div class="step-num" id="stepNum">步骤 1</div>
+        <h3 id="stepTitle"></h3>
+        <p id="stepDesc"></p>
+      </div>
+    </div>
+    <div class="flow-nav" id="flowNav"></div>
+  </div>
+
+  <div class="diagram-panel">
+    <div class="diagram-inner">
+      <svg id="svg" class="diagram-svg" viewBox="0 0 620 360" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </div>
+
+  <div class="code-panel">
+    <div class="code-hd"><div class="code-dot"></div><span id="codeTitle">atomic.go</span></div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="ctrl-btn" id="btnReset" onclick="reset()">⏮ 重置</button>
+  <button class="ctrl-btn primary" id="btnPrev" onclick="prev()">← 上一步</button>
+  <button class="ctrl-btn primary" id="btnNext" onclick="next()">下一步 →</button>
+</div>
+
+<!-- EXTRAS: 面试题 + 易错点 -->
+<div class="extras">
+  <div class="ext-section">
+    <div class="ext-hd"><div class="ext-hd-bar"></div><h2>面试题</h2></div>
+    <div class="qa-grid">
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">CAS 操作是原子的，为什么还需要 for 循环重试？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">CAS 是"比较并交换"的单次原子操作——它保证 compare 和 swap 之间不被打断，但不保证一定成功。当多个 goroutine 并发修改同一变量时，某个 goroutine 的 CAS 可能因为 <code>expected != *addr</code> 而失败。失败说明有其他 goroutine 先完成了写入，当前 goroutine 需要重新读取最新值再尝试，这就是 CAS 自旋循环的本质：乐观锁 + 重试。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">ABA 问题是什么？在什么场景下会产生实际危害？Go 如何解决？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">ABA 问题：goroutine G1 读取 <code>old=A</code>，此时 G2 将值改为 B 再改回 A，G1 的 <code>CAS(A,new)</code> 成功，但中间经历了 B 状态被忽略。对计数器（单调递增）无害，但对无锁链表 pop 有害：弹出 A 后链表结构已变，再次匹配 A 指针会操作已释放的内存。Go 解决方案：<code>sync/atomic.Pointer[T]</code> 用带版本号思路比较；或用 <code>sync.Mutex</code>；链表 pop 场景推荐用 channel 替代。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">x86 的 LOCK CMPXCHG 和 ARM 的 LDREX/STREX 有什么本质区别？性能上有什么影响？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">x86 用 LOCK 前缀锁定总线/缓存行，在操作期间阻止其他 CPU 访问该地址，是一种"悲观锁"硬件实现，代价是总线仲裁延迟。ARM 用独占监控器（Exclusive Monitor）—— LDREX 标记监视，STREX 检查监控器是否仍有效，不锁总线，是"乐观"方式。性能上：ARM LL/SC 在低竞争时开销更小（不锁总线），高竞争时 STREX 失败率高导致更多重试；x86 LOCK 延迟固定但在超高并发下总线争用明显。现代 x86 已用 MESI 缓存一致性协议优化，很少真正锁总线。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q"><code>sync/atomic.AddInt64</code> 和手写 CAS 循环，各自适合什么场景？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a"><code>atomic.AddInt64</code> 底层是单条原子指令（x86: LOCK XADD，ARM: LDADDAL），适合简单的加减操作，开销最小。手写 CAS 循环适合：1) 需要"先读取再条件写"的复合逻辑（如 <code>if val > threshold { val = newVal }</code>）；2) 更新非数值类型（指针、复合结构）；3) 实现自定义无锁数据结构。原则：能用 <code>atomic.Add/Swap/Load/Store</code> 解决的不要用 CAS 循环，CAS 循环能解决的不要用 mutex。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">无锁数据结构（lock-free）一定比有锁更快吗？什么情况下 mutex 反而更好？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">不一定。lock-free 在低竞争、短临界区时优势明显（避免内核陷入、上下文切换）。但以下场景 mutex 更好：1) 高竞争：大量 goroutine 争同一地址，CAS 失败率 > 50% 时自旋浪费 CPU；2) 临界区操作复杂：多个变量需要原子更新时，CAS 无法保证跨变量原子性；3) 需要等待而非自旋：mutex 在等待时让出 CPU，CAS 自旋持续占用。Go runtime 的 sync.Mutex 在有竞争时会先自旋再进入 futex 等待，比纯 CAS 自旋更节能。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ext-section">
+    <div class="ext-hd"><div class="ext-hd-bar"></div><h2>易错点</h2></div>
+    <div class="pitfall-grid">
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 原子操作组合不是原子事务</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col"><pre>// 错误：两个原子操作的组合不是原子的
+if atomic.LoadInt64(&amp;x) > 0 {
+    // 这里 x 可能已被其他 goroutine 修改
+    atomic.AddInt64(&amp;x, -1) // 可能变负！
+}</pre></div>
+          <div class="pitfall-col"><pre>// 正确：用 CAS 循环或 mutex 保护
+for {
+    old := atomic.LoadInt64(&amp;x)
+    if old &lt;= 0 { break }
+    if atomic.CompareAndSwapInt64(
+        &amp;x, old, old-1) {
+        break
+    }
+}</pre><p><strong>原则：</strong><code>atomic.AddInt64</code> 是原子的，但多个 atomic 操作的组合不是原子的，需要 mutex 或 CAS 循环保护。</p></div>
+        </div>
+      </div>
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ CAS 自旋在高竞争下浪费 CPU</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col"><pre>// 1000 个 goroutine 争同一计数器
+// CAS 失败率极高，99% 时间在自旋
+func inc(c *int64) {
+    for {
+        old := atomic.LoadInt64(c)
+        if atomic.CompareAndSwapInt64(
+            c, old, old+1) { return }
+        // 高竞争下此处反复循环
+    }
+}</pre></div>
+          <div class="pitfall-col"><pre>// 高竞争下直接用 atomic.AddInt64
+// 或 sync.Mutex 效率更高
+var mu sync.Mutex
+var counter int64
+
+func inc() {
+    // 方案1：内置原子加（推荐）
+    atomic.AddInt64(&amp;counter, 1)
+    // 方案2：复杂逻辑用 mutex
+    mu.Lock()
+    counter++
+    mu.Unlock()
+}</pre><p><strong>原则：</strong>大量 goroutine 争同一地址时，mutex（内核级 futex）让出 CPU 更省电，CAS 自旋持续占用核心。</p></div>
+        </div>
+      </div>
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ Go 没有暴露弱内存序（有意为之）</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col"><pre>// 其他语言可以选择内存顺序：
+// C++ std::atomic&lt;int&gt;
+val.store(1, std::memory_order_relaxed)
+val.load(std::memory_order_acquire)
+// Go 没有这种选项——全部 SeqCst</pre></div>
+          <div class="pitfall-col"><pre>// Go 的 sync/atomic 全部是顺序一致
+// （Sequential Consistency），最强内存序
+// 不如 Relaxed/Acquire/Release 性能好
+// 但 Go 有意不暴露弱内存序，
+// 因为弱内存序极易误用产生 subtle bug
+
+// 正确：接受 Go 的设计，不要试图
+// 用 unsafe 手动绕过内存屏障
+atomic.StoreInt64(&amp;flag, 1) // SeqCst</pre><p><strong>原则：</strong>Go 的 <code>sync/atomic</code> 默认顺序一致，这是有意为之的安全设计——不要用 <code>unsafe</code> 绕过，收益微乎其微，风险极高。</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── SVG helpers ──────────────────────────────────────────────
+function defs(){return`<defs>
+<marker id="arr" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#475569"/></marker>
+<marker id="arrA" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#00add8"/></marker>
+<marker id="arrG" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#38bdf8"/></marker>
+<marker id="arrR" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#f87171"/></marker>
+<filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="glow2"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>`;}
+
+function box(x,y,w,h,label,sub,color,active,rx=10){
+  const fill=active?`rgba(${hexToRgb(color)},.18)`:`rgba(255,255,255,.03)`;
+  const stroke=active?color:'#334155';
+  const filt=active?' filter="url(#glow)"':'';
+  const lc=active?color:'#94a3b8';
+  const sc=active?'#e2e8f0':'#64748b';
+  return`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${active?2:1}"${filt}/>
+<text x="${x+w/2}" y="${y+h/2-(sub?6:0)}" text-anchor="middle" fill="${lc}" font-size="12" font-weight="700" font-family="monospace">${label}</text>`+
+(sub?`<text x="${x+w/2}" y="${y+h/2+10}" text-anchor="middle" fill="${sc}" font-size="9" font-family="monospace">${sub}</text>`:'');
+}
+
+function goroutine(x,y,label,active,blocked){
+  const col=blocked?'#f87171':active?'#38bdf8':'#475569';
+  const fill=blocked?'rgba(248,113,113,.18)':active?'rgba(56,189,248,.18)':'rgba(255,255,255,.04)';
+  const filt=active||blocked?' filter="url(#glow)"':'';
+  return`<circle cx="${x}" cy="${y}" r="22" fill="${fill}" stroke="${col}" stroke-width="${active||blocked?2:1}"${filt}/>
+<text x="${x}" y="${y+4}" text-anchor="middle" fill="${col}" font-size="10" font-weight="700" font-family="monospace">${label}</text>`;
+}
+
+function arr(x1,y1,x2,y2,color,dashed,anim){
+  const cls=anim?'class="flow-arrow" ':'';
+  const da=dashed?'stroke-dasharray="6 4" ':'';
+  const mkId=color==='#00add8'?'arrA':color==='#38bdf8'?'arrG':color==='#f87171'?'arrR':'arr';
+  return`<line ${cls}${da}x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="1.8" marker-end="url(#${mkId})"/>`;
+}
+
+function lbl(x,y,t,c,s){return`<text x="${x}" y="${y}" fill="${c||'#64748b'}" font-size="${s||9}" font-family="monospace">${t}</text>`;}
+
+function hexToRgb(hex){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return`${r},${g},${b}`;}
+
+// ── Scenarios ─────────────────────────────────────────────────
+let curScene=0, curStep=0;
+
+const SCENARIOS=[
+
+// ── 场景 A: 非原子 RMW 竞争 ───────────────────────────────────
+{
+  label:'非原子竞争',
+  codeTitle:'race.go',
+  steps:[
+    {title:'初始状态：两个 goroutine 准备 counter++',desc:'counter=0，G1 和 G2 同时准备执行 counter++（LOAD→ADD→STORE 三步非原子操作）。看似一行代码，实际是三条独立指令，任意两步之间都可能被打断。'},
+    {title:'G1 和 G2 同时 LOAD counter=0',desc:'G1 读取 counter=0 到 G1_reg；G2 也读取 counter=0 到 G2_reg。两者同时读到旧值 0，各自持有一份"快照"。这是竞争的根源。'},
+    {title:'各自 ADD：G1_reg=1，G2_reg=1',desc:'G1 计算 G1_reg=0+1=1；G2 计算 G2_reg=0+1=1。两者基于旧值各自加 1，但都不知道对方也在执行同样的操作。'},
+    {title:'STORE：G2 覆盖了 G1 的写！',desc:'G1 先写入 counter=1；G2 紧接着也写入 counter=1，覆盖了 G1 的结果！两次写操作都完成，但 counter 只变成了 1。'},
+    {title:'结果 counter=1，应该是 2！Lost Update',desc:'两个 goroutine 各执行了一次 counter++，预期结果是 2，但实际是 1。这就是"丢失更新"数据竞争。1000 个 goroutine 并发时，最终 counter 可能远小于 1000。'},
+  ],
+  hl:[
+    [3,4,5,6,7],
+    [6],
+    [7],
+    [8],
+    [14],
+  ],
+  code:[
+`// 非原子操作 — 有数据竞争
+var counter int64
+
+func increment() {
+    // counter++ 等价于：
+    tmp := counter        // LOAD
+    tmp = tmp + 1         // ADD
+    counter = tmp         // STORE (可能覆盖其他goroutine的写)
+}
+
+func main() {
+    var wg sync.WaitGroup
+    for i := 0; i < 1000; i++ {
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            increment()
+        }()
+    }
+    wg.Wait()
+    // counter 通常 < 1000！
+}`,
+`// 非原子操作 — 有数据竞争
+var counter int64
+
+func increment() {
+    // counter++ 等价于：
+    tmp := counter        // ◀ G1 LOAD=0; G2 LOAD=0
+    tmp = tmp + 1         // ADD
+    counter = tmp         // STORE
+}
+
+func main() {
+    var wg sync.WaitGroup
+    for i := 0; i < 1000; i++ {
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            increment()
+        }()
+    }
+    wg.Wait()
+    // counter 通常 < 1000！
+}`,
+`// 非原子操作 — 有数据竞争
+var counter int64
+
+func increment() {
+    // counter++ 等价于：
+    tmp := counter        // G1:0, G2:0
+    tmp = tmp + 1         // ◀ G1:1, G2:1（各自计算）
+    counter = tmp         // STORE
+}
+
+func main() {
+    var wg sync.WaitGroup
+    for i := 0; i < 1000; i++ {
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            increment()
+        }()
+    }
+    wg.Wait()
+    // counter 通常 < 1000！
+}`,
+`// 非原子操作 — 有数据竞争
+var counter int64
+
+func increment() {
+    // counter++ 等价于：
+    tmp := counter        // G1:0, G2:0
+    tmp = tmp + 1         // G1:1, G2:1
+    counter = tmp         // ◀ G1写1; G2写1 覆盖G1!
+}
+
+func main() {
+    var wg sync.WaitGroup
+    for i := 0; i < 1000; i++ {
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            increment()
+        }()
+    }
+    wg.Wait()
+    // counter 通常 < 1000！
+}`,
+`// 非原子操作 — 有数据竞争
+var counter int64
+
+func increment() {
+    tmp := counter
+    tmp = tmp + 1
+    counter = tmp
+}
+
+func main() {
+    var wg sync.WaitGroup
+    for i := 0; i < 1000; i++ {
+        wg.Add(1)
+        go func() {
+            defer wg.Done()
+            increment()
+        }()
+    }
+    wg.Wait()
+    fmt.Println(counter) // ◀ 结果: 可能是 1，不是 2！
+}`,
+  ],
+  render(step){
+    let s=defs();
+    const memX=235, memY=148, memW=150, memH=44;
+    // Memory cell
+    const memHighlight=step===3||step===4;
+    const memVal=step<=2?'0':step===3?'1 (覆盖!)':'1';
+    const memColor=step===3?'#f87171':step===4?'#f87171':'#00add8';
+    s+=`<rect x="${memX}" y="${memY}" width="${memW}" height="${memH}" rx="10" fill="${step>=3?'rgba(248,113,113,.18)':'rgba(0,173,216,.1)'}" stroke="${memColor}" stroke-width="${memHighlight?2:1}"${memHighlight?' filter="url(#glow)"':''}/>`;
+    s+=`<text x="${memX+memW/2}" y="${memY+16}" text-anchor="middle" fill="${memColor}" font-size="10" font-weight="700" font-family="monospace">Memory: counter</text>`;
+    s+=`<text x="${memX+memW/2}" y="${memY+33}" text-anchor="middle" fill="${step>=3?'#f87171':'#e2e8f0'}" font-size="14" font-weight="700" font-family="monospace">${memVal}</text>`;
+
+    // G1 goroutine
+    const g1x=75, g1y=170;
+    const g1active=step===0||step===1||step===2||step===3;
+    s+=goroutine(g1x,g1y,'G1',g1active,false);
+
+    // G2 goroutine
+    const g2x=545, g2y=170;
+    const g2active=step===0||step===1||step===2||step===3;
+    s+=goroutine(g2x,g2y,'G2',g2active,false);
+
+    // Registers
+    if(step>=1){
+      const r1Active=step===1||step===2;
+      s+=box(30,230,100,30,`G1_reg=${step>=2?1:0}`,'',r1Active?'#38bdf8':'#334155',r1Active,6);
+    }
+    if(step>=1){
+      const r2Active=step===1||step===2;
+      s+=box(490,230,100,30,`G2_reg=${step>=2?1:0}`,'',r2Active?'#38bdf8':'#334155',r2Active,6);
+    }
+
+    // Step labels
+    if(step===0){
+      s+=lbl(42,210,'准备 LOAD','#38bdf8',9);
+      s+=lbl(508,210,'准备 LOAD','#38bdf8',9);
+    }
+    if(step===1){
+      s+=arr(g1x+22,g1y,memX-2,memY+22,'#38bdf8',false,true);
+      s+=arr(g2x-22,g2y,memX+memW+2,memY+22,'#38bdf8',false,true);
+      s+=lbl(42,210,'LOAD →','#38bdf8',9);
+      s+=lbl(512,210,'← LOAD','#38bdf8',9);
+    }
+    if(step===2){
+      s+=lbl(42,210,'tmp=0+1=1','#fb923c',9);
+      s+=lbl(506,210,'tmp=0+1=1','#fb923c',9);
+    }
+    if(step===3){
+      // G1 writes first
+      s+=arr(g1x+22,g1y,memX-2,memY+22,'#38bdf8',false,false);
+      s+=arr(g2x-22,g2y,memX+memW+2,memY+22,'#f87171',false,true);
+      s+=lbl(42,210,'STORE=1','#38bdf8',9);
+      s+=lbl(503,210,'STORE=1 ←覆盖','#f87171',9);
+      s+=`<text x="310" y="300" text-anchor="middle" fill="#f87171" font-size="10" font-family="monospace">G2 覆盖了 G1 的写！Lost Update</text>`;
+    }
+    if(step===4){
+      s+=`<text x="310" y="280" text-anchor="middle" fill="#f87171" font-size="11" font-weight="700" font-family="monospace">counter = 1，但应该是 2！</text>`;
+      s+=`<text x="310" y="300" text-anchor="middle" fill="#f87171" font-size="9" font-family="monospace">1000 goroutines 并发 → counter &lt;&lt; 1000</text>`;
+      s+=box(195,320,230,26,'go run -race: DATA RACE','',  '#f87171',true,6);
+    }
+
+    // Step indicator labels
+    const stepLabels=['初始状态','同时 LOAD','各自 ADD','G2 覆盖 G1','Lost Update'];
+    s+=lbl(220,130,`步骤: ${stepLabels[step]}`,'#94a3b8',10);
+
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+
+// ── 场景 B: x86 CAS (CMPXCHG) ────────────────────────────────
+{
+  label:'x86 CAS',
+  codeTitle:'cas.go',
+  steps:[
+    {title:'发起 CAS：CAS(addr, expected=0, desired=1)',desc:'CPU 准备执行 LOCK CMPXCHG 指令。输入：addr（内存地址）、expected（期望旧值=0）、desired（期望写入值=1）。'},
+    {title:'LOCK 前缀：锁定总线/缓存行',desc:'x86 LOCK 前缀使 CPU 在执行 CMPXCHG 前锁定对应缓存行（现代 CPU）或总线（旧 CPU）。锁定期间其他 CPU 无法访问该地址，保证原子性。'},
+    {title:'比较：*addr=0 == expected=0？相等！',desc:'CPU 读取 *addr=0，与 expected=0 比较，相等（绿色对勾）。可以执行写入操作。'},
+    {title:'写入 desired=1，释放 LOCK，返回成功',desc:'CPU 将 desired=1 写入 *addr；释放 LOCK（其他 CPU 可访问）；返回 old_value=0。CAS 操作成功，不需要重试。'},
+    {title:'失败分支：*addr≠expected，不写入，重试',desc:'如果步骤3比较结果不相等（*addr 已被其他 CPU 修改），CMPXCHG 不执行写入，返回 old_value=当前值。调用方需要重新读取并重试整个 CAS。'},
+  ],
+  hl:[
+    [7,8],
+    [8],
+    [8],
+    [9,10],
+    [11,12],
+  ],
+  code:[
+`import "sync/atomic"
+
+var counter int64
+
+// CAS 实现安全的计数器递增
+func atomicIncrement() {
+    for {
+        old := atomic.LoadInt64(&counter)
+        new := old + 1
+        // CAS: 只有 counter 还等于 old 时才写入 new
+        if atomic.CompareAndSwapInt64(&counter, old, new) {
+            return // 成功
+        }
+        // 失败：counter 已被其他 goroutine 修改，重试
+    }
+}`,
+`import "sync/atomic"
+
+var counter int64
+
+// 底层汇编（x86-64）:
+// LOCK CMPXCHG [addr], desired
+// ^--- LOCK 前缀：锁定缓存行
+func atomicIncrement() {
+    for {
+        old := atomic.LoadInt64(&counter)
+        new := old + 1
+        if atomic.CompareAndSwapInt64(&counter, old, new) {
+            return
+        }
+    }
+}`,
+`import "sync/atomic"
+
+var counter int64
+
+// 执行中：CMPXCHG 比较阶段
+// *addr=0, expected=0 → EQUAL ✓
+func atomicIncrement() {
+    for {
+        old := atomic.LoadInt64(&counter) // old=0
+        new := old + 1                    // new=1
+        // 比较 *addr==old？0==0 ✓ → 执行写入
+        if atomic.CompareAndSwapInt64(&counter, old, new) {
+            return
+        }
+    }
+}`,
+`import "sync/atomic"
+
+var counter int64
+
+// CAS 成功：写入 1，释放 LOCK
+// counter: 0 → 1
+func atomicIncrement() {
+    for {
+        old := atomic.LoadInt64(&counter)
+        new := old + 1
+        if atomic.CompareAndSwapInt64(&counter, old, new) {
+            return // ◀ CAS 成功，counter=1
+        }
+    }
+}`,
+`import "sync/atomic"
+
+var counter int64
+
+// CAS 失败分支：*addr 已被修改
+// *addr=5 != expected=3 → 不写入，重试
+func atomicIncrement() {
+    for {
+        old := atomic.LoadInt64(&counter)
+        new := old + 1
+        if atomic.CompareAndSwapInt64(&counter, old, new) {
+            return
+        }
+        // ◀ 到这里：CAS 失败，old 已过期，重新 Load
+    }
+}`,
+  ],
+  render(step){
+    let s=defs();
+    // Memory cell (center)
+    const memX=240, memY=130, memW=140, memH=50;
+    const locked=step===1;
+    const writeStep=step===3;
+    const failStep=step===4;
+    const memVal=step<3?'0':step===3?'1':'0 (未改变)';
+    const memColor=locked?'#fb923c':writeStep?'#4ade80':failStep?'#f87171':'#00add8';
+    s+=`<rect x="${memX}" y="${memY}" width="${memW}" height="${memH}" rx="10" fill="${locked?'rgba(251,146,60,.15)':writeStep?'rgba(74,222,128,.15)':failStep?'rgba(248,113,113,.1)':'rgba(0,173,216,.1)'}" stroke="${memColor}" stroke-width="${step>=1?2:1}"${step>=1?' filter="url(#glow)"':''}/>`;
+    s+=`<text x="${memX+memW/2}" y="${memY+17}" text-anchor="middle" fill="${memColor}" font-size="10" font-weight="700" font-family="monospace">*addr</text>`;
+    s+=`<text x="${memX+memW/2}" y="${memY+37}" text-anchor="middle" fill="${writeStep?'#4ade80':failStep?'#f87171':'#e2e8f0'}" font-size="16" font-weight="700" font-family="monospace">${memVal}</text>`;
+
+    // LOCK indicator
+    if(locked){
+      s+=`<rect x="${memX-8}" y="${memY-8}" width="${memW+16}" height="${memH+16}" rx="14" fill="none" stroke="#fb923c" stroke-width="2" stroke-dasharray="6 3"/>`;
+      s+=`<text x="${memX+memW/2}" y="${memY-14}" text-anchor="middle" fill="#fb923c" font-size="9" font-weight="700" font-family="monospace">🔒 总线/缓存行锁定</text>`;
+    }
+
+    // Left inputs: expected / desired
+    s+=box(30,120,110,36,`expected=${failStep?3:0}`,'',step>=2?'#38bdf8':'#334155',step>=2,8);
+    s+=box(30,168,110,36,`desired=${failStep?4:1}`,'',step>=3?'#4ade80':'#334155',step>=3,8);
+
+    // Right output: old_value
+    const retColor=step===3?'#4ade80':step===4?'#f87171':'#334155';
+    const retVal=step===3?'old=0 (成功)':step===4?'old=当前值 (失败)':'old_value';
+    s+=box(480,130,120,50,retVal,'',retColor,step>=3,8);
+
+    // Arrows: input to memory
+    if(step>=2) s+=arr(142,138,memX-2,155,'#38bdf8',step===2,false);
+    if(step>=3) s+=arr(142,186,memX-2,162,'#4ade80',false,step===3);
+    // Arrow: memory to output
+    if(step>=3) s+=arr(memX+memW+2,155,478,155,step===4?'#f87171':'#4ade80',false,step===3);
+
+    // CPU flow diagram
+    const cpuX=180, cpuY=250;
+    s+=box(cpuX,cpuY,260,30,'CPU: LOCK CMPXCHG','',step>=1?'#fb923c':'#334155',step>=1,6);
+
+    // Compare result
+    if(step===2){
+      s+=`<text x="310" y="310" text-anchor="middle" fill="#4ade80" font-size="11" font-weight="700" font-family="monospace">比较结果：0 == 0 ✓ 相等</text>`;
+    }
+    if(step===3){
+      s+=`<text x="310" y="310" text-anchor="middle" fill="#4ade80" font-size="11" font-weight="700" font-family="monospace">写入成功，LOCK 释放 ✓</text>`;
+    }
+    if(step===4){
+      s+=box(140,310,340,32,'*addr ≠ expected → 不写入 → 重试','',  '#f87171',true,6);
+    }
+
+    // Step 0: show the CAS call
+    if(step===0){
+      s+=`<text x="310" y="100" text-anchor="middle" fill="#00add8" font-size="10" font-family="monospace">CAS(addr, expected=0, desired=1)</text>`;
+      s+=`<text x="310" y="310" text-anchor="middle" fill="#64748b" font-size="9" font-family="monospace">x86: LOCK CMPXCHG — 原子比较并交换</text>`;
+    }
+
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+
+// ── 场景 C: CAS 自旋 + ABA 问题 ──────────────────────────────
+{
+  label:'自旋+ABA',
+  codeTitle:'aba.go',
+  steps:[
+    {title:'G1 开始 CAS 自旋：load old=5，计算 new=6',desc:'G1 读取 counter=5，计算 new=6，准备执行 CAS(expected=5, desired=6)。这是自旋循环的第一次迭代。'},
+    {title:'CAS 失败：另一个 goroutine 已修改 counter',desc:'G1 执行 CAS(5,6) 时，counter 已被其他 goroutine 改为 7！CAS 返回 false，old=5 已过期。G1 进入下一次迭代。'},
+    {title:'重新 load old=7，CAS(7,8) 成功！',desc:'G1 重新读取 counter=7，计算 new=8，执行 CAS(7,8)。这次没有其他 goroutine 抢先修改，CAS 成功，counter=8，G1 退出循环。'},
+    {title:'ABA 问题：值从 A→B→A，CAS 误判成功',desc:'G1 读取 ptr=A；G2 将 ptr 改为 B 再改回 A（ABA 变化）；G1 执行 CAS(A,new) 成功，但完全忽略了中间经历的 B 状态。对链表等数据结构有害：B 可能已经释放。'},
+    {title:'ABA 修复：版本号方案',desc:'为每个值附加版本号（tag），期望变成 (value, version)。即使值从 A 变为 (A, v+2)，版本号不同，CAS 也会失败。Go 的 sync/atomic.Pointer 利用指针比较规避 ABA；计数器因单调递增不受 ABA 影响。'},
+  ],
+  hl:[
+    [5,6],
+    [7,8,9],
+    [7,8,9,10],
+    [14,15,16,17],
+    [20,21,22,23],
+  ],
+  code:[
+`// 无锁计数器（忽略 ABA：计数器只增不减）
+type Counter struct {
+    val int64
+}
+func (c *Counter) Inc() {
+    for {
+        old := atomic.LoadInt64(&c.val)  // ◀ old=5
+        if atomic.CompareAndSwapInt64(
+            &c.val, old, old+1) {        // CAS(5,6)
+            return
+        }
+    }
+}`,
+`// 无锁计数器
+type Counter struct {
+    val int64
+}
+func (c *Counter) Inc() {
+    for {
+        old := atomic.LoadInt64(&c.val)  // old=5（过期！）
+        if atomic.CompareAndSwapInt64(   // ◀ CAS 失败
+            &c.val, old, old+1) {        // *val=7≠5
+            return
+        }
+        // ◀ 到这里：失败，old 过期，重新 Load
+    }
+}`,
+`// 无锁计数器
+type Counter struct {
+    val int64
+}
+func (c *Counter) Inc() {
+    for {
+        old := atomic.LoadInt64(&c.val)  // ◀ 重新 Load=7
+        if atomic.CompareAndSwapInt64(
+            &c.val, old, old+1) {        // ◀ CAS(7,8) 成功！
+            return                       // ◀ 退出循环
+        }
+    }
+}`,
+`// ABA 问题示例（无锁链表 pop）
+// G1 读取 head=A；
+// G2 将 head: A→B→A（ABA 变化）
+// G1 的 CAS(A, new) 成功，但链表已变！
+
+type Node struct{ val int; next *Node }
+var head atomic.Pointer[Node]
+
+func popABA() *Node {
+    for {
+        old := head.Load()          // old=A
+        // G2 在这里: A→B→A
+        next := old.next
+        if head.CompareAndSwap(old, next) { // ◀ CAS(A,next) 成功！
+            return old              // 但 A 可能已被释放
+        }
+    }
+}`,
+`// ABA 修复：版本号方案
+// (value, version) 对，版本号单调递增
+
+type TaggedPtr struct {
+    ptr     *Node
+    version uint64
+}
+
+// Go 标准库没有内置版本号 CAS，
+// 通常用 sync.Mutex 或将版本号
+// 打包到 uint128（需 unsafe）
+// 或用 channel 替代无锁链表
+
+// 计数器不受 ABA 影响（单调递增）
+func (c *Counter) Inc() {
+    for {
+        old := atomic.LoadInt64(&c.val)
+        if atomic.CompareAndSwapInt64(
+            &c.val, old, old+1) {
+            return
+        }
+    }
+}`,
+  ],
+  render(step){
+    let s=defs();
+
+    if(step<=2){
+      // CAS spin loop diagram
+      // Counter box
+      const ctVal=step===0?5:step===1?7:8;
+      const ctColor=step===2?'#4ade80':step===1?'#f87171':'#00add8';
+      s+=box(230,60,160,50,`counter = ${ctVal}`,'Memory',ctColor,true,10);
+
+      // G1 box
+      s+=goroutine(90,160,'G1',true,false);
+
+      // Step boxes
+      if(step===0){
+        s+=box(150,230,160,34,`old = Load() = 5`,'',  '#38bdf8',true,8);
+        s+=box(150,275,160,34,`new = 5+1 = 6`,'',     '#38bdf8',true,8);
+        s+=box(150,320,160,34,`CAS(5, 6) → ?`,'',     '#fb923c',false,8);
+        s+=arr(310,85,310,228,'#00add8',false,true);
+      }
+      if(step===1){
+        s+=box(150,210,160,34,`old=5 (旧,已过期)`,'',  '#f87171',true,8);
+        s+=box(150,255,160,34,`CAS(5,6) 失败!`,'',     '#f87171',true,8);
+        s+=box(390,255,160,34,`*counter=7≠5`,'',       '#f87171',true,8);
+        s+=box(150,300,160,34,`重新 Load...`,'',       '#fb923c',true,8);
+        s+=arr(312,85,388,253,'#f87171',false,false);
+        s+=`<text x="310" y="345" text-anchor="middle" fill="#f87171" font-size="10" font-family="monospace">CAS 失败 → 自旋重试</text>`;
+      }
+      if(step===2){
+        s+=box(150,210,160,34,`old = Load() = 7`,'',  '#38bdf8',true,8);
+        s+=box(150,255,160,34,`new = 7+1 = 8`,'',     '#38bdf8',true,8);
+        s+=box(150,300,160,34,`CAS(7,8) ✓ 成功`,'',   '#4ade80',true,8);
+        s+=arr(310,85,310,208,'#4ade80',false,true);
+        s+=`<text x="310" y="345" text-anchor="middle" fill="#4ade80" font-size="10" font-family="monospace">CAS 成功，counter = 8 ✓</text>`;
+      }
+    }
+
+    if(step===3){
+      // ABA timeline
+      // ptr A → B → A
+      const ax=70, bx=250, a2x=430;
+      s+=box(ax,80,100,40,'ptr = A','head',  '#38bdf8',true,8);
+      s+=box(bx,80,100,40,'ptr = B','G2修改','#f87171',true,8);
+      s+=box(a2x,80,100,40,'ptr = A','G2改回','#fb923c',true,8);
+      s+=arr(ax+102,100,bx-2,100,'#f87171',false,false);
+      s+=arr(bx+102,100,a2x-2,100,'#fb923c',false,false);
+      // G1 reads A then CAS
+      s+=goroutine(70,200,'G1',true,false);
+      s+=lbl(50,240,'Load: old=A','#38bdf8',9);
+      s+=`<line x1="70" y1="178" x2="120" y2="100" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+      // G1 CAS on original A
+      s+=arr(92,200,428,100,'#fb923c',true,false);
+      s+=lbl(230,175,'CAS(A, new) 成功!','#fb923c',9);
+      s+=box(200,250,220,40,'ABA: 忽略了 B 状态','B 可能已释放!','#f87171',true,10);
+      s+=`<text x="310" y="320" text-anchor="middle" fill="#f87171" font-size="9" font-family="monospace">无锁链表 pop：A 节点已在 B 阶段被释放 → use-after-free!</text>`;
+    }
+
+    if(step===4){
+      // Version number fix
+      s+=box(50,80,200,44,'(A, version=1)','tagged ptr',  '#4ade80',true,10);
+      s+=box(270,80,200,44,'(A, version=3)','ABA后版本变了','#f87171',true,10);
+      s+=arr(252,102,268,102,'#f87171',false,false);
+      s+=lbl(140,148,'G2: A→B(v2)→A(v3)','#f87171',9);
+      s+=goroutine(90,210,'G1',true,false);
+      s+=lbl(42,250,'CAS((A,v1),(A,v1),new)','#38bdf8',9);
+      s+=arr(120,210,268,102,'#f87171',true,false);
+      s+=box(200,270,220,36,'CAS 失败: v1 ≠ v3 ✓','版本号不同','#4ade80',true,8);
+      s+=`<text x="310" y="330" text-anchor="middle" fill="#4ade80" font-size="9" font-family="monospace">版本号方案正确识别 ABA ✓ — 计数器不受影响（单调递增）</text>`;
+    }
+
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+
+// ── 场景 D: ARM LL/SC ─────────────────────────────────────────
+{
+  label:'ARM LL/SC',
+  codeTitle:'llsc.go',
+  steps:[
+    {title:'ARM 用 LDREX+STREX 替代 x86 LOCK',desc:'ARM 没有 LOCK 前缀。用 LDREX（Load-Linked/独占加载）+ STREX（Store-Conditional/条件存储）实现原子操作。关键区别：不锁总线，使用独占监控器（Exclusive Monitor）。'},
+    {title:'LDREX：读取并设置独占监控器',desc:'G1 执行 LDREX counter，读取值=5，CPU 设置 Exclusive Monitor 监视该内存地址。其他 CPU 如果写入该地址，监控器会被清除。'},
+    {title:'计算 new=6，准备 STREX',desc:'G1 计算 new=6，准备执行 STREX。STREX 会检查独占监控器是否仍然有效——只有无其他 CPU 写入时才允许写入。'},
+    {title:'场景1—STREX 成功：无其他 CPU 写入',desc:'独占监控器有效（无其他 CPU 写入），STREX 写入 new=6，返回 0（成功），独占监控清除，counter=6。'},
+    {title:'场景2—STREX 失败：独占监控被清除',desc:'其他 CPU 写入过该地址，独占监控器被清除。STREX 返回 1（失败），不写入。软件检测到失败，重新执行 LDREX 重试整个循环。'},
+  ],
+  hl:[
+    [6,7],
+    [6],
+    [7],
+    [8,9,10],
+    [11,12,13],
+  ],
+  code:[
+`// Go 代码在 ARM 和 x86 上都可用
+// 编译器自动选择最优指令序列
+import "sync/atomic"
+
+func safeAdd(ptr *int64, delta int64) int64 {
+    for {
+        old := atomic.LoadInt64(ptr)    // ARM: LDREX; x86: MOV
+        new := old + delta
+        if atomic.CompareAndSwapInt64(  // ARM: STREX; x86: LOCK CMPXCHG
+            ptr, old, new) {
+            return new                  // 成功返回
+        }
+        // 失败重试（STREX 返回1 / CAS 返回false）
+    }
+}`,
+`// ARM 汇编视角:
+// LDREX R0, [addr]  ; 读取并设置 Exclusive Monitor
+//   → R0 = *addr = 5
+//   → Exclusive Monitor 开始监视 addr
+import "sync/atomic"
+
+func safeAdd(ptr *int64, delta int64) int64 {
+    for {
+        old := atomic.LoadInt64(ptr)    // ◀ LDREX: old=5
+        new := old + delta              //   Excl.Monitor 激活
+        if atomic.CompareAndSwapInt64(ptr, old, new) {
+            return new
+        }
+    }
+}`,
+`// ARM 汇编视角:
+// 计算 new = old + delta = 5 + 1 = 6
+// 准备执行 STREX...
+// STREX R1, R2, [addr]  ; 条件存储
+//   R1 = 成功(0)/失败(1)
+import "sync/atomic"
+
+func safeAdd(ptr *int64, delta int64) int64 {
+    for {
+        old := atomic.LoadInt64(ptr)    // LDREX: 5
+        new := old + delta              // new = 6
+        if atomic.CompareAndSwapInt64(  // ◀ STREX: 写入?
+            ptr, old, new) {
+            return new
+        }
+    }
+}`,
+`// ARM: STREX 成功 → R1=0
+// 无其他 CPU 写入该地址
+// Exclusive Monitor 有效 → 允许写入
+// *addr = 6, Monitor 清除
+import "sync/atomic"
+
+func safeAdd(ptr *int64, delta int64) int64 {
+    for {
+        old := atomic.LoadInt64(ptr)
+        new := old + delta
+        if atomic.CompareAndSwapInt64(ptr, old, new) {
+            return new  // ◀ STREX 返回0，成功！
+        }
+    }
+}`,
+`// ARM: STREX 失败 → R1=1
+// 其他 CPU 写入过该地址
+// Exclusive Monitor 被清除 → 拒绝写入
+// 软件重试：回到 LDREX
+import "sync/atomic"
+
+func safeAdd(ptr *int64, delta int64) int64 {
+    for {
+        old := atomic.LoadInt64(ptr)    // 重新 LDREX
+        new := old + delta
+        if atomic.CompareAndSwapInt64(ptr, old, new) {
+            return new
+        }
+        // ◀ STREX 返回1，Monitor已清除，重试
+    }
+}`,
+  ],
+  render(step){
+    let s=defs();
+
+    // Left: ARM flow
+    const armX=40;
+    s+=box(armX,30,155,34,'ARM: LDREX','独占加载',step>=1?'#38bdf8':'#334155',step>=1,8);
+    s+=box(armX,78,155,34,'Exclusive Monitor','监视内存地址',step>=1?'#fb923c':'#334155',step>=1,8);
+    s+=box(armX,126,155,34,'计算 new = old+1','',step>=2?'#c084fc':'#334155',step>=2,8);
+    s+=box(armX,174,155,34,'ARM: STREX','条件存储',step>=3?'#38bdf8':'#334155',step>=3,8);
+
+    // STREX result
+    if(step===3){
+      s+=box(armX,222,155,34,'返回 0 ✓ 成功','写入完成','#4ade80',true,8);
+    }
+    if(step===4){
+      s+=box(armX,222,155,34,'返回 1 ✗ 失败','Monitor清除','#f87171',true,8);
+    }
+
+    // Arrows ARM flow
+    s+=arr(armX+78,64,armX+78,76,'#38bdf8',false,false);
+    s+=arr(armX+78,112,armX+78,124,'#fb923c',false,false);
+    s+=arr(armX+78,160,armX+78,172,'#c084fc',false,false);
+    if(step>=3) s+=arr(armX+78,208,armX+78,220,step===3?'#4ade80':'#f87171',false,false);
+    // Retry arrow
+    if(step===4){
+      s+=`<path d="M ${armX} 239 L ${armX-16} 239 L ${armX-16} 47 L ${armX} 47" fill="none" stroke="#f87171" stroke-width="1.5" stroke-dasharray="5 3"/>`;
+      s+=`<polygon points="${armX} 44, ${armX+7} 50, ${armX-7} 50" fill="#f87171"/>`;
+      s+=lbl(armX-60,145,'重试','#f87171',9);
+    }
+
+    // Right: x86 flow
+    const x86X=420;
+    s+=box(x86X,30,155,34,'x86: MOV','普通读取',step>=1?'#38bdf8':'#334155',step>=1,8);
+    s+=box(x86X,78,155,34,'LOCK 前缀','锁定总线/缓存行',step>=2?'#fb923c':'#334155',step>=2,8);
+    s+=box(x86X,126,155,34,'CMPXCHG','比较并交换',step>=3?'#38bdf8':'#334155',step>=3,8);
+
+    if(step===3){
+      s+=box(x86X,174,155,34,'返回 old ✓ 成功','释放 LOCK','#4ade80',true,8);
+    }
+    if(step===4){
+      s+=box(x86X,174,155,34,'ZF=0 失败','不写入,重试','#f87171',true,8);
+    }
+
+    // Arrows x86 flow
+    s+=arr(x86X+78,64,x86X+78,76,'#38bdf8',false,false);
+    s+=arr(x86X+78,112,x86X+78,124,'#fb923c',false,false);
+    if(step>=3) s+=arr(x86X+78,160,x86X+78,172,step===3?'#4ade80':'#f87171',false,false);
+
+    // Center: Memory
+    const mX=220, mY=120;
+    const mColor=step===3?'#4ade80':step===4?'#f87171':'#00add8';
+    const mVal=step<=2?'5':step===3?'6':'5';
+    s+=box(mX,mY,178,50,`counter = ${mVal}`,'Memory',mColor,step>=1,10);
+
+    // Arrows: ARM↔Memory, x86↔Memory
+    if(step>=1) s+=arr(armX+155,95,mX-2,140,'#38bdf8',false,step===1);
+    if(step>=3) s+=arr(armX+155,190,mX-2,155,step===3?'#4ade80':'#f87171',false,step===3);
+    if(step>=1) s+=arr(x86X-2,95,mX+178+2,140,'#38bdf8',true,false);
+    if(step>=3) s+=arr(x86X-2,190,mX+178+2,155,step===3?'#4ade80':'#f87171',false,false);
+
+    // Comparison labels
+    if(step===0){
+      s+=lbl(armX+26,296,'ARM: 不锁总线','#4ade80',9);
+      s+=lbl(armX+26,311,'轻量级，低延迟','#4ade80',9);
+      s+=lbl(x86X+18,296,'x86: 锁总线/缓存行','#fb923c',9);
+      s+=lbl(x86X+28,311,'延迟固定，高竞争','#fb923c',9);
+    }
+
+    // Monitor status
+    if(step===1||step===2){
+      s+=`<text x="309" y="290" text-anchor="middle" fill="#fb923c" font-size="9" font-family="monospace">Exclusive Monitor 激活：监视 counter 地址</text>`;
+    }
+    if(step===3){
+      s+=`<text x="309" y="290" text-anchor="middle" fill="#4ade80" font-size="10" font-weight="700" font-family="monospace">ARM STREX ✓  ←→  x86 LOCK CMPXCHG ✓</text>`;
+    }
+    if(step===4){
+      s+=`<text x="309" y="290" text-anchor="middle" fill="#f87171" font-size="9" font-family="monospace">Monitor 被清除（他 CPU 写入）→ STREX 失败 → 软件重试</text>`;
+    }
+
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+
+]; // end SCENARIOS
+
+// ── Engine ────────────────────────────────────────────────────
+function goHL(code){
+  return code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/("(?:[^"\\]|\\.)*")/g,'<span class="st">$1</span>')
+    .replace(/(`(?:[^`\\]|\\.)*`)/g,'<span class="st">$1</span>')
+    .replace(/(\/\/[^\n]*)/g,'<span class="cm">$1</span>')
+    .replace(/\b(package|import|func|var|const|type|struct|interface|map|chan|go|defer|return|if|else|for|range|switch|case|default|select|break|continue|make|new|nil|true|false|append|len|cap|close|delete|copy|panic|recover)\b/g,'<span class="kw">$1</span>')
+    .replace(/\b(fmt|sync|atomic|unsafe|runtime)\b/g,'<span class="pkg">$1</span>')
+    .replace(/\b([0-9]+)\b/g,'<span class="num">$1</span>');
+}
+
+function render(){
+  const sc=SCENARIOS[curScene];
+  const st=sc.steps[curStep];
+  document.getElementById('stepNum').textContent='步骤 '+(curStep+1);
+  document.getElementById('stepTitle').textContent=st.title;
+  document.getElementById('stepDesc').textContent=st.desc;
+  document.getElementById('codeTitle').textContent=sc.codeTitle||'atomic.go';
+  const svgEl=document.getElementById('svg');
+  svgEl.style.opacity='0';
+  svgEl.style.transition='opacity .2s';
+  setTimeout(()=>{sc.render(curStep);svgEl.style.opacity='1';},120);
+  renderCode();
+  renderFlowNav();
+  document.getElementById('btnPrev').disabled=curStep===0;
+  document.getElementById('btnNext').disabled=curStep===sc.steps.length-1;
+}
+
+function renderSceneBtns(){
+  const c=document.getElementById('scenarios');
+  c.innerHTML=SCENARIOS.map((s,i)=>`<button class="sc-btn${i===curScene?' active':''}" onclick="switchScene(${i})">${s.label}</button>`).join('');
+}
+
+function renderFlowNav(){
+  const sc=SCENARIOS[curScene];
+  const n=document.getElementById('flowNav');
+  n.innerHTML=sc.steps.map((_,i)=>`<div class="fn-dot${i<curStep?' done':i===curStep?' cur':''}" onclick="jumpTo(${i})">${i+1}</div>`).join('')+`<span class="step-ctr">${curStep+1}/${sc.steps.length}</span>`;
+}
+
+function renderCode(){
+  const sc=SCENARIOS[curScene];
+  const codeIdx=Math.min(curStep,sc.code.length-1);
+  const code=sc.code[codeIdx];
+  const hl=sc.hl[curStep]||[];
+  const hiSet=new Set(hl);
+  const lines=code.split('\n');
+  document.getElementById('codeBody').innerHTML=lines.map((l,i)=>{
+    const n=i+1;
+    const hi=hiSet.has(n)?'hi':'';
+    return`<div class="cl ${hi}"><span class="ln">${n}</span><span class="lc">${goHL(l)}</span></div>`;
+  }).join('');
+}
+
+function next(){if(curStep<SCENARIOS[curScene].steps.length-1){curStep++;render();}}
+function prev(){if(curStep>0){curStep--;render();}}
+function reset(){curStep=0;render();}
+function jumpTo(i){curStep=i;render();}
+function switchScene(i){curScene=i;curStep=0;renderSceneBtns();render();}
+function toggleQA(el){el.classList.toggle('open');}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  if(typeof NavTracker!=='undefined') NavTracker.track('原子指令','cs/atomic.html','⚛️','CS基础');
+  renderSceneBtns();
+  render();
+});
+</script>
+</body>
+</html>

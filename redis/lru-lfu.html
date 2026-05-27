@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LRU / LFU - Redis</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#dc382c;}
+*{box-sizing:border-box;margin:0;padding:0}body{background:radial-gradient(circle at 20% 0%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}a{color:inherit}.content{max-width:1160px;margin:0 auto;padding:44px clamp(20px,4vw,58px) 76px}.hero{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr);gap:22px;align-items:stretch;margin-bottom:22px}.card,.section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.72);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.28)}.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}h1{font-size:clamp(2rem,4vw,4.1rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}.summary{font-size:1rem;color:var(--dim);line-height:1.85}.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}.map{display:grid;grid-template-columns:1fr;gap:10px}.term{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}.term strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}.term span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.section h2{font-size:.9rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:13px}.section p,.section li{color:var(--dim);font-size:.92rem;line-height:1.85}.section ul{padding-left:18px;display:flex;flex-direction:column;gap:9px}.callout{margin-top:18px;border-left:3px solid var(--accent);padding:13px 15px;background:color-mix(in srgb,var(--accent) 10%,transparent);border-radius:0 12px 12px 0;color:var(--dim);line-height:1.75}.back-row{margin-top:24px;display:flex;gap:12px;flex-wrap:wrap}.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}.btn:hover{color:var(--text);border-color:var(--accent)}@media(max-width:900px){.hero,.grid{grid-template-columns:1fr}.content{padding:30px 16px 58px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {
+    "title": "LRU",
+    "body": "最近最少使用，强调时间局部性。",
+    "tag": "term"
+  },
+  {
+    "title": "LFU",
+    "body": "最不经常使用，强调访问频率。",
+    "tag": "term"
+  },
+  {
+    "title": "近似采样",
+    "body": "Redis 为降低成本，不维护全局精确排序。",
+    "tag": "term"
+  }
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="B">
+<section class="hero"><div class="card"><div class="eyebrow">Redis / lru-lfu / B 类型</div><h1>LRU / LFU</h1><p class="summary">LRU/LFU 在容量有限时决定保留哪些数据，连接 Redis 淘汰、Buffer Pool 和多级缓存。</p><div class="tags"><span>Cache</span><span>LRU</span><span>LFU</span></div><div class="callout">B 类型页面重点是把背景、术语、机制、误区和工程场景讲清楚；本页不强行加入动画。</div></div><div class="card map"><div class="eyebrow">核心术语</div><div class="term"><strong>LRU</strong><span>最近最少使用，强调时间局部性。</span></div><div class="term"><strong>LFU</strong><span>最不经常使用，强调访问频率。</span></div><div class="term"><strong>近似采样</strong><span>Redis 为降低成本，不维护全局精确排序。</span></div></div></section>
+<section class="grid"><article class="section"><h2>背景</h2><p>缓存永远有容量上限。淘汰策略要在访问新鲜度、访问频率和维护成本之间取舍。</p></article><article class="section"><h2>运行机制</h2><ul><li>LRU 访问后刷新最近访问时间，淘汰最久未访问候选。</li><li>LFU 更新访问频率，并随时间衰减。</li><li>Redis 在采样集合中选择最差候选，降低维护精确链表的开销。</li></ul></article><article class="section"><h2>常见误区</h2><ul><li>LRU 容易被一次性扫描污染。</li><li>LFU 对新热点响应慢，需要衰减和初始频率策略。</li></ul></article><article class="section"><h2>工程场景</h2><ul><li>缓存穿透、热点 key、Buffer Pool 页替换和 CDN 缓存都要理解淘汰策略。</li></ul></article><article class="section"><h2>边界判断</h2><p>判断这个概念是否适用时，先看它解决的核心约束，再看代价是否落在业务可接受范围内。不要只记名字，要能说清楚它牺牲了什么、保留了什么。</p></article><article class="section"><h2>学习路径</h2><p>建议先理解本页术语，再回到相关模块页面观察它如何连接缓存、存储、网络或运行时。遇到具体系统时，用“输入、状态、输出、失败条件”四个问题复盘。</p></article></section>
+<div class="back-row"><a class="btn" href="index.html">返回Redis模块</a><a class="btn" href="../graph.html?q=LRU%20%2F%20LFU">在知识星图中查看</a></div>
+</main>
+</body>
+</html>

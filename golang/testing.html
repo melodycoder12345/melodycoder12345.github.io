@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>测试 - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:44px;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:116px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.side-nav a.active{color:var(--accent);background:rgba(0,173,216,.08);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(0,173,216,.12);color:var(--accent);border:1px solid rgba(0,173,216,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.badge-high{background:rgba(251,146,60,.12);color:#fb923c;border:1px solid rgba(251,146,60,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(0,173,216,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">🧪 测试</span>
+  <div class="nav-tags">
+    <span class="ntag">testing</span>
+    <span class="ntag">table-driven</span>
+    <span class="ntag">benchmark</span>
+    <span class="ntag">parallel</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <nav class="side-nav">
+    <ul>
+      <li><a href="#tabledriven">Table-Driven</a></li>
+      <li><a href="#parallel">并行测试</a></li>
+      <li><a href="#benchmark">Benchmark</a></li>
+      <li><a href="#tools">测试工具</a></li>
+      <li><a href="#qa">面试问答</a></li>
+      <li><a href="#pitfalls">常见陷阱</a></li>
+    </ul>
+  </nav>
+  <main class="main-content">
+
+    <div class="section" id="tabledriven">
+      <div class="section-title"><div class="title-bar"></div><h2>Table-Driven 测试</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>结构体 slice + t.Run 子测试</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>Table-driven 是 Go 社区标准测试模式：将测试用例整理成结构体 slice，用 t.Run 为每个用例创建子测试，便于单独运行和定位失败。</p>
+          <ul>
+            <li>子测试名会拼接到父测试名：<code>TestAdd/positive_numbers</code></li>
+            <li>用 <code>go test -run TestAdd/positive</code> 单独运行匹配的子测试</li>
+            <li>子测试失败不会中止其他子测试的执行</li>
+            <li>命名规范：用下划线分隔，避免空格（命令行需转义）</li>
+          </ul>
+          <pre><span class="kw">func</span> <span class="fn">TestAdd</span>(<span class="id">t</span> *<span class="pkg">testing</span>.<span class="id">T</span>) {
+    <span class="id">cases</span> := []<span class="kw">struct</span>{
+        <span class="id">name</span>    <span class="kw">string</span>
+        <span class="id">a</span>, <span class="id">b</span>   <span class="kw">int</span>
+        <span class="id">want</span>    <span class="kw">int</span>
+    }{
+        {<span class="st">"positive"</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">5</span>},
+        {<span class="st">"negative"</span>, -<span class="num">1</span>, -<span class="num">2</span>, -<span class="num">3</span>},
+        {<span class="st">"zero"</span>, <span class="num">0</span>, <span class="num">0</span>, <span class="num">0</span>},
+    }
+    <span class="kw">for</span> _, <span class="id">tc</span> := <span class="kw">range</span> <span class="id">cases</span> {
+        <span class="id">t</span>.<span class="fn">Run</span>(<span class="id">tc</span>.<span class="id">name</span>, <span class="kw">func</span>(<span class="id">t</span> *<span class="pkg">testing</span>.<span class="id">T</span>) {
+            <span class="id">got</span> := <span class="fn">Add</span>(<span class="id">tc</span>.<span class="id">a</span>, <span class="id">tc</span>.<span class="id">b</span>)
+            <span class="kw">if</span> <span class="id">got</span> != <span class="id">tc</span>.<span class="id">want</span> {
+                <span class="id">t</span>.<span class="fn">Errorf</span>(<span class="st">"got %d, want %d"</span>, <span class="id">got</span>, <span class="id">tc</span>.<span class="id">want</span>)
+            }
+        })
+    }
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="parallel">
+      <div class="section-title"><div class="title-bar"></div><h2>并行测试</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>t.Parallel() 与 TestMain</h3><span class="badge badge-adv">[进阶]</span></div>
+        <div class="card-body">
+          <p><code>t.Parallel()</code> 标记当前测试可与其他并行测试同时运行，可显著缩短 I/O 密集型测试的总时间。</p>
+          <ul>
+            <li>调用 <code>t.Parallel()</code> 后当前测试暂停，等待父测试函数返回后与其他并行测试同时运行</li>
+            <li>并行测试中捕获循环变量需要特别注意（Go 1.22 前）</li>
+            <li><code>TestMain(m *testing.M)</code> — 控制测试初始化和清理，调用 <code>m.Run()</code> 运行测试</li>
+            <li>并行度：默认为 GOMAXPROCS，可用 <code>-parallel n</code> 控制</li>
+          </ul>
+          <pre><span class="kw">func</span> <span class="fn">TestDB</span>(<span class="id">t</span> *<span class="pkg">testing</span>.<span class="id">T</span>) {
+    <span class="id">cases</span> := []<span class="kw">struct</span>{ <span class="id">name</span>, <span class="id">query</span> <span class="kw">string</span> }{
+        {<span class="st">"users"</span>, <span class="st">"SELECT * FROM users"</span>},
+        {<span class="st">"orders"</span>, <span class="st">"SELECT * FROM orders"</span>},
+    }
+    <span class="kw">for</span> _, <span class="id">tc</span> := <span class="kw">range</span> <span class="id">cases</span> {
+        <span class="id">tc</span> := <span class="id">tc</span>         <span class="cm">// 捕获循环变量</span>
+        <span class="id">t</span>.<span class="fn">Run</span>(<span class="id">tc</span>.<span class="id">name</span>, <span class="kw">func</span>(<span class="id">t</span> *<span class="pkg">testing</span>.<span class="id">T</span>) {
+            <span class="id">t</span>.<span class="fn">Parallel</span>()   <span class="cm">// 并行运行</span>
+            <span class="fn">runQuery</span>(<span class="id">t</span>, <span class="id">tc</span>.<span class="id">query</span>)
+        })
+    }
+}
+
+<span class="cm">// TestMain 示例</span>
+<span class="kw">func</span> <span class="fn">TestMain</span>(<span class="id">m</span> *<span class="pkg">testing</span>.<span class="id">M</span>) {
+    <span class="fn">setupDB</span>()
+    <span class="id">code</span> := <span class="id">m</span>.<span class="fn">Run</span>()
+    <span class="fn">teardownDB</span>()
+    <span class="pkg">os</span>.<span class="fn">Exit</span>(<span class="id">code</span>)
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="benchmark">
+      <div class="section-title"><div class="title-bar"></div><h2>Benchmark</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>b.N / b.ResetTimer / b.ReportAllocs</h3><span class="badge badge-adv">[进阶]</span></div>
+        <div class="card-body">
+          <p>Benchmark 由 testing 框架反复调用，自动调整 b.N 直到结果稳定。运行命令：<code>go test -bench=. -benchmem</code>。</p>
+          <ul>
+            <li><code>b.N</code> — 框架控制的循环次数，不要手动设置</li>
+            <li><code>b.ResetTimer()</code> — 排除初始化时间，在 setup 完成后调用</li>
+            <li><code>b.ReportAllocs()</code> — 显示每次操作的内存分配数（等效于 -benchmem）</li>
+            <li><code>b.SetBytes(n)</code> — 设置每次操作处理的字节数，输出 MB/s</li>
+            <li>结果分析：<code>benchstat</code> 工具对比多次 benchmark 结果</li>
+          </ul>
+          <pre><span class="kw">func</span> <span class="fn">BenchmarkJSON</span>(<span class="id">b</span> *<span class="pkg">testing</span>.<span class="id">B</span>) {
+    <span class="id">data</span> := <span class="fn">generateData</span>()  <span class="cm">// 初始化在循环外</span>
+    <span class="id">b</span>.<span class="fn">ResetTimer</span>()           <span class="cm">// 不计入初始化时间</span>
+    <span class="id">b</span>.<span class="fn">ReportAllocs</span>()
+    <span class="id">b</span>.<span class="fn">SetBytes</span>(<span class="kw">int64</span>(<span class="fn">len</span>(<span class="id">data</span>)))
+
+    <span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="id">b</span>.<span class="id">N</span>; <span class="id">i</span>++ {
+        <span class="kw">var</span> <span class="id">v</span> <span class="id">MyStruct</span>
+        <span class="kw">if</span> <span class="id">err</span> := <span class="pkg">json</span>.<span class="fn">Unmarshal</span>(<span class="id">data</span>, &amp;<span class="id">v</span>); <span class="id">err</span> != <span class="kw">nil</span> {
+            <span class="id">b</span>.<span class="fn">Fatal</span>(<span class="id">err</span>)
+        }
+    }
+}
+<span class="cm">// 运行：go test -bench=BenchmarkJSON -benchmem -count=5
+// 对比：benchstat old.txt new.txt</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="tools">
+      <div class="section-title"><div class="title-bar"></div><h2>测试工具</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>testify / gomock / httptest</h3><span class="badge badge-adv">[进阶]</span></div>
+        <div class="card-body">
+          <p>标准库 testing 功能较基础，常用第三方工具提升测试效率和可读性。</p>
+          <ul>
+            <li><code>testify/require</code> — 断言失败立即停止测试（vs assert 继续）；<code>require.Equal</code>、<code>require.NoError</code></li>
+            <li><code>testify/mock</code> — 手动 mock；<code>gomock</code> 通过 <code>mockgen</code> 代码生成 mock</li>
+            <li><code>net/http/httptest</code> — 测试 HTTP handler，无需启动真实服务器</li>
+            <li><code>go test -cover</code> — 查看覆盖率；<code>-coverprofile</code> 生成报告</li>
+          </ul>
+          <pre><span class="cm">// httptest 测试 Handler</span>
+<span class="kw">func</span> <span class="fn">TestHandler</span>(<span class="id">t</span> *<span class="pkg">testing</span>.<span class="id">T</span>) {
+    <span class="id">req</span> := <span class="pkg">httptest</span>.<span class="fn">NewRequest</span>(<span class="st">"GET"</span>, <span class="st">"/users/1"</span>, <span class="kw">nil</span>)
+    <span class="id">w</span> := <span class="pkg">httptest</span>.<span class="fn">NewRecorder</span>()
+    <span class="fn">UserHandler</span>(<span class="id">w</span>, <span class="id">req</span>)
+    <span class="id">resp</span> := <span class="id">w</span>.<span class="fn">Result</span>()
+    <span class="pkg">require</span>.<span class="fn">Equal</span>(<span class="id">t</span>, <span class="pkg">http</span>.<span class="id">StatusOK</span>, <span class="id">resp</span>.<span class="id">StatusCode</span>)
+}
+
+<span class="cm">// gomock 使用示例</span>
+<span class="cm">//go:generate mockgen -source=repo.go -destination=mock_repo.go</span>
+<span class="id">ctrl</span> := <span class="pkg">gomock</span>.<span class="fn">NewController</span>(<span class="id">t</span>)
+<span class="kw">defer</span> <span class="id">ctrl</span>.<span class="fn">Finish</span>()
+<span class="id">mockRepo</span> := <span class="fn">NewMockUserRepo</span>(<span class="id">ctrl</span>)
+<span class="id">mockRepo</span>.<span class="id">EXPECT</span>().<span class="fn">GetUser</span>(<span class="num">1</span>).<span class="fn">Return</span>(&amp;<span class="id">User</span>{}, <span class="kw">nil</span>)</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="qa">
+      <div class="section-title"><div class="title-bar"></div><h2>面试问答</h2></div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">t.Run 子测试如何命名？有什么规范？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">子测试名会附加到父测试名，如 TestFoo/case_1。命名建议：使用下划线替代空格（空格在命令行 -run 参数中需要转义为下划线），名称应描述测试场景而非实现细节（如 "empty_input" 而非 "test1"）。可以嵌套 t.Run（多级子测试），用 -run TestFoo/sub/nested 精确指定。t.Run 返回 bool，可检测是否成功。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">benchmark 中 b.N 是什么，为什么不能手动设置？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">b.N 是 testing 框架自动调整的循环次数。框架先以 b.N=1 运行，若运行时间过短则加倍 b.N 重新运行，直到运行时间达到目标（默认 1 秒）。b.N 由框架控制以获得稳定的时间测量。手动设置 b.N 会破坏这个机制。代码必须在 for i := 0; i &lt; b.N; i++ 循环中执行待测代码，循环外做 setup，setup 完成后可调用 b.ResetTimer()。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">如何测试私有函数？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">有三种方案：1) 在同一 package 的 _test.go 文件中测试（不加 _test 后缀的包名），可直接访问私有函数，如 package foo 对应 foo_test.go 中也声明 package foo；2) 将私有函数提升为公开（重新考虑设计是否合理）；3) 通过测试公开 API 间接覆盖私有函数（黑盒测试，更推荐）。_test.go 文件只在测试时编译，不会进入生产二进制。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">如何防止 benchmark 结果被编译器优化掉？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">编译器可能将结果不被使用的计算优化掉，导致 benchmark 测量的是空循环。解决方案：1) 将结果赋给包级变量（<code>var result = someFunc()</code>）；2) 使用 <code>testing.B.RunParallel</code> 时框架有特殊处理；3) 将结果赋给局部变量再赋给黑洞变量（<code>_ = result</code> 不够，用包级 var sink any）。规范写法：<code>var Sink any; func BenchmarkFoo(b *testing.B) { for i := 0; i &lt; b.N; i++ { Sink = fn() } }</code></div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">go test -race 的作用？使用场景？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">-race 开启 Go 的竞态检测器（race detector），基于 ThreadSanitizer 实现。运行时监控内存访问，若检测到两个 goroutine 无同步地并发读写同一内存，报告竞态。使用场景：1) CI 流水线中运行测试，及早发现并发 bug；2) 本地排查疑似竞态问题；3) benchmark 不适合加 -race（约 5-10x 性能开销）。-race 只能检测运行时实际发生的竞态，无法覆盖所有路径，但实践中非常有效。</div>
+      </div>
+    </div>
+
+    <div class="section" id="pitfalls">
+      <div class="section-title"><div class="title-bar"></div><h2>常见陷阱</h2></div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ t.Parallel 中捕获循环变量（vs ✅ 每次迭代创建副本）</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">for</span> _, <span class="id">tc</span> := <span class="kw">range</span> <span class="id">cases</span> {
+    <span class="id">t</span>.<span class="fn">Run</span>(<span class="id">tc</span>.<span class="id">name</span>, <span class="kw">func</span>(<span class="id">t</span> *<span class="pkg">testing</span>.<span class="id">T</span>) {
+        <span class="id">t</span>.<span class="fn">Parallel</span>()
+        <span class="cm">// tc 是循环变量！
+        // 并行运行时 tc 已经是最后一个值</span>
+        <span class="fn">doTest</span>(<span class="id">t</span>, <span class="id">tc</span>)
+    })
+}</pre>
+            <p>并行子测试运行时，循环已结束，所有子测试共享 tc 的最终值。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">for</span> _, <span class="id">tc</span> := <span class="kw">range</span> <span class="id">cases</span> {
+    <span class="id">tc</span> := <span class="id">tc</span>  <span class="cm">// 每次迭代创建副本</span>
+    <span class="id">t</span>.<span class="fn">Run</span>(<span class="id">tc</span>.<span class="id">name</span>, <span class="kw">func</span>(<span class="id">t</span> *<span class="pkg">testing</span>.<span class="id">T</span>) {
+        <span class="id">t</span>.<span class="fn">Parallel</span>()
+        <span class="fn">doTest</span>(<span class="id">t</span>, <span class="id">tc</span>) <span class="cm">// 各自独立的 tc</span>
+    })
+}
+<span class="cm">// Go 1.22+ 循环变量语义变更，无需此操作</span></pre>
+            <p>内部重声明 tc := tc 创建局部副本，每个子测试捕获独立变量。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ Benchmark 结果被优化掉（vs ✅ 用 sink 变量防优化）</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">BenchmarkMarshal</span>(<span class="id">b</span> *<span class="pkg">testing</span>.<span class="id">B</span>) {
+    <span class="id">v</span> := <span class="id">MyStruct</span>{<span class="id">Name</span>: <span class="st">"test"</span>}
+    <span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="id">b</span>.<span class="id">N</span>; <span class="id">i</span>++ {
+        <span class="pkg">json</span>.<span class="fn">Marshal</span>(<span class="id">v</span>) <span class="cm">// 结果被丢弃</span>
+        <span class="cm">// 编译器可能整体消除</span>
+    }
+}</pre>
+            <p>Marshal 返回值未使用，编译器可能将整个调用优化掉，结果不可信。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">var</span> <span class="id">benchSink</span> []<span class="kw">byte</span>
+
+<span class="kw">func</span> <span class="fn">BenchmarkMarshal</span>(<span class="id">b</span> *<span class="pkg">testing</span>.<span class="id">B</span>) {
+    <span class="id">v</span> := <span class="id">MyStruct</span>{<span class="id">Name</span>: <span class="st">"test"</span>}
+    <span class="kw">var</span> <span class="id">out</span> []<span class="kw">byte</span>
+    <span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="id">b</span>.<span class="id">N</span>; <span class="id">i</span>++ {
+        <span class="id">out</span>, _ = <span class="pkg">json</span>.<span class="fn">Marshal</span>(<span class="id">v</span>)
+    }
+    <span class="id">benchSink</span> = <span class="id">out</span> <span class="cm">// 阻止优化</span>
+}</pre>
+            <p>将结果赋给包级变量，编译器无法确定结果是否被使用，从而保留调用。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 测试依赖执行顺序（vs ✅ 每个测试独立，用 setup/teardown）</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">var</span> <span class="id">globalDB</span> *<span class="id">DB</span>
+
+<span class="kw">func</span> <span class="fn">TestCreate</span>(<span class="id">t</span> *<span class="pkg">testing</span>.<span class="id">T</span>) {
+    <span class="id">globalDB</span>.<span class="fn">Create</span>(...)  <span class="cm">// 依赖上一个测试</span>
+}
+<span class="kw">func</span> <span class="fn">TestList</span>(<span class="id">t</span> *<span class="pkg">testing</span>.<span class="id">T</span>) {
+    <span class="id">items</span> := <span class="id">globalDB</span>.<span class="fn">List</span>()  <span class="cm">// 依赖 TestCreate</span>
+    <span class="cm">// -shuffle=on 会让测试顺序随机，这里会失败</span>
+}</pre>
+            <p>测试有执行顺序依赖，用 go test -shuffle=on 或并行执行时会随机失败。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">TestList</span>(<span class="id">t</span> *<span class="pkg">testing</span>.<span class="id">T</span>) {
+    <span class="cm">// 每个测试自己初始化所需数据</span>
+    <span class="id">db</span> := <span class="fn">setupTestDB</span>(<span class="id">t</span>)
+    <span class="id">t</span>.<span class="fn">Cleanup</span>(<span class="kw">func</span>() { <span class="id">db</span>.<span class="fn">Drop</span>() })
+    <span class="id">db</span>.<span class="fn">Create</span>(...)   <span class="cm">// 本测试自己准备数据</span>
+    <span class="id">items</span> := <span class="id">db</span>.<span class="fn">List</span>()
+    <span class="cm">// 测试完全独立，可并行</span>
+}</pre>
+            <p>每个测试自己 setup 数据，用 t.Cleanup 清理，完全独立，可任意顺序运行。</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>
+function toggleQA(card) {
+  card.classList.toggle('open');
+}
+(function() {
+  var links = document.querySelectorAll('.side-nav a');
+  var sections = Array.from(links).map(function(l) {
+    return document.querySelector(l.getAttribute('href'));
+  }).filter(Boolean);
+  function onScroll() {
+    var scrollY = window.scrollY + 140;
+    var current = sections[0];
+    sections.forEach(function(s) { if (s.offsetTop <= scrollY) current = s; });
+    links.forEach(function(l) {
+      l.classList.toggle('active', l.getAttribute('href') === '#' + current.id);
+    });
+  }
+  window.addEventListener('scroll', onScroll, {passive: true});
+  onScroll();
+})();
+if(typeof NavTracker!=='undefined') NavTracker.track('测试','golang/testing.html','🧪','Golang');
+</script>
+</body>
+</html>

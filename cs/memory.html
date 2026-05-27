@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>内存寻址 / TLB — CS 基础</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;--g:#38bdf8;--m:#fb923c;--p:#c084fc;--q:#4ade80;}
+*{box-sizing:border-box;margin:0;padding:0;}
+
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;min-height:100vh;}
+.nav{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);flex-shrink:0;position:sticky;top:var(--snav-h,44px);z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;display:flex;align-items:center;gap:5px;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.main-area{display:flex;flex:none;height:calc(100vh - var(--snav-h,44px) - 88px);min-height:300px;overflow:hidden;}
+.steps-panel{width:270px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid var(--border2);overflow:hidden;background:rgba(15,23,42,.6);}
+.scenarios{display:flex;gap:0;border-bottom:1px solid var(--border2);overflow-x:auto;}
+.sc-btn{flex:1;background:none;border:none;color:var(--dim);padding:9px 6px;cursor:pointer;font-size:.72rem;font-family:inherit;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;text-align:center;}
+.sc-btn:hover{color:var(--text);}
+.sc-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+.step-scroll{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
+.step-desc-card{border:1px solid var(--border2);border-radius:12px;background:rgba(255,255,255,.025);padding:14px;transition:border-color .3s,box-shadow .3s;}
+.step-desc-card.lit{border-color:var(--accent);box-shadow:0 0 20px rgba(0,173,216,.12);}
+.step-desc-card .step-num{font-size:.66rem;font-family:monospace;color:var(--accent);margin-bottom:6px;}
+.step-desc-card h3{font-size:.88rem;font-weight:700;margin-bottom:6px;}
+.step-desc-card p{font-size:.78rem;color:var(--dim);line-height:1.68;}
+.flow-nav{padding:10px 14px;border-top:1px solid var(--border2);display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.fn-dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--border2);background:rgba(255,255,255,.04);cursor:pointer;font-size:.68rem;font-family:monospace;color:var(--dim);display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;}
+.fn-dot:hover{border-color:var(--dim);color:var(--text);}
+.fn-dot.done{border-color:var(--accent);background:rgba(0,173,216,.15);color:var(--accent);}
+.fn-dot.cur{border-color:var(--accent);background:rgba(0,173,216,.25);color:var(--accent);transform:scale(1.12);}
+.step-ctr{margin-left:auto;font-size:.7rem;font-family:monospace;color:var(--dim2);}
+.diagram-panel{flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid var(--border2);overflow:hidden;}
+.diagram-inner{flex:1;overflow:auto;padding:20px;background:radial-gradient(ellipse 70% 50% at 30% 20%,rgba(0,173,216,.07),transparent 60%);}
+.diagram-svg{width:100%;max-width:620px;display:block;}
+.code-panel{width:44%;min-width:360px;flex-shrink:0;display:flex;flex-direction:column;background:var(--panel2);overflow:hidden;}
+.code-hd{padding:10px 16px;border-bottom:1px solid var(--border2);font-size:.8rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);}
+.code-body{flex:1;overflow-y:auto;padding:14px 0;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.78rem;line-height:1.7;}
+.cl{display:flex;border-left:2px solid transparent;transition:background .25s,border-color .25s;}
+.cl.hi{background:rgba(0,173,216,.1);border-left-color:var(--accent);}
+.ln{min-width:42px;padding:0 10px 0 12px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;}
+.lc{padding:0 14px 0 4px;white-space:pre-wrap;word-break:break-word;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.controls{display:flex;align-items:center;gap:10px;padding:11px 22px;border-top:1px solid var(--border2);background:var(--panel);flex-shrink:0;}
+.ctrl-btn{background:rgba(255,255,255,.07);border:1px solid var(--border2);color:var(--text);padding:7px 16px;border-radius:8px;cursor:pointer;font-size:.82rem;font-family:inherit;transition:all .15s;}
+.ctrl-btn:hover{background:rgba(255,255,255,.12);}
+.ctrl-btn:disabled{opacity:.35;cursor:not-allowed;}
+.ctrl-btn.primary{background:rgba(0,173,216,.16);border-color:rgba(0,173,216,.35);color:var(--accent);}
+.ctrl-btn.primary:hover{background:rgba(0,173,216,.25);}
+.node-rect{transition:fill .35s cubic-bezier(.4,0,.2,1),stroke .35s,filter .35s;}
+.node-text{transition:fill .35s;}
+.edge{transition:stroke .35s,opacity .35s,stroke-dashoffset .6s ease-out;}
+@keyframes glow-pulse{0%,100%{filter:drop-shadow(0 0 4px rgba(56,189,248,.6));}50%{filter:drop-shadow(0 0 12px rgba(56,189,248,.95));}}
+@keyframes particle-flow{0%{stroke-dashoffset:200;}100%{stroke-dashoffset:0;}}
+@keyframes bounce-x{0%,100%{transform:translateX(0);}50%{transform:translateX(8px);}}
+@keyframes pulse-scale{0%,100%{transform:scale(1);}50%{transform:scale(1.06);}}
+.flow-arrow{stroke-dasharray:8 5;animation:particle-flow 1.2s linear infinite;}
+.active-node{animation:glow-pulse 2s infinite;}
+.bounce{animation:bounce-x 1s ease-in-out infinite;}
+.extras{padding:48px 40px;background:var(--bg);border-top:1px solid var(--border2);}
+.ext-section{margin-bottom:48px;}
+.ext-hd{display:flex;align-items:center;gap:12px;margin-bottom:22px;}
+.ext-hd-bar{width:4px;height:20px;border-radius:2px;background:var(--accent);}
+.ext-hd h2{font-size:1.25rem;font-weight:700;}
+.qa-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.qa-card{border:1px solid var(--border2);border-radius:12px;overflow:hidden;}
+.qa-q{padding:13px 16px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);font-size:.84rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .15s;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:13px 16px;font-size:.82rem;color:var(--dim);line-height:1.72;}
+.qa-card.open .qa-a{display:block;}
+.qa-a code{font-family:monospace;color:var(--accent);font-size:.78rem;}
+.pitfall-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.78rem;font-weight:700;border-bottom:1px solid var(--border2);}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;gap:0;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--dim);line-height:1.6;white-space:pre-wrap;}
+.pitfall-col p{font-size:.76rem;color:var(--dim);line-height:1.65;margin-top:6px;}
+.pitfall-col p strong{color:var(--text);}
+@media(max-width:900px){body{overflow-y:auto;height:auto;}.main-area{flex-direction:column;overflow:visible;height:auto;flex:none;}.steps-panel{width:100%;border-right:none;border-bottom:1px solid var(--border2);}.diagram-panel{border-right:none;min-height:340px;}.code-panel{width:100%;min-width:0;height:320px;flex:none;}.qa-grid,.pitfall-grid{grid-template-columns:1fr;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}.extras{padding:32px 20px;}}
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">内存寻址 / TLB</span>
+  <div class="nav-tags">
+    <span class="ntag">virtual-memory</span>
+    <span class="ntag">TLB</span>
+    <span class="ntag">page-table</span>
+    <span class="ntag">page-fault</span>
+  </div>
+</div>
+
+<div class="main-area">
+  <div class="steps-panel">
+    <div class="scenarios" id="scenarios"></div>
+    <div class="step-scroll">
+      <div class="step-desc-card lit" id="stepCard">
+        <div class="step-num" id="stepNum">步骤 1</div>
+        <h3 id="stepTitle"></h3>
+        <p id="stepDesc"></p>
+      </div>
+    </div>
+    <div class="flow-nav" id="flowNav"></div>
+  </div>
+
+  <div class="diagram-panel">
+    <div class="diagram-inner">
+      <svg id="svg" class="diagram-svg" viewBox="0 0 620 360" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </div>
+
+  <div class="code-panel">
+    <div class="code-hd"><div class="code-dot"></div><span id="codeTitle">memory.c</span></div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="ctrl-btn" id="btnReset" onclick="reset()">⏮ 重置</button>
+  <button class="ctrl-btn primary" id="btnPrev" onclick="prev()">← 上一步</button>
+  <button class="ctrl-btn primary" id="btnNext" onclick="next()">下一步 →</button>
+</div>
+
+<div class="extras">
+  <div class="ext-section">
+    <div class="ext-hd"><div class="ext-hd-bar"></div><h2>面试题</h2></div>
+    <div class="qa-grid">
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">虚拟地址空间的大小和物理地址空间的大小有什么关系？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">两者可以完全独立。x86-64 虚拟地址空间为 256TB（48位），而物理内存可能只有 16GB。虚拟地址空间可以远大于物理内存——这正是虚拟内存的价值所在：通过 swap/文件映射让程序"看到"比物理内存更大的地址空间。反过来物理内存也可大于单个进程的虚拟空间（多进程共享物理内存）。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">TLB 为什么是全相联 Cache？通常有多少条目？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">TLB 是全相联（fully-associative）结构，因为任意虚拟页号都可以映射到 TLB 中的任意条目，没有组索引限制，命中率最高。全相联的缺点是比较电路复杂，所以 TLB 容量很小。典型 L1 dTLB 有 64 条目（4KB页），L1 iTLB 有 128 条目，L2 TLB（STLB）有 1024~2048 条目。Intel Tiger Lake 的 L1 TLB 共 128 条目 + 2048 条目的 STLB。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">多级页表 vs 倒排页表 vs Hugepage，各自的权衡？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a"><strong>多级页表</strong>（x86-64 四级）：只需为实际使用的虚拟地址分配页表内存，稀疏地址空间内存开销小，但遍历需要 4 次内存访问。<br><strong>倒排页表</strong>：以物理帧为索引，整个系统共一张表，内存占用固定（正比于物理内存），但查找需哈希，TLB miss 代价高，x86 不用。<br><strong>Hugepage</strong>（2MB/1GB）：一条 TLB 条目覆盖更大范围，TLB 压力小，适合 NUMA 大内存应用；缺点是内存碎片风险高，分配失败概率更大。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">mmap 与 malloc 在缺页处理上有什么区别？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a"><code>malloc</code> 底层通过 brk/sbrk 或 mmap（大块）扩展堆，缺页时 OS 分配零页（anonymous mapping），写时才真正分配物理帧（demand paging）。<code>mmap</code> 文件映射的缺页需要从文件读取数据（file-backed），会触发磁盘 I/O，延迟高于匿名页；但 mmap 的好处是多进程可共享同一物理页（COW），且内核可以直接回收 clean page 而无需 swap。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ext-section">
+    <div class="ext-hd"><div class="ext-hd-bar"></div><h2>易错点</h2></div>
+    <div class="pitfall-grid">
+      <div class="pitfall">
+        <div class="pitfall-hd bad">⚠ TLB Shootdown：多核陷阱</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col"><pre>// 进程 A 修改了页表（unmap/mprotect）
+// 其他 CPU 的 TLB 仍缓存旧映射
+// 必须通知所有 CPU 刷新 TLB
+
+// Linux 内核：
+// tlb_finish_mmu()
+//   → send IPI to all CPUs
+//   → each CPU: invlpg / CR3 reload
+// 高核数时 IPI 广播是扩展瓶颈</pre>
+            <p><strong>TLB shootdown</strong> 是多核扩展的主要瓶颈之一，频繁 mmap/munmap 的程序在高核数机器上会有严重性能退化。</p>
+          </div>
+          <div class="pitfall-col"><pre>// 优化方案：
+// 1. 延迟 TLB 刷新（batch）
+// 2. 使用 PCID（Process Context ID）
+//    让不同进程共用 TLB 而不需全刷
+//    Linux 4.14+ 在 x86-64 开启 PCID
+// 3. 减少 munmap 频率：
+//    用内存池复用虚拟地址范围
+//    避免频繁 malloc/free 大块内存</pre>
+            <p><strong>PCID</strong> 是 x86 的硬件特性，允许 TLB 条目携带进程标签，上下文切换无需全刷 TLB。</p>
+          </div>
+        </div>
+      </div>
+      <div class="pitfall">
+        <div class="pitfall-hd bad">⚠ Hugepage 与 Go Runtime</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col"><pre>// 2MB Hugepage 减少 TLB 条目数
+// 64 条目 TLB × 2MB = 128MB 覆盖
+// vs 64 条目 × 4KB = 只有 256KB
+
+// 风险：内存碎片
+// 系统无法组合出连续 2MB 物理页
+// → hugepage 分配失败
+// → 回退到 4KB 页，性能抖动
+
+// Go runtime 的问题：
+// GC 后大量小对象释放，
+// 形成碎片化 hugepage，
+// 导致 RSS 虚高（页未归还 OS）</pre>
+          </div>
+          <div class="pitfall-col"><pre>// Go 1.16+ Linux 使用
+// Transparent Hugepage (THP)
+// MADV_HUGEPAGE hint
+
+// 调优：
+// echo madvise > /sys/kernel/mm/
+//   transparent_hugepage/enabled
+
+// Go 应用可通过 GOGC 和
+// runtime/debug.FreeOSMemory()
+// 主动归还内存页给 OS
+
+// 对延迟敏感服务建议：
+// GOGC=off + 手动触发 GC
+// 或使用 arena 手动管理内存</pre>
+            <p><strong>Go 1.16+</strong> 在 Linux 上对 heap arena 使用 <code>MADV_HUGEPAGE</code>，可提升大内存程序 TLB 命中率约 10-20%。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── SVG helpers ──────────────────────────────────────────────
+function defs(){return`<defs>
+<marker id="arr" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#475569"/></marker>
+<marker id="arrA" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#00add8"/></marker>
+<marker id="arrG" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#38bdf8"/></marker>
+<marker id="arrR" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#f87171"/></marker>
+<filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="glow2"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>`;}
+
+function box(x,y,w,h,label,sub,color,active,rx=10){
+  const fill=active?`rgba(${hexToRgb(color)},.18)`:`rgba(255,255,255,.03)`;
+  const stroke=active?color:'#334155';
+  const filt=active?' filter="url(#glow)"':'';
+  const lc=active?color:'#94a3b8';
+  const sc=active?'#e2e8f0':'#64748b';
+  return`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${active?2:1}"${filt}/>
+<text x="${x+w/2}" y="${y+h/2-(sub?6:0)}" text-anchor="middle" fill="${lc}" font-size="12" font-weight="700" font-family="monospace">${label}</text>`+
+(sub?`<text x="${x+w/2}" y="${y+h/2+10}" text-anchor="middle" fill="${sc}" font-size="9" font-family="monospace">${sub}</text>`:'');
+}
+
+function arr(x1,y1,x2,y2,color,dashed,anim){
+  const cls=anim?'class="flow-arrow" ':'';
+  const da=dashed?'stroke-dasharray="6 4" ':'';
+  const mkId=color==='#00add8'?'arrA':color==='#38bdf8'?'arrG':color==='#f87171'?'arrR':'arr';
+  return`<line ${cls}${da}x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="1.8" marker-end="url(#${mkId})"/>`;
+}
+
+function lbl(x,y,t,c,s){return`<text x="${x}" y="${y}" fill="${c||'#64748b'}" font-size="${s||9}" font-family="monospace">${t}</text>`;}
+
+function hexToRgb(hex){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return`${r},${g},${b}`;}
+
+// ── Scenarios ────────────────────────────────────────────────
+let curScene=0, curStep=0;
+
+const SCENARIOS=[
+// ── 场景 A: TLB 命中 ─────────────────────────────────────────
+{
+  label:'TLB 命中',
+  codeTitle:'mmap_access.c',
+  steps:[
+    {title:'CPU 生成虚拟地址',desc:'CPU 执行 *ptr 时生成虚拟地址 VA=0x7fff1000，MMU 将其拆分为两部分：高位 VPN（虚拟页号）= 0x7fff1，低 12 位 Offset（页内偏移）= 0x000。'},
+    {title:'查询 TLB，命中！',desc:'MMU 用 VPN=0x7fff1 并行检索 TLB（Translation Lookaside Buffer）的所有条目，找到匹配项（绿色高亮）。TLB 命中仅需约 1 个额外周期，几乎没有延迟。'},
+    {title:'TLB 返回物理帧号',desc:'TLB 返回对应的物理帧号 PFN=0x3a001，MMU 将其与 Offset 拼接：PA = PFN<<12 | Offset = 0x3a001000。整个地址翻译在流水线内完成。'},
+    {title:'用 PA 访问 Cache/内存',desc:'用物理地址 PA=0x3a001000 访问 L1 Cache（如命中约 4 周期）或 L2/L3/RAM。完整延迟：L1 TLB + L1 Cache 约 10 周期，远低于页表遍历的 800+ 周期。'},
+  ],
+  hl:[[4,5],[8,9],[12,13],[16,17]],
+  code:[
+`// TLB 命中路径 (C + 内联注释)
+#include <sys/mman.h>
+
+// 1. CPU 执行解引用，生成 VA
+int *ptr = (int *)0x7fff1000;
+// VA = 0x7fff1000
+// VPN    = VA >> 12 = 0x7fff1
+// Offset = VA & 0xfff = 0x000
+
+// 2. MMU 查 TLB
+// TLB[VPN=0x7fff1] → 命中！
+// PFN = 0x3a001
+
+// 3. 拼接物理地址
+// PA = (PFN << 12) | Offset
+//    = 0x3a001000
+
+// 4. 访问 L1 Cache
+int val = *ptr; // ~10 cycles total`,
+`// TLB 命中路径 (C + 内联注释)
+#include <sys/mman.h>
+
+// 1. CPU 执行解引用，生成 VA
+int *ptr = (int *)0x7fff1000;
+// VA = 0x7fff1000
+// VPN    = VA >> 12 = 0x7fff1
+// Offset = VA & 0xfff = 0x000
+
+// 2. MMU 查 TLB ← 当前步骤
+// TLB[VPN=0x7fff1] → 命中！
+// PFN = 0x3a001
+
+// 3. 拼接物理地址
+// PA = (PFN << 12) | Offset
+//    = 0x3a001000
+
+// 4. 访问 L1 Cache
+int val = *ptr; // ~10 cycles total`,
+`// TLB 命中路径 (C + 内联注释)
+#include <sys/mman.h>
+
+// 1. CPU 执行解引用，生成 VA
+int *ptr = (int *)0x7fff1000;
+// VA = 0x7fff1000
+// VPN    = VA >> 12 = 0x7fff1
+// Offset = VA & 0xfff = 0x000
+
+// 2. MMU 查 TLB
+// TLB[VPN=0x7fff1] → 命中！
+// PFN = 0x3a001 ← 返回
+
+// 3. 拼接物理地址 ← 当前步骤
+// PA = (PFN << 12) | Offset
+//    = 0x3a001000
+
+// 4. 访问 L1 Cache
+int val = *ptr; // ~10 cycles total`,
+`// TLB 命中路径 (C + 内联注释)
+#include <sys/mman.h>
+
+// 1. CPU 执行解引用，生成 VA
+int *ptr = (int *)0x7fff1000;
+// VA = 0x7fff1000
+// VPN    = VA >> 12 = 0x7fff1
+// Offset = VA & 0xfff = 0x000
+
+// 2. MMU 查 TLB
+// TLB[VPN=0x7fff1] → 命中！
+// PFN = 0x3a001
+
+// 3. 拼接物理地址
+// PA = (PFN << 12) | Offset
+//    = 0x3a001000
+
+// 4. 访问 L1 Cache ← 当前步骤
+int val = *ptr; // ~10 cycles total`,
+  ],
+  render(step){
+    let s=defs();
+    // CPU box
+    s+=box(18,140,80,50,'CPU','执行 *ptr','#38bdf8',step===0,10);
+    // VA decompose annotation
+    if(step===0){
+      s+=lbl(18,210,'VA=0x7fff1000','#38bdf8',8);
+      s+=lbl(18,222,'VPN=0x7fff1','#4ade80',8);
+      s+=lbl(18,234,'Off=0x000','#fb923c',8);
+    }
+    // TLB box
+    const tlbActive=step===1||step===2;
+    s+=box(145,110,130,110,'TLB','',tlbActive?'#4ade80':'#334155',tlbActive,10);
+    // TLB rows
+    const rows=[['0x3ff20','0x1b004'],['0x7fff1','0x3a001'],['0x40010','0x2c008'],['0x1a000','0x09011']];
+    rows.forEach((r,i)=>{
+      const rowHit=step>=1&&i===1;
+      const rowColor=rowHit?'#4ade80':'#475569';
+      const rowBg=rowHit?'rgba(74,222,128,.18)':'transparent';
+      s+=`<rect x="147" y="${118+i*22}" width="126" height="20" rx="3" fill="${rowBg}"/>`;
+      s+=`<text x="157" y="${132+i*22}" fill="${rowColor}" font-size="8" font-family="monospace">${r[0]} → ${r[1]}${rowHit?' ✓':''}</text>`;
+    });
+    s+=lbl(147,115,'VPN → PFN','#64748b',8);
+    // Arrow CPU→TLB
+    s+=arr(100,165,143,165,step===0?'#38bdf8':'#00add8',false,step===1);
+    // MMU box
+    const mmuActive=step>=2;
+    s+=box(320,140,90,50,'MMU','地址拼接',mmuActive?'#00add8':'#334155',mmuActive,10);
+    if(step>=2){
+      s+=lbl(320,210,'PFN=0x3a001','#00add8',8);
+      s+=lbl(320,222,'PA=0x3a001000','#4ade80',8);
+    }
+    // Arrow TLB→MMU
+    s+=arr(277,165,318,165,step>=2?'#4ade80':'#475569',false,step===2);
+    // RAM/Cache box
+    const ramActive=step===3;
+    s+=box(460,140,120,50,'L1 Cache','/ RAM',ramActive?'#fb923c':'#334155',ramActive,10);
+    if(step===3){
+      s+=lbl(460,210,'PA=0x3a001000','#fb923c',8);
+      s+=lbl(460,222,'~10 cycles ✓','#4ade80',8);
+    }
+    // Arrow MMU→RAM
+    s+=arr(412,165,458,165,step>=3?'#fb923c':'#475569',false,step===3);
+    // Title label
+    s+=lbl(18,100,'TLB 命中路径（~10 周期）','#4ade80',10);
+    // Step annotation
+    const stepLabels=['VA 拆分: VPN+Offset','TLB 并行查询，命中！','PA = PFN|Offset 拼接','L1 Cache 访问，完成'];
+    s+=`<text x="310" y="295" text-anchor="middle" fill="${step===1?'#4ade80':'#00add8'}" font-size="10" font-family="monospace">${stepLabels[step]}</text>`;
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+
+// ── 场景 B: 页表遍历 ─────────────────────────────────────────
+{
+  label:'页表遍历',
+  codeTitle:'page_walk.c',
+  steps:[
+    {title:'TLB Miss，触发页表遍历',desc:'VPN 不在 TLB 中（红色）！x86 硬件 MMU 自动读取 CR3 寄存器获取 PGD 基地址，开始 4 级页表遍历（Page Table Walk）。整个过程无需 OS 参与，由 MMU 硬件完成。'},
+    {title:'访问 PGD（第 1 级）',desc:'MMU 以 VA 的 [47:39] 位（9 bits）为索引，读取 PGD（Page Global Directory）中的条目。这是一次独立的内存访问。如果 PGD 不在 CPU Cache 中，需约 200 周期（DRAM 延迟）。'},
+    {title:'访问 PUD + PMD（第 2~3 级）',desc:'依次用 VA[38:30] 索引 PUD（Page Upper Directory），VA[29:21] 索引 PMD（Page Middle Directory）。每级各一次内存访问，若均不在 Cache 中则各需 ~200 周期，共 2 次访问。'},
+    {title:'访问 PTE，获得 PFN',desc:'用 VA[20:12] 索引 PTE（Page Table Entry），读出 PFN（物理帧号）。至此共 4 次额外内存访问，总延迟可达 800+ 周期（4 × ~200 DRAM 延迟）。'},
+    {title:'填充 TLB，完成翻译',desc:'MMU 将 VPN→PFN 映射写入 TLB，后续对同一页的访问直接命中 TLB。最终用 PFN 拼接物理地址访问内存，完成本次翻译（但代价已付：800+ 周期）。'},
+  ],
+  hl:[[3,4],[7,8],[10,11,12],[14,15],[18,19,20]],
+  code:[
+`// 页表遍历（x86-64 四级）
+// VA = 0xffff800012340abc
+
+// TLB Miss! 硬件自动遍历
+// CR3 → PGD 基地址
+
+// 第 1 级: PGD
+// idx = VA[47:39] = 0x100
+uint64_t pgde = PGD[VA_PGD_IDX]; // 1次DRAM读
+
+// 第 2~3 级: PUD, PMD
+uint64_t pude = PUD[VA_PUD_IDX]; // 1次DRAM读
+uint64_t pmde = PMD[VA_PMD_IDX]; // 1次DRAM读
+
+// 第 4 级: PTE
+uint64_t pte  = PTE[VA_PTE_IDX]; // 1次DRAM读
+// PFN = pte >> 12
+
+// 填充 TLB
+// TLB[VPN] = PFN
+// 后续访问直接命中
+// 总额外开销: 4×DRAM ≈ 800 周期`,
+  ],
+  render(step){
+    let s=defs();
+    // TLB miss indicator
+    s+=box(18,20,80,36,'TLB','MISS','#f87171',step===0,8);
+    if(step===0) s+=lbl(22,68,'VPN 不在 TLB','#f87171',8);
+    // CR3
+    s+=box(18,90,80,30,'CR3','PGD 基址',step===0?'#00add8':'#334155',step===0,8);
+    // Access counter
+    const accessCount=[0,1,3,4,4][step];
+    s+=`<rect x="18" y="270" width="80" height="40" rx="8" fill="rgba(255,255,255,.04)" stroke="#334155"/>`;
+    s+=`<text x="58" y="287" text-anchor="middle" fill="#64748b" font-size="8" font-family="monospace">内存访问次数</text>`;
+    s+=`<text x="58" y="303" text-anchor="middle" fill="${accessCount>=4?'#f87171':'#fb923c'}" font-size="14" font-weight="700" font-family="monospace">${accessCount}/4</text>`;
+    // 4-level boxes
+    const levels=[
+      {name:'PGD',sub:'VA[47:39]',x:145,active:step>=1},
+      {name:'PUD',sub:'VA[38:30]',x:255,active:step>=2},
+      {name:'PMD',sub:'VA[29:21]',x:365,active:step>=2},
+      {name:'PTE',sub:'VA[20:12]',x:475,active:step>=3},
+    ];
+    levels.forEach((lv,i)=>{
+      const color=lv.active?(step===i+1||step===3&&i===3?'#fb923c':step>=4?'#4ade80':'#00add8'):'#334155';
+      s+=box(lv.x,130,90,50,lv.name,lv.sub,color,lv.active,10);
+      if(i>0) s+=arr(lv.x-2,155,lv.x-2,155,'#475569',false,false);
+      if(i>0) s+=arr(levels[i-1].x+90,155,lv.x,155,lv.active?'#00add8':'#475569',false,step===i+1);
+    });
+    // CR3 to PGD arrow
+    s+=arr(100,105,143,155,step>=1?'#00add8':'#475569',false,step===1);
+    // PFN result
+    if(step>=3){
+      s+=box(475,210,90,30,'PFN','0x3a001',step>=3?'#4ade80':'#334155',step>=3,8);
+    }
+    // TLB fill
+    if(step>=4){
+      s+=box(145,210,200,30,'TLB 填入 VPN→PFN','',step>=4?'#4ade80':'#334155',step>=4,8);
+      s+=arr(475,215,347,215,'#4ade80',false,true);
+    }
+    // Delay annotations
+    const delays=['CR3→PGD 基址','+DRAM (~200cyc)','+2×DRAM','+DRAM，共 4 次','TLB 更新，下次命中'];
+    s+=`<text x="310" y="305" text-anchor="middle" fill="${step>=3?'#f87171':'#fb923c'}" font-size="10" font-family="monospace">${delays[step]}</text>`;
+    if(step>=3){
+      s+=`<text x="310" y="320" text-anchor="middle" fill="#f87171" font-size="9" font-family="monospace">总延迟 ≥ 800 周期（4×DRAM）</text>`;
+    }
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+
+// ── 场景 C: 缺页异常 ─────────────────────────────────────────
+{
+  label:'缺页异常',
+  codeTitle:'page_fault.c',
+  steps:[
+    {title:'PTE Present 位 = 0',desc:'CPU 访问地址时，页表遍历找到 PTE，但 Present 位（P=0）表示该页不在物理内存中（可能从未分配或已被换出到磁盘/swap）。MMU 无法完成翻译。'},
+    {title:'触发 #PF 异常，陷入内核',desc:'MMU 触发 Page Fault 异常（x86 异常号 #14），CPU 保存完整上下文（trapframe：寄存器、RIP、RSP、CS、SS），CR2 寄存器存放出错的虚拟地址，跳转到 OS 的 #PF 处理程序（do_page_fault）。'},
+    {title:'OS 分配物理帧，读磁盘',desc:'OS 检查 VMA（Virtual Memory Area），确认该地址合法。从物理内存分配一帧（或从 swap 驱逐一帧），发起磁盘 I/O 读入页数据。磁盘延迟约 0.1~10ms，比 CPU 周期慢 100,000 倍以上。'},
+    {title:'更新 PTE，TLB 无效化',desc:'I/O 完成后，OS 将新分配的 PFN 写入 PTE，设 P=1（Present），并用 invlpg 指令无效化 TLB 中该虚拟页的旧条目（如有）。然后从内核态返回用户态。'},
+    {title:'CPU 重新执行，TLB 命中',desc:'CPU 重新执行触发缺页的指令（硬件自动重试），这次 TLB 命中（或页表遍历成功），地址翻译完成。总延迟：ms 级（磁盘）+ 几百 ns（OS 处理）。'},
+  ],
+  hl:[[4,5],[8,9,10],[13,14,15],[18,19,20],[23,24]],
+  code:[
+`// 缺页异常处理流程
+// VA = 0x7fff2000
+
+// 1. 页表遍历到 PTE
+// PTE.P = 0 → 页不在内存
+// PTE = { P:0, PFN:0, ... }
+
+// 2. CPU 陷入 #PF 异常
+// CR2 = 0x7fff2000 (出错 VA)
+// 跳转 do_page_fault()
+// 保存: RIP, RSP, RFLAGS...
+
+// 3. OS 处理
+// check_vma(0x7fff2000) → OK
+// pfn = alloc_page();
+// disk_read(pfn, file_offset); // ms级
+
+// 4. 更新页表
+// PTE.PFN = pfn;
+// PTE.P   = 1;
+// invlpg(0x7fff2000); // TLB 失效
+
+// 5. 返回用户态，重执行指令
+// iretq → 重新执行触发PF的指令
+// TLB 命中，访问成功 ✓`,
+  ],
+  render(step){
+    let s=defs();
+    // User process
+    s+=box(18,60,80,40,'用户进程','*ptr 访问',step===0||step===4?'#38bdf8':'#334155',step===0||step===4,10);
+    // CPU/MMU
+    const cpuActive=step===0||step===1;
+    s+=box(140,60,80,40,'CPU','MMU',cpuActive?'#00add8':'#334155',cpuActive,10);
+    // PTE P=0
+    if(step===0){
+      s+=box(260,60,90,40,'PTE','P=0 !!','#f87171',true,10);
+      s+=lbl(262,118,'页不在内存中','#f87171',9);
+    }
+    // Exception / kernel
+    const osActive=step>=1&&step<=3;
+    s+=box(260,150,130,44,'OS 内核','do_page_fault',osActive?'#c084fc':'#334155',osActive,10);
+    if(step===1){
+      s+=lbl(262,212,'CR2=0x7fff2000','#c084fc',8);
+      s+=lbl(262,224,'保存 trapframe','#c084fc',8);
+    }
+    // Disk
+    const diskActive=step===2;
+    s+=box(440,150,120,44,'磁盘/Swap','I/O 读取',diskActive?'#fb923c':'#334155',diskActive,10);
+    if(step===2){
+      s+=lbl(442,212,'~0.1~10ms','#f87171',8);
+      s+=lbl(442,224,'分配物理帧','#fb923c',8);
+    }
+    // PTE updated
+    if(step>=3){
+      s+=box(440,60,120,40,'PTE','P=1, PFN=ok',step>=3?'#4ade80':'#334155',step>=3,10);
+      s+=lbl(442,118,'invlpg: TLB 无效化','#4ade80',8);
+    }
+    // Arrows
+    s+=arr(100,80,138,80,'#38bdf8',false,step===0);
+    if(step===0) s+=arr(222,80,258,80,'#f87171',true,false);
+    if(step>=1) s+=arr(180,102,326,148,'#c084fc',false,step===1);
+    if(step>=2) s+=arr(392,172,438,172,'#fb923c',false,step===2);
+    if(step>=3) s+=arr(392,162,438,80,'#4ade80',false,step===3);
+    if(step>=3) s+=arr(326,150,180,102,'#4ade80',false,step===3);
+    if(step===4) s+=arr(100,80,138,80,'#4ade80',false,true);
+    // Bottom annotation
+    const ann=[
+      'P=0：页缺失，MMU 无法翻译','#PF 异常，陷入内核（#14）',
+      'OS 分配帧，磁盘 I/O（ms 级）','PTE 更新，TLB 无效化，返回用户态',
+      '重执行指令，TLB 命中，成功 ✓'
+    ];
+    const annColor=[step<2?'#f87171':step<4?'#fb923c':'#4ade80'][0]||'#00add8';
+    s+=`<text x="310" y="300" text-anchor="middle" fill="${step>=4?'#4ade80':step>=2?'#fb923c':'#f87171'}" font-size="10" font-family="monospace">${ann[step]}</text>`;
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+];
+
+// ── Engine ───────────────────────────────────────────────────
+function render(){
+  const sc=SCENARIOS[curScene];
+  const st=sc.steps[curStep];
+  document.getElementById('stepNum').textContent='步骤 '+(curStep+1);
+  document.getElementById('stepTitle').textContent=st.title;
+  document.getElementById('stepDesc').textContent=st.desc;
+  document.getElementById('codeTitle').textContent=sc.codeTitle||'memory.c';
+  sc.render(curStep);
+  renderCode();
+  renderFlowNav();
+  document.getElementById('btnPrev').disabled=curStep===0;
+  document.getElementById('btnNext').disabled=curStep===sc.steps.length-1;
+}
+
+function renderSceneBtns(){
+  const c=document.getElementById('scenarios');
+  c.innerHTML=SCENARIOS.map((s,i)=>`<button class="sc-btn${i===curScene?' active':''}" onclick="switchScene(${i})">${s.label}</button>`).join('');
+}
+
+function renderFlowNav(){
+  const sc=SCENARIOS[curScene];
+  const n=document.getElementById('flowNav');
+  n.innerHTML=sc.steps.map((_,i)=>`<div class="fn-dot${i<curStep?' done':i===curStep?' cur':''}" onclick="jumpTo(${i})">${i+1}</div>`).join('')+`<span class="step-ctr">${curStep+1}/${sc.steps.length}</span>`;
+}
+
+function renderCode(){
+  const sc=SCENARIOS[curScene];
+  const code=sc.code[curStep]||sc.code[sc.code.length-1];
+  const hl=sc.hl[curStep]||[];
+  const lines=code.split('\n');
+  document.getElementById('codeBody').innerHTML=lines.map((l,i)=>{
+    const n=i+1;
+    const hi=hl.includes(n)?'hi':'';
+    return`<div class="cl ${hi}"><span class="ln">${n}</span><span class="lc">${l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span></div>`;
+  }).join('');
+}
+
+function next(){if(curStep<SCENARIOS[curScene].steps.length-1){curStep++;render();}}
+function prev(){if(curStep>0){curStep--;render();}}
+function reset(){curStep=0;render();}
+function jumpTo(i){curStep=i;render();}
+function switchScene(i){curScene=i;curStep=0;renderSceneBtns();render();}
+function toggleQA(el){el.classList.toggle('open');}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  if(typeof NavTracker!=='undefined') NavTracker.track('内存寻址 / TLB','cs/memory.html','🗺️','CS基础');
+  renderSceneBtns();
+  render();
+});
+</script>
+</body>
+</html>

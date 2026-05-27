@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>并发模式 - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;--g:#38bdf8;--m:#fb923c;--p:#c084fc;--q:#4ade80;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;min-height:100vh;}
+.nav{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);flex-shrink:0;position:sticky;top:var(--snav-h,44px);z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.main-area{display:flex;flex:none;height:calc(100vh - var(--snav-h,44px) - 88px);min-height:300px;overflow:hidden;}
+.steps-panel{width:270px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid var(--border2);overflow:hidden;background:rgba(15,23,42,.6);}
+.scenarios{display:flex;gap:0;border-bottom:1px solid var(--border2);overflow-x:auto;}
+.sc-btn{flex:1;background:none;border:none;color:var(--dim);padding:9px 6px;cursor:pointer;font-size:.72rem;font-family:inherit;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;text-align:center;}
+.sc-btn:hover{color:var(--text);}.sc-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+.step-scroll{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
+.step-desc-card{border:1px solid var(--border2);border-radius:12px;background:rgba(255,255,255,.025);padding:14px;transition:border-color .3s,box-shadow .3s;}
+.step-desc-card.lit{border-color:var(--accent);box-shadow:0 0 20px rgba(0,173,216,.12);}
+.step-desc-card .step-num{font-size:.66rem;font-family:monospace;color:var(--accent);margin-bottom:6px;}
+.step-desc-card h3{font-size:.88rem;font-weight:700;margin-bottom:6px;}
+.step-desc-card p{font-size:.78rem;color:var(--dim);line-height:1.68;}
+.flow-nav{padding:10px 14px;border-top:1px solid var(--border2);display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.fn-dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--border2);background:rgba(255,255,255,.04);cursor:pointer;font-size:.68rem;font-family:monospace;color:var(--dim);display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;}
+.fn-dot:hover{border-color:var(--dim);color:var(--text);}
+.fn-dot.done{border-color:var(--accent);background:rgba(0,173,216,.15);color:var(--accent);}
+.fn-dot.cur{border-color:var(--accent);background:rgba(0,173,216,.25);color:var(--accent);transform:scale(1.12);}
+.step-ctr{margin-left:auto;font-size:.7rem;font-family:monospace;color:var(--dim2);}
+.diagram-panel{flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid var(--border2);overflow:hidden;}
+.diagram-inner{flex:1;overflow:auto;padding:20px;background:radial-gradient(ellipse 70% 50% at 30% 20%,rgba(0,173,216,.07),transparent 60%);}
+.diagram-svg{width:100%;max-width:620px;display:block;}
+.code-panel{width:44%;min-width:360px;flex-shrink:0;display:flex;flex-direction:column;background:var(--panel2);overflow:hidden;}
+.code-hd{padding:10px 16px;border-bottom:1px solid var(--border2);font-size:.8rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);}
+.code-body{flex:1;overflow-y:auto;padding:14px 0;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.78rem;line-height:1.7;}
+.cl{display:flex;border-left:2px solid transparent;transition:background .25s,border-color .25s;}
+.cl.hi{background:rgba(0,173,216,.1);border-left-color:var(--accent);}
+.ln{min-width:42px;padding:0 10px 0 12px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;}
+.lc{padding:0 14px 0 4px;white-space:pre-wrap;word-break:break-word;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.controls{display:flex;align-items:center;gap:10px;padding:11px 22px;border-top:1px solid var(--border2);background:var(--panel);flex-shrink:0;}
+.ctrl-btn{background:rgba(255,255,255,.07);border:1px solid var(--border2);color:var(--text);padding:7px 16px;border-radius:8px;cursor:pointer;font-size:.82rem;font-family:inherit;transition:all .15s;}
+.ctrl-btn:hover{background:rgba(255,255,255,.12);}
+.ctrl-btn:disabled{opacity:.35;cursor:not-allowed;}
+.ctrl-btn.primary{background:rgba(0,173,216,.16);border-color:rgba(0,173,216,.35);color:var(--accent);}
+.ctrl-btn.primary:hover{background:rgba(0,173,216,.25);}
+@keyframes glow-pulse{0%,100%{filter:drop-shadow(0 0 4px rgba(56,189,248,.6));}50%{filter:drop-shadow(0 0 12px rgba(56,189,248,.95));}}
+@keyframes particle-flow{0%{stroke-dashoffset:200;}100%{stroke-dashoffset:0;}}
+.flow-arrow{stroke-dasharray:8 5;animation:particle-flow 1.2s linear infinite;}
+.extras{padding:48px 40px;background:var(--bg);border-top:1px solid var(--border2);}
+.ext-section{margin-bottom:48px;}
+.ext-hd{display:flex;align-items:center;gap:12px;margin-bottom:22px;}
+.ext-hd-bar{width:4px;height:20px;border-radius:2px;background:var(--accent);}
+.ext-hd h2{font-size:1.25rem;font-weight:700;}
+.qa-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.qa-card{border:1px solid var(--border2);border-radius:12px;overflow:hidden;}
+.qa-q{padding:13px 16px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);font-size:.84rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .15s;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:13px 16px;font-size:.82rem;color:var(--dim);line-height:1.72;}
+.qa-card.open .qa-a{display:block;}
+.qa-a code{font-family:monospace;color:var(--accent);font-size:.78rem;}
+.pitfall-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.78rem;font-weight:700;border-bottom:1px solid var(--border2);}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;gap:0;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--dim);line-height:1.6;white-space:pre-wrap;}
+.pitfall-col p{font-size:.76rem;color:var(--dim);line-height:1.65;margin-top:6px;}
+.pitfall-col p strong{color:var(--text);}
+@media(max-width:900px){body{overflow-y:auto;height:auto;}.main-area{flex-direction:column;overflow:visible;height:auto;flex:none;}.steps-panel{width:100%;border-right:none;border-bottom:1px solid var(--border2);}.diagram-panel{border-right:none;min-height:340px;}.code-panel{width:100%;min-width:0;height:320px;flex:none;}.qa-grid,.pitfall-grid{grid-template-columns:1fr;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}.extras{padding:32px 20px;}}
+</style>
+</head>
+<body>
+<div class="nav">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">并发模式</span>
+  <div class="nav-tags">
+    <span class="ntag">pipeline</span>
+    <span class="ntag">fan-out</span>
+    <span class="ntag">worker-pool</span>
+    <span class="ntag">patterns</span>
+  </div>
+</div>
+<div class="main-area">
+  <div class="steps-panel">
+    <div class="scenarios" id="scenarios"></div>
+    <div class="step-scroll">
+      <div class="step-desc-card lit" id="stepCard">
+        <div class="step-num" id="stepNum">步骤 1</div>
+        <h3 id="stepTitle"></h3>
+        <p id="stepDesc"></p>
+      </div>
+    </div>
+    <div class="flow-nav" id="flowNav"></div>
+  </div>
+  <div class="diagram-panel">
+    <div class="diagram-inner">
+      <svg id="svg" class="diagram-svg" viewBox="0 0 620 360" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-hd"><div class="code-dot"></div><span id="codeTitle">patterns.go</span></div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="ctrl-btn" id="btnReset" onclick="reset()">⏮ 重置</button>
+  <button class="ctrl-btn primary" id="btnPrev" onclick="prev()">← 上一步</button>
+  <button class="ctrl-btn primary" id="btnNext" onclick="next()">下一步 →</button>
+</div>
+
+<div class="extras">
+  <div class="ext-section">
+    <div class="ext-hd"><div class="ext-hd-bar"></div><h2>面试题</h2></div>
+    <div class="qa-grid">
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">pipeline 模式的优势是什么？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">① <strong>流式处理</strong>：数据不需要完全加载到内存，逐步处理（低内存）<br>② <strong>并发</strong>：各阶段 goroutine 并行运行，充分利用多核<br>③ <strong>可组合</strong>：每个阶段是独立函数，签名统一（接收/返回 channel），易于测试和替换<br>④ <strong>背压</strong>：有缓冲 channel 自动控制流速，下游慢时上游自动减速</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">fan-out/fan-in 解决什么问题？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a"><strong>Fan-out</strong>：将单一输入分发给多个 goroutine 并行处理（加速 CPU 密集或 IO 密集任务）。<br><strong>Fan-in</strong>：将多个 channel 的输出合并到一个 channel，供下游串行消费。<br>典型用途：并行爬虫、并行文件处理、并行 API 调用后汇总结果。<br>Fan-in 通常用 goroutine + WaitGroup 或 select 实现。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">worker pool 的适用场景和注意事项？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">适用：限制并发数（防止爆内存/爆连接数）、复用重型资源（DB 连接）、限流控制。<br>注意：<br>① worker 数量不是越多越好，CPU 密集任务通常 = GOMAXPROCS<br>② job channel 关闭是 worker 退出的信号，用 range 接收<br>③ 收集结果时 result channel 容量需足够，或用单独 goroutine 消费，防止 worker 阻塞<br>④ errgroup 可简化带错误处理的 worker pool</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">如何在 pipeline 中处理错误？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">方案1 — 携带错误的数据结构：<code>type Result struct { Val T; Err error }</code>，每个阶段传递 Result channel，下游检查 Err。<br>方案2 — errgroup：<code>golang.org/x/sync/errgroup</code> 管理 goroutine 组，第一个错误会取消所有其他 goroutine（通过 context）。<br>方案3 — done channel：<code>ctx.Done()</code> 通知所有阶段停止生产，防止 goroutine 泄漏。</div>
+      </div>
+    </div>
+  </div>
+  <div class="ext-section">
+    <div class="ext-hd"><div class="ext-hd-bar"></div><h2>易错点</h2></div>
+    <div class="pitfall-grid">
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ pipeline 中忘记关闭上游 channel</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col"><pre>func generate(nums ...int) <-chan int {
+    out := make(chan int)
+    go func() {
+        for _, n := range nums {
+            out <- n
+        }
+        // 忘记 close(out)！
+        // 下游 range 永远阻塞
+    }()
+    return out
+}</pre></div>
+          <div class="pitfall-col"><pre>func generate(nums ...int) <-chan int {
+    out := make(chan int)
+    go func() {
+        defer close(out) // 关键！
+        for _, n := range nums {
+            out <- n
+        }
+    }()
+    return out
+}
+// defer close 确保即使 panic 也能关闭</pre><p>每个 pipeline 阶段的生产者必须在完成后关闭 output channel，否则下游 range 死锁。</p></div>
+        </div>
+      </div>
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ worker pool 结果 channel 容量不足死锁</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col"><pre>results := make(chan int) // 无缓冲！
+for i := 0; i < numWorkers; i++ {
+    go worker(jobs, results)
+}
+// workers 向 results 发送，但主线程
+// 还没开始接收 → 所有 worker 阻塞
+// 死锁！
+for r := range results { // 永远等不到
+    process(r)
+}</pre></div>
+          <div class="pitfall-col"><pre>// 方案1: 足够缓冲
+results := make(chan int, numJobs)
+
+// 方案2: 先启动接收者 goroutine
+go func() {
+    for r := range results {
+        process(r)
+    }
+}()
+
+// 方案3: 用 sync.WaitGroup 关闭 results
+var wg sync.WaitGroup
+// ... wg.Add/Done/Wait + close(results)</pre><p>确保 result channel 有足够缓冲，或先启动消费者，再启动 worker。</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function defs(){return`<defs>
+<marker id="arr" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#475569"/></marker>
+<marker id="arrA" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#00add8"/></marker>
+<marker id="arrG" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#38bdf8"/></marker>
+<filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>`;}
+function box(x,y,w,h,label,sub,color,active,rx=10){
+  const c=hexToRgb(color);
+  const fill=active?`rgba(${c},.18)`:'rgba(255,255,255,.03)';
+  const stroke=active?color:'#334155';
+  const filt=active?' filter="url(#glow)"':'';
+  const lc=active?color:'#94a3b8';
+  return`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${active?2:1}"${filt}/>
+<text x="${x+w/2}" y="${y+h/2-(sub?6:0)}" text-anchor="middle" fill="${lc}" font-size="10" font-weight="700" font-family="monospace">${label}</text>`+
+(sub?`<text x="${x+w/2}" y="${y+h/2+10}" text-anchor="middle" fill="${active?'#e2e8f0':'#64748b'}" font-size="8" font-family="monospace">${sub}</text>`:'');
+}
+function arr(x1,y1,x2,y2,color,anim){
+  const cls=anim?'class="flow-arrow" ':'';
+  const mkId=color==='#00add8'?'arrA':color==='#38bdf8'?'arrG':'arr';
+  return`<line ${cls}x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="1.8" marker-end="url(#${mkId})"/>`;
+}
+function lbl(x,y,t,c,s){return`<text x="${x}" y="${y}" fill="${c||'#64748b'}" font-size="${s||9}" font-family="monospace">${t}</text>`;}
+function hexToRgb(hex){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return`${r},${g},${b}`;}
+
+let curScene=0,curStep=0;
+const SCENARIOS=[
+{
+  label:'Pipeline',
+  codeTitle:'pipeline.go',
+  steps:[
+    {title:'数据源（generate）',desc:'第一个阶段产生原始数据，将数据写入 output channel，完成后 close。每个 pipeline 阶段都是一个接收 channel 并返回新 channel 的函数。'},
+    {title:'第一次变换（square）',desc:'square 阶段从上一阶段的 channel 读取，做平方变换，写入新 channel。多个阶段同时运行，实现流水线并行。'},
+    {title:'第二次变换（filter）',desc:'filter 阶段从 square 的 output 读取，过滤不满足条件的值，写入下一个 channel。各阶段 goroutine 并发执行。'},
+    {title:'最终消费（sink）',desc:'最后一阶段消费最终结果。整个 pipeline 数据流自动背压控制：下游慢，上游自动等待（有缓冲时可以缓冲一定数量）。'},
+  ],
+  hl:[[2,3,4,5],[7,8,9],[11,12,13],[15,16]],
+  code:`package main
+
+func generate(nums ...int) <-chan int {
+    out := make(chan int)
+    go func() { defer close(out)
+        for _, n := range nums { out <- n }
+    }(); return out
+}
+func square(in <-chan int) <-chan int {
+    out := make(chan int)
+    go func() { defer close(out)
+        for n := range in { out <- n * n }
+    }(); return out
+}
+func filter(in <-chan int, pred func(int) bool) <-chan int {
+    out := make(chan int)
+    go func() { defer close(out)
+        for n := range in { if pred(n) { out <- n } }
+    }(); return out
+}
+// 组合 pipeline
+c := generate(2,3,4,5)
+c = square(c)
+c = filter(c, func(n int) bool { return n > 10 })
+for v := range c { fmt.Println(v) }`,
+  render(step){
+    let s=defs();
+    const stages=[
+      {label:'generate',sub:'数据源',color:'#38bdf8',x:30,y:160},
+      {label:'square',sub:'n*n',color:'#00add8',x:180,y:160},
+      {label:'filter',sub:'n>10',color:'#c084fc',x:330,y:160},
+      {label:'sink',sub:'消费',color:'#4ade80',x:480,y:160},
+    ];
+    stages.forEach((st,i)=>{
+      s+=box(st.x,st.y,110,50,st.label,st.sub,st.color,step>=i,10);
+      if(i<stages.length-1){
+        const active=step>i;
+        s+=arr(st.x+112,st.y+25,stages[i+1].x,stages[i+1].y+25,active?stages[i+1].color:'#475569',active&&step===i+1);
+        if(active) lbl(st.x+120,st.y+20,'ch','#475569',8);
+      }
+    });
+    // Data particles
+    if(step>=1){
+      const cx=145,cy=175;
+      s+=`<circle cx="${cx}" cy="${cy}" r="7" fill="#38bdf8" filter="url(#glow)"/>`;
+      s+=lbl(cx-8,cy+4,'2','#0f172a',9);
+    }
+    if(step>=2){
+      const cx=295,cy=175;
+      s+=`<circle cx="${cx}" cy="${cy}" r="7" fill="#00add8" filter="url(#glow)"/>`;
+      s+=lbl(cx-8,cy+4,'4','#0f172a',9);
+    }
+    if(step>=3){
+      const cx=445,cy=175;
+      s+=`<circle cx="${cx}" cy="${cy}" r="7" fill="#c084fc" filter="url(#glow)"/>`;
+      s+=lbl(cx-8,cy+4,'16','#0f172a',8);
+    }
+    s+=`<text x="310" y="300" text-anchor="middle" fill="#64748b" font-size="10" font-family="monospace">${['generate 产生数据，写入 channel','square 并发读取、变换，各阶段流水线并行','filter 过滤，close 信号沿链向下传播','sink 消费结果，背压自动控制流速'][step]}</text>`;
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+{
+  label:'Fan-out/Fan-in',
+  codeTitle:'fanout.go',
+  steps:[
+    {title:'输入源（in channel）',desc:'有一个输入 channel，包含需要处理的任务。单个 goroutine 的处理能力有限，需要并行处理。'},
+    {title:'Fan-out：分发给多个 worker',desc:'创建 N 个 worker goroutine，每个都从同一个 input channel 读取任务。Go channel 保证每个任务只被一个 worker 接收（竞争消费）。'},
+    {title:'多 worker 并行处理',desc:'多个 worker 同时处理各自的任务，充分利用多核 CPU 或并行 IO。每个 worker 将结果写入各自独立的 output channel。'},
+    {title:'Fan-in：合并结果',desc:'merge 函数将多个 output channel 合并到一个 channel。通常每个 output channel 启动一个 goroutine 转发，全部完成后 close 合并 channel。'},
+  ],
+  hl:[[2],[4,5,6,7],[9,10],[12,13,14]],
+  code:`package main
+
+in := generate(work...)       // 输入 channel
+
+// Fan-out: 3 个 worker
+c1 := process(in)
+c2 := process(in) // 竞争消费同一 in
+c3 := process(in)
+
+// 每个 worker 处理不同的任务
+// 返回各自的 output channel
+
+// Fan-in: 合并结果
+for result := range merge(c1, c2, c3) {
+    fmt.Println(result)
+}`,
+  render(step){
+    let s=defs();
+    // Input
+    s+=box(20,155,80,50,'in','input','#38bdf8',step>=0,8);
+    // Workers
+    const wColors=['#00add8','#4ade80','#c084fc'];
+    for(let i=0;i<3;i++){
+      const y=80+i*90;
+      s+=box(190,y,100,50,`worker${i+1}`,null,wColors[i],step>=1,8);
+      s+=arr(102,180,188,y+25,step>=1?wColors[i]:'#475569',step===1);
+    }
+    // Outputs
+    for(let i=0;i<3;i++){
+      const y=80+i*90;
+      s+=box(370,y,80,50,`c${i+1}`,null,wColors[i],step>=2,8);
+      s+=arr(292,y+25,368,y+25,step>=2?wColors[i]:'#475569',step===2);
+    }
+    // Merge
+    s+=box(490,155,100,50,'merge','fan-in','#fb923c',step>=3,8);
+    for(let i=0;i<3;i++){
+      s+=arr(452,80+i*90+25,488,180,step>=3?'#fb923c':'#475569',step===3);
+    }
+    // Output
+    if(step>=3){
+      s+=arr(592,180,610,180,'#4ade80',true);
+      s+=lbl(598,173,'结果','#4ade80',8);
+    }
+    s+=`<text x="310" y="330" text-anchor="middle" fill="#64748b" font-size="10" font-family="monospace">${['单输入 channel，需要并行处理','fan-out: N 个 worker 竞争消费同一 in','多 worker 并行处理，写入各自 output','fan-in: merge 合并所有 output 到单 channel'][step]}</text>`;
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+{
+  label:'Worker Pool',
+  codeTitle:'worker_pool.go',
+  steps:[
+    {title:'创建 jobs 和 results channel',desc:'jobs channel 存放待处理任务，results channel 收集处理结果。有缓冲大小通常根据任务总数或 worker 数量设置。'},
+    {title:'启动固定数量 worker',desc:'启动 N 个 worker goroutine（限制最大并发），每个 worker 用 range 从 jobs channel 读取任务。jobs 关闭时所有 worker 自动退出。'},
+    {title:'分发任务',desc:'主 goroutine 将所有任务发送到 jobs channel，完成后 close(jobs)。worker 通过 range 检测关闭，自动退出。'},
+    {title:'收集结果',desc:'主 goroutine 或专用 goroutine 从 results 读取所有处理结果。通常用 WaitGroup 等待所有 worker 完成后 close(results)，让 range 自动结束。'},
+  ],
+  hl:[[1,2],[4,5,6,7],[9,10,11],[13,14]],
+  code:`package main
+
+jobs := make(chan Job, 100)
+results := make(chan Result, 100)
+
+// 启动 5 个 worker（限制并发）
+for w := 1; w <= 5; w++ {
+    go func() {
+        for job := range jobs { // range 自动等待
+            results <- process(job)
+        }
+    }()
+}
+// 分发任务
+for _, job := range allJobs { jobs <- job }
+close(jobs) // 通知 worker 退出
+
+// 收集结果
+for r := range results { use(r) }`,
+  render(step){
+    let s=defs();
+    // Jobs channel
+    s+=box(30,155,90,50,'jobs','cap=100','#38bdf8',step>=0,8);
+    // Workers
+    const wActive=step>=1;
+    for(let i=0;i<5;i++){
+      const y=45+i*55;
+      s+=box(190,y,100,40,`worker ${i+1}`,null,'#00add8',wActive,6);
+      s+=`<line x1="122" y1="180" x2="188" y2="${y+20}" stroke="${wActive?'#00add8':'#334155'}" stroke-width="1" stroke-dasharray="${wActive?'':'5 3'}" marker-end="url(#arrA)"/>`;
+    }
+    // Results channel
+    s+=box(360,155,100,50,'results','cap=100','#4ade80',step>=3,8);
+    for(let i=0;i<5;i++){
+      const y=45+i*55;
+      s+=arr(292,y+20,358,180,step>=2?'#4ade80':'#475569',step===2&&i<2);
+    }
+    // Dispatcher
+    if(step>=2){
+      s+=box(30,50,90,50,'main','发送任务','#fb923c',true,8);
+      s+=arr(75,102,75,153,'#fb923c',step===2);
+    }
+    // Consumer
+    if(step>=3){
+      s+=box(510,155,80,50,'main','消费结果','#4ade80',true,8);
+      s+=arr(462,180,508,180,'#4ade80',true);
+    }
+    s+=`<text x="310" y="330" text-anchor="middle" fill="#64748b" font-size="10" font-family="monospace">${['创建 jobs/results channel（有缓冲）','启动固定数量 worker，range 等待任务','主 goroutine 分发任务，close(jobs) 通知退出','从 results 收集结果，WaitGroup 关闭 results'][step]}</text>`;
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+];
+
+function goHL(code){
+  return code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/("(?:[^"\\]|\\.)*")/g,'<span class="st">$1</span>')
+    .replace(/(\/\/[^\n]*)/g,'<span class="cm">$1</span>')
+    .replace(/\b(package|import|func|var|const|type|struct|interface|map|chan|go|defer|return|if|else|for|range|switch|case|default|select|break|continue|make|new|nil|true|false)\b/g,'<span class="kw">$1</span>')
+    .replace(/\b(fmt|time|sync|context|os|io|http|errors|runtime)\b/g,'<span class="pkg">$1</span>')
+    .replace(/\b([0-9]+)\b/g,'<span class="num">$1</span>');
+}
+function renderCode(lines,highlights){
+  const arr=typeof lines==='string'?lines.split('\n'):lines;
+  const hiSet=new Set(highlights||[]);
+  document.getElementById('codeBody').innerHTML=arr.map((l,i)=>{
+    return`<div class="${hiSet.has(i)?'cl hi':'cl'}"><span class="ln">${i+1}</span><span class="lc">${goHL(l)}</span></div>`;
+  }).join('');
+}
+function initScenarios(){
+  const sc=SCENARIOS[curScene];
+  document.getElementById('scenarios').innerHTML=SCENARIOS.map((s,i)=>
+    `<button class="sc-btn${i===curScene?' active':''}" onclick="switchScene(${i})">${s.label}</button>`).join('');
+  document.getElementById('codeTitle').textContent=sc.codeTitle;
+  updateStep();
+}
+function updateStep(){
+  const sc=SCENARIOS[curScene];
+  const st=sc.steps[curStep];
+  document.getElementById('stepNum').textContent=`步骤 ${curStep+1}`;
+  document.getElementById('stepTitle').textContent=st.title;
+  document.getElementById('stepDesc').textContent=st.desc;
+  document.getElementById('flowNav').innerHTML=sc.steps.map((_,i)=>{
+    let cls='fn-dot';if(i<curStep)cls+=' done';else if(i===curStep)cls+=' cur';
+    return`<div class="${cls}" onclick="jumpStep(${i})">${i+1}</div>`;
+  }).join('')+`<span class="step-ctr">${curStep+1}/${sc.steps.length}</span>`;
+  renderCode(sc.code,sc.hl[curStep]);
+  const svgEl=document.getElementById('svg');
+  svgEl.style.opacity='0';svgEl.style.transition='opacity .2s';
+  setTimeout(()=>{sc.render(curStep);svgEl.style.opacity='1';},120);
+  document.getElementById('btnPrev').disabled=curStep===0;
+  document.getElementById('btnNext').disabled=curStep===sc.steps.length-1;
+}
+function switchScene(i){curScene=i;curStep=0;initScenarios();}
+function jumpStep(i){curStep=i;updateStep();}
+function next(){if(curStep<SCENARIOS[curScene].steps.length-1){curStep++;updateStep();}}
+function prev(){if(curStep>0){curStep--;updateStep();}}
+function reset(){curStep=0;updateStep();}
+function toggleQA(el){el.classList.toggle('open');}
+document.addEventListener('DOMContentLoaded',()=>{
+  if(typeof NavTracker!=='undefined') NavTracker.track('并发模式','golang/concurrent-patterns.html','🔀','Golang');
+  initScenarios();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,399 @@
+<!DOCTYPE html><html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Defer 与 Panic - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:72px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(0,173,216,.12);color:var(--accent);border:1px solid rgba(0,173,216,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(0,173,216,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.flow-steps{display:flex;flex-direction:column;gap:8px;margin:12px 0;}
+.flow-step{display:flex;align-items:flex-start;gap:10px;padding:8px 12px;background:var(--panel2);border:1px solid var(--border2);border-radius:8px;font-size:.78rem;}
+.step-num{width:20px;height:20px;border-radius:50%;background:rgba(0,173,216,.15);border:1px solid rgba(0,173,216,.3);color:var(--accent);font-size:.7rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:monospace;}
+.step-text{color:var(--dim);line-height:1.5;}
+.step-text code{font-family:monospace;color:var(--accent);}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">🛡️ Defer 与 Panic</span>
+  <div class="nav-tags">
+    <span class="ntag">defer</span>
+    <span class="ntag">panic</span>
+    <span class="ntag">recover</span>
+    <span class="ntag">stack</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <aside class="side-nav" id="sideNav">
+    <nav><ul>
+      <li><a href="#defer-order">defer 执行顺序</a></li>
+      <li><a href="#defer-usage">defer 常见用法</a></li>
+      <li><a href="#panic-propagation">panic 传播</a></li>
+      <li><a href="#panic-recover">panic + recover</a></li>
+      <li><a href="#interview">面试题</a></li>
+      <li><a href="#pitfalls">易错点</a></li>
+    </ul></nav>
+  </aside>
+  <main class="main-content">
+
+    <div class="section" id="defer-order">
+      <div class="section-title"><div class="title-bar"></div><h2>defer 执行顺序</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>LIFO + 参数在 defer 处求值</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>defer 语句将函数调用压入一个栈（LIFO）。函数返回时，defer 按<strong>后进先出</strong>的顺序执行。defer 语句中的函数参数在 defer 登记时立即求值。</p>
+          <pre><span class="kw">func</span> <span class="fn">demo</span>() {
+    <span class="kw">defer</span> <span class="id">fmt</span>.<span class="fn">Println</span>(<span class="st">"1"</span>)
+    <span class="kw">defer</span> <span class="id">fmt</span>.<span class="fn">Println</span>(<span class="st">"2"</span>)
+    <span class="kw">defer</span> <span class="id">fmt</span>.<span class="fn">Println</span>(<span class="st">"3"</span>)
+    <span class="id">fmt</span>.<span class="fn">Println</span>(<span class="st">"executing"</span>)
+}
+<span class="cm">// 输出：executing → 3 → 2 → 1</span>
+
+<span class="cm">// 参数求值时机：defer 处立即求值</span>
+<span class="id">x</span> := <span class="num">0</span>
+<span class="kw">defer</span> <span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">x</span>)  <span class="cm">// x 此时为 0，打印 0</span>
+<span class="id">x</span> = <span class="num">5</span>
+<span class="cm">// 函数返回时执行 defer，打印 0（已记录的值）</span>
+
+<span class="cm">// 闭包：捕获引用，执行时求值</span>
+<span class="id">y</span> := <span class="num">0</span>
+<span class="kw">defer</span> <span class="kw">func</span>() { <span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">y</span>) }()  <span class="cm">// 打印 5</span>
+<span class="id">y</span> = <span class="num">5</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="defer-usage">
+      <div class="section-title"><div class="title-bar"></div><h2>defer 常见用法</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>资源清理、解锁、计时</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>defer 最常用于确保资源释放，即使发生错误也能正确清理。</p>
+          <pre><span class="cm">// 1. 关闭文件</span>
+<span class="id">f</span>, <span class="id">err</span> := <span class="id">os</span>.<span class="fn">Open</span>(<span class="st">"file.txt"</span>)
+<span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> { <span class="kw">return</span> <span class="id">err</span> }
+<span class="kw">defer</span> <span class="id">f</span>.<span class="fn">Close</span>()  <span class="cm">// 保证关闭</span>
+
+<span class="cm">// 2. 解锁 mutex</span>
+<span class="id">mu</span>.<span class="fn">Lock</span>()
+<span class="kw">defer</span> <span class="id">mu</span>.<span class="fn">Unlock</span>()
+
+<span class="cm">// 3. 计时函数</span>
+<span class="kw">func</span> <span class="fn">timeFunc</span>(<span class="id">name</span> <span class="pkg">string</span>) <span class="kw">func</span>() {
+    <span class="id">start</span> := <span class="id">time</span>.<span class="fn">Now</span>()
+    <span class="kw">return</span> <span class="kw">func</span>() {
+        <span class="id">fmt</span>.<span class="fn">Printf</span>(<span class="st">"%s took %v\n"</span>, <span class="id">name</span>, <span class="id">time</span>.<span class="fn">Since</span>(<span class="id">start</span>))
+    }
+}
+<span class="kw">defer</span> <span class="fn">timeFunc</span>(<span class="st">"myFunc"</span>)()  <span class="cm">// 注意两个括号！</span>
+
+<span class="cm">// 4. 修改命名返回值</span>
+<span class="kw">func</span> <span class="fn">doWork</span>() (<span class="id">err</span> <span class="pkg">error</span>) {
+    <span class="kw">defer</span> <span class="kw">func</span>() {
+        <span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> {
+            <span class="id">err</span> = <span class="id">fmt</span>.<span class="fn">Errorf</span>(<span class="st">"doWork: %w"</span>, <span class="id">err</span>)
+        }
+    }()
+    <span class="kw">return</span> <span class="fn">riskyOp</span>()
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="panic-propagation">
+      <div class="section-title"><div class="title-bar"></div><h2>panic 传播</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>栈展开与终止程序</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>panic 触发后，运行时开始<strong>展开（unwind）</strong>当前 goroutine 的调用栈：</p>
+          <div class="flow-steps">
+            <div class="flow-step"><div class="step-num">1</div><div class="step-text">当前函数停止执行，运行所有已注册的 <code>defer</code></div></div>
+            <div class="flow-step"><div class="step-num">2</div><div class="step-text">调用方同样停止，运行其 <code>defer</code>，继续向上展开</div></div>
+            <div class="flow-step"><div class="step-num">3</div><div class="step-text">如果某个 <code>defer</code> 中调用了 <code>recover()</code>，panic 被捕获，程序继续</div></div>
+            <div class="flow-step"><div class="step-num">4</div><div class="step-text">如果到达 goroutine 顶端仍未被 recover，打印 panic 信息和堆栈，程序终止</div></div>
+          </div>
+          <pre><span class="cm">// panic 接受任意类型</span>
+<span class="fn">panic</span>(<span class="st">"something went wrong"</span>)
+<span class="fn">panic</span>(<span class="id">fmt</span>.<span class="fn">Errorf</span>(<span class="st">"error: %v"</span>, <span class="id">err</span>))
+<span class="fn">panic</span>(<span class="num">42</span>)  <span class="cm">// 任意类型</span>
+
+<span class="cm">// 运行时 panic（自动触发）</span>
+<span class="cm">// - 数组/slice 越界</span>
+<span class="cm">// - nil 指针解引用</span>
+<span class="cm">// - 向关闭的 channel 发送数据</span>
+<span class="cm">// - 类型断言失败（单值形式）</span>
+<span class="cm">// - 除以零（整数）</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="panic-recover">
+      <div class="section-title"><div class="title-bar"></div><h2>panic + recover</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>recover 的使用限制与 safeGo 模式</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-body">
+          <p><strong>recover 的关键限制</strong>：只能在 defer 函数中直接调用才有效，且只对当前 goroutine 的 panic 有效。跨 goroutine 的 panic 无法被 recover。</p>
+          <pre><span class="cm">// recover 必须在 defer 内直接调用</span>
+<span class="kw">func</span> <span class="fn">safeRun</span>(<span class="id">f</span> <span class="kw">func</span>()) (<span class="id">err</span> <span class="pkg">error</span>) {
+    <span class="kw">defer</span> <span class="kw">func</span>() {
+        <span class="kw">if</span> <span class="id">r</span> := <span class="fn">recover</span>(); <span class="id">r</span> != <span class="kw">nil</span> {
+            <span class="id">err</span> = <span class="id">fmt</span>.<span class="fn">Errorf</span>(<span class="st">"panic: %v"</span>, <span class="id">r</span>)
+        }
+    }()
+    <span class="fn">f</span>()
+    <span class="kw">return</span> <span class="kw">nil</span>
+}
+
+<span class="cm">// safeGo 模式：保护 goroutine 不因 panic 崩溃</span>
+<span class="kw">func</span> <span class="fn">safeGo</span>(<span class="id">f</span> <span class="kw">func</span>()) {
+    <span class="kw">go</span> <span class="kw">func</span>() {
+        <span class="kw">defer</span> <span class="kw">func</span>() {
+            <span class="kw">if</span> <span class="id">r</span> := <span class="fn">recover</span>(); <span class="id">r</span> != <span class="kw">nil</span> {
+                <span class="id">log</span>.<span class="fn">Printf</span>(<span class="st">"goroutine panic: %v\n%s"</span>, <span class="id">r</span>,
+                    <span class="id">debug</span>.<span class="fn">Stack</span>())
+            }
+        }()
+        <span class="fn">f</span>()
+    }()
+}
+
+<span class="cm">// ❌ 跨 goroutine 无法 recover</span>
+<span class="kw">func</span> <span class="fn">main</span>() {
+    <span class="kw">defer</span> <span class="kw">func</span>() {
+        <span class="kw">if</span> <span class="id">r</span> := <span class="fn">recover</span>(); <span class="id">r</span> != <span class="kw">nil</span> {
+            <span class="cm">// 无法捕获子 goroutine 的 panic</span>
+        }
+    }()
+    <span class="kw">go</span> <span class="kw">func</span>() { <span class="fn">panic</span>(<span class="st">"goroutine panic"</span>) }()
+    <span class="id">time</span>.<span class="fn">Sleep</span>(<span class="id">time</span>.<span class="id">Second</span>)
+    <span class="cm">// 程序仍然崩溃！</span>
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="interview">
+      <div class="section-title"><div class="title-bar"></div><h2>面试题</h2></div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">defer 在 return 前还是后执行？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">精确说法：defer 在函数设置返回值之后、实际返回调用方之前执行。<br><br>
+        Go 的 return 语句拆解为两个步骤：<br>
+        1. 将返回值写入返回值变量<br>
+        2. 执行所有 defer<br>
+        3. 实际跳转返回（携带返回值）<br><br>
+        这就是为什么 defer 可以修改命名返回值：<br>
+        <code>func f() (result int) { defer func() { result++ }(); return 1 }</code><br>
+        这里 return 1 先把 result 设为 1，然后 defer 把 result 改为 2，函数返回 2。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">defer 如何修改命名返回值？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">只有<strong>命名返回值</strong>可以被 defer 中的闭包修改。工作原理：<br>
+        • 命名返回值是一个具名变量，存在于函数的作用域中<br>
+        • defer 中的闭包捕获了这个变量的引用<br>
+        • 由于 defer 在 return 设置返回值之后执行，所以可以修改最终返回的值<br><br>
+        典型用法：统一添加错误上下文、panic recovery 转换为 error：<br>
+        <code>func doWork() (err error) {</code><br>
+        <code>&nbsp;&nbsp;defer func() { if err != nil { err = fmt.Errorf("wrap: %w", err) } }()</code><br>
+        <code>&nbsp;&nbsp;...}</code></div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">recover 的使用场景和注意事项？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">使用场景：<br>
+        1. HTTP 服务器：防止某个 handler 的 panic 导致整个服务崩溃<br>
+        2. 测试框架：捕获测试代码中的 panic<br>
+        3. 插件系统：隔离第三方代码的 panic<br>
+        4. 库边界：将内部 panic 转换为 error 暴露给调用方<br><br>
+        注意事项：<br>
+        • recover 只能在 defer 函数内直接调用，<code>defer recover()</code> 是无效的（没有赋值操作）<br>
+        • 只对当前 goroutine 有效，跨 goroutine 无法捕获<br>
+        • recover 的返回值是 panic 时传入的值，类型是 interface{}<br>
+        • 捕获后要记录日志/堆栈信息，避免静默吞掉错误</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">defer 在循环中调用有什么问题？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">循环中的 defer 会累积到<strong>整个函数</strong>返回时才执行，不是每次迭代后执行。这可能导致：<br>
+        1. 资源占用：循环 1000 次打开文件，所有文件在循环结束后才关闭，同时持有 1000 个文件描述符<br>
+        2. 内存占用：defer 参数/闭包被暂存<br><br>
+        解决方案：<br>
+        1. 将循环体提取为独立函数，在函数中 defer<br>
+        2. 改为显式关闭：不用 defer，在每次迭代末尾手动调用 Close()<br><br>
+        <code>for _, file := range files {</code><br>
+        <code>&nbsp;&nbsp;func() { f, _ := os.Open(file); defer f.Close(); process(f) }()</code><br>
+        <code>}</code></div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">panic(nil) 和 panic(error) 有什么区别？（Go 1.21 新变化）<span class="qa-arrow">▶</span></div>
+        <div class="qa-a"><strong>Go 1.21 之前</strong>：<code>panic(nil)</code> 后，<code>recover()</code> 返回 nil，无法区分"没有 panic"和"panic(nil)"这两种情况。<br><br>
+        <strong>Go 1.21+</strong>：引入 <code>runtime/panicdepth</code> 机制，<code>recover()</code> 在捕获 <code>panic(nil)</code> 时返回一个 <code>*runtime.PanicNilError</code>，而不是 nil，从而可以区分。<br><br>
+        检查是否有 panic：<code>if r := recover(); r != nil { ... }</code> 在 Go 1.21+ 可以可靠地检测到所有 panic（包括 panic(nil)）。<br><br>
+        建议：避免使用 <code>panic(nil)</code>，改用 <code>panic(errors.New("..."))</code>，语义更清晰。</div>
+      </div>
+    </div>
+
+    <div class="section" id="pitfalls">
+      <div class="section-title"><div class="title-bar"></div><h2>易错点</h2></div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 循环中 defer 资源泄漏</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">processFiles</span>(<span class="id">files</span> []<span class="pkg">string</span>) {
+    <span class="kw">for</span> _, <span class="id">name</span> := <span class="kw">range</span> <span class="id">files</span> {
+        <span class="id">f</span>, <span class="id">err</span> := <span class="id">os</span>.<span class="fn">Open</span>(<span class="id">name</span>)
+        <span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> { <span class="kw">continue</span> }
+        <span class="kw">defer</span> <span class="id">f</span>.<span class="fn">Close</span>()  <span class="cm">// ❌ 不会每次迭代执行</span>
+        <span class="fn">process</span>(<span class="id">f</span>)
+    }
+    <span class="cm">// 函数返回时才关闭所有文件</span>
+    <span class="cm">// 循环中同时持有所有文件句柄</span>
+}</pre>
+            <p>defer 属于函数级别，不是循环级别。循环内所有 defer 到函数返回才执行。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">processFiles</span>(<span class="id">files</span> []<span class="pkg">string</span>) {
+    <span class="kw">for</span> _, <span class="id">name</span> := <span class="kw">range</span> <span class="id">files</span> {
+        <span class="cm">// ✓ 提取为独立函数</span>
+        <span class="kw">if</span> <span class="id">err</span> := <span class="fn">processFile</span>(<span class="id">name</span>); <span class="id">err</span> != <span class="kw">nil</span> {
+            <span class="id">log</span>.<span class="fn">Println</span>(<span class="id">err</span>)
+        }
+    }
+}
+<span class="kw">func</span> <span class="fn">processFile</span>(<span class="id">name</span> <span class="pkg">string</span>) <span class="pkg">error</span> {
+    <span class="id">f</span>, <span class="id">err</span> := <span class="id">os</span>.<span class="fn">Open</span>(<span class="id">name</span>)
+    <span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> { <span class="kw">return</span> <span class="id">err</span> }
+    <span class="kw">defer</span> <span class="id">f</span>.<span class="fn">Close</span>()  <span class="cm">// ✓ 函数返回时关闭</span>
+    <span class="kw">return</span> <span class="fn">process</span>(<span class="id">f</span>)
+}</pre>
+            <p>将循环体提取为独立函数，每次调用后 defer 正确执行。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ defer 参数求值时机误解</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">bad</span>() {
+    <span class="id">start</span> := <span class="id">time</span>.<span class="fn">Now</span>()
+    <span class="kw">defer</span> <span class="id">log</span>.<span class="fn">Println</span>(
+        <span class="st">"elapsed:"</span>, <span class="id">time</span>.<span class="fn">Since</span>(<span class="id">start</span>))
+    <span class="cm">// time.Since(start) 在 defer 语句</span>
+    <span class="cm">// 处被求值（约 0ns），而非返回时</span>
+    <span class="id">time</span>.<span class="fn">Sleep</span>(<span class="num">100</span> * <span class="id">time</span>.<span class="id">Millisecond</span>)
+}</pre>
+            <p>defer 的函数参数（非闭包）在 defer 语句处立即求值，不是函数返回时。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">good</span>() {
+    <span class="id">start</span> := <span class="id">time</span>.<span class="fn">Now</span>()
+    <span class="kw">defer</span> <span class="kw">func</span>() {
+        <span class="id">log</span>.<span class="fn">Println</span>(
+            <span class="st">"elapsed:"</span>, <span class="id">time</span>.<span class="fn">Since</span>(<span class="id">start</span>))
+        <span class="cm">// 函数返回时才执行，计时正确</span>
+    }()
+    <span class="id">time</span>.<span class="fn">Sleep</span>(<span class="num">100</span> * <span class="id">time</span>.<span class="id">Millisecond</span>)
+    <span class="cm">// 打印约 100ms</span>
+}</pre>
+            <p>需要在函数返回时才求值的逻辑，用 defer func() { ... }() 包装成闭包。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ recover 在非 defer 直接调用中无效</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">bad</span>() {
+    <span class="kw">defer</span> <span class="fn">recover</span>()  <span class="cm">// ❌ 无效！</span>
+    <span class="cm">// recover() 的返回值被丢弃</span>
+    <span class="cm">// 等价于 defer func(){ recover() }()</span>
+    <span class="cm">// 但即使这样写也有问题</span>
+
+    <span class="kw">defer</span> <span class="fn">myRecovery</span>()  <span class="cm">// ❌ 间接调用无效</span>
+    <span class="fn">panic</span>(<span class="st">"oops"</span>)       <span class="cm">// 仍然会崩溃</span>
+}
+<span class="kw">func</span> <span class="fn">myRecovery</span>() { <span class="fn">recover</span>() }  <span class="cm">// 间接调用</span></pre>
+            <p>recover 必须在 defer 内直接调用才能捕获 panic，间接调用无效。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">good</span>() {
+    <span class="kw">defer</span> <span class="kw">func</span>() {
+        <span class="kw">if</span> <span class="id">r</span> := <span class="fn">recover</span>(); <span class="id">r</span> != <span class="kw">nil</span> {
+            <span class="id">log</span>.<span class="fn">Printf</span>(<span class="st">"recovered: %v"</span>, <span class="id">r</span>)
+        }
+    }()  <span class="cm">// ✓ defer 内直接调用 recover</span>
+    <span class="fn">panic</span>(<span class="st">"oops"</span>)  <span class="cm">// 被捕获，程序继续</span>
+}
+
+<span class="cm">// recover 返回 panic 传入的值</span>
+<span class="cm">// 可以进一步转换为 error</span></pre>
+            <p>recover 必须 defer func() { if r := recover(); r != nil { ... } }() 这种模式。</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>
+function toggleQA(el){el.classList.toggle('open');}
+document.addEventListener('DOMContentLoaded',()=>{
+  if(typeof NavTracker!=='undefined') NavTracker.track('Defer 与 Panic','golang/defer-panic.html','🛡️','Golang');
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>strings 与 bytes - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:72px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(0,173,216,.12);color:var(--accent);border:1px solid rgba(0,173,216,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.badge-high{background:rgba(251,146,60,.12);color:#fb923c;border:1px solid rgba(251,146,60,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(0,173,216,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.table-wrap{overflow-x:auto;margin:10px 0;}
+table{width:100%;border-collapse:collapse;font-size:.82rem;}
+th{background:rgba(0,173,216,.08);color:var(--accent);padding:8px 12px;text-align:left;border:1px solid var(--border2);font-size:.78rem;}
+td{padding:7px 12px;border:1px solid var(--border2);color:var(--dim);}
+tr:hover td{background:rgba(255,255,255,.02);}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}}
+</style>
+</head>
+<body>
+
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">🔤 strings 与 bytes</span>
+  <div class="nav-tags">
+    <span class="ntag">strings</span>
+    <span class="ntag">bytes</span>
+    <span class="ntag">strconv</span>
+  </div>
+</div>
+
+<div class="page-wrap">
+  <nav class="side-nav">
+    <ul>
+      <li><a href="#strings-api">strings API</a></li>
+      <li><a href="#builder">Builder 拼接</a></li>
+      <li><a href="#bytes-api">bytes 包</a></li>
+      <li><a href="#strconv">strconv 编码</a></li>
+      <li><a href="#qa">面试题</a></li>
+      <li><a href="#pitfalls">易错点</a></li>
+    </ul>
+  </nav>
+
+  <main class="main-content">
+
+    <!-- Section 1: strings API -->
+    <section class="section" id="strings-api">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>strings 包高频 API</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>包含与前缀/后缀检测</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p>最常用的布尔判断函数，底层均基于内存比较，时间复杂度 O(n)。</p>
+          <pre><span class="pkg">import</span> <span class="st">"strings"</span>
+
+<span class="fn">strings.Contains</span>(<span class="st">"seafood"</span>, <span class="st">"foo"</span>)      <span class="cm">// true</span>
+<span class="fn">strings.ContainsAny</span>(<span class="st">"team"</span>, <span class="st">"i"</span>)       <span class="cm">// false</span>
+<span class="fn">strings.ContainsRune</span>(<span class="st">"hello"</span>, <span class="st">'e'</span>)     <span class="cm">// true</span>
+
+<span class="fn">strings.HasPrefix</span>(<span class="st">"Gopher"</span>, <span class="st">"Go"</span>)      <span class="cm">// true</span>
+<span class="fn">strings.HasSuffix</span>(<span class="st">"Amigo"</span>, <span class="st">"go"</span>)       <span class="cm">// false  (大小写敏感)</span>
+
+<span class="cm">// 大小写不敏感比较</span>
+<span class="fn">strings.EqualFold</span>(<span class="st">"Go"</span>, <span class="st">"go"</span>)          <span class="cm">// true</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>Split / Join</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p><code>Split</code> 返回 <code>[]string</code>，始终非 nil，空串时返回含一个空元素的切片。<code>SplitN</code> 限制分割次数，<code>SplitAfter</code> 保留分隔符。</p>
+          <pre><span class="id">parts</span> := <span class="fn">strings.Split</span>(<span class="st">"a,b,c"</span>, <span class="st">","</span>)    <span class="cm">// ["a","b","c"]</span>
+<span class="id">parts</span>  = <span class="fn">strings.Split</span>(<span class="st">""</span>, <span class="st">","</span>)           <span class="cm">// [""]  — 注意：长度为1</span>
+<span class="id">fields</span> := <span class="fn">strings.Fields</span>(<span class="st">"  foo bar  baz  "</span>) <span class="cm">// ["foo","bar","baz"]</span>
+
+<span class="id">s</span> := <span class="fn">strings.Join</span>([]<span class="kw">string</span>{<span class="st">"a"</span>,<span class="st">"b"</span>,<span class="st">"c"</span>}, <span class="st">"-"</span>) <span class="cm">// "a-b-c"</span>
+
+<span class="cm">// SplitN: 最多分割 n 段</span>
+<span class="id">p</span> := <span class="fn">strings.SplitN</span>(<span class="st">"a:b:c:d"</span>, <span class="st">":"</span>, <span class="num">3</span>) <span class="cm">// ["a","b","c:d"]</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>Replace / Trim / Index / Count</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <pre><span class="cm">// Replace(s, old, new, n)  n=-1 表示全部替换</span>
+<span class="fn">strings.Replace</span>(<span class="st">"oink oink oink"</span>, <span class="st">"oink"</span>, <span class="st">"moo"</span>, <span class="num">2</span>)  <span class="cm">// "moo moo oink"</span>
+<span class="fn">strings.ReplaceAll</span>(<span class="st">"oink oink"</span>, <span class="st">"oink"</span>, <span class="st">"moo"</span>)        <span class="cm">// "moo moo"</span>
+
+<span class="cm">// Trim 系列</span>
+<span class="fn">strings.TrimSpace</span>(<span class="st">"  hello  \n"</span>)       <span class="cm">// "hello"</span>
+<span class="fn">strings.Trim</span>(<span class="st">"¡¡¡hello!!!"</span>, <span class="st">"!¡"</span>)     <span class="cm">// "hello"  (去除字符集)</span>
+<span class="fn">strings.TrimPrefix</span>(<span class="st">"Goodbye"</span>, <span class="st">"Good"</span>) <span class="cm">// "bye"</span>
+<span class="fn">strings.TrimSuffix</span>(<span class="st">"Hello!"</span>, <span class="st">"!"</span>)     <span class="cm">// "Hello"</span>
+
+<span class="cm">// Index 系列（返回字节位置，找不到返回 -1）</span>
+<span class="fn">strings.Index</span>(<span class="st">"hello"</span>, <span class="st">"ll"</span>)           <span class="cm">// 2</span>
+<span class="fn">strings.LastIndex</span>(<span class="st">"go gopher"</span>, <span class="st">"go"</span>)   <span class="cm">// 3</span>
+<span class="fn">strings.IndexRune</span>(<span class="st">"hello"</span>, <span class="st">'e'</span>)        <span class="cm">// 1</span>
+
+<span class="cm">// Count</span>
+<span class="fn">strings.Count</span>(<span class="st">"cheese"</span>, <span class="st">"e"</span>)           <span class="cm">// 3</span>
+<span class="fn">strings.Count</span>(<span class="st">"five"</span>, <span class="st">""</span>)              <span class="cm">// 5  (UTF-8 字符数 + 1)</span></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: Builder -->
+    <section class="section" id="builder">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>strings.Builder 与字符串拼接</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>拼接方式性能对比</h3>
+          <span class="badge badge-adv">perf</span>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>方式</th>
+                  <th>适用场景</th>
+                  <th>内存分配</th>
+                  <th>推荐度</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td><code>s += x</code></td><td>少量（&lt;5次）</td><td>每次分配</td><td>简单场景</td></tr>
+                <tr><td><code>strings.Builder</code></td><td>循环 / 大量拼接</td><td>指数增长，少次</td><td>★★★★★</td></tr>
+                <tr><td><code>bytes.Buffer</code></td><td>需要 io.Writer</td><td>同 Builder</td><td>★★★★</td></tr>
+                <tr><td><code>fmt.Sprintf</code></td><td>格式化输出</td><td>reflect 开销大</td><td>非热路径</td></tr>
+                <tr><td><code>strings.Join</code></td><td>已有切片</td><td>一次分配</td><td>★★★★★</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>核心原因：<code>string</code> 是不可变的，<code>+=</code> 每次都会分配新内存并复制，N 次拼接总复制量为 O(n²)。</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>strings.Builder 正确使用</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <pre><span class="kw">var</span> <span class="id">b</span> <span class="pkg">strings</span>.<span class="id">Builder</span>
+
+<span class="cm">// 提前预估容量，避免扩容</span>
+<span class="id">b</span>.<span class="fn">Grow</span>(<span class="num">64</span>)
+
+<span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="num">10</span>; <span class="id">i</span>++ {
+    <span class="id">b</span>.<span class="fn">WriteString</span>(<span class="st">"hello"</span>)
+    <span class="id">b</span>.<span class="fn">WriteByte</span>(<span class="st">' '</span>)
+    <span class="id">b</span>.<span class="fn">WriteRune</span>(<span class="st">'🚀'</span>)    <span class="cm">// 写入 Unicode 字符</span>
+}
+<span class="id">result</span> := <span class="id">b</span>.<span class="fn">String</span>()   <span class="cm">// 零拷贝返回内部 buf 的字符串视图</span>
+<span class="id">b</span>.<span class="fn">Reset</span>()             <span class="cm">// 重置复用，保留底层 buf 容量</span>
+
+<span class="cm">// 注意：Builder 不能复制后使用（内部含指针检测）</span>
+<span class="cm">// b2 := b  // 运行时 panic: strings: illegal use of non-zero Builder copied by value</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>fmt.Sprintf 开销分析</h3>
+          <span class="badge badge-high">high</span>
+        </div>
+        <div class="card-body">
+          <p><code>fmt.Sprintf</code> 使用反射解析格式化动词，即使是简单的 <code>%d</code> 也比 <code>strconv.Itoa</code> 慢 3-5 倍，在热路径中应避免。</p>
+          <pre><span class="cm">// 慢：fmt.Sprintf 用 reflect，每次分配</span>
+<span class="id">s1</span> := <span class="pkg">fmt</span>.<span class="fn">Sprintf</span>(<span class="st">"%d"</span>, <span class="num">42</span>)
+
+<span class="cm">// 快：strconv，无反射</span>
+<span class="id">s2</span> := <span class="pkg">strconv</span>.<span class="fn">Itoa</span>(<span class="num">42</span>)
+
+<span class="cm">// 更快：AppendInt 追加到已有 buf，零分配</span>
+<span class="kw">var</span> <span class="id">buf</span> []<span class="kw">byte</span>
+<span class="id">buf</span> = <span class="pkg">strconv</span>.<span class="fn">AppendInt</span>(<span class="id">buf</span>, <span class="num">42</span>, <span class="num">10</span>)</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: bytes -->
+    <section class="section" id="bytes-api">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>bytes 包</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>bytes.Buffer 与 bytes.Reader</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p><code>bytes.Buffer</code> 实现了 <code>io.Reader</code>、<code>io.Writer</code>、<code>io.ByteWriter</code> 等接口，适合需要传递 Writer 接口的场景（如 <code>json.NewEncoder</code>）。<code>strings.Builder</code> 只实现 Write 方向，不可读。</p>
+          <pre><span class="cm">// bytes.Buffer — 可读可写</span>
+<span class="kw">var</span> <span class="id">buf</span> <span class="pkg">bytes</span>.<span class="id">Buffer</span>
+<span class="id">buf</span>.<span class="fn">WriteString</span>(<span class="st">"hello"</span>)
+<span class="id">buf</span>.<span class="fn">WriteByte</span>(<span class="st">' '</span>)
+<span class="pkg">fmt</span>.<span class="fn">Fprintf</span>(&amp;<span class="id">buf</span>, <span class="st">"world %d"</span>, <span class="num">42</span>)
+<span class="id">s</span> := <span class="id">buf</span>.<span class="fn">String</span>()   <span class="cm">// 会复制一次</span>
+<span class="id">b</span> := <span class="id">buf</span>.<span class="fn">Bytes</span>()    <span class="cm">// 返回底层 slice，无复制</span>
+
+<span class="cm">// bytes.Reader — 只读，零拷贝包装 []byte</span>
+<span class="id">r</span> := <span class="pkg">bytes</span>.<span class="fn">NewReader</span>([]<span class="kw">byte</span>(<span class="st">"hello"</span>))
+<span class="id">r</span>.<span class="fn">Seek</span>(<span class="num">0</span>, <span class="pkg">io</span>.<span class="id">SeekStart</span>)  <span class="cm">// 支持随机访问</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>strings 与 bytes 函数对应关系</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>strings 函数</th><th>bytes 对应</th><th>差异说明</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>strings.Contains</code></td><td><code>bytes.Contains</code></td><td>参数为 []byte</td></tr>
+                <tr><td><code>strings.Split</code></td><td><code>bytes.Split</code></td><td>返回 [][]byte</td></tr>
+                <tr><td><code>strings.Join</code></td><td><code>bytes.Join</code></td><td>入参 [][]byte</td></tr>
+                <tr><td><code>strings.TrimSpace</code></td><td><code>bytes.TrimSpace</code></td><td>相同语义</td></tr>
+                <tr><td><code>strings.Replace</code></td><td><code>bytes.Replace</code></td><td>返回新 []byte</td></tr>
+                <tr><td><code>strings.Builder</code></td><td><code>bytes.Buffer</code></td><td>Buffer 可读写</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>[]byte 与 string 转换开销</h3>
+          <span class="badge badge-high">high</span>
+        </div>
+        <div class="card-body">
+          <p>通常情况下 <code>[]byte(str)</code> 和 <code>string(b)</code> 都会产生一次内存拷贝。但 Go 编译器在以下特定模式中会优化为零拷贝：</p>
+          <pre><span class="cm">// 以下场景编译器会优化（不分配）</span>
+<span class="id">m</span>[<span class="kw">string</span>(<span class="id">b</span>)]          <span class="cm">// map 查找</span>
+<span class="id">s</span> == <span class="kw">string</span>(<span class="id">b</span>)          <span class="cm">// 比较</span>
+<span class="kw">switch</span> <span class="kw">string</span>(<span class="id">b</span>) { ... } <span class="cm">// switch</span>
+
+<span class="cm">// unsafe 包零拷贝转换（生产慎用）</span>
+<span class="kw">import</span> <span class="st">"unsafe"</span>
+
+<span class="kw">func</span> <span class="fn">bytesToString</span>(<span class="id">b</span> []<span class="kw">byte</span>) <span class="kw">string</span> {
+    <span class="kw">return</span> <span class="id">*</span>(*<span class="kw">string</span>)(<span class="pkg">unsafe</span>.<span class="fn">Pointer</span>(&amp;<span class="id">b</span>))
+}
+
+<span class="cm">// Go 1.20+ 官方提供</span>
+<span class="id">s</span> := <span class="pkg">unsafe</span>.<span class="fn">String</span>(&amp;<span class="id">b</span>[<span class="num">0</span>], <span class="kw">len</span>(<span class="id">b</span>))  <span class="cm">// 零拷贝，b 不能 GC</span>
+<span class="id">b2</span> := <span class="pkg">unsafe</span>.<span class="fn">Slice</span>(<span class="pkg">unsafe</span>.<span class="fn">StringData</span>(<span class="id">s</span>), <span class="kw">len</span>(<span class="id">s</span>))</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: strconv -->
+    <section class="section" id="strconv">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>strconv 与编码</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>Itoa / Atoi 与 ParseInt / FormatInt</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <pre><span class="cm">// int → string</span>
+<span class="id">s</span> := <span class="pkg">strconv</span>.<span class="fn">Itoa</span>(<span class="num">42</span>)                    <span class="cm">// "42"，等价 FormatInt(42,10)</span>
+<span class="id">s</span>  = <span class="pkg">strconv</span>.<span class="fn">FormatInt</span>(<span class="num">255</span>, <span class="num">16</span>)           <span class="cm">// "ff" (16进制)</span>
+<span class="id">s</span>  = <span class="pkg">strconv</span>.<span class="fn">FormatInt</span>(<span class="num">8</span>, <span class="num">2</span>)             <span class="cm">// "1000" (二进制)</span>
+
+<span class="cm">// string → int</span>
+<span class="id">n</span>, <span class="id">err</span> := <span class="pkg">strconv</span>.<span class="fn">Atoi</span>(<span class="st">"42"</span>)             <span class="cm">// 返回 int</span>
+<span class="id">n64</span>, <span class="id">err</span> := <span class="pkg">strconv</span>.<span class="fn">ParseInt</span>(<span class="st">"ff"</span>, <span class="num">16</span>, <span class="num">64</span>) <span class="cm">// 基数16，位宽64</span>
+<span class="id">_</span>, <span class="id">ok</span> := <span class="id">err</span>.(<span class="id">*</span><span class="pkg">strconv</span>.<span class="id">NumError</span>)           <span class="cm">// 类型断言检查错误</span>
+
+<span class="cm">// bool</span>
+<span class="id">b</span>, <span class="id">_</span>  := <span class="pkg">strconv</span>.<span class="fn">ParseBool</span>(<span class="st">"true"</span>)        <span class="cm">// 支持: 1,t,T,true,TRUE</span>
+<span class="id">s</span>     = <span class="pkg">strconv</span>.<span class="fn">FormatBool</span>(<span class="kw">true</span>)           <span class="cm">// "true"</span>
+
+<span class="cm">// float</span>
+<span class="id">f</span>, <span class="id">_</span>  := <span class="pkg">strconv</span>.<span class="fn">ParseFloat</span>(<span class="st">"3.14"</span>, <span class="num">64</span>)
+<span class="id">s</span>     = <span class="pkg">strconv</span>.<span class="fn">FormatFloat</span>(<span class="id">f</span>, <span class="st">'f'</span>, <span class="num">2</span>, <span class="num">64</span>) <span class="cm">// "3.14"</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>AppendInt 避免分配</h3>
+          <span class="badge badge-adv">perf</span>
+        </div>
+        <div class="card-body">
+          <p>Append 系列函数将结果追加到已有 <code>[]byte</code> 尾部，避免 <code>FormatInt</code> + 字符串拼接的两次分配，在序列化场景中非常常见。</p>
+          <pre><span class="kw">var</span> <span class="id">buf</span> []<span class="kw">byte</span>
+<span class="id">buf</span> = <span class="pkg">strconv</span>.<span class="fn">AppendInt</span>(<span class="id">buf</span>, <span class="num">42</span>, <span class="num">10</span>)    <span class="cm">// buf = "42"</span>
+<span class="id">buf</span> = <span class="pkg">append</span>(<span class="id">buf</span>, <span class="st">','</span>)
+<span class="id">buf</span> = <span class="pkg">strconv</span>.<span class="fn">AppendFloat</span>(<span class="id">buf</span>, <span class="num">3.14</span>, <span class="st">'f'</span>, <span class="num">2</span>, <span class="num">64</span>)
+<span class="id">buf</span> = <span class="pkg">strconv</span>.<span class="fn">AppendBool</span>(<span class="id">buf</span>, <span class="kw">true</span>)
+
+<span class="cm">// Quote / Unquote — 处理字符串转义</span>
+<span class="pkg">strconv</span>.<span class="fn">Quote</span>(<span class="st">`He said "hi"`</span>)             <span class="cm">// "\"He said \\\"hi\\\"\""</span>
+<span class="pkg">strconv</span>.<span class="fn">Unquote</span>(<span class="st">`"hello\nworld"`</span>)         <span class="cm">// "hello\nworld"</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>rune / byte 区别与 utf8 包</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p><code>byte</code> 是 <code>uint8</code> 别名，表示单个字节。<code>rune</code> 是 <code>int32</code> 别名，表示单个 Unicode 代码点（Code Point）。中文字符在 UTF-8 中占 3 字节，所以 <code>len("中文")</code> 返回 6，而 <code>len([]rune("中文"))</code> 返回 2。</p>
+          <pre><span class="id">s</span> := <span class="st">"Hello, 世界"</span>
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="kw">len</span>(<span class="id">s</span>))            <span class="cm">// 13 (字节数)</span>
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="kw">len</span>([]<span class="kw">rune</span>(<span class="id">s</span>)))  <span class="cm">// 9  (字符数，会分配)</span>
+
+<span class="cm">// utf8 包：不转 []rune，零分配计数字符</span>
+<span class="pkg">utf8</span>.<span class="fn">RuneCountInString</span>(<span class="id">s</span>)     <span class="cm">// 9</span>
+<span class="pkg">utf8</span>.<span class="fn">ValidString</span>(<span class="id">s</span>)           <span class="cm">// true</span>
+
+<span class="cm">// range 迭代按 rune</span>
+<span class="kw">for</span> <span class="id">i</span>, <span class="id">r</span> := <span class="kw">range</span> <span class="id">s</span> {
+    <span class="cm">// i 是字节偏移，r 是 rune 值</span>
+    <span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"%d: %c\n"</span>, <span class="id">i</span>, <span class="id">r</span>)
+}
+
+<span class="cm">// 解码单个 rune</span>
+<span class="id">r</span>, <span class="id">size</span> := <span class="pkg">utf8</span>.<span class="fn">DecodeRuneInString</span>(<span class="id">s</span>[<span class="num">7</span>:])  <span class="cm">// '世', 3</span></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 5: Q&A -->
+    <section class="section" id="qa">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>面试题</h2>
+      </div>
+
+      <div class="qa-card" onclick="this.classList.toggle('open')">
+        <div class="qa-q">
+          strings.Builder 比直接用 + 拼接快在哪里？什么时候用 +？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          <code>string</code> 是不可变类型，<code>s += x</code> 每次都分配新内存并把原字符串全部复制过去，N 次拼接总复制量 O(n²)。<code>strings.Builder</code> 内部维护 <code>[]byte</code>，按指数增长容量，均摊复制量 O(n)，在循环中拼接时快数十倍甚至数百倍。<br><br>
+          使用 <code>+</code> 的合理场景：拼接次数极少（2-3次）、不在循环里、代码可读性更重要。编译器对 <code>"a" + "b" + "c"</code> 这类常量拼接会在编译期完成，不产生运行时开销。
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="this.classList.toggle('open')">
+        <div class="qa-q">
+          []byte 和 string 相互转换有没有内存分配？如何优化？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          通常有拷贝。<code>string(b)</code> 分配新字符串内存，<code>[]byte(s)</code> 分配新切片内存。编译器在有限场景（map 查找、比较、switch）下会优化为零拷贝。<br><br>
+          优化手段：①减少转换次数，保持同一类型操作；②Go 1.20+ 使用 <code>unsafe.String</code>/<code>unsafe.Slice</code>；③使用 <code>bytes</code> 包代替 <code>strings</code> 包直接操作 <code>[]byte</code>，避免中间转换。
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="this.classList.toggle('open')">
+        <div class="qa-q">
+          strings.Split("", ",") 返回什么？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          返回 <code>[]string{""}</code>，即长度为 1、包含一个空字符串的切片，而不是空切片 <code>[]string{}</code>。这是一个常见陷阱。如果你需要判断输入是否为空，应先检查 <code>s == ""</code>，再决定是否调用 Split。<br><br>
+          对比：<code>strings.Fields("")</code> 返回 <code>[]string{}</code>（空切片）。
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="this.classList.toggle('open')">
+        <div class="qa-q">
+          strconv.Atoi 和 fmt.Sscanf 哪个更快？为什么？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          <code>strconv.Atoi</code> 快 5-10 倍。<code>fmt.Sscanf</code> 内部使用反射解析格式字符串，会产生接口装箱（interface boxing）和额外内存分配；而 <code>strconv.Atoi</code> 是纯算术运算，无反射，无分配。<br><br>
+          基准示例（参考）：<code>strconv.Atoi</code> 约 8 ns/op，<code>fmt.Sscanf</code> 约 100 ns/op。在高频解析场景（如日志解析、协议解析）中差异显著。
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="this.classList.toggle('open')">
+        <div class="qa-q">
+          如何高效地在循环中构建一个字符串？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          首选 <code>strings.Builder</code>：① 调用 <code>b.Grow(estimatedSize)</code> 预分配；② 循环内调用 <code>WriteString</code>/<code>WriteByte</code>；③ 最后调用 <code>b.String()</code>。<br><br>
+          如果已知所有片段，直接用 <code>strings.Join(parts, sep)</code>——内部精确计算总长度，只分配一次内存，比 Builder 更快。
+          避免在循环中使用 <code>fmt.Sprintf</code> 或 <code>+=</code>。
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 6: Pitfalls -->
+    <section class="section" id="pitfalls">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>易错点</h2>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">✗ 循环中用 += 拼接字符串，O(n²) 复制</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// 错误：每次都复制</span>
+<span class="kw">var</span> <span class="id">result</span> <span class="kw">string</span>
+<span class="kw">for</span> <span class="id">_</span>, <span class="id">item</span> := <span class="kw">range</span> <span class="id">items</span> {
+    <span class="id">result</span> += <span class="id">item</span>  <span class="cm">// O(n²)</span>
+}</pre>
+            <p>items 有 1000 个元素时，总共复制约 500,000 次字符，性能极差。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 正确：Builder 均摊 O(n)</span>
+<span class="kw">var</span> <span class="id">b</span> <span class="pkg">strings</span>.<span class="id">Builder</span>
+<span class="id">b</span>.<span class="fn">Grow</span>(<span class="kw">len</span>(<span class="id">items</span>) * <span class="num">10</span>)
+<span class="kw">for</span> <span class="id">_</span>, <span class="id">item</span> := <span class="kw">range</span> <span class="id">items</span> {
+    <span class="id">b</span>.<span class="fn">WriteString</span>(<span class="id">item</span>)
+}
+<span class="id">result</span> := <span class="id">b</span>.<span class="fn">String</span>()</pre>
+            <p>Grow 预分配后内循环几乎零分配，速度快 10-100 倍。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">✗ strings.Builder 不是并发安全的</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// 错误：多 goroutine 共享 Builder</span>
+<span class="kw">var</span> <span class="id">b</span> <span class="pkg">strings</span>.<span class="id">Builder</span>
+<span class="kw">var</span> <span class="id">wg</span> <span class="pkg">sync</span>.<span class="id">WaitGroup</span>
+<span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="num">10</span>; <span class="id">i</span>++ {
+    <span class="id">wg</span>.<span class="fn">Add</span>(<span class="num">1</span>)
+    <span class="kw">go</span> <span class="kw">func</span>() {
+        <span class="kw">defer</span> <span class="id">wg</span>.<span class="fn">Done</span>()
+        <span class="id">b</span>.<span class="fn">WriteString</span>(<span class="st">"x"</span>) <span class="cm">// 数据竞争!</span>
+    }()
+}</pre>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 正确：加锁保护</span>
+<span class="kw">var</span> <span class="id">mu</span> <span class="pkg">sync</span>.<span class="id">Mutex</span>
+<span class="kw">var</span> <span class="id">b</span>  <span class="pkg">strings</span>.<span class="id">Builder</span>
+<span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="num">10</span>; <span class="id">i</span>++ {
+    <span class="id">wg</span>.<span class="fn">Add</span>(<span class="num">1</span>)
+    <span class="kw">go</span> <span class="kw">func</span>() {
+        <span class="kw">defer</span> <span class="id">wg</span>.<span class="fn">Done</span>()
+        <span class="id">mu</span>.<span class="fn">Lock</span>()
+        <span class="id">b</span>.<span class="fn">WriteString</span>(<span class="st">"x"</span>)
+        <span class="id">mu</span>.<span class="fn">Unlock</span>()
+    }()
+}</pre>
+            <p>或各 goroutine 用独立 Builder，最后合并。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">✗ []byte(str) 转换会复制，除非编译器优化</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// 误以为零拷贝</span>
+<span class="id">s</span> := <span class="st">"hello world"</span>
+<span class="id">b</span> := []<span class="kw">byte</span>(<span class="id">s</span>)   <span class="cm">// 分配新内存并复制</span>
+<span class="id">b</span>[<span class="num">0</span>] = <span class="st">'H'</span>
+<span class="cm">// s 不会改变（设计如此）</span>
+<span class="cm">// 但循环里频繁转换浪费内存</span></pre>
+            <p>在热路径里反复 <code>[]byte(s)</code> 会给 GC 造成大量短生命周期垃圾。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 保持 []byte 不转换</span>
+<span class="id">b</span> := []<span class="kw">byte</span>(<span class="st">"hello world"</span>)
+<span class="cm">// 直接用 bytes 包操作</span>
+<span class="id">b</span> = <span class="pkg">bytes</span>.<span class="fn">ToUpper</span>(<span class="id">b</span>)
+<span class="id">b</span> = <span class="pkg">bytes</span>.<span class="fn">TrimSpace</span>(<span class="id">b</span>)
+<span class="cm">// 只在需要时转一次 string</span>
+<span class="id">result</span> := <span class="kw">string</span>(<span class="id">b</span>)</pre>
+            <p>在整个处理链中保持 <code>[]byte</code>，只在边界处做一次转换。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+if (typeof NavTracker !== 'undefined') {
+  NavTracker.track('strings 与 bytes','golang/strings-bytes.html','🔤','Golang');
+}
+</script>
+</body>
+</html>

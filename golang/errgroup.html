@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>errgroup - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:44px;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:116px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.side-nav a.active{color:var(--accent);background:rgba(0,173,216,.08);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(0,173,216,.12);color:var(--accent);border:1px solid rgba(0,173,216,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.badge-high{background:rgba(251,146,60,.12);color:#fb923c;border:1px solid rgba(251,146,60,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(0,173,216,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">🎯 errgroup</span>
+  <div class="nav-tags">
+    <span class="ntag">errgroup</span>
+    <span class="ntag">structured-concurrency</span>
+    <span class="ntag">waitgroup</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <nav class="side-nav">
+    <ul>
+      <li><a href="#basic">errgroup 基础</a></li>
+      <li><a href="#vs-wg">与 WaitGroup 对比</a></li>
+      <li><a href="#context">context 传播</a></li>
+      <li><a href="#patterns">应用模式</a></li>
+      <li><a href="#qa">面试问答</a></li>
+      <li><a href="#pitfalls">常见陷阱</a></li>
+    </ul>
+  </nav>
+  <main class="main-content">
+
+    <div class="section" id="basic">
+      <div class="section-title"><div class="title-bar"></div><h2>errgroup 基础</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>Group.Go / Group.Wait</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>errgroup 是 golang.org/x/sync 包提供的结构化并发工具，在 WaitGroup 基础上增加了<strong>错误收集</strong>和<strong>context 取消</strong>能力。</p>
+          <ul>
+            <li><code>g.Go(func() error)</code> — 启动 goroutine，自动计数</li>
+            <li><code>g.Wait()</code> — 等待所有 goroutine 完成，返回<strong>第一个非 nil error</strong></li>
+            <li>发生第一个错误时，context 被取消（需用 <code>WithContext</code>）</li>
+            <li>其他 goroutine 应通过 ctx 感知取消并提前退出</li>
+          </ul>
+          <pre><span class="kw">import</span> <span class="st">"golang.org/x/sync/errgroup"</span>
+
+<span class="id">g</span> := <span class="kw">new</span>(<span class="pkg">errgroup</span>.<span class="id">Group</span>)
+
+<span class="id">g</span>.<span class="fn">Go</span>(<span class="kw">func</span>() <span class="kw">error</span> {
+    <span class="kw">return</span> <span class="fn">fetchUserData</span>()
+})
+<span class="id">g</span>.<span class="fn">Go</span>(<span class="kw">func</span>() <span class="kw">error</span> {
+    <span class="kw">return</span> <span class="fn">fetchOrderData</span>()
+})
+
+<span class="kw">if</span> <span class="id">err</span> := <span class="id">g</span>.<span class="fn">Wait</span>(); <span class="id">err</span> != <span class="kw">nil</span> {
+    <span class="kw">return</span> <span class="pkg">fmt</span>.<span class="fn">Errorf</span>(<span class="st">"fetch failed: %w"</span>, <span class="id">err</span>)
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="vs-wg">
+      <div class="section-title"><div class="title-bar"></div><h2>与 WaitGroup 对比</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>错误传播与代码简洁性</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>WaitGroup 不提供错误传播机制，需要额外的 channel 或 mutex 收集错误；errgroup 将这些模式封装好了。</p>
+          <ul>
+            <li>WaitGroup：需手动 Add/Done，需 channel 收集错误，需检查 channel</li>
+            <li>errgroup：自动 Add/Done，Wait 直接返回第一个错误，代码更简洁</li>
+            <li>errgroup 只返回第一个错误，若需要所有错误则仍需自定义收集</li>
+          </ul>
+          <pre><span class="cm">// WaitGroup 版本（繁琐）</span>
+<span class="kw">var</span> <span class="id">wg</span> <span class="pkg">sync</span>.<span class="id">WaitGroup</span>
+<span class="id">errc</span> := <span class="fn">make</span>(<span class="kw">chan</span> <span class="kw">error</span>, <span class="num">2</span>)
+<span class="id">wg</span>.<span class="fn">Add</span>(<span class="num">2</span>)
+<span class="kw">go</span> <span class="kw">func</span>() { <span class="kw">defer</span> <span class="id">wg</span>.<span class="fn">Done</span>(); <span class="id">errc</span> &lt;- <span class="fn">f1</span>() }()
+<span class="kw">go</span> <span class="kw">func</span>() { <span class="kw">defer</span> <span class="id">wg</span>.<span class="fn">Done</span>(); <span class="id">errc</span> &lt;- <span class="fn">f2</span>() }()
+<span class="id">wg</span>.<span class="fn">Wait</span>()
+<span class="kw">close</span>(<span class="id">errc</span>)
+<span class="kw">for</span> <span class="id">err</span> := <span class="kw">range</span> <span class="id">errc</span> {
+    <span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> { <span class="kw">return</span> <span class="id">err</span> }
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="context">
+      <div class="section-title"><div class="title-bar"></div><h2>context 传播</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>errgroup.WithContext</h3><span class="badge badge-adv">[进阶]</span></div>
+        <div class="card-body">
+          <p>使用 <code>errgroup.WithContext</code> 获得可取消的 context，任何一个 goroutine 返回错误时，ctx 会被 cancel，其他 goroutine 可通过 ctx.Done() 感知并提前退出。</p>
+          <ul>
+            <li>ctx 在 Wait 返回后无论成功还是失败都会被 cancel（cleanup）</li>
+            <li>goroutine 内应将 ctx 传给所有 I/O 操作（http.NewRequestWithContext 等）</li>
+            <li>父 ctx 被 cancel 时，衍生的 errgroup ctx 也会取消</li>
+          </ul>
+          <pre><span class="id">g</span>, <span class="id">ctx</span> := <span class="pkg">errgroup</span>.<span class="fn">WithContext</span>(<span class="pkg">context</span>.<span class="fn">Background</span>())
+
+<span class="id">urls</span> := []<span class="kw">string</span>{<span class="st">"http://a.com"</span>, <span class="st">"http://b.com"</span>}
+<span class="kw">for</span> _, <span class="id">url</span> := <span class="kw">range</span> <span class="id">urls</span> {
+    <span class="id">url</span> := <span class="id">url</span> <span class="cm">// 捕获循环变量</span>
+    <span class="id">g</span>.<span class="fn">Go</span>(<span class="kw">func</span>() <span class="kw">error</span> {
+        <span class="id">req</span>, _ := <span class="pkg">http</span>.<span class="fn">NewRequestWithContext</span>(<span class="id">ctx</span>, <span class="st">"GET"</span>, <span class="id">url</span>, <span class="kw">nil</span>)
+        <span class="id">resp</span>, <span class="id">err</span> := <span class="pkg">http</span>.<span class="fn">DefaultClient</span>.<span class="fn">Do</span>(<span class="id">req</span>)
+        <span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> { <span class="kw">return</span> <span class="id">err</span> }
+        <span class="kw">defer</span> <span class="id">resp</span>.<span class="id">Body</span>.<span class="fn">Close</span>()
+        <span class="kw">return</span> <span class="fn">process</span>(<span class="id">resp</span>)
+    })
+}
+<span class="kw">return</span> <span class="id">g</span>.<span class="fn">Wait</span>()</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="patterns">
+      <div class="section-title"><div class="title-bar"></div><h2>实际应用模式</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>并行请求与限流</h3><span class="badge badge-adv">[进阶]</span></div>
+        <div class="card-body">
+          <p>errgroup 本身不限制并发数，需要搭配 semaphore（信号量）实现并发限流。</p>
+          <ul>
+            <li>用 <code>golang.org/x/sync/semaphore</code> 限制最大并发 goroutine 数</li>
+            <li>或用 buffered channel 作为简单信号量</li>
+            <li>结构化并发：所有 goroutine 的生命周期都被 Wait 管理，不泄漏</li>
+          </ul>
+          <pre><span class="cm">// 限制最多 3 个并发</span>
+<span class="id">g</span>, <span class="id">ctx</span> := <span class="pkg">errgroup</span>.<span class="fn">WithContext</span>(<span class="id">parentCtx</span>)
+<span class="id">sem</span> := <span class="fn">make</span>(<span class="kw">chan</span> <span class="kw">struct</span>{}, <span class="num">3</span>)
+
+<span class="kw">for</span> _, <span class="id">item</span> := <span class="kw">range</span> <span class="id">items</span> {
+    <span class="id">item</span> := <span class="id">item</span>
+    <span class="id">sem</span> &lt;- <span class="kw">struct</span>{}{}     <span class="cm">// 获取令牌（阻塞）</span>
+    <span class="id">g</span>.<span class="fn">Go</span>(<span class="kw">func</span>() <span class="kw">error</span> {
+        <span class="kw">defer</span> <span class="kw">func</span>() { &lt;-<span class="id">sem</span> }() <span class="cm">// 释放令牌</span>
+        <span class="kw">return</span> <span class="fn">process</span>(<span class="id">ctx</span>, <span class="id">item</span>)
+    })
+}
+<span class="kw">return</span> <span class="id">g</span>.<span class="fn">Wait</span>()</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="qa">
+      <div class="section-title"><div class="title-bar"></div><h2>面试问答</h2></div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">errgroup 和 WaitGroup 的主要区别？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">主要有三点区别：1) 错误处理：WaitGroup 无内建错误传播，errgroup 的 Wait() 返回第一个错误；2) Context 集成：errgroup.WithContext 在首个错误发生时自动取消 ctx，WaitGroup 没有这个功能；3) API 简洁性：errgroup.Go 自动管理计数，无需手动 Add/Done。缺点：errgroup 只保留第一个错误，若需要收集所有错误需要自定义。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">errgroup.Wait 返回什么错误？如果多个 goroutine 都返回了错误呢？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">Wait 只返回所有 goroutine 中<strong>第一个返回的非 nil 错误</strong>。若多个 goroutine 都返回了错误，后续的错误会被丢弃。这是通过 <code>sync.Once</code> 实现的：第一个错误触发 once.Do，后续错误不再更新。如果业务需要所有错误，可以在闭包外用 slice + mutex 自行收集，然后 g.Go 返回 nil 或哨兵错误。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">如何用 errgroup 限制并发数？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">errgroup 本身不支持并发限制。常用两种方案：1) buffered channel 作信号量：在循环中先向 channel 发送令牌（阻塞），goroutine 完成时从 channel 取出令牌；2) golang.org/x/sync/semaphore.Weighted：<code>sem.Acquire(ctx, 1)</code> 获取，<code>sem.Release(1)</code> 释放，支持带权重的获取和 context 取消。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">errgroup 的 ctx 什么时候会被 cancel？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">使用 errgroup.WithContext 时，派生的 ctx 在以下情况被 cancel：1) 任何一个 g.Go 的函数返回非 nil 错误时立即 cancel；2) 所有 goroutine 完成后，Wait 返回前也会 cancel（cleanup）。因此不管成功还是失败，Wait 返回后 ctx 一定是已取消状态。如果只需要在错误时取消，直接使用 WithContext；不需要的话用 new(errgroup.Group)。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">errgroup 中的 goroutine panic 会怎样？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">errgroup 的 Go 方法不做 recover，goroutine 内的 panic 会直接传播导致程序崩溃（与普通 goroutine panic 行为相同）。如果需要 panic 安全，需要在传给 g.Go 的函数内自行 recover，将 panic 转换成 error 返回。这是与某些第三方库（如 go-errgroup）的区别，标准 errgroup 有意不处理 panic，认为 panic 表示不可恢复的错误。</div>
+      </div>
+    </div>
+
+    <div class="section" id="pitfalls">
+      <div class="section-title"><div class="title-bar"></div><h2>常见陷阱</h2></div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 忘记检查 Wait 返回的 error（vs ✅ 始终处理错误）</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="id">g</span>.<span class="fn">Go</span>(<span class="kw">func</span>() <span class="kw">error</span> {
+    <span class="kw">return</span> <span class="fn">riskyOp</span>()
+})
+<span class="id">g</span>.<span class="fn">Wait</span>() <span class="cm">// 忘记检查 error！</span>
+<span class="cm">// 以为成功了，实则有错误被忽略</span>
+<span class="fn">useResults</span>() <span class="cm">// 可能用了不完整的数据</span></pre>
+            <p>g.Wait() 的 error 必须检查，否则静默失败，使用不完整数据。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="id">g</span>.<span class="fn">Go</span>(<span class="kw">func</span>() <span class="kw">error</span> {
+    <span class="kw">return</span> <span class="fn">riskyOp</span>()
+})
+<span class="kw">if</span> <span class="id">err</span> := <span class="id">g</span>.<span class="fn">Wait</span>(); <span class="id">err</span> != <span class="kw">nil</span> {
+    <span class="kw">return</span> <span class="pkg">fmt</span>.<span class="fn">Errorf</span>(<span class="st">"group failed: %w"</span>, <span class="id">err</span>)
+}
+<span class="fn">useResults</span>() <span class="cm">// 安全：确认无错误</span></pre>
+            <p>始终检查 Wait 的 error，有错误时提前返回，避免使用部分数据。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ goroutine 中捕获循环变量（vs ✅ 每次循环创建副本）</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">for</span> _, <span class="id">url</span> := <span class="kw">range</span> <span class="id">urls</span> {
+    <span class="id">g</span>.<span class="fn">Go</span>(<span class="kw">func</span>() <span class="kw">error</span> {
+        <span class="cm">// url 是循环变量，所有 goroutine</span>
+        <span class="cm">// 共享同一个 url 的最终值</span>
+        <span class="kw">return</span> <span class="fn">fetch</span>(<span class="id">url</span>) <span class="cm">// 竞态！</span>
+    })
+}</pre>
+            <p>所有 goroutine 捕获的是同一个 url 变量，执行时可能都是最后一个 URL。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">for</span> _, <span class="id">url</span> := <span class="kw">range</span> <span class="id">urls</span> {
+    <span class="id">url</span> := <span class="id">url</span> <span class="cm">// 创建副本（Go 1.22前必须）</span>
+    <span class="id">g</span>.<span class="fn">Go</span>(<span class="kw">func</span>() <span class="kw">error</span> {
+        <span class="kw">return</span> <span class="fn">fetch</span>(<span class="id">url</span>)
+    })
+}
+<span class="cm">// Go 1.22+ 循环变量每次迭代独立，无需此操作</span></pre>
+            <p>在闭包外重新声明变量创建副本，Go 1.22+ 的新循环语义自动解决此问题。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 不限并发数导致资源耗尽（vs ✅ 信号量限流）</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// 100万条数据全部并发处理</span>
+<span class="kw">for</span> _, <span class="id">item</span> := <span class="kw">range</span> <span class="id">millionItems</span> {
+    <span class="id">item</span> := <span class="id">item</span>
+    <span class="id">g</span>.<span class="fn">Go</span>(<span class="kw">func</span>() <span class="kw">error</span> {
+        <span class="kw">return</span> <span class="fn">httpFetch</span>(<span class="id">item</span>)
+    })
+}
+<span class="cm">// 100万个 goroutine + 连接，OOM</span></pre>
+            <p>无限制启动 goroutine，内存和 fd 耗尽，程序崩溃。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="id">sem</span> := <span class="fn">make</span>(<span class="kw">chan</span> <span class="kw">struct</span>{}, <span class="num">50</span>) <span class="cm">// 最多 50 并发</span>
+<span class="kw">for</span> _, <span class="id">item</span> := <span class="kw">range</span> <span class="id">millionItems</span> {
+    <span class="id">item</span> := <span class="id">item</span>
+    <span class="id">sem</span> &lt;- <span class="kw">struct</span>{}{}
+    <span class="id">g</span>.<span class="fn">Go</span>(<span class="kw">func</span>() <span class="kw">error</span> {
+        <span class="kw">defer</span> <span class="kw">func</span>() { &lt;-<span class="id">sem</span> }()
+        <span class="kw">return</span> <span class="fn">httpFetch</span>(<span class="id">item</span>)
+    })
+}</pre>
+            <p>信号量确保最多 50 个并发 goroutine，避免资源耗尽。</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>
+function toggleQA(card) {
+  card.classList.toggle('open');
+}
+(function() {
+  var links = document.querySelectorAll('.side-nav a');
+  var sections = Array.from(links).map(function(l) {
+    return document.querySelector(l.getAttribute('href'));
+  }).filter(Boolean);
+  function onScroll() {
+    var scrollY = window.scrollY + 140;
+    var current = sections[0];
+    sections.forEach(function(s) { if (s.offsetTop <= scrollY) current = s; });
+    links.forEach(function(l) {
+      l.classList.toggle('active', l.getAttribute('href') === '#' + current.id);
+    });
+  }
+  window.addEventListener('scroll', onScroll, {passive: true});
+  onScroll();
+})();
+if(typeof NavTracker!=='undefined') NavTracker.track('errgroup','golang/errgroup.html','🎯','Golang');
+</script>
+</body>
+</html>

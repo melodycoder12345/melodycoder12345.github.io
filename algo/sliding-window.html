@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>滑动窗口 - 算法</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#38bdf8;}
+*{box-sizing:border-box;margin:0;padding:0}body{background:radial-gradient(circle at 20% 0%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}a{color:inherit}.content{max-width:1160px;margin:0 auto;padding:44px clamp(20px,4vw,58px) 76px}.hero{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr);gap:22px;align-items:stretch;margin-bottom:22px}.card,.section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.72);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.28)}.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}h1{font-size:clamp(2rem,4vw,4.1rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}.summary{font-size:1rem;color:var(--dim);line-height:1.85}.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}.map{display:grid;grid-template-columns:1fr;gap:10px}.term{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}.term strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}.term span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.section h2{font-size:.9rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:13px}.section p,.section li{color:var(--dim);font-size:.92rem;line-height:1.85}.section ul{padding-left:18px;display:flex;flex-direction:column;gap:9px}.callout{margin-top:18px;border-left:3px solid var(--accent);padding:13px 15px;background:color-mix(in srgb,var(--accent) 10%,transparent);border-radius:0 12px 12px 0;color:var(--dim);line-height:1.75}.back-row{margin-top:24px;display:flex;gap:12px;flex-wrap:wrap}.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}.btn:hover{color:var(--text);border-color:var(--accent)}@media(max-width:900px){.hero,.grid{grid-template-columns:1fr}.content{padding:30px 16px 58px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {
+    "title": "窗口",
+    "body": "当前被左右边界包住的连续区间。",
+    "tag": "term"
+  },
+  {
+    "title": "增量状态",
+    "body": "窗口变化时能 O(1) 或近似 O(1) 更新的计数、和、频率表。",
+    "tag": "term"
+  },
+  {
+    "title": "单调边界",
+    "body": "左右指针只向前移动，不回退。",
+    "tag": "term"
+  }
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="B">
+<section class="hero"><div class="card"><div class="eyebrow">算法 / sliding-window / B 类型</div><h1>滑动窗口</h1><p class="summary">滑动窗口用左右边界维护连续区间，在边界单调移动时增量更新状态。</p><div class="tags"><span>双指针</span><span>窗口状态</span><span>流式统计</span></div><div class="callout">B 类型页面重点是把背景、术语、机制、误区和工程场景讲清楚；本页不强行加入动画。</div></div><div class="card map"><div class="eyebrow">核心术语</div><div class="term"><strong>窗口</strong><span>当前被左右边界包住的连续区间。</span></div><div class="term"><strong>增量状态</strong><span>窗口变化时能 O(1) 或近似 O(1) 更新的计数、和、频率表。</span></div><div class="term"><strong>单调边界</strong><span>左右指针只向前移动，不回退。</span></div></div></section>
+<section class="grid"><article class="section"><h2>背景</h2><p>很多问题都在问“某个连续区间内是否满足条件”。如果每次都重新扫描窗口，复杂度会退化。滑动窗口把变化限制在进入和离开的元素上。</p></article><article class="section"><h2>运行机制</h2><ul><li>右边界负责引入新元素，扩大候选范围。</li><li>当窗口不满足约束时，左边界持续收缩并移除旧贡献。</li><li>每移动一次只处理进入/离开元素，所以总复杂度通常是 O(n)。</li></ul></article><article class="section"><h2>常见误区</h2><ul><li>状态不能增量维护时，不适合强行套滑动窗口。</li><li>左右边界若会反复回退，复杂度不再是线性。</li></ul></article><article class="section"><h2>工程场景</h2><ul><li>限流窗口、TCP 拥塞窗口、Kafka 消费 lag 观测都能借用“窗口 + 状态”的思维。</li></ul></article><article class="section"><h2>边界判断</h2><p>判断这个概念是否适用时，先看它解决的核心约束，再看代价是否落在业务可接受范围内。不要只记名字，要能说清楚它牺牲了什么、保留了什么。</p></article><article class="section"><h2>学习路径</h2><p>建议先理解本页术语，再回到相关模块页面观察它如何连接缓存、存储、网络或运行时。遇到具体系统时，用“输入、状态、输出、失败条件”四个问题复盘。</p></article></section>
+<div class="back-row"><a class="btn" href="index.html">返回算法模块</a><a class="btn" href="../graph.html?q=%E6%BB%91%E5%8A%A8%E7%AA%97%E5%8F%A3">在知识星图中查看</a></div>
+</main>
+</body>
+</html>

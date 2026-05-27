@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Goroutine 生命周期 - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;--g:#38bdf8;--m:#fb923c;--p:#c084fc;--q:#4ade80;}
+*{box-sizing:border-box;margin:0;padding:0;}
+
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;min-height:100vh;}
+.nav{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);flex-shrink:0;position:sticky;top:var(--snav-h,44px);z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;display:flex;align-items:center;gap:5px;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.main-area{display:flex;flex:none;height:calc(100vh - var(--snav-h,44px) - 88px);min-height:300px;overflow:hidden;}
+.steps-panel{width:270px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid var(--border2);overflow:hidden;background:rgba(15,23,42,.6);}
+.scenarios{display:flex;gap:0;border-bottom:1px solid var(--border2);overflow-x:auto;}
+.sc-btn{flex:1;background:none;border:none;color:var(--dim);padding:9px 6px;cursor:pointer;font-size:.72rem;font-family:inherit;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;text-align:center;}
+.sc-btn:hover{color:var(--text);}
+.sc-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+.step-scroll{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
+.step-desc-card{border:1px solid var(--border2);border-radius:12px;background:rgba(255,255,255,.025);padding:14px;transition:border-color .3s,box-shadow .3s;}
+.step-desc-card.lit{border-color:var(--accent);box-shadow:0 0 20px rgba(0,173,216,.12);}
+.step-desc-card .step-num{font-size:.66rem;font-family:monospace;color:var(--accent);margin-bottom:6px;}
+.step-desc-card h3{font-size:.88rem;font-weight:700;margin-bottom:6px;}
+.step-desc-card p{font-size:.78rem;color:var(--dim);line-height:1.68;}
+.flow-nav{padding:10px 14px;border-top:1px solid var(--border2);display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.fn-dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--border2);background:rgba(255,255,255,.04);cursor:pointer;font-size:.68rem;font-family:monospace;color:var(--dim);display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;}
+.fn-dot:hover{border-color:var(--dim);color:var(--text);}
+.fn-dot.done{border-color:var(--accent);background:rgba(0,173,216,.15);color:var(--accent);}
+.fn-dot.cur{border-color:var(--accent);background:rgba(0,173,216,.25);color:var(--accent);transform:scale(1.12);}
+.step-ctr{margin-left:auto;font-size:.7rem;font-family:monospace;color:var(--dim2);}
+.diagram-panel{flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid var(--border2);overflow:hidden;}
+.diagram-inner{flex:1;overflow:auto;padding:20px;background:radial-gradient(ellipse 70% 50% at 30% 20%,rgba(0,173,216,.07),transparent 60%);}
+.diagram-svg{width:100%;max-width:620px;display:block;}
+.code-panel{width:44%;min-width:360px;flex-shrink:0;display:flex;flex-direction:column;background:var(--panel2);overflow:hidden;}
+.code-hd{padding:10px 16px;border-bottom:1px solid var(--border2);font-size:.8rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);}
+.code-body{flex:1;overflow-y:auto;padding:14px 0;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.78rem;line-height:1.7;}
+.cl{display:flex;border-left:2px solid transparent;transition:background .25s,border-color .25s;}
+.cl.hi{background:rgba(0,173,216,.1);border-left-color:var(--accent);}
+.cl.hi2{background:rgba(248,113,113,.08);border-left-color:#f87171;}
+.ln{min-width:42px;padding:0 10px 0 12px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;}
+.lc{padding:0 14px 0 4px;white-space:pre-wrap;word-break:break-word;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.controls{display:flex;align-items:center;gap:10px;padding:11px 22px;border-top:1px solid var(--border2);background:var(--panel);flex-shrink:0;}
+.ctrl-btn{background:rgba(255,255,255,.07);border:1px solid var(--border2);color:var(--text);padding:7px 16px;border-radius:8px;cursor:pointer;font-size:.82rem;font-family:inherit;transition:all .15s;}
+.ctrl-btn:hover{background:rgba(255,255,255,.12);}
+.ctrl-btn:disabled{opacity:.35;cursor:not-allowed;}
+.ctrl-btn.primary{background:rgba(0,173,216,.16);border-color:rgba(0,173,216,.35);color:var(--accent);}
+.ctrl-btn.primary:hover{background:rgba(0,173,216,.25);}
+@keyframes glow-pulse{0%,100%{filter:drop-shadow(0 0 4px rgba(56,189,248,.6));}50%{filter:drop-shadow(0 0 12px rgba(56,189,248,.95));}}
+@keyframes glow-red{0%,100%{filter:drop-shadow(0 0 4px rgba(248,113,113,.6));}50%{filter:drop-shadow(0 0 10px rgba(248,113,113,.9));}}
+@keyframes particle-flow{0%{stroke-dashoffset:200;}100%{stroke-dashoffset:0;}}
+.flow-arrow{stroke-dasharray:8 5;animation:particle-flow 1.2s linear infinite;}
+.active-node{animation:glow-pulse 2s infinite;}
+.leak-node{animation:glow-red 2s infinite;}
+.extras{padding:48px 40px;background:var(--bg);border-top:1px solid var(--border2);}
+.ext-section{margin-bottom:48px;}
+.ext-hd{display:flex;align-items:center;gap:12px;margin-bottom:22px;}
+.ext-hd-bar{width:4px;height:20px;border-radius:2px;background:var(--accent);}
+.ext-hd h2{font-size:1.25rem;font-weight:700;}
+.qa-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.qa-card{border:1px solid var(--border2);border-radius:12px;overflow:hidden;}
+.qa-q{padding:13px 16px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);font-size:.84rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .15s;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:13px 16px;font-size:.82rem;color:var(--dim);line-height:1.72;}
+.qa-card.open .qa-a{display:block;}
+.qa-a code{font-family:monospace;color:var(--accent);font-size:.78rem;}
+.pitfall-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.78rem;font-weight:700;border-bottom:1px solid var(--border2);}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;gap:0;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--dim);line-height:1.6;white-space:pre-wrap;}
+.pitfall-col p{font-size:.76rem;color:var(--dim);line-height:1.65;margin-top:6px;}
+.pitfall-col p strong{color:var(--text);}
+@media(max-width:900px){body{overflow-y:auto;height:auto;}.main-area{flex-direction:column;overflow:visible;height:auto;flex:none;}.steps-panel{width:100%;border-right:none;border-bottom:1px solid var(--border2);}.diagram-panel{border-right:none;min-height:340px;}.code-panel{width:100%;min-width:0;height:320px;flex:none;}.qa-grid,.pitfall-grid{grid-template-columns:1fr;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}.extras{padding:32px 20px;}}
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">Goroutine 生命周期</span>
+  <div class="nav-tags">
+    <span class="ntag">goroutine</span>
+    <span class="ntag">leak</span>
+    <span class="ntag">context</span>
+    <span class="ntag">lifecycle</span>
+  </div>
+</div>
+
+<div class="main-area">
+  <div class="steps-panel">
+    <div class="scenarios" id="scenarios"></div>
+    <div class="step-scroll">
+      <div class="step-desc-card lit" id="stepCard">
+        <div class="step-num" id="stepNum">步骤 1</div>
+        <h3 id="stepTitle"></h3>
+        <p id="stepDesc"></p>
+      </div>
+    </div>
+    <div class="flow-nav" id="flowNav"></div>
+  </div>
+
+  <div class="diagram-panel">
+    <div class="diagram-inner">
+      <svg id="svg" class="diagram-svg" viewBox="0 0 620 360" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </div>
+
+  <div class="code-panel">
+    <div class="code-hd"><div class="code-dot"></div><span id="codeTitle">main.go</span></div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="ctrl-btn" id="btnReset" onclick="reset()">⏮ 重置</button>
+  <button class="ctrl-btn primary" id="btnPrev" onclick="prev()">← 上一步</button>
+  <button class="ctrl-btn primary" id="btnNext" onclick="next()">下一步 →</button>
+</div>
+
+<div class="extras">
+  <div class="ext-section">
+    <div class="ext-hd"><div class="ext-hd-bar"></div><h2>面试题</h2></div>
+    <div class="qa-grid">
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">goroutine 和 OS 线程的区别？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">goroutine 是用户态轻量线程：初始栈 2KB（线程 ~2MB），可按需增长到 1GB；调度由 Go runtime 管理，不需要系统调用；切换代价 ~100ns（线程 ~1μs）。单个 Go 程序可轻松运行百万 goroutine。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">goroutine 泄漏的常见原因有哪些？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">① channel 阻塞：发送/接收无对端且没有退出路径<br>② 死锁：多 goroutine 互相等待<br>③ select 无 default/无 done channel<br>④ sync.WaitGroup 未调用 Done<br>⑤ 无限循环没有退出条件<br><br>诊断工具：<code>runtime.NumGoroutine()</code>，pprof goroutine 分析，<code>go tool trace</code>。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">如何优雅地停止一个 goroutine？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">不能从外部强制终止（没有 goroutine ID 和 kill 接口）。正确方式：<br>① <code>context.WithCancel</code>：传入 ctx，定期检查 <code>ctx.Done()</code><br>② done channel：发送信号，goroutine 选择退出<br>③ 关闭 input channel：goroutine range 自动退出<br>设计原则：goroutine 的创建者负责确保它能退出。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">goroutine 的栈如何增长和收缩？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">初始栈 2KB，编译器在每个函数调用处插入栈检查代码。栈不够时申请 2 倍大的新栈，将旧栈内容复制过去（"栈拷贝"策略，已替换旧的"分段栈"）。GC 时栈会检查是否可以缩减至 1/4 大小（若实际使用远小于当前大小）。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">context.WithCancel 和 context.WithTimeout 的区别？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a"><code>WithCancel</code>：手动调用 cancel() 取消，适合主动控制生命周期。<br><code>WithTimeout(d)</code>：d 时间后自动取消，等效于 <code>WithDeadline(time.Now().Add(d))</code>。<br>两者都会向整个 context 树传播取消信号，子 context 也会被取消。<br>最佳实践：<strong>defer cancel()</strong> 防止资源泄漏（即使 context 已超时，也需要 cancel 释放关联资源）。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">GOMAXPROCS 是什么？如何设置？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">GOMAXPROCS 控制同时执行 Go 代码的 OS 线程数（即 P 的数量）。默认等于 CPU 核心数。设置方式：<code>runtime.GOMAXPROCS(n)</code> 或环境变量 <code>GOMAXPROCS=n</code>。对于 CPU 密集型任务，等于核数最优；IO 密集型任务，可以适当调大；容器环境下需注意 cgroup CPU 限制与物理核心数的差异（推荐 <code>automaxprocs</code> 库）。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ext-section">
+    <div class="ext-hd"><div class="ext-hd-bar"></div><h2>易错点</h2></div>
+    <div class="pitfall-grid">
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 循环变量捕获（经典陷阱）</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col"><pre>for i := 0; i < 5; i++ {
+    go func() {
+        fmt.Println(i) // 捕获的是 i 的引用
+        // 可能全部打印 5
+    }()
+}
+time.Sleep(time.Second)</pre></div>
+          <div class="pitfall-col"><pre>for i := 0; i < 5; i++ {
+    i := i // 创建副本
+    go func() {
+        fmt.Println(i) // 捕获副本
+    }()
+}
+// 或 Go 1.22+ 循环变量语义变更，
+// 每次迭代自动创建新变量</pre><p><strong>Go 1.22 起</strong> for 循环变量语义已修正，每次迭代创建新变量，旧代码注意兼容性。</p></div>
+        </div>
+      </div>
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 未等待 goroutine 完成就返回</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col"><pre>func process(items []Item) {
+    for _, item := range items {
+        go handle(item)
+    }
+    // main 函数 return，goroutine 被强制终止
+    return
+}</pre></div>
+          <div class="pitfall-col"><pre>func process(items []Item) {
+    var wg sync.WaitGroup
+    for _, item := range items {
+        wg.Add(1)
+        go func(it Item) {
+            defer wg.Done()
+            handle(it)
+        }(item)
+    }
+    wg.Wait() // 等所有 goroutine 完成
+}</pre><p>用 <code>sync.WaitGroup</code> 或 <code>errgroup.Group</code> 等待所有 goroutine 完成。</p></div>
+        </div>
+      </div>
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 忘记 defer cancel() 导致 context 泄漏</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col"><pre>func doWork() {
+    ctx, cancel := context.WithTimeout(
+        context.Background(), 5*time.Second)
+    // 忘记 cancel()
+    // context 资源直到超时才释放
+    result := fetch(ctx)
+    return result
+}</pre></div>
+          <div class="pitfall-col"><pre>func doWork() {
+    ctx, cancel := context.WithTimeout(
+        context.Background(), 5*time.Second)
+    defer cancel() // 始终调用！
+    // 即使提前 return 也会释放资源
+    result := fetch(ctx)
+    return result
+}</pre><p>WithCancel/WithTimeout 创建的 cancel 函数<strong>必须调用</strong>，否则 context 相关的 goroutine 和 timer 资源不会释放。</p></div>
+        </div>
+      </div>
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ goroutine 中 panic 未被 recover</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col"><pre>func main() {
+    go func() {
+        panic("boom") // 终止整个程序！
+    }()
+    // 主 goroutine 无法 recover
+    // 子 goroutine 的 panic
+    time.Sleep(time.Second)
+}</pre></div>
+          <div class="pitfall-col"><pre>func safeGo(f func()) {
+    go func() {
+        defer func() {
+            if r := recover(); r != nil {
+                log.Printf("recovered: %v", r)
+            }
+        }()
+        f()
+    }()
+}
+
+// 使用
+safeGo(func() { /* 业务逻辑 */ })</pre><p>每个 goroutine 需要自己 recover。可封装 safeGo 工具函数统一处理。</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function defs(){return`<defs>
+<marker id="arr" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#475569"/></marker>
+<marker id="arrA" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#00add8"/></marker>
+<marker id="arrG" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#38bdf8"/></marker>
+<marker id="arrR" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#f87171"/></marker>
+<filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>`;}
+
+function gbox(x,y,w,h,label,sub,color,active,rx=10){
+  const c=hexToRgb(color);
+  const fill=active?`rgba(${c},.18)`:'rgba(255,255,255,.03)';
+  const stroke=active?color:'#334155';
+  const filt=active?' filter="url(#glow)"':'';
+  const lc=active?color:'#94a3b8';
+  return`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${active?2:1}"${filt}/>
+<text x="${x+w/2}" y="${y+h/2-(sub?6:0)}" text-anchor="middle" fill="${lc}" font-size="11" font-weight="700" font-family="monospace">${label}</text>`+
+(sub?`<text x="${x+w/2}" y="${y+h/2+10}" text-anchor="middle" fill="${active?'#e2e8f0':'#64748b'}" font-size="9" font-family="monospace">${sub}</text>`:'');
+}
+
+function state(x,y,label,color,active){
+  const c=hexToRgb(color);
+  const fill=active?`rgba(${c},.2)`:'rgba(255,255,255,.04)';
+  const stroke=active?color:'#334155';
+  const filt=active?' filter="url(#glow)"':'';
+  return`<circle cx="${x}" cy="${y}" r="28" fill="${fill}" stroke="${stroke}" stroke-width="${active?2:1}"${filt}/>
+<text x="${x}" y="${y+4}" text-anchor="middle" fill="${active?color:'#64748b'}" font-size="9" font-weight="700" font-family="monospace">${label}</text>`;
+}
+
+function arr(x1,y1,x2,y2,color,dashed,anim){
+  const cls=anim?'class="flow-arrow" ':'';
+  const da=dashed?'stroke-dasharray="6 4" ':'';
+  const mkId=color==='#00add8'?'arrA':color==='#38bdf8'?'arrG':color==='#f87171'?'arrR':'arr';
+  return`<line ${cls}${da}x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="1.8" marker-end="url(#${mkId})"/>`;
+}
+
+function lbl(x,y,t,c,s){return`<text x="${x}" y="${y}" fill="${c||'#64748b'}" font-size="${s||9}" font-family="monospace">${t}</text>`;}
+function hexToRgb(hex){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return`${r},${g},${b}`;}
+
+let curScene=0,curStep=0;
+
+const SCENARIOS=[
+// ── 场景 A: 正常生命周期 ──────────────────────────────────
+{
+  label:'正常生命周期',
+  codeTitle:'lifecycle.go',
+  steps:[
+    {title:'创建 goroutine',desc:'go func() 或 go someFunc() 创建 goroutine。runtime 分配约 2KB 初始栈，将 goroutine 加入本地 P 的运行队列（runq）。'},
+    {title:'进入就绪态（Runnable）',desc:'goroutine 在运行队列中等待 P 调度。GMP 中的 P 从本地 runq 或全局 runq 取出 goroutine，分配给 M 执行。'},
+    {title:'执行中（Running）',desc:'M 运行 goroutine 的代码。goroutine 占用 CPU，执行业务逻辑。每 10ms 检查一次抢占标志（sysmon），防止长时间占用。'},
+    {title:'阻塞（Blocked）',desc:'goroutine 遇到 channel、mutex、系统调用等阻塞操作，从 Running 变为 Blocked，让出 P。其他 goroutine 可继续调度。'},
+    {title:'goroutine 结束，栈回收',desc:'函数返回后 goroutine 结束，状态变为 Dead。runtime 将栈内存放回 pool 或回收给 GC，goroutine 对象可被复用。'},
+  ],
+  hl:[[2],[],[],[7],[12,13]],
+  code:`package main
+
+go func() {   // ← 创建 goroutine
+    // Runnable: 在 P 的 runq 中等待
+
+    // Running: M 执行此处代码
+    result := compute()
+
+    // Blocked: 等待 channel
+    ch <- result
+
+    // Dead: 函数返回
+    // 栈内存回收
+}()`,
+  render(step){
+    let s=defs();
+    const states=[
+      {label:'New',color:'#64748b',x:80,y:180},
+      {label:'Runnable',color:'#38bdf8',x:200,y:180},
+      {label:'Running',color:'#4ade80',x:330,y:180},
+      {label:'Blocked',color:'#fb923c',x:460,y:260},
+      {label:'Dead',color:'#94a3b8',x:540,y:180},
+    ];
+    states.forEach((st,i)=>{
+      const active = (step===0&&i===0)||(step===1&&i===1)||(step===2&&i===2)||(step===3&&i===3)||(step===4&&i===4);
+      s+=state(st.x,st.y,st.label,st.color,active);
+    });
+    // Arrows between states
+    s+=arr(108,180,170,180,'#475569',false,step===0);
+    s+=arr(228,180,300,180,'#38bdf8',false,step===1);
+    // Running -> Blocked
+    s+=arr(346,205,442,248,'#fb923c',step!==3,step===3);
+    // Blocked -> Runnable
+    s+=`<path d="M 444,235 Q 320,140 212,165" stroke="${step===3?'#38bdf8':'#334155'}" stroke-width="1.5" fill="none" stroke-dasharray="5 3" marker-end="url(#${step===3?'arrG':'arr'})"/>`;
+    // Running -> Dead
+    s+=arr(358,180,510,180,'#94a3b8',step!==4,step===4);
+    // Labels
+    s+=lbl(130,165,'go func()','#00add8',9);
+    s+=lbl(208,165,'P.runq','#38bdf8',8);
+    s+=lbl(298,165,'M执行','#4ade80',8);
+    s+=lbl(370,244,'channel/IO','#fb923c',8);
+    s+=lbl(435,218,'唤醒','#38bdf8',8);
+    // Step annotation
+    const anns=['runtime 分配栈, 加入 runq','P 调度，分配给 M 执行','函数代码执行中','遇阻塞让出 P，其他 G 继续','函数返回，栈回收'];
+    s+=`<text x="310" y="330" text-anchor="middle" fill="#64748b" font-size="10" font-family="monospace">${anns[step]||''}</text>`;
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+
+// ── 场景 B: goroutine 泄漏 ────────────────────────────────
+{
+  label:'Goroutine 泄漏',
+  codeTitle:'leak.go',
+  steps:[
+    {title:'发起 HTTP 请求',desc:'每次 HTTP 请求到来，启动一个 goroutine 处理。此时程序运行正常，goroutine 数量与请求数成比例。'},
+    {title:'goroutine 在 channel 阻塞',desc:'handler goroutine 向无缓冲 channel 发送数据，但调用方已因超时提前 return。channel 没有接收方，goroutine 永远阻塞。'},
+    {title:'泄漏积累',desc:'每个请求都创建一个泄漏的 goroutine。随着时间推移，runtime.NumGoroutine() 持续增长，内存不断上涨。'},
+    {title:'内存耗尽 / OOM',desc:'泄漏的 goroutine 持有栈内存和引用的对象，GC 无法回收。最终内存耗尽，程序 OOM 崩溃或性能严重下降。'},
+    {title:'修复：使用带缓冲 channel + context',desc:'有缓冲 channel（容量1）确保发送不阻塞。结合 context 取消，goroutine 可以在调用方放弃时安全退出，不再泄漏。'},
+  ],
+  hl:[[3,4],[6,7],[],[],[14,15,16]],
+  code:[
+`package main
+
+func handler(w http.ResponseWriter, r *http.Request) {
+    ch := make(chan Result)  // 无缓冲！
+    go func() {
+        ch <- slowWork()    // 阻塞在这里
+        // 若调用方已返回，永远阻塞
+    }()
+
+    select {
+    case res := <-ch:
+        w.Write(res.Data)
+    case <-time.After(1 * time.Second):
+        w.WriteHeader(504)
+        return // goroutine 泄漏！
+    }
+}`,
+`package main
+
+func handler(w http.ResponseWriter, r *http.Request) {
+    ctx := r.Context()
+    ch := make(chan Result, 1) // 有缓冲
+    go func() {
+        select {
+        case ch <- slowWork(ctx): // 传 ctx
+        case <-ctx.Done():        // 可取消
+        }
+    }()
+
+    select {
+    case res := <-ch:
+        w.Write(res.Data)
+    case <-ctx.Done():
+        w.WriteHeader(504)
+    }
+}`,
+  ],
+  render(step){
+    let s=defs();
+    const leakCount=[0,1,3,7,2][step];
+    // Server box
+    s+=gbox(20,120,110,50,'HTTP Server','请求处理',step<4?'#38bdf8':'#4ade80',true);
+    // Goroutine circles for leak visualization
+    for(let i=0;i<leakCount;i++){
+      const angle=(i/Math.max(leakCount,1))*Math.PI*1.5-0.3;
+      const r=90;
+      const cx=360+Math.cos(angle)*r;
+      const cy=180+Math.sin(angle)*r;
+      const isLeak=step<4;
+      const col=isLeak?'#f87171':'#4ade80';
+      const cfill=isLeak?'rgba(248,113,113,.15)':'rgba(74,222,128,.15)';
+      s+=`<circle cx="${cx}" cy="${cy}" r="22" fill="${cfill}" stroke="${col}" stroke-width="1.5"${isLeak?' filter="url(#glow)"':''}/>`;
+      s+=`<text x="${cx}" y="${cy+4}" text-anchor="middle" fill="${col}" font-size="9" font-family="monospace">${isLeak?'泄漏':'安全'}</text>`;
+      if(isLeak){
+        s+=`<text x="${cx}" y="${cy+16}" text-anchor="middle" fill="#f87171" font-size="7" font-family="monospace">⚠ 阻塞</text>`;
+      }
+    }
+    // Counter
+    const memVals=['正常','↑ 增长','↑↑ 持续增长','↑↑↑ 耗尽','↓ 修复'];
+    const goroutineCount=[10,11,13,17,'10+n'][step];
+    s+=gbox(200,60,120,40,`goroutines: ${goroutineCount}`,`内存: ${memVals[step]}`,step===3?'#f87171':step===4?'#4ade80':'#fb923c',step>=1,8);
+    // Annotation
+    const anns=[
+      '正常请求处理，goroutine 生命周期正常',
+      'channel 无接收方 → goroutine 永远阻塞',
+      'NumGoroutine() 持续增长，内存上涨',
+      '内存耗尽，OOM 或性能崩溃',
+      '带缓冲 channel + context → 安全退出',
+    ];
+    s+=`<text x="310" y="330" text-anchor="middle" fill="${step===3?'#f87171':step===4?'#4ade80':'#64748b'}" font-size="10" font-family="monospace">${anns[step]}</text>`;
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+
+// ── 场景 C: context 取消传播 ──────────────────────────────
+{
+  label:'Context 取消',
+  codeTitle:'context_cancel.go',
+  steps:[
+    {title:'建立 context 树',desc:'context.WithCancel 创建可取消 context，WithTimeout 在其基础上附加超时。每个 goroutine 接收 context 并传递给子操作。'},
+    {title:'context 传递给子 goroutine',desc:'父 goroutine 将 ctx 传递给子 goroutine（HTTP 请求、DB 查询等）。context 树形成层级结构，取消信号从根向叶传播。'},
+    {title:'调用 cancel() 或超时触发',desc:'手动调用 cancel() 或 timeout 到期后，根 context 的 Done channel 关闭。取消信号沿树向下广播。'},
+    {title:'所有子 context 收到取消',desc:'所有派生自被取消 context 的子 context 同时收到取消。各 goroutine 在 select <-ctx.Done() 处退出。'},
+    {title:'goroutine 树优雅退出',desc:'所有 goroutine 检查到 ctx.Done() 后清理资源并退出。context.Err() 返回 context.Canceled 或 context.DeadlineExceeded。'},
+  ],
+  hl:[[1,2],[4,5,6],[9],[10,11],[13,14]],
+  code:`package main
+
+func main() {
+    ctx, cancel := context.WithTimeout(
+        context.Background(), 5*time.Second)
+    defer cancel()
+
+    // 子 goroutine 接收 ctx
+    go fetchData(ctx)
+    go queryDB(ctx)
+    // ctx 超时 → 两者同时取消
+}
+
+func fetchData(ctx context.Context) {
+    select {
+    case data := <-httpGet(ctx, url):
+        process(data)
+    case <-ctx.Done():  // ← 收到取消
+        return
+    }
+}`,
+  render(step){
+    let s=defs();
+    // Root context
+    const rootCancel=step>=2;
+    s+=gbox(240,40,140,44,'ctx (root)','WithTimeout 5s',rootCancel?'#f87171':'#00add8',true,10);
+    // Child contexts
+    const childCancel=step>=3;
+    s+=gbox(100,140,120,40,'ctx (fetchData)',null,childCancel?'#f87171':'#38bdf8',step>=1,8);
+    s+=gbox(400,140,120,40,'ctx (queryDB)',null,childCancel?'#f87171':'#4ade80',step>=1,8);
+    // Goroutines
+    const gDone=step>=4;
+    s+=gbox(60,240,120,40,'fetchData','goroutine',gDone?'#4ade80':'#38bdf8',step>=1,8);
+    s+=gbox(440,240,120,40,'queryDB','goroutine',gDone?'#4ade80':'#4ade80',step>=1,8);
+    // Arrows from root to children
+    const propColor=step>=2?'#f87171':'#00add8';
+    s+=arr(260,84,160,140,propColor,step<2,step===2||step===3);
+    s+=arr(360,84,460,140,propColor,step<2,step===2||step===3);
+    // Arrows from child ctx to goroutine
+    s+=arr(160,180,120,240,'#38bdf8',step<1,step===1);
+    s+=arr(460,180,500,240,'#4ade80',step<1,step===1);
+    // Cancel labels
+    if(rootCancel){
+      s+=lbl(272,34,'cancel() / 超时','#f87171',9);
+      s+=`<text x="310" y="100" text-anchor="middle" fill="#f87171" font-size="10" font-family="monospace">↓ 取消信号向下传播</text>`;
+    }
+    if(gDone){
+      s+=lbl(75,296,'ctx.Done() ← 退出','#4ade80',8);
+      s+=lbl(445,296,'ctx.Done() ← 退出','#4ade80',8);
+    }
+    const anns=[
+      '建立 context 树，timeout=5s',
+      '将 ctx 传递给每个子 goroutine',
+      'cancel() 触发，根 context 关闭',
+      '取消信号广播到所有子 context',
+      '所有 goroutine 优雅退出 ✓',
+    ];
+    s+=`<text x="310" y="330" text-anchor="middle" fill="${step>=2?'#f87171':step===4?'#4ade80':'#64748b'}" font-size="10" font-family="monospace">${anns[step]}</text>`;
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+];
+
+function goHL(code){
+  return code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/("(?:[^"\\]|\\.)*")/g,'<span class="st">$1</span>')
+    .replace(/(\/\/[^\n]*)/g,'<span class="cm">$1</span>')
+    .replace(/\b(package|import|func|var|const|type|struct|interface|map|chan|go|defer|return|if|else|for|range|switch|case|default|select|break|continue|make|new|nil|true|false|append|len|cap|close|delete|copy|panic|recover)\b/g,'<span class="kw">$1</span>')
+    .replace(/\b(fmt|time|sync|context|os|io|http|errors|strings|bytes|strconv|log|runtime)\b/g,'<span class="pkg">$1</span>')
+    .replace(/\b([0-9]+)\b/g,'<span class="num">$1</span>');
+}
+
+function renderCode(lines,highlights){
+  const codeArr=typeof lines==='string'?lines.split('\n'):lines;
+  const body=document.getElementById('codeBody');
+  const hiSet=new Set(highlights||[]);
+  body.innerHTML=codeArr.map((l,i)=>{
+    const cls=hiSet.has(i)?'cl hi':'cl';
+    return`<div class="${cls}"><span class="ln">${i+1}</span><span class="lc">${goHL(l)}</span></div>`;
+  }).join('');
+}
+
+function initScenarios(){
+  const sc=SCENARIOS[curScene];
+  document.getElementById('scenarios').innerHTML=SCENARIOS.map((s,i)=>
+    `<button class="sc-btn${i===curScene?' active':''}" onclick="switchScene(${i})">${s.label}</button>`).join('');
+  document.getElementById('codeTitle').textContent=sc.codeTitle;
+  updateStep();
+}
+
+function updateStep(){
+  const sc=SCENARIOS[curScene];
+  const st=sc.steps[curStep];
+  document.getElementById('stepNum').textContent=`步骤 ${curStep+1}`;
+  document.getElementById('stepTitle').textContent=st.title;
+  document.getElementById('stepDesc').textContent=st.desc;
+  const nav=document.getElementById('flowNav');
+  nav.innerHTML=sc.steps.map((_,i)=>{
+    let cls='fn-dot';
+    if(i<curStep) cls+=' done';
+    else if(i===curStep) cls+=' cur';
+    return`<div class="${cls}" onclick="jumpStep(${i})">${i+1}</div>`;
+  }).join('')+`<span class="step-ctr">${curStep+1}/${sc.steps.length}</span>`;
+  const codeArr=Array.isArray(sc.code)?sc.code:null;
+  const codeIdx=codeArr?Math.min(curStep,codeArr.length-1):0;
+  renderCode(codeArr?codeArr[codeIdx]:sc.code,sc.hl[curStep]);
+  const svgEl=document.getElementById('svg');
+  svgEl.style.opacity='0';
+  svgEl.style.transition='opacity .2s';
+  setTimeout(()=>{sc.render(curStep);svgEl.style.opacity='1';},120);
+  document.getElementById('btnPrev').disabled=curStep===0;
+  document.getElementById('btnNext').disabled=curStep===sc.steps.length-1;
+}
+
+function switchScene(i){curScene=i;curStep=0;initScenarios();}
+function jumpStep(i){curStep=i;updateStep();}
+function next(){if(curStep<SCENARIOS[curScene].steps.length-1){curStep++;updateStep();}}
+function prev(){if(curStep>0){curStep--;updateStep();}}
+function reset(){curStep=0;updateStep();}
+function toggleQA(el){el.classList.toggle('open');}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  if(typeof NavTracker!=='undefined') NavTracker.track('Goroutine 生命周期','golang/goroutine.html','⚡','Golang');
+  initScenarios();
+});
+</script>
+</body>
+</html>

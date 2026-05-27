@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HTTP 标准库 - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:44px;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:116px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.side-nav a.active{color:var(--accent);background:rgba(0,173,216,.08);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(0,173,216,.12);color:var(--accent);border:1px solid rgba(0,173,216,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.badge-high{background:rgba(251,146,60,.12);color:#fb923c;border:1px solid rgba(251,146,60,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(0,173,216,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">🌐 HTTP 标准库</span>
+  <div class="nav-tags">
+    <span class="ntag">handler</span>
+    <span class="ntag">middleware</span>
+    <span class="ntag">mux</span>
+    <span class="ntag">transport</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <nav class="side-nav">
+    <ul>
+      <li><a href="#handler">Handler 接口</a></li>
+      <li><a href="#mux">ServeMux</a></li>
+      <li><a href="#middleware">Middleware</a></li>
+      <li><a href="#client">Client &amp; Transport</a></li>
+      <li><a href="#qa">面试问答</a></li>
+      <li><a href="#pitfalls">常见陷阱</a></li>
+    </ul>
+  </nav>
+  <main class="main-content">
+
+    <div class="section" id="handler">
+      <div class="section-title"><div class="title-bar"></div><h2>Handler 接口</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>ServeHTTP 与 HandlerFunc</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>net/http 的核心是 <code>http.Handler</code> 接口，只有一个方法。<code>HandlerFunc</code> 是函数类型适配器，让普通函数实现 Handler。</p>
+          <ul>
+            <li><code>ServeHTTP(w http.ResponseWriter, r *http.Request)</code> — 处理一个 HTTP 请求</li>
+            <li><code>http.HandlerFunc(fn)</code> — 将函数转为 Handler</li>
+            <li>每个请求在独立 goroutine 中处理，Handler 必须是并发安全的</li>
+            <li>写响应后调用 return，不会自动停止处理</li>
+          </ul>
+          <pre><span class="cm">// 实现 Handler 接口</span>
+<span class="kw">type</span> <span class="id">HelloHandler</span> <span class="kw">struct</span>{ <span class="id">msg</span> <span class="kw">string</span> }
+<span class="kw">func</span> (<span class="id">h</span> *<span class="id">HelloHandler</span>) <span class="fn">ServeHTTP</span>(<span class="id">w</span> <span class="pkg">http</span>.<span class="id">ResponseWriter</span>, <span class="id">r</span> *<span class="pkg">http</span>.<span class="id">Request</span>) {
+    <span class="pkg">fmt</span>.<span class="fn">Fprintf</span>(<span class="id">w</span>, <span class="st">"%s"</span>, <span class="id">h</span>.<span class="id">msg</span>)
+}
+
+<span class="cm">// HandlerFunc：函数直接用作 Handler</span>
+<span class="pkg">http</span>.<span class="fn">HandleFunc</span>(<span class="st">"/hello"</span>, <span class="kw">func</span>(<span class="id">w</span> <span class="pkg">http</span>.<span class="id">ResponseWriter</span>, <span class="id">r</span> *<span class="pkg">http</span>.<span class="id">Request</span>) {
+    <span class="id">w</span>.<span class="fn">WriteHeader</span>(<span class="pkg">http</span>.<span class="id">StatusOK</span>)
+    <span class="pkg">fmt</span>.<span class="fn">Fprintln</span>(<span class="id">w</span>, <span class="st">"Hello, Go!"</span>)
+})</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="mux">
+      <div class="section-title"><div class="title-bar"></div><h2>ServeMux 路由</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>路径匹配与路由注册</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>http.ServeMux 是标准库路由器。Go 1.22+ 增强了路径匹配，支持方法和路径参数。DefaultServeMux 是全局实例，生产环境建议创建独立实例。</p>
+          <ul>
+            <li>精确匹配：<code>/foo</code> 只匹配 /foo</li>
+            <li>树匹配：<code>/foo/</code>（以 / 结尾）匹配 /foo/ 开头的所有路径</li>
+            <li>Go 1.22+：<code>GET /users/{id}</code> 支持方法和路径参数，<code>r.PathValue("id")</code></li>
+            <li>第三方路由：chi、gorilla/mux 提供更丰富的功能（中间件链、正则等）</li>
+          </ul>
+          <pre><span class="cm">// Go 1.22+ 增强路由</span>
+<span class="id">mux</span> := <span class="pkg">http</span>.<span class="fn">NewServeMux</span>()
+<span class="id">mux</span>.<span class="fn">HandleFunc</span>(<span class="st">"GET /users/{id}"</span>, <span class="kw">func</span>(<span class="id">w</span> <span class="pkg">http</span>.<span class="id">ResponseWriter</span>, <span class="id">r</span> *<span class="pkg">http</span>.<span class="id">Request</span>) {
+    <span class="id">id</span> := <span class="id">r</span>.<span class="fn">PathValue</span>(<span class="st">"id"</span>)
+    <span class="pkg">fmt</span>.<span class="fn">Fprintf</span>(<span class="id">w</span>, <span class="st">"user: %s"</span>, <span class="id">id</span>)
+})
+<span class="id">mux</span>.<span class="fn">HandleFunc</span>(<span class="st">"POST /users"</span>, <span class="fn">createUser</span>)
+
+<span class="id">srv</span> := &amp;<span class="pkg">http</span>.<span class="id">Server</span>{
+    <span class="id">Addr</span>:    <span class="st">":8080"</span>,
+    <span class="id">Handler</span>: <span class="id">mux</span>,
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="middleware">
+      <div class="section-title"><div class="title-bar"></div><h2>Middleware 链</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>Handler 包装模式</h3><span class="badge badge-adv">[进阶]</span></div>
+        <div class="card-body">
+          <p>Go 中间件是接受并返回 <code>http.Handler</code> 的函数，通过包装实现横切关注点。</p>
+          <ul>
+            <li>包装顺序即执行顺序：最外层先执行请求前逻辑，最后执行响应后逻辑</li>
+            <li>常见中间件：日志、认证、限流、panic 恢复、超时</li>
+            <li>可用 <code>http.TimeoutHandler(h, dur, msg)</code> 为 handler 设置超时</li>
+          </ul>
+          <pre><span class="cm">// 日志中间件</span>
+<span class="kw">func</span> <span class="fn">Logger</span>(<span class="id">next</span> <span class="pkg">http</span>.<span class="id">Handler</span>) <span class="pkg">http</span>.<span class="id">Handler</span> {
+    <span class="kw">return</span> <span class="pkg">http</span>.<span class="fn">HandlerFunc</span>(<span class="kw">func</span>(<span class="id">w</span> <span class="pkg">http</span>.<span class="id">ResponseWriter</span>, <span class="id">r</span> *<span class="pkg">http</span>.<span class="id">Request</span>) {
+        <span class="id">start</span> := <span class="pkg">time</span>.<span class="fn">Now</span>()
+        <span class="id">next</span>.<span class="fn">ServeHTTP</span>(<span class="id">w</span>, <span class="id">r</span>)
+        <span class="pkg">log</span>.<span class="fn">Printf</span>(<span class="st">"%s %s %v"</span>, <span class="id">r</span>.<span class="id">Method</span>, <span class="id">r</span>.<span class="id">URL</span>.<span class="id">Path</span>, <span class="pkg">time</span>.<span class="fn">Since</span>(<span class="id">start</span>))
+    })
+}
+
+<span class="cm">// 认证中间件</span>
+<span class="kw">func</span> <span class="fn">Auth</span>(<span class="id">next</span> <span class="pkg">http</span>.<span class="id">Handler</span>) <span class="pkg">http</span>.<span class="id">Handler</span> {
+    <span class="kw">return</span> <span class="pkg">http</span>.<span class="fn">HandlerFunc</span>(<span class="kw">func</span>(<span class="id">w</span> <span class="pkg">http</span>.<span class="id">ResponseWriter</span>, <span class="id">r</span> *<span class="pkg">http</span>.<span class="id">Request</span>) {
+        <span class="kw">if</span> !<span class="fn">isAuthorized</span>(<span class="id">r</span>) {
+            <span class="pkg">http</span>.<span class="fn">Error</span>(<span class="id">w</span>, <span class="st">"Unauthorized"</span>, <span class="pkg">http</span>.<span class="id">StatusUnauthorized</span>)
+            <span class="kw">return</span>
+        }
+        <span class="id">next</span>.<span class="fn">ServeHTTP</span>(<span class="id">w</span>, <span class="id">r</span>)
+    })
+}
+
+<span class="cm">// 链式组合</span>
+<span class="id">handler</span> := <span class="fn">Logger</span>(<span class="fn">Auth</span>(<span class="id">mux</span>))</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="client">
+      <div class="section-title"><div class="title-bar"></div><h2>http.Client 与 Transport</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>复用连接与超时设置</h3><span class="badge badge-adv">[进阶]</span></div>
+        <div class="card-body">
+          <p>http.Client 内含 Transport，负责 TCP 连接管理和复用。生产环境必须配置超时，不能用默认 Client。</p>
+          <ul>
+            <li><code>http.DefaultClient</code> 无超时，可能永久挂起</li>
+            <li><code>Client.Timeout</code> 是端到端超时（含连接、等待、读取 Body）</li>
+            <li><code>Transport.DialContext</code> 控制连接超时；<code>ResponseHeaderTimeout</code> 控制等待响应头超时</li>
+            <li><code>MaxIdleConns</code>、<code>MaxIdleConnsPerHost</code> 控制连接池大小，避免频繁建连</li>
+          </ul>
+          <pre><span class="kw">var</span> <span class="id">httpClient</span> = &amp;<span class="pkg">http</span>.<span class="id">Client</span>{
+    <span class="id">Timeout</span>: <span class="num">30</span> * <span class="pkg">time</span>.<span class="id">Second</span>,
+    <span class="id">Transport</span>: &amp;<span class="pkg">http</span>.<span class="id">Transport</span>{
+        <span class="id">DialContext</span>: (&amp;<span class="pkg">net</span>.<span class="id">Dialer</span>{
+            <span class="id">Timeout</span>:   <span class="num">5</span> * <span class="pkg">time</span>.<span class="id">Second</span>,
+            <span class="id">KeepAlive</span>: <span class="num">30</span> * <span class="pkg">time</span>.<span class="id">Second</span>,
+        }).<span class="id">DialContext</span>,
+        <span class="id">MaxIdleConnsPerHost</span>:   <span class="num">100</span>,
+        <span class="id">IdleConnTimeout</span>:       <span class="num">90</span> * <span class="pkg">time</span>.<span class="id">Second</span>,
+        <span class="id">ResponseHeaderTimeout</span>: <span class="num">10</span> * <span class="pkg">time</span>.<span class="id">Second</span>,
+        <span class="id">TLSHandshakeTimeout</span>:   <span class="num">10</span> * <span class="pkg">time</span>.<span class="id">Second</span>,
+    },
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="qa">
+      <div class="section-title"><div class="title-bar"></div><h2>面试问答</h2></div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">为什么不要用默认的 http.DefaultClient 做生产请求？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">http.DefaultClient 的 Timeout 为零，表示无超时。在生产环境中，若目标服务响应缓慢或挂起，goroutine 会永久阻塞，最终耗尽资源。此外 DefaultTransport 的连接池参数（MaxIdleConns=100、MaxIdleConnsPerHost=默认2）可能不适合高并发场景。生产环境应创建自定义 http.Client，明确设置所有超时参数。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">Handler 是否并发安全？如何保证？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">每个 HTTP 请求在独立 goroutine 中调用 Handler.ServeHTTP，因此多个请求可能同时执行同一个 Handler。Handler 本身不保证并发安全——需要开发者保证：1) Handler 不持有可变状态，或状态由 Mutex/atomic 保护；2) 函数本地变量是栈上的，天然安全；3) 共享的 DB 连接池、缓存等本身应并发安全；4) ResponseWriter 不应在 ServeHTTP 返回后继续使用。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">http.Server 有哪些超时设置，各自作用？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">Server 有四个超时：1) ReadTimeout：读取完整请求（含 body）的最大时间；2) ReadHeaderTimeout：只读请求头的超时，比 ReadTimeout 更精确，防止 Slowloris 攻击；3) WriteTimeout：写响应的最大时间（从请求头读完后开始计时）；4) IdleTimeout：Keep-Alive 连接等待下一个请求的超时。推荐设置 ReadHeaderTimeout + WriteTimeout，并为每个 Handler 用 http.TimeoutHandler 设置业务超时。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">什么是 ResponseWriter 的写入顺序要求？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">HTTP 响应结构是：状态码 → 响应头 → 响应体。一旦开始写 Body（调用 Write），状态码和 Header 就被锁定发送出去。正确顺序：1) 先调用 w.Header().Set() 设置响应头；2) 调用 w.WriteHeader(code) 发送状态码（若不调用，第一次 Write 自动发送 200）；3) 调用 w.Write() 写 Body。WriteHeader 之后不能再修改 Header，Write 之后不能再 WriteHeader。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">http.Transport 为什么不能在每次请求时重新创建？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">Transport 内部维护连接池（idle connections），复用已建立的 TCP 连接，避免每次 DNS 解析、TCP 握手、TLS 握手。若每次请求重新创建 Transport，连接池丢失，每次都要重新建连，延迟增加 10-100 倍（尤其 TLS）。Transport 应作为包级变量或结构体字段，全局共享。同样，http.Client 也应全局复用，不要在 handler 内部创建。</div>
+      </div>
+    </div>
+
+    <div class="section" id="pitfalls">
+      <div class="section-title"><div class="title-bar"></div><h2>常见陷阱</h2></div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 不读完 Body 导致连接不复用（vs ✅ 读完或 Discard）</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="id">resp</span>, _ := <span class="id">client</span>.<span class="fn">Do</span>(<span class="id">req</span>)
+<span class="kw">defer</span> <span class="id">resp</span>.<span class="id">Body</span>.<span class="fn">Close</span>()
+<span class="kw">if</span> <span class="id">resp</span>.<span class="id">StatusCode</span> != <span class="num">200</span> {
+    <span class="kw">return</span> <span class="id">errBadStatus</span>
+    <span class="cm">// Body 未读完就 return，
+    // Close 后连接直接关闭不复用</span>
+}</pre>
+            <p>仅 Close 未读完的 Body 会关闭底层连接，无法复用，影响性能。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="id">resp</span>, _ := <span class="id">client</span>.<span class="fn">Do</span>(<span class="id">req</span>)
+<span class="kw">defer</span> <span class="kw">func</span>() {
+    <span class="pkg">io</span>.<span class="fn">Copy</span>(<span class="pkg">io</span>.<span class="id">Discard</span>, <span class="id">resp</span>.<span class="id">Body</span>)
+    <span class="id">resp</span>.<span class="id">Body</span>.<span class="fn">Close</span>()
+}()
+<span class="kw">if</span> <span class="id">resp</span>.<span class="id">StatusCode</span> != <span class="num">200</span> {
+    <span class="kw">return</span> <span class="id">errBadStatus</span>
+}</pre>
+            <p>Discard 耗尽剩余 Body 后 Close，连接可以被复用。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 默认 Client 无超时（vs ✅ 自定义 Client 设置超时）</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// http.DefaultClient 无超时！</span>
+<span class="id">resp</span>, <span class="id">err</span> := <span class="pkg">http</span>.<span class="fn">Get</span>(<span class="id">slowURL</span>)
+<span class="cm">// 若 slowURL 挂起，goroutine
+// 永久阻塞，积累会耗尽资源</span>
+
+<span class="cm">// http.Get 等价于：</span>
+<span class="cm">// http.DefaultClient.Get(url)</span></pre>
+            <p>生产环境绝不能用 http.DefaultClient 或 http.Get/Post 包级函数。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">var</span> <span class="id">client</span> = &amp;<span class="pkg">http</span>.<span class="id">Client</span>{
+    <span class="id">Timeout</span>: <span class="num">10</span> * <span class="pkg">time</span>.<span class="id">Second</span>,
+}
+
+<span class="cm">// 或带 context 的精细控制</span>
+<span class="id">ctx</span>, <span class="id">cancel</span> := <span class="pkg">context</span>.<span class="fn">WithTimeout</span>(
+    <span class="id">r</span>.<span class="id">Context</span>(), <span class="num">5</span>*<span class="pkg">time</span>.<span class="id">Second</span>)
+<span class="kw">defer</span> <span class="id">cancel</span>()
+<span class="id">req</span>, _ := <span class="pkg">http</span>.<span class="fn">NewRequestWithContext</span>(<span class="id">ctx</span>, <span class="st">"GET"</span>, <span class="id">url</span>, <span class="kw">nil</span>)
+<span class="id">resp</span>, <span class="id">err</span> := <span class="id">client</span>.<span class="fn">Do</span>(<span class="id">req</span>)</pre>
+            <p>全局自定义 Client 设置 Timeout，或用 context 控制单次请求超时。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ WriteHeader 后继续设置 Header（vs ✅ 先设 Header 再 WriteHeader）</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">handler</span>(<span class="id">w</span> <span class="pkg">http</span>.<span class="id">ResponseWriter</span>, <span class="id">r</span> *<span class="pkg">http</span>.<span class="id">Request</span>) {
+    <span class="id">w</span>.<span class="fn">WriteHeader</span>(<span class="pkg">http</span>.<span class="id">StatusOK</span>)
+    <span class="cm">// WriteHeader 后设置 Header 无效！</span>
+    <span class="id">w</span>.<span class="id">Header</span>().<span class="fn">Set</span>(<span class="st">"Content-Type"</span>, <span class="st">"application/json"</span>)
+    <span class="id">w</span>.<span class="fn">Write</span>(<span class="id">jsonData</span>)
+}</pre>
+            <p>WriteHeader 后响应头已发送，再设置 Header 无效，日志会有 "superfluous response.WriteHeader" 警告。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">handler</span>(<span class="id">w</span> <span class="pkg">http</span>.<span class="id">ResponseWriter</span>, <span class="id">r</span> *<span class="pkg">http</span>.<span class="id">Request</span>) {
+    <span class="cm">// 1. 先设置响应头</span>
+    <span class="id">w</span>.<span class="id">Header</span>().<span class="fn">Set</span>(<span class="st">"Content-Type"</span>, <span class="st">"application/json"</span>)
+    <span class="cm">// 2. 再写状态码（或省略，Write 自动发 200）</span>
+    <span class="id">w</span>.<span class="fn">WriteHeader</span>(<span class="pkg">http</span>.<span class="id">StatusCreated</span>)
+    <span class="cm">// 3. 写 Body</span>
+    <span class="id">w</span>.<span class="fn">Write</span>(<span class="id">jsonData</span>)
+}</pre>
+            <p>响应头必须在 WriteHeader 或首次 Write 之前设置。</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>
+function toggleQA(card) {
+  card.classList.toggle('open');
+}
+(function() {
+  var links = document.querySelectorAll('.side-nav a');
+  var sections = Array.from(links).map(function(l) {
+    return document.querySelector(l.getAttribute('href'));
+  }).filter(Boolean);
+  function onScroll() {
+    var scrollY = window.scrollY + 140;
+    var current = sections[0];
+    sections.forEach(function(s) { if (s.offsetTop <= scrollY) current = s; });
+    links.forEach(function(l) {
+      l.classList.toggle('active', l.getAttribute('href') === '#' + current.id);
+    });
+  }
+  window.addEventListener('scroll', onScroll, {passive: true});
+  onScroll();
+})();
+if(typeof NavTracker!=='undefined') NavTracker.track('HTTP 标准库','golang/http.html','🌐','Golang');
+</script>
+</body>
+</html>

@@ -6,7 +6,9 @@
 
   const H = 44;
   const RKEY = 'recentPages_v2';
-  const HOME = /\/(algo|db|kafka|redis|linux|network)\//.test(window.location.pathname) ? '../index.html' : 'index.html';
+  const MODULE_RE = '(algo|db|kafka|redis|linux|network|cs|golang|distributed)';
+  const MODULE_PATH_RE = new RegExp('/' + MODULE_RE + '/');
+  const HOME = MODULE_PATH_RE.test(window.location.pathname) ? '../index.html' : 'index.html';
   const ROOT = HOME.replace(/index\.html$/, '');
 
   // ── Inject body padding IMMEDIATELY (sync, before body renders) ──
@@ -32,7 +34,7 @@
   }
 
   function siteRoot() {
-    var match = window.location.pathname.match(/^(.*)\/(?:algo|db|kafka|redis|linux|network)(?:\/|$)/);
+    var match = window.location.pathname.match(new RegExp('^(.*)/(?:' + MODULE_RE + ')(?:/|$)'));
     if (match) return match[1] || '';
     var base = window.location.pathname.replace(/\/[^/]*$/, '');
     return base === '/' ? '' : base;
@@ -40,7 +42,7 @@
 
   function normalizeHref(href) {
     if (!href || href.startsWith('#')) return '';
-    if (/^(algo|db|kafka|redis|linux|network)\//.test(href)) {
+    if (new RegExp('^' + MODULE_RE + '/').test(href)) {
       return siteRoot() + '/' + href;
     }
 
@@ -108,6 +110,65 @@
 .sn-ico{font-size:0.9rem;flex-shrink:0;}
 .sn-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .sn-cat{font-size:0.65rem;color:#64748b;flex-shrink:0;font-family:monospace;}
+.sn-auto-concept{width:256px;min-width:256px;display:flex;flex-direction:column;border-right:1px solid rgba(255,255,255,.06);background:#151f30;overflow:auto;flex-shrink:0}
+.sn-auto-concept-h{font-size:.68rem;font-weight:700;letter-spacing:.1em;color:#475569;text-transform:uppercase;padding:14px 14px 10px}
+.sn-auto-card{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.04)}
+.sn-auto-card strong{display:block;color:#38bdf8;font-size:.8rem;margin-bottom:5px}
+.sn-auto-card span{display:block;color:#64748b;font-size:.75rem;line-height:1.65}
+.sn-left-step-desc{margin:0 14px 12px;border:1px solid rgba(255,255,255,.07);border-radius:10px;background:rgba(13,17,23,.42);padding:10px 12px;color:#94a3b8;font-size:.76rem;line-height:1.65}
+.sn-left-step-desc .step-counter{display:block;margin:6px 0 0!important;color:#64748b;font-family:monospace;font-size:.72rem}
+body.sn-detail-body .main,
+body.sn-detail-body .layout,
+body.sn-detail-body .viz-panel,
+body.sn-detail-body .diagram-panel,
+body.sn-detail-body .center,
+body.sn-detail-body .code-panel{min-width:0!important}
+body.sn-detail-body .sn-auto-concept,
+body.sn-detail-body .steps-panel,
+body.sn-detail-body .sidebar,
+body.sn-detail-body .steps-area,
+body.sn-detail-body .sn-left-step-desc{overflow-x:hidden!important;max-width:100%}
+body.sn-detail-body .sn-auto-card,
+body.sn-detail-body .sn-auto-card span,
+body.sn-detail-body .step-card,
+body.sn-detail-body .step-card span,
+body.sn-detail-body .topic-sum,
+body.sn-detail-body .topic-sum p{overflow-wrap:anywhere;word-break:break-word}
+body.sn-detail-body .viz-area,
+body.sn-detail-body .diagram-area,
+body.sn-detail-body .diagram,
+body.sn-detail-body .svg-wrap,
+body.sn-detail-body .viz-canvas-wrap,
+body.sn-detail-body .viz-demo,
+body.sn-detail-body .flow,
+body.sn-detail-body .table-wrap{overflow:hidden!important;max-width:100%}
+body.sn-detail-body .diagram .arch-svg{min-width:0!important;max-width:100%!important;height:auto!important}
+body.sn-detail-body .flow{flex-wrap:wrap}
+body.sn-detail-body .flow-node{min-width:min(118px,100%)}
+body.sn-detail-body .code-panel,
+body.sn-detail-body .code-body,
+body.sn-detail-body .detail-body,
+body.sn-detail-body .code-block,
+body.sn-detail-body .code-scroll,
+body.sn-detail-body pre{overflow-x:hidden!important;max-width:100%}
+body.sn-detail-body .code-line{min-width:0;white-space:normal}
+body.sn-detail-body .lc,
+body.sn-detail-body code,
+body.sn-detail-body pre,
+body.sn-detail-body .code-block,
+body.sn-detail-body .code-content pre,
+body.sn-detail-body .sql-bar{white-space:pre-wrap!important;overflow-wrap:anywhere;word-break:break-word}
+body.sn-detail-body .lc{min-width:0}
+body.sn-legacy-grid .layout{display:grid!important;grid-template-columns:256px minmax(0,1fr) 380px!important;gap:20px!important;align-items:stretch}
+body.sn-legacy-flex .layout{display:flex!important;gap:0!important;overflow:hidden}
+body.sn-legacy-flex .layout>.main{order:2;flex:1;min-width:0}
+body.sn-legacy-flex .layout>.sidebar{order:3;width:320px;min-width:320px;border-left:1px solid rgba(255,255,255,.06);border-right:none}
+body.sn-legacy-topo .main>.sn-auto-concept{order:1}
+body.sn-legacy-topo .main>.center{order:2;flex:1}
+body.sn-legacy-topo .main>.code-panel{order:3;width:360px;border-left:1px solid var(--border,#334155);border-right:none}
+body.sn-legacy-wrapped .main{display:flex!important;gap:0!important;overflow:hidden;flex:1}
+body.sn-legacy-wrapped .sn-legacy-viz{flex:1;min-width:0;overflow:auto;padding-right:16px}
+body.sn-legacy-wrapped .sn-legacy-code{width:390px;min-width:390px;overflow:auto;border-left:1px solid rgba(255,255,255,.06);padding-left:16px}
 @media(max-width:760px){
   #__snav{height:auto;min-height:${H}px;flex-wrap:nowrap;padding:5px 12px;gap:8px}
   .sn-logo .sn-motto{display:none}
@@ -118,6 +179,16 @@
   .sn-home .sn-crumbs{display:none}
   .sn-subpage .sn-crumbs{display:flex;order:0;width:auto;flex:1 1 auto;flex-basis:auto;margin:0;font-size:.72rem;min-width:0}
   .sn-subpage .sn-current{min-width:0}
+  .sn-auto-concept{width:100%!important;min-width:0!important;max-height:120px;border-right:none;border-bottom:1px solid rgba(255,255,255,.06)}
+  .sn-auto-concept-h{padding:10px 14px 4px}
+  .sn-auto-card{padding:7px 14px}
+  body.sn-legacy-grid .layout,
+  body.sn-legacy-flex .layout,
+  body.sn-legacy-wrapped .main{display:flex!important;flex-direction:column!important;overflow:visible!important}
+  body.sn-legacy-flex .layout>.sidebar,
+  body.sn-legacy-topo .main>.code-panel,
+  body.sn-legacy-wrapped .sn-legacy-code{order:3;width:100%!important;min-width:0!important;border-left:none!important;padding-left:0!important}
+  body.sn-legacy-wrapped .sn-legacy-viz{padding-right:0!important;overflow:visible!important}
 }
 `;
   d.head.appendChild(style);
@@ -148,7 +219,7 @@
       list.appendChild(empty);
       return;
     }
-    const cc = { '算法': '#38bdf8', '数据库': '#fbbf24', 'Kafka': '#ff6b35', 'Redis': '#ef4444', 'Linux': '#f7c948', '网络': '#2dd4bf' };
+    const cc = { '算法': '#38bdf8', '数据库': '#fbbf24', 'Kafka': '#ff6b35', 'Redis': '#ef4444', 'Linux': '#6ee7b7', '网络': '#10b981', '组成原理': '#a78bfa', 'Golang': '#00add8', '分布式': '#c084fc', '概念': '#c084fc' };
     items.forEach(function (r) {
       const item = d.createElement('a');
       item.className = 'sn-item';
@@ -189,6 +260,7 @@
     hideLocalBackLinks();
     syncNavHeight();
     scrollHashIntoView();
+    ensureAutoConceptPanel();
     d.getElementById('snBtn').addEventListener('click', toggle);
     d.getElementById('snClear').addEventListener('click', function () { saveR([]); renderList(); });
     d.addEventListener('click', function (e) {
@@ -234,31 +306,135 @@
     }, 80);
   }
 
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (ch) {
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch];
+    });
+  }
+
+  function ensureAutoConceptPanel() {
+    setTimeout(function () {
+      if (!d.body.classList.contains('sn-detail-body')) return;
+      if (d.getElementById('__concept') || d.getElementById('__autoConcept')) return;
+      var panel = buildAutoConceptPanel();
+      var main = d.querySelector('.main');
+      if (main && main.querySelector('.viz-panel') && main.querySelector('.code-panel')) {
+        main.insertBefore(panel, main.firstChild);
+        return;
+      }
+      if (adaptLegacyFlex(panel)) return;
+      if (adaptLegacyGrid(panel)) return;
+      if (adaptLegacyTopo(panel)) return;
+      adaptLegacyStacked(panel);
+    }, 120);
+    setTimeout(moveMiddleTextToLeft, 180);
+  }
+
+  function buildAutoConceptPanel() {
+    var title = currentTitle();
+    var panel = d.createElement('aside');
+    panel.id = '__autoConcept';
+    panel.className = 'sn-auto-concept';
+    var safeTitle = escapeHtml(title);
+    panel.innerHTML =
+      '<div class="sn-auto-concept-h">核心概念</div>' +
+      '<div class="sn-auto-card"><strong>' + safeTitle + '</strong><span>左侧用于理解概念与关键不变量，中间动画展示状态变化，右侧代码对应具体实现。</span></div>' +
+      '<div class="sn-auto-card"><strong>动画阅读</strong><span>点击播放或逐步前进，先看图示中的状态变化，再对照右侧高亮代码。</span></div>' +
+      '<div class="sn-auto-card"><strong>代码对应</strong><span>高亮行表示当前步骤涉及的核心逻辑，适合把抽象过程落到实现细节上。</span></div>';
+    return panel;
+  }
+
+  function adaptLegacyGrid(panel) {
+    var layout = d.querySelector('.layout');
+    if (!layout || !layout.querySelector('.code-block')) return false;
+    layout.insertBefore(panel, layout.firstChild);
+    d.body.classList.add('sn-legacy-grid');
+    return true;
+  }
+
+  function adaptLegacyFlex(panel) {
+    var layout = d.querySelector('.layout');
+    if (!layout || !layout.querySelector('.sidebar') || !layout.querySelector('.main')) return false;
+    layout.insertBefore(panel, layout.firstChild);
+    d.body.classList.add('sn-legacy-flex');
+    return true;
+  }
+
+  function adaptLegacyTopo(panel) {
+    var main = d.querySelector('.main');
+    if (!main || !main.querySelector('.center') || !main.querySelector('.code-panel')) return false;
+    main.insertBefore(panel, main.firstChild);
+    main.appendChild(main.querySelector('.code-panel'));
+    d.body.classList.add('sn-legacy-topo');
+    return true;
+  }
+
+  function adaptLegacyStacked(panel) {
+    var code = d.querySelector('.code-section');
+    if (!code || d.querySelector('.main')) return false;
+    var first = d.querySelector('.op-bar, .svg-wrap');
+    if (!first) return false;
+    var main = d.createElement('div');
+    main.className = 'main';
+    var viz = d.createElement('div');
+    viz.className = 'sn-legacy-viz';
+    var codeWrap = d.createElement('div');
+    codeWrap.className = 'sn-legacy-code';
+    first.parentNode.insertBefore(main, first);
+    main.appendChild(panel);
+    main.appendChild(viz);
+    main.appendChild(codeWrap);
+    var node = first;
+    while (node && node !== code) {
+      var next = node.nextSibling;
+      viz.appendChild(node);
+      node = next;
+    }
+    codeWrap.appendChild(code);
+    d.body.classList.add('sn-legacy-wrapped');
+    return true;
+  }
+
+  function moveMiddleTextToLeft() {
+    if (!d.body.classList.contains('sn-detail-body')) return;
+    var left = d.getElementById('__concept') || d.getElementById('__autoConcept') || d.querySelector('.steps-panel');
+    if (!left) return;
+    d.querySelectorAll('.viz-panel > .desc-box').forEach(function (desc) {
+      if (desc.dataset.snMoved === '1') return;
+      desc.dataset.snMoved = '1';
+      desc.classList.add('sn-left-step-desc');
+      left.appendChild(desc);
+    });
+  }
+
   function isHomePage() {
     var path = window.location.pathname;
-    if (/\/(algo|db|kafka|redis|linux|network)\/index\.html$/.test(path)) return false;
+    if (new RegExp('/' + MODULE_RE + '/index\\.html$').test(path)) return false;
     return path === '/' || /\/index\.html$/.test(path) || /\/blog\/?$/.test(path);
   }
 
   function moduleInfo() {
-    var match = window.location.pathname.match(/\/(algo|db|kafka|redis|linux|network)\//);
+    var match = window.location.pathname.match(new RegExp('/' + MODULE_RE + '/'));
     var map = {
       algo: { label: '算法', href: 'index.html' },
       db: { label: '数据库', href: 'index.html' },
       kafka: { label: 'Kafka', href: 'index.html' },
       redis: { label: 'Redis', href: 'index.html' },
       linux: { label: 'Linux', href: 'index.html' },
-      network: { label: '网络', href: 'index.html' }
+      network: { label: '网络', href: 'index.html' },
+      cs: { label: '组成原理', href: 'index.html' },
+      golang: { label: 'Golang', href: 'index.html' },
+      distributed: { label: '分布式', href: 'index.html' }
     };
     return match ? map[match[1]] : null;
   }
 
   function isModuleIndexPage() {
-    return /\/(algo|db|kafka|redis|linux|network)\/index\.html$/.test(window.location.pathname);
+    return new RegExp('/' + MODULE_RE + '/index\\.html$').test(window.location.pathname);
   }
 
   function graphHref() {
-    return /\/(algo|db|kafka|redis|linux|network)\//.test(window.location.pathname) ? '../graph.html' : 'graph.html';
+    return MODULE_PATH_RE.test(window.location.pathname) ? '../graph.html' : 'graph.html';
   }
 
   function currentTitle() {
@@ -342,7 +518,7 @@
   }
 
   function autoTrackCurrentPage() {
-    var match = window.location.pathname.match(/\/(algo|db|kafka|redis|linux|network)\/([^/]+)\.html$/);
+    var match = window.location.pathname.match(new RegExp('/' + MODULE_RE + '/([^/]+)\\.html$'));
     if (!match || match[2] === 'index') return;
 
     var href = normalizeHref(window.location.href);
@@ -355,7 +531,10 @@
       kafka: { cat: 'Kafka', icon: '📦' },
       redis: { cat: 'Redis', icon: '🔴' },
       linux: { cat: 'Linux', icon: '🐧' },
-      network: { cat: '网络', icon: '🌐' }
+      network: { cat: '网络', icon: '🌐' },
+      cs: { cat: '组成原理', icon: '🧠' },
+      golang: { cat: 'Golang', icon: '🐹' },
+      distributed: { cat: '分布式', icon: '🌐' }
     }[match[1]];
     var title = (d.querySelector('nav h1, .nav-title, header h1') || {}).textContent || d.title.replace(/\s*[-|].*$/, '');
     if (!window.NavTracker) return;

@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sync.Pool - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:44px;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:116px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.side-nav a.active{color:var(--accent);background:rgba(0,173,216,.08);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(0,173,216,.12);color:var(--accent);border:1px solid rgba(0,173,216,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.badge-high{background:rgba(251,146,60,.12);color:#fb923c;border:1px solid rgba(251,146,60,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(0,173,216,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">♻️ sync.Pool</span>
+  <div class="nav-tags">
+    <span class="ntag">pool</span>
+    <span class="ntag">gc</span>
+    <span class="ntag">object-reuse</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <nav class="side-nav">
+    <ul>
+      <li><a href="#basic">Pool 基础</a></li>
+      <li><a href="#gc">GC 清理时机</a></li>
+      <li><a href="#usage">使用场景</a></li>
+      <li><a href="#antipattern">反模式</a></li>
+      <li><a href="#qa">面试问答</a></li>
+      <li><a href="#pitfalls">常见陷阱</a></li>
+    </ul>
+  </nav>
+  <main class="main-content">
+
+    <div class="section" id="basic">
+      <div class="section-title"><div class="title-bar"></div><h2>Pool 基础</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>Get / Put / New</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>sync.Pool 是一个临时对象池，用于缓存分配好的对象，减少 GC 压力。<strong>不保证对象持久存在</strong>，GC 时会被清空。</p>
+          <ul>
+            <li><code>Get()</code> — 从池中取对象，若池空则调用 <code>New</code> 创建</li>
+            <li><code>Put(x)</code> — 将对象归还池，nil 被忽略</li>
+            <li><code>New func() any</code> — 池空时的工厂函数，应返回同类型对象</li>
+            <li>Pool 是并发安全的，每个 P 有本地缓存，减少竞争</li>
+          </ul>
+          <pre><span class="kw">var</span> <span class="id">bufPool</span> = &amp;<span class="pkg">sync</span>.<span class="id">Pool</span>{
+    <span class="id">New</span>: <span class="kw">func</span>() <span class="kw">any</span> {
+        <span class="kw">return</span> <span class="pkg">bytes</span>.<span class="fn">NewBuffer</span>(<span class="fn">make</span>([]<span class="kw">byte</span>, <span class="num">0</span>, <span class="num">1024</span>))
+    },
+}
+
+<span class="kw">func</span> <span class="fn">process</span>(<span class="id">data</span> []<span class="kw">byte</span>) {
+    <span class="id">buf</span> := <span class="id">bufPool</span>.<span class="fn">Get</span>().(*<span class="pkg">bytes</span>.<span class="id">Buffer</span>)
+    <span class="kw">defer</span> <span class="kw">func</span>() {
+        <span class="id">buf</span>.<span class="fn">Reset</span>()           <span class="cm">// 重置状态</span>
+        <span class="id">bufPool</span>.<span class="fn">Put</span>(<span class="id">buf</span>)     <span class="cm">// 归还</span>
+    }()
+    <span class="id">buf</span>.<span class="fn">Write</span>(<span class="id">data</span>)
+    <span class="cm">// 使用 buf...</span>
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="gc">
+      <div class="section-title"><div class="title-bar"></div><h2>GC 清理时机</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>每次 GC 时 Pool 被清空</h3><span class="badge badge-adv">[进阶]</span></div>
+        <div class="card-body">
+          <p>sync.Pool 中的对象在每次 GC 时会被<strong>全部清空</strong>（通过 <code>poolCleanup</code> 注册为 GC 清理函数），不能依赖 Pool 跨 GC 保存状态。</p>
+          <ul>
+            <li>Go 1.13+ 优化：引入 victim cache，GC 时对象先移到 victim，下次 GC 才真正清除，减少抖动</li>
+            <li>Pool 不适合管理需要显式关闭的资源（连接、文件），那是连接池的职责</li>
+            <li>高 GC 频率场景（内存紧张）下 Pool 效果会下降</li>
+          </ul>
+          <pre><span class="cm">// Pool 内部 GC 钩子（简化）</span>
+<span class="kw">func</span> <span class="fn">init</span>() {
+    <span class="pkg">runtime</span>.<span class="fn">SetFinalizer</span>(...) <span class="cm">// 非实际 API</span>
+}
+<span class="cm">// 实际上通过 runtime.registerPoolCleanup
+// 在每次 STW 开始时清空所有 Pool local 缓存
+// Go 1.13+: local → victim → 释放（两个 GC 周期）</span>
+
+<span class="cm">// 验证 Pool 对象被 GC 清空</span>
+<span class="id">p</span>.<span class="fn">Put</span>(&amp;<span class="id">obj</span>{})
+<span class="pkg">runtime</span>.<span class="fn">GC</span>()              <span class="cm">// 触发 GC</span>
+<span class="id">got</span> := <span class="id">p</span>.<span class="fn">Get</span>()            <span class="cm">// 可能拿到 nil 或新对象</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="usage">
+      <div class="section-title"><div class="title-bar"></div><h2>典型使用场景</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>[]byte buffer 与临时对象复用</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>Pool 最适合<strong>生命周期短、分配频繁、同类型</strong>的临时对象，能显著降低 GC 压力（如 HTTP 处理时每个请求的序列化 buffer）。</p>
+          <ul>
+            <li><code>fmt</code> 包用 Pool 缓存格式化 buffer</li>
+            <li><code>encoding/json</code>、<code>net/http</code> 内部大量使用 Pool</li>
+            <li>与预分配对比：Pool 更灵活，预分配（slice）更可预测</li>
+            <li>对象大小变化大时（有时 1KB 有时 1MB），Pool 可能导致内存占用升高</li>
+          </ul>
+          <pre><span class="cm">// 标准库的 fmt 包使用方式</span>
+<span class="kw">var</span> <span class="id">ppFree</span> = <span class="pkg">sync</span>.<span class="id">Pool</span>{
+    <span class="id">New</span>: <span class="kw">func</span>() <span class="kw">any</span> { <span class="kw">return</span> <span class="fn">new</span>(<span class="id">pp</span>) },
+}
+
+<span class="kw">func</span> <span class="fn">newPrinter</span>() *<span class="id">pp</span> {
+    <span class="id">p</span> := <span class="id">ppFree</span>.<span class="fn">Get</span>().(*<span class="id">pp</span>)
+    <span class="id">p</span>.<span class="fn">panicking</span> = <span class="kw">false</span>
+    <span class="id">p</span>.<span class="fn">erroring</span> = <span class="kw">false</span>
+    <span class="id">p</span>.<span class="fn">wrapErrs</span> = <span class="kw">false</span>
+    <span class="id">p</span>.<span class="id">fmt</span>.<span class="fn">init</span>(&amp;<span class="id">p</span>.<span class="id">buf</span>)
+    <span class="kw">return</span> <span class="id">p</span>
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="antipattern">
+      <div class="section-title"><div class="title-bar"></div><h2>反模式</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>不应使用 Pool 的场景</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>Pool 是临时缓存，不是通用对象池或连接池，以下场景不应使用 Pool。</p>
+          <ul>
+            <li><strong>长生命周期对象</strong>：数据库连接、gRPC 连接，应用连接池（有 MaxIdle、健康检查等）</li>
+            <li><strong>有状态对象归还前未 Reset</strong>：下一个 Get 会拿到脏数据</li>
+            <li><strong>需要固定数量限制</strong>：Pool 大小不可控；用 buffered channel 做令牌池</li>
+            <li><strong>跨请求传递上下文</strong>：Pool 对象可能被任意 goroutine 取走</li>
+          </ul>
+          <pre><span class="cm">// 固定大小的工作者池（用 channel）</span>
+<span class="kw">type</span> <span class="id">WorkerPool</span> <span class="kw">struct</span> {
+    <span class="id">tokens</span> <span class="kw">chan</span> <span class="kw">struct</span>{}
+}
+<span class="kw">func</span> <span class="fn">NewWorkerPool</span>(<span class="id">n</span> <span class="kw">int</span>) *<span class="id">WorkerPool</span> {
+    <span class="id">ch</span> := <span class="fn">make</span>(<span class="kw">chan</span> <span class="kw">struct</span>{}, <span class="id">n</span>)
+    <span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="id">n</span>; <span class="id">i</span>++ { <span class="id">ch</span> &lt;- <span class="kw">struct</span>{}{} }
+    <span class="kw">return</span> &amp;<span class="id">WorkerPool</span>{<span class="id">tokens</span>: <span class="id">ch</span>}
+}
+<span class="kw">func</span> (<span class="id">p</span> *<span class="id">WorkerPool</span>) <span class="fn">Acquire</span>() { &lt;-<span class="id">p</span>.<span class="id">tokens</span> }
+<span class="kw">func</span> (<span class="id">p</span> *<span class="id">WorkerPool</span>) <span class="fn">Release</span>() { <span class="id">p</span>.<span class="id">tokens</span> &lt;- <span class="kw">struct</span>{}{} }</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="qa">
+      <div class="section-title"><div class="title-bar"></div><h2>面试问答</h2></div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">Pool 里的对象什么时候被 GC？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">每次 GC 触发时，runtime 会调用所有已注册 Pool 的清理函数。Go 1.13+ 使用 victim cache 机制：第一次 GC 时，Pool 的 local 缓存移到 victim；第二次 GC 时 victim 才被真正清空。这样两次 GC 之间对象有机会被重新取出，减少了短暂 GC 抖动导致的对象重建开销。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">Get 时没有可用对象怎么办？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">若 Pool 为空（本地缓存和 victim 均无对象），Get 会调用 Pool.New 函数创建新对象。若 New 为 nil，Get 返回 nil。因此推荐始终设置 New 函数，且 Get 后需做类型断言。Get 的查找顺序：当前 P 的本地缓存 → 其他 P 的缓存（steal）→ victim cache → 调用 New。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">Pool 适合哪些场景，不适合哪些场景？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">适合：短生命周期、分配频繁、对象大小稳定的临时对象，如序列化 buffer、格式化 buffer、临时 struct。不适合：需要固定数量限制（用 buffered channel）；有外部资源的对象（连接、文件，用专门的连接池）；需要跨请求保存状态的对象；对象大小变化极大的场景（可能造成内存占用暴涨）。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">Pool 的底层实现是怎样的？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">每个 P（处理器）有一个 poolLocal，包含本地 private 缓存（单对象，无锁）和 shared 双端队列（可被其他 P 偷取）。Get 优先从 private 取，其次从本地 shared 取，再从其他 P 的 shared 偷取，最后从 victim 取。Put 优先放入 private，若 private 已有则放 shared。这种分 P 的设计避免了全局锁竞争。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">如何正确使用 Pool 避免内存泄漏？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">关键三点：1) Get 后一定在 defer 中 Put 回（防止 panic 丢失）；2) Put 之前必须 Reset 对象状态（清空 buffer、清零字段）；3) 不要 Put 持有外部资源引用的对象（会阻止 GC 回收资源）。若对象持有大 buffer 且场景稀疏，Put 前可考虑将 buffer 截断到合理大小，避免 Pool 长期持有大内存。</div>
+      </div>
+    </div>
+
+    <div class="section" id="pitfalls">
+      <div class="section-title"><div class="title-bar"></div><h2>常见陷阱</h2></div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ Put 了带状态的对象（vs ✅ Reset 后再 Put）</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">handle</span>() {
+    <span class="id">buf</span> := <span class="id">pool</span>.<span class="fn">Get</span>().(*<span class="pkg">bytes</span>.<span class="id">Buffer</span>)
+    <span class="id">buf</span>.<span class="fn">WriteString</span>(<span class="st">"secret data"</span>)
+    <span class="fn">respond</span>(<span class="id">buf</span>)
+    <span class="id">pool</span>.<span class="fn">Put</span>(<span class="id">buf</span>) <span class="cm">// 带有 "secret data"！</span>
+}
+<span class="cm">// 下个请求 Get 到同一 buf</span>
+<span class="cm">// 内含上次的数据，可能信息泄露</span></pre>
+            <p>未 Reset 直接 Put，下一个取走者会读到脏数据，甚至造成信息泄露。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">handle</span>() {
+    <span class="id">buf</span> := <span class="id">pool</span>.<span class="fn">Get</span>().(*<span class="pkg">bytes</span>.<span class="id">Buffer</span>)
+    <span class="kw">defer</span> <span class="kw">func</span>() {
+        <span class="id">buf</span>.<span class="fn">Reset</span>()      <span class="cm">// 先清空</span>
+        <span class="id">pool</span>.<span class="fn">Put</span>(<span class="id">buf</span>)  <span class="cm">// 再归还</span>
+    }()
+    <span class="id">buf</span>.<span class="fn">WriteString</span>(<span class="st">"secret data"</span>)
+    <span class="fn">respond</span>(<span class="id">buf</span>)
+}</pre>
+            <p>defer 中先 Reset 再 Put，保证归还的对象是干净状态。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 依赖 Pool 保存长期对象（vs ✅ 用连接池）</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// 错误：依赖 Pool 缓存 DB 连接</span>
+<span class="kw">var</span> <span class="id">connPool</span> = &amp;<span class="pkg">sync</span>.<span class="id">Pool</span>{
+    <span class="id">New</span>: <span class="kw">func</span>() <span class="kw">any</span> {
+        <span class="id">c</span>, _ := <span class="pkg">sql</span>.<span class="fn">Open</span>(<span class="st">"mysql"</span>, <span class="id">dsn</span>)
+        <span class="kw">return</span> <span class="id">c</span>
+    },
+}
+<span class="cm">// GC 后所有连接丢失，
+// 下次请求重新建连，延迟剧增</span></pre>
+            <p>GC 会清空 Pool，连接资源丢失，且连接不会被 Close，造成资源泄漏。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 正确：用 database/sql 自带连接池</span>
+<span class="id">db</span>, _ := <span class="pkg">sql</span>.<span class="fn">Open</span>(<span class="st">"mysql"</span>, <span class="id">dsn</span>)
+<span class="id">db</span>.<span class="fn">SetMaxOpenConns</span>(<span class="num">25</span>)
+<span class="id">db</span>.<span class="fn">SetMaxIdleConns</span>(<span class="num">10</span>)
+<span class="id">db</span>.<span class="fn">SetConnMaxLifetime</span>(<span class="num">5</span> * <span class="pkg">time</span>.<span class="id">Minute</span>)
+<span class="cm">// database/sql 管理连接生命周期</span></pre>
+            <p>数据库、HTTP、gRPC 连接应使用专门的连接池管理，有完整的生命周期控制。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ Pool 中存储大 buffer 后不缩容（vs ✅ 检查 cap 再归还）</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// 某次请求分配了 100MB buffer</span>
+<span class="kw">func</span> <span class="fn">handle</span>(<span class="id">big</span> []<span class="kw">byte</span>) {
+    <span class="id">buf</span> := <span class="id">pool</span>.<span class="fn">Get</span>().([]<span class="kw">byte</span>)
+    <span class="id">buf</span> = <span class="fn">append</span>(<span class="id">buf</span>, <span class="id">big</span>...) <span class="cm">// 扩容到 100MB</span>
+    <span class="fn">use</span>(<span class="id">buf</span>)
+    <span class="id">pool</span>.<span class="fn">Put</span>(<span class="id">buf</span>[:<span class="num">0</span>])  <span class="cm">// 归还 100MB slice</span>
+}</pre>
+            <p>100MB 的 slice 被 Pool 持有，即使只需要 1KB，Pool 也一直占用大内存。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 超过阈值则丢弃，不归还</span>
+<span class="kw">func</span> <span class="fn">handle</span>(<span class="id">big</span> []<span class="kw">byte</span>) {
+    <span class="id">buf</span> := <span class="id">pool</span>.<span class="fn">Get</span>().([]<span class="kw">byte</span>)
+    <span class="id">buf</span> = <span class="fn">append</span>(<span class="id">buf</span>, <span class="id">big</span>...)
+    <span class="fn">use</span>(<span class="id">buf</span>)
+    <span class="kw">if</span> <span class="fn">cap</span>(<span class="id">buf</span>) &lt; <span class="num">64</span>&lt;&lt;<span class="num">10</span> { <span class="cm">// 64KB 以下</span>
+        <span class="id">pool</span>.<span class="fn">Put</span>(<span class="id">buf</span>[:<span class="num">0</span>])
+    }
+    <span class="cm">// 超大的 buf 直接丢弃，让 GC 回收</span>
+}</pre>
+            <p>对超出阈值的大 buffer 不归还，防止 Pool 长期持有大量内存。</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>
+function toggleQA(card) {
+  card.classList.toggle('open');
+}
+(function() {
+  var links = document.querySelectorAll('.side-nav a');
+  var sections = Array.from(links).map(function(l) {
+    return document.querySelector(l.getAttribute('href'));
+  }).filter(Boolean);
+  function onScroll() {
+    var scrollY = window.scrollY + 140;
+    var current = sections[0];
+    sections.forEach(function(s) { if (s.offsetTop <= scrollY) current = s; });
+    links.forEach(function(l) {
+      l.classList.toggle('active', l.getAttribute('href') === '#' + current.id);
+    });
+  }
+  window.addEventListener('scroll', onScroll, {passive: true});
+  onScroll();
+})();
+if(typeof NavTracker!=='undefined') NavTracker.track('sync.Pool','golang/syncpool.html','♻️','Golang');
+</script>
+</body>
+</html>

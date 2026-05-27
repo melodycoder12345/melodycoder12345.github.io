@@ -1,0 +1,636 @@
+<!DOCTYPE html><html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>结构体嵌入 - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:72px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(0,173,216,.12);color:var(--accent);border:1px solid rgba(0,173,216,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.badge-high{background:rgba(251,146,60,.12);color:#fb923c;border:1px solid rgba(251,146,60,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(0,173,216,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.table-wrap{overflow-x:auto;margin:10px 0;}
+table{width:100%;border-collapse:collapse;font-size:.82rem;}
+th{background:rgba(0,173,216,.08);color:var(--accent);padding:8px 12px;text-align:left;border:1px solid var(--border2);font-size:.78rem;}
+td{padding:7px 12px;border:1px solid var(--border2);color:var(--dim);}
+tr:hover td{background:rgba(255,255,255,.02);}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">🧩 结构体嵌入</span>
+  <div class="nav-tags">
+    <span class="ntag">embedding</span>
+    <span class="ntag">promotion</span>
+    <span class="ntag">composition</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <aside class="side-nav" id="sideNav">
+    <nav><ul>
+      <li><a href="#embed-basics">嵌入基础</a></li>
+      <li><a href="#method-set">方法集</a></li>
+      <li><a href="#interface-embed">接口嵌入</a></li>
+      <li><a href="#composition">组合替代继承</a></li>
+      <li><a href="#interview">面试题</a></li>
+      <li><a href="#pitfalls">易错点</a></li>
+    </ul></nav>
+  </aside>
+  <main class="main-content">
+
+    <!-- Section 1: 嵌入基础 -->
+    <section class="section" id="embed-basics">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>结构体嵌入基础</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>嵌入语法 vs 命名字段</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p>嵌入（embedding）通过省略字段名称只写类型来声明，与普通命名字段的本质区别在于：嵌入会将内层类型的字段和方法<strong>提升</strong>到外层，可直接访问。</p>
+          <pre><span class="kw">type</span> <span class="id">Animal</span> <span class="kw">struct</span> {
+    <span class="id">Name</span> <span class="kw">string</span>
+    <span class="id">Age</span>  <span class="kw">int</span>
+}
+
+<span class="cm">// 命名字段 —— 必须通过 .A. 访问</span>
+<span class="kw">type</span> <span class="id">DogNamed</span> <span class="kw">struct</span> {
+    <span class="id">A</span> <span class="id">Animal</span>   <span class="cm">// 命名字段</span>
+}
+<span class="id">d1</span> := <span class="id">DogNamed</span>{<span class="id">A</span>: <span class="id">Animal</span>{<span class="id">Name</span>: <span class="st">"Rex"</span>}}
+<span class="id">_</span> = <span class="id">d1</span>.<span class="id">A</span>.<span class="id">Name</span>   <span class="cm">// 必须显式访问</span>
+
+<span class="cm">// 嵌入 —— 字段/方法提升，可直接访问</span>
+<span class="kw">type</span> <span class="id">Dog</span> <span class="kw">struct</span> {
+    <span class="id">Animal</span>        <span class="cm">// 嵌入，字段名自动为 "Animal"</span>
+    <span class="id">Breed</span> <span class="kw">string</span>
+}
+<span class="id">d2</span> := <span class="id">Dog</span>{<span class="id">Animal</span>: <span class="id">Animal</span>{<span class="id">Name</span>: <span class="st">"Rex"</span>}}
+<span class="id">_</span> = <span class="id">d2</span>.<span class="id">Name</span>     <span class="cm">// 提升后直接访问</span>
+<span class="id">_</span> = <span class="id">d2</span>.<span class="id">Animal</span>.<span class="id">Name</span> <span class="cm">// 完整路径同样有效</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>字段与方法提升规则</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p>提升（promotion）让外层类型直接拥有内层字段和方法的访问路径，规则如下：</p>
+          <ul>
+            <li>嵌入类型的<strong>导出</strong>和<strong>未导出</strong>字段均被提升到外层</li>
+            <li>外层若有同名字段/方法，则<strong>外层优先</strong>（shadowing）</li>
+            <li>同级多个嵌入类型有同名成员时，编译器报<strong>ambiguous selector</strong>错误，必须通过完整路径消歧</li>
+            <li>提升是语法糖，底层仍是代理调用，不会复制方法</li>
+          </ul>
+          <pre><span class="kw">type</span> <span class="id">Base</span> <span class="kw">struct</span>{ <span class="id">ID</span> <span class="kw">int</span> }
+<span class="kw">func</span> (<span class="id">b</span> <span class="id">Base</span>) <span class="fn">Describe</span>() <span class="kw">string</span> { <span class="kw">return</span> <span class="pkg">fmt</span>.<span class="fn">Sprintf</span>(<span class="st">"id=%d"</span>, <span class="id">b</span>.<span class="id">ID</span>) }
+
+<span class="kw">type</span> <span class="id">Ext</span> <span class="kw">struct</span> {
+    <span class="id">Base</span>
+    <span class="id">Extra</span> <span class="kw">string</span>
+}
+
+<span class="id">e</span> := <span class="id">Ext</span>{<span class="id">Base</span>: <span class="id">Base</span>{<span class="id">ID</span>: <span class="num">42</span>}}
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">e</span>.<span class="id">ID</span>)          <span class="cm">// 提升字段</span>
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">e</span>.<span class="fn">Describe</span>())  <span class="cm">// 提升方法</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>访问路径与字面量初始化</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p>结构体字面量初始化嵌入类型时，<strong>必须使用类型名作为字段名</strong>，不能直接展开内层字段。</p>
+          <pre><span class="kw">type</span> <span class="id">Address</span> <span class="kw">struct</span>{ <span class="id">City</span>, <span class="id">Country</span> <span class="kw">string</span> }
+<span class="kw">type</span> <span class="id">Person</span>  <span class="kw">struct</span>{ <span class="id">Address</span>; <span class="id">Name</span> <span class="kw">string</span> }
+
+<span class="cm">// 正确：用类型名作为键</span>
+<span class="id">p</span> := <span class="id">Person</span>{
+    <span class="id">Name</span>:    <span class="st">"Alice"</span>,
+    <span class="id">Address</span>: <span class="id">Address</span>{<span class="id">City</span>: <span class="st">"Beijing"</span>, <span class="id">Country</span>: <span class="st">"CN"</span>},
+}
+
+<span class="cm">// 错误：不能直接写 City: "Beijing"</span>
+<span class="cm">// p2 := Person{Name: "Bob", City: "Shanghai"} // 编译失败</span>
+
+<span class="cm">// 赋值时可直接访问提升字段</span>
+<span class="id">p</span>.<span class="id">City</span> = <span class="st">"Shanghai"</span>    <span class="cm">// 等价于 p.Address.City</span></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: 方法集 -->
+    <section class="section" id="method-set">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>方法集与接口满足</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>嵌入后方法集变化</h3>
+          <span class="badge badge-adv">advanced</span>
+        </div>
+        <div class="card-body">
+          <p>Go 规范规定，嵌入类型的方法会被提升到外层类型的方法集，但<strong>提升范围</strong>取决于嵌入的是值类型还是指针类型：</p>
+          <div class="table-wrap">
+            <table>
+              <tr><th>嵌入方式</th><th>T 的方法集获得</th><th>*T 的方法集获得</th></tr>
+              <tr><td><code>Inner</code>（值）</td><td>Inner 的值接收者方法</td><td>Inner 的值+指针接收者方法</td></tr>
+              <tr><td><code>*Inner</code>（指针）</td><td>Inner 的值+指针接收者方法</td><td>Inner 的值+指针接收者方法</td></tr>
+            </table>
+          </div>
+          <pre><span class="kw">type</span> <span class="id">W</span> <span class="kw">struct</span>{}
+<span class="kw">func</span> (<span class="id">w</span>  <span class="id">W</span>) <span class="fn">ValMethod</span>() {}
+<span class="kw">func</span> (<span class="id">w</span> *<span class="id">W</span>) <span class="fn">PtrMethod</span>() {}
+
+<span class="kw">type</span> <span class="id">A</span> <span class="kw">struct</span>{ <span class="id">W</span> }   <span class="cm">// 嵌入值</span>
+<span class="kw">type</span> <span class="id">B</span> <span class="kw">struct</span>{ *<span class="id">W</span> }  <span class="cm">// 嵌入指针</span>
+
+<span class="cm">// A 的值类型只有 ValMethod；*A 有两者</span>
+<span class="cm">// B 的值类型和 *B 都有两者</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>接口隐式满足</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p>通过嵌入提升的方法，可以让外层类型<strong>自动满足</strong>某个接口，无需重写方法。这是 Go 组合设计的核心实践。</p>
+          <pre><span class="kw">type</span> <span class="id">Stringer</span> <span class="kw">interface</span> {
+    <span class="fn">String</span>() <span class="kw">string</span>
+}
+
+<span class="kw">type</span> <span class="id">Named</span> <span class="kw">struct</span>{ <span class="id">Value</span> <span class="kw">string</span> }
+<span class="kw">func</span> (<span class="id">n</span> <span class="id">Named</span>) <span class="fn">String</span>() <span class="kw">string</span> { <span class="kw">return</span> <span class="id">n</span>.<span class="id">Value</span> }
+
+<span class="kw">type</span> <span class="id">Tag</span> <span class="kw">struct</span> {
+    <span class="id">Named</span>       <span class="cm">// 提升 String() 方法</span>
+    <span class="id">Color</span> <span class="kw">string</span>
+}
+
+<span class="cm">// Tag 自动满足 Stringer，不需要显式声明</span>
+<span class="kw">var</span> <span class="id">_</span> <span class="id">Stringer</span> = <span class="id">Tag</span>{}
+
+<span class="kw">func</span> <span class="fn">Print</span>(<span class="id">s</span> <span class="id">Stringer</span>) { <span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">s</span>.<span class="fn">String</span>()) }
+<span class="kw">func</span> <span class="fn">main</span>() {
+    <span class="fn">Print</span>(<span class="id">Tag</span>{<span class="id">Named</span>: <span class="id">Named</span>{<span class="id">Value</span>: <span class="st">"go"</span>}, <span class="id">Color</span>: <span class="st">"blue"</span>})
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>值接收者 vs 指针接收者嵌入对比</h3>
+          <span class="badge badge-adv">advanced</span>
+        </div>
+        <div class="card-body">
+          <p>嵌入值类型时，外层类型的<strong>值变量</strong>无法访问内层指针接收者方法；而嵌入指针类型时，值变量也可以访问，但需确保指针不为 nil。</p>
+          <pre><span class="kw">type</span> <span class="id">Mutable</span> <span class="kw">struct</span>{ <span class="id">Count</span> <span class="kw">int</span> }
+<span class="kw">func</span> (<span class="id">m</span> *<span class="id">Mutable</span>) <span class="fn">Inc</span>() { <span class="id">m</span>.<span class="id">Count</span>++ }
+
+<span class="kw">type</span> <span class="id">Wrapper</span> <span class="kw">struct</span>{ <span class="id">Mutable</span> }
+
+<span class="id">w</span> := <span class="id">Wrapper</span>{}
+<span class="id">w</span>.<span class="fn">Inc</span>()           <span class="cm">// OK: w 可寻址，编译器自动取 &w.Mutable</span>
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">w</span>.<span class="id">Count</span>) <span class="cm">// 1</span>
+
+<span class="cm">// 不可寻址的值不能调用指针接收者方法</span>
+<span class="cm">// Wrapper{}.Inc() // 编译错误: cannot take address</span></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: 接口嵌入 -->
+    <section class="section" id="interface-embed">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>接口嵌入</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>接口嵌入接口</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p>接口可以嵌入其他接口，组合后的接口要求实现方包含所有嵌入接口的方法集。这是 Go 标准库常用的组合方式。</p>
+          <pre><span class="kw">type</span> <span class="id">Reader</span> <span class="kw">interface</span> {
+    <span class="fn">Read</span>(<span class="id">p</span> []<span class="kw">byte</span>) (<span class="id">n</span> <span class="kw">int</span>, <span class="id">err</span> <span class="kw">error</span>)
+}
+<span class="kw">type</span> <span class="id">Writer</span> <span class="kw">interface</span> {
+    <span class="fn">Write</span>(<span class="id">p</span> []<span class="kw">byte</span>) (<span class="id">n</span> <span class="kw">int</span>, <span class="id">err</span> <span class="kw">error</span>)
+}
+
+<span class="cm">// 组合接口：实现者必须同时满足 Reader 和 Writer</span>
+<span class="kw">type</span> <span class="id">ReadWriter</span> <span class="kw">interface</span> {
+    <span class="id">Reader</span>
+    <span class="id">Writer</span>
+}
+
+<span class="cm">// 标准库等价：io.ReadWriter, io.ReadWriteCloser 等</span>
+<span class="kw">type</span> <span class="id">ReadWriteCloser</span> <span class="kw">interface</span> {
+    <span class="id">Reader</span>
+    <span class="id">Writer</span>
+    <span class="fn">Close</span>() <span class="kw">error</span>
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>小接口组合的优势</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p>Go 推崇"接口越小越好"（io.Reader 只有1个方法），通过嵌入组合大接口，既保持了接口的原子性，又能按需组合使用。</p>
+          <ul>
+            <li>小接口更易于 mock 和测试</li>
+            <li>函数参数只声明所需接口，符合最小权限原则</li>
+            <li>组合接口可按场景扩展，不影响已有实现</li>
+            <li>Go 1.14 起接口嵌入允许重叠方法集（方法签名相同则合并）</li>
+          </ul>
+          <pre><span class="cm">// 只需读权限的函数，用小接口</span>
+<span class="kw">func</span> <span class="fn">ParseConfig</span>(<span class="id">r</span> <span class="pkg">io</span>.<span class="id">Reader</span>) (<span class="id">Config</span>, <span class="kw">error</span>) { <span class="cm">/* ... */</span> }
+
+<span class="cm">// 需要读写的函数，用组合接口</span>
+<span class="kw">func</span> <span class="fn">Transform</span>(<span class="id">rw</span> <span class="pkg">io</span>.<span class="id">ReadWriter</span>) <span class="kw">error</span> { <span class="cm">/* ... */</span> }</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>结构体嵌入接口</h3>
+          <span class="badge badge-adv">advanced</span>
+        </div>
+        <div class="card-body">
+          <p>结构体可以嵌入接口类型，这让结构体自动满足该接口（但运行时调用未实现的方法会 panic）。常见用法是<strong>局部覆盖</strong>接口方法，构造测试替身。</p>
+          <pre><span class="kw">type</span> <span class="id">Storage</span> <span class="kw">interface</span> {
+    <span class="fn">Get</span>(<span class="id">key</span> <span class="kw">string</span>) <span class="kw">string</span>
+    <span class="fn">Set</span>(<span class="id">key</span>, <span class="id">val</span> <span class="kw">string</span>)
+}
+
+<span class="cm">// 只覆盖 Get，其余方法来自嵌入接口（nil时panic）</span>
+<span class="kw">type</span> <span class="id">ReadOnlyStub</span> <span class="kw">struct</span> {
+    <span class="id">Storage</span>                 <span class="cm">// 嵌入接口</span>
+    <span class="id">data</span> <span class="kw">map</span>[<span class="kw">string</span>]<span class="kw">string</span>
+}
+<span class="kw">func</span> (<span class="id">s</span> *<span class="id">ReadOnlyStub</span>) <span class="fn">Get</span>(<span class="id">key</span> <span class="kw">string</span>) <span class="kw">string</span> {
+    <span class="kw">return</span> <span class="id">s</span>.<span class="id">data</span>[<span class="id">key</span>]
+}
+<span class="cm">// Set 未覆盖：调用 s.Set() 会 panic（Storage 为 nil）</span></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: 组合替代继承 -->
+    <section class="section" id="composition">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>组合替代继承</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>继承 vs 组合对比</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <tr><th>维度</th><th>继承（OOP）</th><th>Go 嵌入组合</th></tr>
+              <tr><td>耦合度</td><td>强耦合，子类依赖父类实现</td><td>松耦合，可替换内层类型</td></tr>
+              <tr><td>方法覆盖</td><td>虚方法 / override</td><td>外层同名方法遮蔽（shadowing）</td></tr>
+              <tr><td>多继承</td><td>复杂，菱形问题</td><td>多嵌入，同名冲突在编译期报错</td></tr>
+              <tr><td>多态</td><td>通过继承链</td><td>通过接口</td></tr>
+              <tr><td>运行时开销</td><td>虚函数表查找</td><td>直接调用（无虚表）</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>方法遮蔽（Shadowing）</h3>
+          <span class="badge badge-adv">advanced</span>
+        </div>
+        <div class="card-body">
+          <p>外层类型定义与嵌入类型同名的方法时，外层方法<strong>遮蔽</strong>内层方法。通过完整路径仍可访问被遮蔽的方法。</p>
+          <pre><span class="kw">type</span> <span class="id">Engine</span> <span class="kw">struct</span>{}
+<span class="kw">func</span> (<span class="id">e</span> <span class="id">Engine</span>) <span class="fn">Start</span>() { <span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="st">"Engine starting"</span>) }
+
+<span class="kw">type</span> <span class="id">Car</span> <span class="kw">struct</span>{ <span class="id">Engine</span> }
+
+<span class="cm">// Car 覆盖 Start，实现自定义逻辑</span>
+<span class="kw">func</span> (<span class="id">c</span> <span class="id">Car</span>) <span class="fn">Start</span>() {
+    <span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="st">"Car: pre-check..."</span>)
+    <span class="id">c</span>.<span class="id">Engine</span>.<span class="fn">Start</span>()  <span class="cm">// 调用被遮蔽的内层方法</span>
+    <span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="st">"Car: ready"</span>)
+}
+
+<span class="id">c</span> := <span class="id">Car</span>{}
+<span class="id">c</span>.<span class="fn">Start</span>()        <span class="cm">// 调用 Car.Start</span>
+<span class="id">c</span>.<span class="id">Engine</span>.<span class="fn">Start</span>() <span class="cm">// 调用 Engine.Start</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>多层嵌入与冲突解决</h3>
+          <span class="badge badge-adv">advanced</span>
+        </div>
+        <div class="card-body">
+          <p>多个同级嵌入类型存在同名字段或方法时，Go 编译器报 <code>ambiguous selector</code>，必须使用完整路径。但不同深度时，<strong>浅层优先</strong>。</p>
+          <pre><span class="kw">type</span> <span class="id">A</span> <span class="kw">struct</span>{ <span class="id">X</span> <span class="kw">int</span> }
+<span class="kw">type</span> <span class="id">B</span> <span class="kw">struct</span>{ <span class="id">X</span> <span class="kw">int</span> }
+
+<span class="kw">type</span> <span class="id">C</span> <span class="kw">struct</span>{ <span class="id">A</span>; <span class="id">B</span> }  <span class="cm">// 同级嵌入，X 冲突</span>
+<span class="id">c</span> := <span class="id">C</span>{}
+<span class="cm">// c.X      // 编译错误: ambiguous selector c.X</span>
+<span class="id">c</span>.<span class="id">A</span>.<span class="id">X</span> = <span class="num">1</span>  <span class="cm">// 必须指定路径</span>
+<span class="id">c</span>.<span class="id">B</span>.<span class="id">X</span> = <span class="num">2</span>
+
+<span class="cm">// 不同深度：浅层（D.X）遮蔽深层（D.A.X）</span>
+<span class="kw">type</span> <span class="id">D</span> <span class="kw">struct</span>{ <span class="id">A</span>; <span class="id">X</span> <span class="kw">string</span> }
+<span class="id">d</span> := <span class="id">D</span>{}
+<span class="id">d</span>.<span class="id">X</span> = <span class="st">"outer"</span>  <span class="cm">// D.X（string），不歧义</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>实用组合模式</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p>通过组合可以实现"Mixin"风格的代码复用：将通用逻辑封装为独立类型，按需嵌入。</p>
+          <pre><span class="cm">// 通用日志能力</span>
+<span class="kw">type</span> <span class="id">Logger</span> <span class="kw">struct</span>{ <span class="id">prefix</span> <span class="kw">string</span> }
+<span class="kw">func</span> (<span class="id">l</span> *<span class="id">Logger</span>) <span class="fn">Log</span>(<span class="id">msg</span> <span class="kw">string</span>) {
+    <span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"[%s] %s\n"</span>, <span class="id">l</span>.<span class="id">prefix</span>, <span class="id">msg</span>)
+}
+
+<span class="cm">// 通用指标能力</span>
+<span class="kw">type</span> <span class="id">Metrics</span> <span class="kw">struct</span>{ <span class="id">hits</span> <span class="kw">int64</span> }
+<span class="kw">func</span> (<span class="id">m</span> *<span class="id">Metrics</span>) <span class="fn">RecordHit</span>() { <span class="pkg">atomic</span>.<span class="fn">AddInt64</span>(&<span class="id">m</span>.<span class="id">hits</span>, <span class="num">1</span>) }
+
+<span class="cm">// 按需组合</span>
+<span class="kw">type</span> <span class="id">Service</span> <span class="kw">struct</span> {
+    *<span class="id">Logger</span>
+    *<span class="id">Metrics</span>
+    <span class="id">name</span> <span class="kw">string</span>
+}
+
+<span class="id">svc</span> := &<span class="id">Service</span>{
+    <span class="id">Logger</span>:  &<span class="id">Logger</span>{<span class="id">prefix</span>: <span class="st">"svc"</span>},
+    <span class="id">Metrics</span>: &<span class="id">Metrics</span>{},
+    <span class="id">name</span>:    <span class="st">"auth"</span>,
+}
+<span class="id">svc</span>.<span class="fn">Log</span>(<span class="st">"started"</span>)
+<span class="id">svc</span>.<span class="fn">RecordHit</span>()</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Interview Section -->
+    <section class="section" id="interview">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>面试题</h2>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this.parentElement)">
+          嵌入和命名字段有何区别？字段提升是什么？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          <strong>命名字段</strong>（如 <code>A Animal</code>）需要通过 <code>.A.</code> 两级路径访问内部成员，内层字段和方法不会出现在外层类型的方法集中。<br><br>
+          <strong>嵌入</strong>（如 <code>Animal</code> 不带字段名）会将内层的字段和方法"提升"（promote）到外层，可以直接用 <code>.Name</code> 访问，完整路径 <code>.Animal.Name</code> 同样有效。提升是编译器的语法糖，底层仍是代理调用，不会复制方法代码。字段名自动等于类型名（或包含包路径的最后一节）。
+        </div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this.parentElement)">
+          嵌入类型的方法集如何影响接口满足？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          嵌入值类型 <code>T</code>：外层值类型获得 T 的值接收者方法集；外层指针类型获得 T 的值+指针接收者方法集。<br><br>
+          嵌入指针类型 <code>*T</code>：外层值类型和指针类型均获得 T 的值+指针接收者方法集，但需确保嵌入的指针已初始化（非 nil）。<br><br>
+          接口满足是在编译期静态检查的，只要方法集满足接口要求，外层类型就隐式实现了该接口，无需显式声明。
+        </div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this.parentElement)">
+          嵌入值类型 vs 嵌入指针类型有什么区别？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          <strong>嵌入值类型</strong>：内层对象随外层对象一起分配，复制外层时内层也被复制（值语义）；值类型变量只能调用内层值接收者方法（不可寻址时无法调用指针接收者方法）。<br><br>
+          <strong>嵌入指针类型</strong>：内层对象独立分配，外层只持有指针（引用语义）；复制外层仅复制指针，多个外层共享同一内层；值和指针变量都能调用内层的指针接收者方法。<strong>风险</strong>：若指针未初始化（nil），调用其方法会 panic。
+        </div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this.parentElement)">
+          两个嵌入类型有同名方法时如何解决冲突？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          Go 编译器遵循<strong>深度优先、浅层优先</strong>规则：<br>
+          1. 若同名成员在不同深度，浅层（外层直接字段/方法）自动优先，无歧义。<br>
+          2. 若同名成员在同一深度（同级嵌入），编译器报 <code>ambiguous selector</code> 错误。<br>
+          3. 解决方式：在外层类型中显式定义同名方法（遮蔽），或通过完整路径 <code>outer.EmbedA.Method()</code> 明确调用具体实现。
+        </div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this.parentElement)">
+          如何用嵌入实现"继承"，又如何覆盖方法？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          Go 没有继承，但嵌入可以达到相似效果：将"父类"逻辑封装为独立类型，"子类"嵌入它，从而复用字段和方法。<br><br>
+          <strong>覆盖方法</strong>：在外层类型中定义与嵌入类型同名的方法，外层方法会遮蔽内层。若需在覆盖方法内调用原始逻辑，通过完整路径 <code>s.EmbedType.Method()</code> 显式调用即可，类似 OOP 的 <code>super.Method()</code>。
+        </div>
+      </div>
+    </section>
+
+    <!-- Pitfalls Section -->
+    <section class="section" id="pitfalls">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>易错点</h2>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">✗ 嵌入指针类型未初始化，调用方法 nil panic</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">type</span> <span class="id">Logger</span> <span class="kw">struct</span>{ <span class="id">level</span> <span class="kw">int</span> }
+<span class="kw">func</span> (<span class="id">l</span> *<span class="id">Logger</span>) <span class="fn">Log</span>(<span class="id">s</span> <span class="kw">string</span>) {
+    <span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">l</span>.<span class="id">level</span>, <span class="id">s</span>)
+}
+
+<span class="kw">type</span> <span class="id">Svc</span> <span class="kw">struct</span>{ *<span class="id">Logger</span> }
+
+<span class="id">s</span> := <span class="id">Svc</span>{}     <span class="cm">// Logger 为 nil</span>
+<span class="id">s</span>.<span class="fn">Log</span>(<span class="st">"hi"</span>)  <span class="cm">// panic: nil pointer</span></pre>
+            <p>嵌入指针类型时，若未在初始化时赋值，内层指针为 nil，调用任何方法都会触发 nil pointer dereference。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">type</span> <span class="id">Logger</span> <span class="kw">struct</span>{ <span class="id">level</span> <span class="kw">int</span> }
+<span class="kw">func</span> (<span class="id">l</span> *<span class="id">Logger</span>) <span class="fn">Log</span>(<span class="id">s</span> <span class="kw">string</span>) {
+    <span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">l</span>.<span class="id">level</span>, <span class="id">s</span>)
+}
+
+<span class="kw">type</span> <span class="id">Svc</span> <span class="kw">struct</span>{ *<span class="id">Logger</span> }
+
+<span class="cm">// 初始化时提供非 nil 指针</span>
+<span class="id">s</span> := <span class="id">Svc</span>{<span class="id">Logger</span>: &<span class="id">Logger</span>{<span class="id">level</span>: <span class="num">1</span>}}
+<span class="id">s</span>.<span class="fn">Log</span>(<span class="st">"hi"</span>)  <span class="cm">// OK</span></pre>
+            <p>嵌入指针类型时，务必在构造时初始化内层指针，或使用构造函数确保非 nil。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">✗ 误以为嵌入会把方法"复制"到外层类型</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">type</span> <span class="id">Base</span> <span class="kw">struct</span>{ <span class="id">val</span> <span class="kw">int</span> }
+<span class="kw">func</span> (<span class="id">b</span> *<span class="id">Base</span>) <span class="fn">Double</span>() { <span class="id">b</span>.<span class="id">val</span> *= <span class="num">2</span> }
+
+<span class="kw">type</span> <span class="id">Outer</span> <span class="kw">struct</span>{ <span class="id">Base</span> }
+
+<span class="id">o</span> := <span class="id">Outer</span>{<span class="id">Base</span>: <span class="id">Base</span>{<span class="id">val</span>: <span class="num">3</span>}}
+<span class="id">o</span>.<span class="fn">Double</span>() <span class="cm">// 修改的是 o.Base.val</span>
+<span class="cm">// o.val 不存在！修改的仍是内层 Base</span></pre>
+            <p>嵌入方法并未生成新的方法体，调用 <code>o.Double()</code> 实际上是 <code>(&o.Base).Double()</code> 的语法糖，接收者是内层 Base，不是 Outer。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 若需要 Outer 自己的行为，显式定义</span>
+<span class="kw">func</span> (<span class="id">o</span> *<span class="id">Outer</span>) <span class="fn">Double</span>() {
+    <span class="cm">// 可在调用前后添加 Outer 级别逻辑</span>
+    <span class="id">o</span>.<span class="id">Base</span>.<span class="fn">Double</span>()
+}
+
+<span class="cm">// 或直接操作 Outer 特有字段</span>
+<span class="kw">type</span> <span class="id">Outer2</span> <span class="kw">struct</span> {
+    <span class="id">Base</span>
+    <span class="id">multiplier</span> <span class="kw">int</span>
+}
+<span class="kw">func</span> (<span class="id">o</span> *<span class="id">Outer2</span>) <span class="fn">Scale</span>() {
+    <span class="id">o</span>.<span class="id">val</span> *= <span class="id">o</span>.<span class="id">multiplier</span> <span class="cm">// 提升访问</span>
+}</pre>
+            <p>理解嵌入是代理调用而非复制，有助于正确设计数据修改和接收者选择。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">✗ 外层同名方法遮蔽内层，导致接口满足失效</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">type</span> <span class="id">Stringer</span> <span class="kw">interface</span>{ <span class="fn">String</span>() <span class="kw">string</span> }
+
+<span class="kw">type</span> <span class="id">Inner</span> <span class="kw">struct</span>{ <span class="id">V</span> <span class="kw">string</span> }
+<span class="kw">func</span> (<span class="id">i</span> <span class="id">Inner</span>) <span class="fn">String</span>() <span class="kw">string</span> { <span class="kw">return</span> <span class="id">i</span>.<span class="id">V</span> }
+
+<span class="kw">type</span> <span class="id">Outer</span> <span class="kw">struct</span>{ <span class="id">Inner</span> }
+<span class="cm">// 不小心定义了返回值不同的 String</span>
+<span class="kw">func</span> (<span class="id">o</span> <span class="id">Outer</span>) <span class="fn">String</span>() <span class="kw">int</span> { <span class="kw">return</span> <span class="num">0</span> }
+
+<span class="cm">// Outer 不再满足 Stringer！</span>
+<span class="cm">// var _ Stringer = Outer{} // 编译错误</span></pre>
+            <p>外层定义了与内层同名但签名不同的方法，会遮蔽内层方法，导致通过嵌入获得的接口满足失效。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 解决：保持签名一致，或不定义同名方法</span>
+<span class="kw">type</span> <span class="id">Outer</span> <span class="kw">struct</span>{ <span class="id">Inner</span> }
+
+<span class="cm">// 若要扩展，保持相同签名</span>
+<span class="kw">func</span> (<span class="id">o</span> <span class="id">Outer</span>) <span class="fn">String</span>() <span class="kw">string</span> {
+    <span class="kw">return</span> <span class="st">"Outer: "</span> + <span class="id">o</span>.<span class="id">Inner</span>.<span class="fn">String</span>()
+}
+
+<span class="cm">// 用编译期断言确保接口满足</span>
+<span class="kw">var</span> <span class="id">_</span> <span class="id">Stringer</span> = <span class="id">Outer</span>{}
+
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">Outer</span>{
+    <span class="id">Inner</span>: <span class="id">Inner</span>{<span class="id">V</span>: <span class="st">"hello"</span>},
+}.<span class="fn">String</span>()) <span class="cm">// "Outer: hello"</span></pre>
+            <p>使用编译期断言 <code>var _ Interface = Type{}</code> 可以在编译阶段捕获此类错误。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+<script>
+function toggleQA(el){el.classList.toggle('open');}
+document.addEventListener('DOMContentLoaded',()=>{
+  if(typeof NavTracker!=='undefined') NavTracker.track('结构体嵌入','golang/embedding.html','🧩','Golang');
+});
+</script>
+</body>
+</html>

@@ -32,31 +32,43 @@
         .replace(/>/g, '&gt;');
 
       if (lang === 'go') {
-        s = s.replace(/\/\/.*/g, function (m) { return '<span class="cm">' + m + '</span>'; });
+        // strings first (prevents URLs inside strings from being split by comment regex)
+        s = s.replace(/`[^`]*`/g, function (m) { return '<span class="st">' + m + '</span>'; });
         s = s.replace(/"(?:[^"\\]|\\.)*"/g, function (m) { return '<span class="st">' + m + '</span>'; });
-        s = s.replace(/\b(package|import|func|return|for|if|else|var|const|type|struct|interface|map|chan|go|defer|select|case|break|continue|range|make|new|len|cap|append|copy|delete|close|nil|true|false|int|int64|string|bool|byte|rune|float64|float32|error)\b/g,
-          '<span class="kw">$1</span>');
-        s = s.replace(/\b(fmt|math|sort|strings|strconv|os|io|bufio|sync|atomic|rand|time|log)\b/g,
-          '<span class="pkg">$1</span>');
-        s = s.replace(/\b([A-Z][a-zA-Z0-9]*)\b/g, '<span class="fn">$1</span>');
-        s = s.replace(/\b(\d+)\b/g, '<span class="num">$1</span>');
-      } else if (lang === 'js') {
         s = s.replace(/\/\/.*/g, function (m) { return '<span class="cm">' + m + '</span>'; });
+        s = s.replace(/\b(package|import|func|return|for|if|else|var|const|type|struct|interface|map|chan|go|defer|select|case|break|continue|range|make|new|len|cap|append|copy|delete|close|nil|true|false|int|int8|int16|int32|int64|uint|uint64|string|bool|byte|rune|float64|float32|complex128|error|any)\b/g,
+          '<span class="kw">$1</span>');
+        s = s.replace(/\b(fmt|math|sort|strings|strconv|os|io|bufio|sync|atomic|rand|time|log|context|http|json|errors|filepath|bytes|net|reflect|unicode|binary|encoding)\b/g,
+          '<span class="pkg">$1</span>');
+        s = s.replace(/\b([A-Z][a-zA-Z0-9]*)\b/g, '<span class="id">$1</span>');
+        s = s.replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="num">$1</span>');
+        s = s.replace(/\b([a-z][a-zA-Z0-9_]*)(?=\s*\()/g, '<span class="fn">$1</span>');
+      } else if (lang === 'js') {
+        // strings first
         s = s.replace(/'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`/g,
           function (m) { return '<span class="st">' + m + '</span>'; });
-        s = s.replace(/\b(function|const|let|var|return|for|of|in|if|else|while|do|break|continue|new|delete|typeof|instanceof|class|extends|import|export|default|null|undefined|true|false|this|super|async|await|throw|try|catch|finally)\b/g,
+        s = s.replace(/\/\/.*/g, function (m) { return '<span class="cm">' + m + '</span>'; });
+        s = s.replace(/\b(function|const|let|var|return|for|of|in|if|else|while|do|break|continue|new|delete|typeof|instanceof|class|extends|import|export|default|null|undefined|true|false|this|super|async|await|throw|try|catch|finally|yield|static|get|set)\b/g,
           '<span class="kw">$1</span>');
-        s = s.replace(/\b([A-Z][a-zA-Z0-9]*)\b/g, '<span class="fn">$1</span>');
-        s = s.replace(/\b(\d+)\b/g, '<span class="num">$1</span>');
-        // function names
+        s = s.replace(/\b(Math|JSON|Promise|Object|Array|Map|Set|Error|Date|RegExp|console)\b/g,
+          '<span class="pkg">$1</span>');
+        s = s.replace(/\b([A-Z][a-zA-Z0-9]*)\b/g, '<span class="id">$1</span>');
+        s = s.replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="num">$1</span>');
         s = s.replace(/\b([a-z][a-zA-Z0-9]*)(?=\s*\()/g, '<span class="fn">$1</span>');
       } else if (lang === 'py') {
-        s = s.replace(/#.*/g, function (m) { return '<span class="cm">' + m + '</span>'; });
+        // strings first
         s = s.replace(/'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"/g,
           function (m) { return '<span class="st">' + m + '</span>'; });
-        s = s.replace(/\b(def|class|return|for|if|elif|else|while|break|continue|import|from|as|with|in|not|and|or|is|None|True|False|pass|raise|try|except|finally|lambda|yield|global|nonlocal|del|len|range|print|sorted|list|dict|set|tuple|str|int|float|bool|min|max|sum|zip|enumerate|map|filter|reversed|append)\b/g,
+        s = s.replace(/#.*/g, function (m) { return '<span class="cm">' + m + '</span>'; });
+        s = s.replace(/\b(def|class|return|for|if|elif|else|while|break|continue|import|from|as|with|in|not|and|or|is|None|True|False|pass|raise|try|except|finally|lambda|yield|global|nonlocal|del|async|await)\b/g,
           '<span class="kw">$1</span>');
-        s = s.replace(/\b(\d+)\b/g, '<span class="num">$1</span>');
+        s = s.replace(/\b(os|sys|re|json|collections|itertools|math|random|pathlib|typing|dataclasses|functools|datetime|io|struct|hashlib|base64|urllib|http|csv|xml|copy|gc|threading|asyncio)\b/g,
+          '<span class="pkg">$1</span>');
+        s = s.replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="num">$1</span>');
+        s = s.replace(/\b([A-Z][a-zA-Z0-9]*)\b/g, '<span class="id">$1</span>');
+        // built-in functions as .fn (distinct from language keywords)
+        s = s.replace(/\b(len|range|print|sorted|list|dict|set|tuple|str|int|float|bool|min|max|sum|zip|enumerate|map|filter|reversed|append|isinstance|hasattr|getattr|setattr|open|type|repr|id|abs|round|pow|hex|bin|ord|chr|input|iter|next)\b/g,
+          '<span class="fn">$1</span>');
         s = s.replace(/\b([a-z][a-zA-Z0-9_]*)(?=\s*\()/g, '<span class="fn">$1</span>');
       }
 

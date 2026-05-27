@@ -1,0 +1,412 @@
+<!DOCTYPE html><html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>类型系统 - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:72px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(0,173,216,.12);color:var(--accent);border:1px solid rgba(0,173,216,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.badge-high{background:rgba(251,146,60,.12);color:#fb923c;border:1px solid rgba(251,146,60,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(0,173,216,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;margin-bottom:0;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.table-wrap{overflow-x:auto;margin:10px 0;}
+table{width:100%;border-collapse:collapse;font-size:.82rem;}
+th{background:rgba(0,173,216,.08);color:var(--accent);padding:8px 12px;text-align:left;border:1px solid var(--border2);font-size:.78rem;}
+td{padding:7px 12px;border:1px solid var(--border2);color:var(--dim);}
+tr:hover td{background:rgba(255,255,255,.02);}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">🔷 类型系统</span>
+  <div class="nav-tags">
+    <span class="ntag">types</span>
+    <span class="ntag">zero-value</span>
+    <span class="ntag">conversion</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <aside class="side-nav" id="sideNav">
+    <nav><ul>
+      <li><a href="#basic-types">基本类型</a></li>
+      <li><a href="#composite-types">复合类型</a></li>
+      <li><a href="#conversion">类型转换</a></li>
+      <li><a href="#interface-types">接口与空接口</a></li>
+      <li><a href="#interview">面试题</a></li>
+      <li><a href="#pitfalls">易错点</a></li>
+    </ul></nav>
+  </aside>
+  <main class="main-content">
+
+    <div class="section" id="basic-types">
+      <div class="section-title"><div class="title-bar"></div><h2>基本类型</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>内置基本类型总览</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>Go 的基本类型分为布尔、整数、浮点、复数、字符串五大类。每种类型都有明确的零值，变量声明后未赋值时自动使用零值。</p>
+          <div class="table-wrap">
+            <table>
+              <tr><th>类型</th><th>零值</th><th>说明</th></tr>
+              <tr><td><code>bool</code></td><td><code>false</code></td><td>布尔型</td></tr>
+              <tr><td><code>int / int8/16/32/64</code></td><td><code>0</code></td><td>有符号整数，int大小平台相关</td></tr>
+              <tr><td><code>uint / uint8/16/32/64</code></td><td><code>0</code></td><td>无符号整数</td></tr>
+              <tr><td><code>float32 / float64</code></td><td><code>0</code></td><td>浮点数，推荐用float64</td></tr>
+              <tr><td><code>string</code></td><td><code>""</code></td><td>不可变字节序列</td></tr>
+              <tr><td><code>byte</code></td><td><code>0</code></td><td>uint8的别名</td></tr>
+              <tr><td><code>rune</code></td><td><code>0</code></td><td>int32的别名，代表Unicode码点</td></tr>
+              <tr><td><code>pointer</code></td><td><code>nil</code></td><td>指针类型</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>类型别名 vs 新类型定义</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p><strong>type T = U</strong>（别名）：T 和 U 完全等价，可以互换使用，没有新的类型产生。<br>
+          <strong>type T U</strong>（新类型）：T 是新的类型，底层类型是 U，但两者不能直接赋值，需要显式转换。</p>
+          <pre><span class="cm">// 类型别名 — T 和 U 完全等同</span>
+<span class="kw">type</span> <span class="id">MyByte</span> = <span class="pkg">byte</span>   <span class="cm">// MyByte 就是 byte，可直接赋值</span>
+
+<span class="cm">// 新类型定义 — T 是全新类型</span>
+<span class="kw">type</span> <span class="id">Celsius</span> <span class="pkg">float64</span>
+<span class="kw">type</span> <span class="id">Fahrenheit</span> <span class="pkg">float64</span>
+
+<span class="kw">var</span> <span class="id">c</span> <span class="id">Celsius</span> = <span class="num">100</span>
+<span class="cm">// var f Fahrenheit = c  // 编译错误！不同类型</span>
+<span class="kw">var</span> <span class="id">f</span> <span class="id">Fahrenheit</span> = <span class="id">Fahrenheit</span>(<span class="id">c</span>)  <span class="cm">// 显式转换 OK</span></pre>
+          <p>新类型可以定义自己的方法，别名则不能添加新方法（方法属于原类型）。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="composite-types">
+      <div class="section-title"><div class="title-bar"></div><h2>复合类型</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>Array vs Slice</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <ul>
+            <li><strong>Array</strong>：固定长度，长度是类型的一部分，<code>[3]int != [4]int</code>，值类型（赋值复制整个数组）</li>
+            <li><strong>Slice</strong>：动态长度，底层是 {指针, len, cap} 三字段，引用类型（赋值共享底层数组）</li>
+          </ul>
+          <pre><span class="cm">// Array — 值类型</span>
+<span class="kw">var</span> <span class="id">a</span> [<span class="num">3</span>]<span class="pkg">int</span> = [<span class="num">3</span>]<span class="pkg">int</span>{<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>}
+<span class="id">b</span> := <span class="id">a</span>  <span class="cm">// b 是 a 的拷贝，修改 b 不影响 a</span>
+
+<span class="cm">// Slice — 引用类型</span>
+<span class="id">s</span> := []<span class="pkg">int</span>{<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>}
+<span class="id">t</span> := <span class="id">s</span>  <span class="cm">// t 和 s 共享底层数组</span>
+<span class="id">t</span>[<span class="num">0</span>] = <span class="num">99</span>  <span class="cm">// s[0] 也变成 99</span></pre>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>Map 与 Struct</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <ul>
+            <li><strong>map</strong>：引用类型，key 必须是可比较类型，未初始化的 map 读可以（返回零值），写会 panic</li>
+            <li><strong>struct</strong>：值类型，字段可以是任意类型，可嵌入其他 struct 实现组合</li>
+            <li><strong>pointer</strong>：<code>&amp;x</code> 取地址，<code>*p</code> 解引用，nil 指针解引用会 panic</li>
+          </ul>
+          <pre><span class="kw">type</span> <span class="id">Point</span> <span class="kw">struct</span> {
+    <span class="id">X</span>, <span class="id">Y</span> <span class="pkg">float64</span>
+}
+
+<span class="cm">// map 必须用 make 初始化</span>
+<span class="id">m</span> := <span class="fn">make</span>(<span class="kw">map</span>[<span class="pkg">string</span>]<span class="pkg">int</span>)
+<span class="id">m</span>[<span class="st">"key"</span>] = <span class="num">1</span>
+
+<span class="cm">// 零值 map 可读不可写</span>
+<span class="kw">var</span> <span class="id">m2</span> <span class="kw">map</span>[<span class="pkg">string</span>]<span class="pkg">int</span>
+<span class="id">_</span> = <span class="id">m2</span>[<span class="st">"x"</span>]   <span class="cm">// 返回 0，不 panic</span>
+<span class="id">m2</span>[<span class="st">"x"</span>] = <span class="num">1</span>  <span class="cm">// panic: assignment to entry in nil map</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="conversion">
+      <div class="section-title"><div class="title-bar"></div><h2>类型转换</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>显式类型转换</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>Go 不存在隐式类型转换（C 风格的强制转换）。所有类型转换必须显式写明，语法为 <code>T(x)</code>。数值类型之间转换可能丢失精度（截断）但不报错。</p>
+          <pre><span class="kw">var</span> <span class="id">i</span> <span class="pkg">int</span> = <span class="num">42</span>
+<span class="kw">var</span> <span class="id">f</span> <span class="pkg">float64</span> = <span class="pkg">float64</span>(<span class="id">i</span>)  <span class="cm">// int → float64</span>
+<span class="kw">var</span> <span class="id">u</span> <span class="pkg">uint</span> = <span class="pkg">uint</span>(<span class="id">f</span>)          <span class="cm">// float64 → uint（截断小数）</span>
+
+<span class="cm">// string ↔ []byte ↔ []rune</span>
+<span class="id">s</span> := <span class="st">"hello"</span>
+<span class="id">b</span> := []<span class="pkg">byte</span>(<span class="id">s</span>)   <span class="cm">// string → []byte（拷贝）</span>
+<span class="id">r</span> := []<span class="pkg">rune</span>(<span class="id">s</span>)   <span class="cm">// string → []rune（拷贝）</span>
+<span class="id">s2</span> := <span class="pkg">string</span>(<span class="id">b</span>)  <span class="cm">// []byte → string（拷贝）</span></pre>
+          <p><strong>unsafe.Pointer</strong>：绕过类型系统的"逃生舱"，可以将任意指针转换为 unsafe.Pointer 再转换为其他类型，但这是不安全操作，仅在极特殊场景使用（如与 C 互操作、零拷贝优化）。</p>
+          <pre><span class="kw">import</span> <span class="st">"unsafe"</span>
+
+<span class="cm">// 零拷贝 string → []byte（不推荐生产使用）</span>
+<span class="kw">func</span> <span class="fn">unsafeBytes</span>(<span class="id">s</span> <span class="pkg">string</span>) []<span class="pkg">byte</span> {
+    <span class="kw">return</span> *(*[]<span class="pkg">byte</span>)(<span class="id">unsafe</span>.<span class="fn">Pointer</span>(&amp;<span class="id">s</span>))
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="interface-types">
+      <div class="section-title"><div class="title-bar"></div><h2>接口与空接口</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>interface{} 与 any</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-body">
+          <p>Go 1.18 引入 <code>any</code> 作为 <code>interface{}</code> 的别名。空接口可以持有任意类型的值，但使用时需要类型断言或 type switch 才能获取具体值。</p>
+          <pre><span class="kw">var</span> <span class="id">x</span> <span class="pkg">any</span> = <span class="num">42</span>
+
+<span class="cm">// 类型断言（单值形式，失败会 panic）</span>
+<span class="id">n</span> := <span class="id">x</span>.(<span class="pkg">int</span>)
+
+<span class="cm">// 安全类型断言（两值形式，推荐）</span>
+<span class="id">n</span>, <span class="id">ok</span> := <span class="id">x</span>.(<span class="pkg">int</span>)
+<span class="kw">if</span> !<span class="id">ok</span> { <span class="cm">/* x 不是 int */</span> }
+
+<span class="cm">// type switch</span>
+<span class="kw">switch</span> <span class="id">v</span> := <span class="id">x</span>.(<span class="kw">type</span>) {
+<span class="kw">case</span> <span class="pkg">int</span>:
+    <span class="id">fmt</span>.<span class="fn">Println</span>(<span class="st">"int:"</span>, <span class="id">v</span>)
+<span class="kw">case</span> <span class="pkg">string</span>:
+    <span class="id">fmt</span>.<span class="fn">Println</span>(<span class="st">"string:"</span>, <span class="id">v</span>)
+<span class="kw">default</span>:
+    <span class="id">fmt</span>.<span class="fn">Println</span>(<span class="st">"unknown"</span>)
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="interview">
+      <div class="section-title"><div class="title-bar"></div><h2>面试题</h2></div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">零值的实际用途是什么？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">零值设计让 Go 程序更安全，避免了未初始化变量的 undefined behavior。实际用途：<br>
+        • <code>sync.Mutex</code> 零值可直接使用，无需构造函数<br>
+        • <code>bytes.Buffer</code> 零值是空缓冲区，可直接调用 Write<br>
+        • 数值零值做累加器初始值<br>
+        • bool false 做 flag 默认关闭<br>
+        • nil slice 可以直接 append，nil map 可以读（返回零值）<br>
+        惯用法：设计 struct 时让零值代表"最合理的默认状态"。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">type T U 和 type T = U 的本质区别？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a"><code>type T = U</code>（别名）：T 就是 U，在编译器眼中完全相同，无法为 T 定义新方法（因为方法属于 U）。主要用于代码重构/兼容性迁移。<br><br>
+        <code>type T U</code>（定义新类型）：T 是全新的类型，底层类型是 U。T 和 U 之间不能直接赋值，必须显式转换。T 可以定义自己的方法。用途：语义化（Celsius vs float64）、类型安全（防止意外混用）。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">int 和 int32 可以直接赋值吗？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">不可以。虽然在 64 位平台上 int 和 int64 底层都是 64 位整数，但在 Go 类型系统中它们是不同的类型，<code>int</code>、<code>int32</code>、<code>int64</code> 三者互相不兼容，必须显式转换：<br>
+        <code>var i32 int32 = 100; var i int = int(i32)</code><br><br>
+        同理，<code>byte</code>（uint8）和 <code>int</code> 也不能直接赋值。唯一例外是无类型常量，它可以被赋值给任何兼容的数值类型。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">哪些类型可以赋值为 nil？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">在 Go 中，以下类型的零值是 nil：<br>
+        • 指针（pointer）<br>
+        • 切片（slice）<br>
+        • 映射（map）<br>
+        • 通道（channel）<br>
+        • 函数（func）<br>
+        • 接口（interface）<br><br>
+        基本类型（int, bool, string 等）和 struct、array 不能赋值为 nil。将 nil 接口和含有 nil 指针的接口混淆是常见错误（详见易错点）。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">byte 和 rune 有什么区别？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a"><code>byte</code> 是 <code>uint8</code> 的别名，表示一个字节（0-255），用于处理原始字节数据。<br>
+        <code>rune</code> 是 <code>int32</code> 的别名，表示一个 Unicode 码点（U+0000 到 U+10FFFF），用于处理字符。<br><br>
+        一个 UTF-8 编码的中文字符占 3 个字节，但只是 1 个 rune。用 <code>len(s)</code> 获取的是字节数，用 <code>len([]rune(s))</code> 或 <code>utf8.RuneCountInString(s)</code> 才是字符数。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">unsafe.Pointer 的四条转换规则是什么？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">Go 规范允许的 unsafe.Pointer 合法转换模式：<br>
+        1. 任何类型的指针可以转换为 unsafe.Pointer<br>
+        2. unsafe.Pointer 可以转换为任何类型的指针<br>
+        3. uintptr 可以转换为 unsafe.Pointer（反之亦然），但中间不能有 GC 触发点<br>
+        4. unsafe.Pointer 可以转换为 uintptr 后做算术运算，再转回（需要在同一表达式内完成以避免 GC 移动对象）<br><br>
+        违反这些规则可能导致内存安全问题，go vet 和 go tool vet 会做部分检查。</div>
+      </div>
+    </div>
+
+    <div class="section" id="pitfalls">
+      <div class="section-title"><div class="title-bar"></div><h2>易错点</h2></div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 整型溢出不报错，静默截断</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">var</span> <span class="id">i8</span> <span class="pkg">int8</span> = <span class="num">127</span>
+<span class="id">i8</span>++
+<span class="cm">// i8 变成 -128，不报错</span>
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">i8</span>) <span class="cm">// -128</span>
+
+<span class="kw">var</span> <span class="id">u8</span> <span class="pkg">uint8</span> = <span class="num">255</span>
+<span class="id">u8</span>++
+<span class="cm">// u8 回绕到 0</span></pre>
+            <p>整型溢出是静默行为，不触发 panic 或编译错误。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 需要手动检查边界</span>
+<span class="kw">import</span> <span class="st">"math"</span>
+
+<span class="kw">func</span> <span class="fn">safeAdd</span>(<span class="id">a</span>, <span class="id">b</span> <span class="pkg">int8</span>) (<span class="pkg">int8</span>, <span class="pkg">error</span>) {
+    <span class="id">sum</span> := <span class="pkg">int16</span>(<span class="id">a</span>) + <span class="pkg">int16</span>(<span class="id">b</span>)
+    <span class="kw">if</span> <span class="id">sum</span> > <span class="id">math</span>.<span class="id">MaxInt8</span> {
+        <span class="kw">return</span> <span class="num">0</span>, <span class="id">fmt</span>.<span class="fn">Errorf</span>(<span class="st">"overflow"</span>)
+    }
+    <span class="kw">return</span> <span class="pkg">int8</span>(<span class="id">sum</span>), <span class="kw">nil</span>
+}</pre>
+            <p>用更宽的类型做中间计算，或使用 math.MaxInt8 等常量检查边界。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ byte 与 rune 混淆导致中文截断</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="id">s</span> := <span class="st">"你好世界"</span>
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="fn">len</span>(<span class="id">s</span>))  <span class="cm">// 12（字节数）</span>
+
+<span class="cm">// 错误：按字节切片中文</span>
+<span class="id">first</span> := <span class="id">s</span>[:<span class="num">3</span>]
+<span class="cm">// first 是 "你" 的 UTF-8 编码</span>
+<span class="cm">// 但 s[:2] 是乱码！</span></pre>
+            <p>len() 返回字节数，对中文字符串按字节下标操作会产生乱码。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="id">s</span> := <span class="st">"你好世界"</span>
+<span class="id">runes</span> := []<span class="pkg">rune</span>(<span class="id">s</span>)
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="fn">len</span>(<span class="id">runes</span>))  <span class="cm">// 4（字符数）</span>
+
+<span class="cm">// 正确：转换为 rune slice 后操作</span>
+<span class="id">first</span> := <span class="pkg">string</span>(<span class="id">runes</span>[:<span class="num">2</span>])  <span class="cm">// "你好"</span>
+
+<span class="cm">// 或用 range 遍历</span>
+<span class="kw">for</span> <span class="id">i</span>, <span class="id">r</span> := <span class="kw">range</span> <span class="id">s</span> {
+    <span class="id">fmt</span>.<span class="fn">Printf</span>(<span class="st">"%d: %c\n"</span>, <span class="id">i</span>, <span class="id">r</span>)
+}</pre>
+            <p>处理多字节字符时转换为 []rune，或使用 range 遍历（自动处理 UTF-8）。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ nil 赋值给多种类型后比较行为不同</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">var</span> <span class="id">p</span> *<span class="pkg">int</span> = <span class="kw">nil</span>
+<span class="kw">var</span> <span class="id">i</span> <span class="pkg">interface</span>{} = <span class="id">p</span>
+
+<span class="cm">// 陷阱：interface 值不为 nil！</span>
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">p</span> == <span class="kw">nil</span>)  <span class="cm">// true</span>
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">i</span> == <span class="kw">nil</span>)  <span class="cm">// false !!!</span></pre>
+            <p>interface 存储了 (type=*int, value=nil)，类型信息非空，所以整个 interface 不等于 nil。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 正确做法：返回 nil 接口时</span>
+<span class="cm">// 直接返回 nil，不要返回</span>
+<span class="cm">// (*T)(nil) 赋给 error/interface</span>
+
+<span class="kw">func</span> <span class="fn">getError</span>() <span class="pkg">error</span> {
+    <span class="kw">var</span> <span class="id">p</span> *<span class="id">MyError</span> = <span class="kw">nil</span>
+    <span class="cm">// return p  // 错误：caller 看到非 nil error</span>
+    <span class="kw">return</span> <span class="kw">nil</span>  <span class="cm">// 正确</span>
+}</pre>
+            <p>返回 error 接口时，永远直接 return nil，不要返回具体类型的 nil 指针。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ int 和 int64 在不同平台大小不同</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// int 大小取决于平台</span>
+<span class="cm">// 32位平台: int == int32 (4字节)</span>
+<span class="cm">// 64位平台: int == int64 (8字节)</span>
+
+<span class="cm">// 序列化时假设 int 是 64 位</span>
+<span class="kw">type</span> <span class="id">Msg</span> <span class="kw">struct</span> {
+    <span class="id">ID</span> <span class="pkg">int</span>  <span class="cm">// 跨平台不安全</span>
+}</pre>
+            <p>int 的大小不固定，跨平台序列化/网络传输时可能出现问题。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 跨平台时用明确宽度的类型</span>
+<span class="kw">type</span> <span class="id">Msg</span> <span class="kw">struct</span> {
+    <span class="id">ID</span> <span class="pkg">int64</span>  <span class="cm">// 明确 8 字节</span>
+}
+
+<span class="cm">// 数组下标、长度用 int 是OK的</span>
+<span class="cm">// API 参数/协议字段用明确宽度</span>
+<span class="kw">import</span> <span class="st">"unsafe"</span>
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">unsafe</span>.<span class="fn">Sizeof</span>(<span class="pkg">int</span>(<span class="num">0</span>)))
+<span class="cm">// 8 on 64-bit, 4 on 32-bit</span></pre>
+            <p>协议/序列化字段使用 int32/int64，本地计算和索引用 int。</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>
+function toggleQA(el){el.classList.toggle('open');}
+document.addEventListener('DOMContentLoaded',()=>{
+  if(typeof NavTracker!=='undefined') NavTracker.track('类型系统','golang/type-system.html','🔷','Golang');
+});
+</script>
+</body>
+</html>

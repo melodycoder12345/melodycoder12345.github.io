@@ -1,0 +1,414 @@
+<!DOCTYPE html><html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>泛型 - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:72px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(0,173,216,.12);color:var(--accent);border:1px solid rgba(0,173,216,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(0,173,216,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:12px 0;}
+.compare-box{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:12px 14px;}
+.compare-box h4{font-size:.78rem;margin-bottom:8px;font-family:monospace;}
+.compare-box.good-box h4{color:#4ade80;}
+.compare-box.bad-box h4{color:#fb923c;}
+.compare-box p{font-size:.76rem;color:var(--dim);line-height:1.5;}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}.compare-grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">⚡ 泛型</span>
+  <div class="nav-tags">
+    <span class="ntag">generics</span>
+    <span class="ntag">type-param</span>
+    <span class="ntag">constraints</span>
+    <span class="ntag">1.18</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <aside class="side-nav" id="sideNav">
+    <nav><ul>
+      <li><a href="#type-params">类型参数基础</a></li>
+      <li><a href="#constraints">约束</a></li>
+      <li><a href="#any-comparable">any vs comparable</a></li>
+      <li><a href="#generic-use">适用场景</a></li>
+      <li><a href="#interview">面试题</a></li>
+      <li><a href="#pitfalls">易错点</a></li>
+    </ul></nav>
+  </aside>
+  <main class="main-content">
+
+    <div class="section" id="type-params">
+      <div class="section-title"><div class="title-bar"></div><h2>类型参数基础</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>func F[T any](v T) 语法</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>Go 1.18 引入泛型，使用方括号 <code>[T constraint]</code> 声明类型参数。类型参数可以用在函数、方法（有限制）和类型上。</p>
+          <pre><span class="cm">// 泛型函数</span>
+<span class="kw">func</span> <span class="fn">Map</span>[<span class="id">T</span>, <span class="id">U</span> <span class="pkg">any</span>](<span class="id">s</span> []<span class="id">T</span>, <span class="id">f</span> <span class="kw">func</span>(<span class="id">T</span>) <span class="id">U</span>) []<span class="id">U</span> {
+    <span class="id">result</span> := <span class="fn">make</span>([]<span class="id">U</span>, <span class="fn">len</span>(<span class="id">s</span>))
+    <span class="kw">for</span> <span class="id">i</span>, <span class="id">v</span> := <span class="kw">range</span> <span class="id">s</span> {
+        <span class="id">result</span>[<span class="id">i</span>] = <span class="fn">f</span>(<span class="id">v</span>)
+    }
+    <span class="kw">return</span> <span class="id">result</span>
+}
+
+<span class="cm">// 调用时可以显式指定类型，或让编译器推断</span>
+<span class="id">nums</span> := []<span class="pkg">int</span>{<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>}
+<span class="id">strs</span> := <span class="fn">Map</span>(<span class="id">nums</span>, <span class="id">strconv</span>.<span class="fn">Itoa</span>)  <span class="cm">// 类型推断</span>
+<span class="id">strs2</span> := <span class="fn">Map</span>[<span class="pkg">int</span>, <span class="pkg">string</span>](<span class="id">nums</span>, <span class="id">strconv</span>.<span class="fn">Itoa</span>)  <span class="cm">// 显式指定</span>
+
+<span class="cm">// 泛型类型（容器）</span>
+<span class="kw">type</span> <span class="id">Stack</span>[<span class="id">T</span> <span class="pkg">any</span>] <span class="kw">struct</span> {
+    <span class="id">items</span> []<span class="id">T</span>
+}
+<span class="kw">func</span> (<span class="id">s</span> *<span class="id">Stack</span>[<span class="id">T</span>]) <span class="fn">Push</span>(<span class="id">v</span> <span class="id">T</span>) { <span class="id">s</span>.<span class="id">items</span> = <span class="fn">append</span>(<span class="id">s</span>.<span class="id">items</span>, <span class="id">v</span>) }
+<span class="kw">func</span> (<span class="id">s</span> *<span class="id">Stack</span>[<span class="id">T</span>]) <span class="fn">Pop</span>() (<span class="id">T</span>, <span class="pkg">bool</span>) {
+    <span class="kw">if</span> <span class="fn">len</span>(<span class="id">s</span>.<span class="id">items</span>) == <span class="num">0</span> {
+        <span class="kw">var</span> <span class="id">zero</span> <span class="id">T</span>
+        <span class="kw">return</span> <span class="id">zero</span>, <span class="kw">false</span>
+    }
+    <span class="id">n</span> := <span class="fn">len</span>(<span class="id">s</span>.<span class="id">items</span>) - <span class="num">1</span>
+    <span class="id">v</span> := <span class="id">s</span>.<span class="id">items</span>[<span class="id">n</span>]
+    <span class="id">s</span>.<span class="id">items</span> = <span class="id">s</span>.<span class="id">items</span>[:<span class="id">n</span>]
+    <span class="kw">return</span> <span class="id">v</span>, <span class="kw">true</span>
+}
+
+<span class="id">s</span> := &amp;<span class="id">Stack</span>[<span class="pkg">int</span>]{}
+<span class="id">s</span>.<span class="fn">Push</span>(<span class="num">1</span>); <span class="id">s</span>.<span class="fn">Push</span>(<span class="num">2</span>)
+<span class="id">v</span>, _ := <span class="id">s</span>.<span class="fn">Pop</span>()  <span class="cm">// 2</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="constraints">
+      <div class="section-title"><div class="title-bar"></div><h2>约束（Constraints）</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>comparable、~ 操作符与 union 约束</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>约束用于限制类型参数可以是哪些类型，基于接口语法扩展而来。</p>
+          <pre><span class="cm">// comparable：支持 == 和 != 的类型</span>
+<span class="kw">func</span> <span class="fn">Contains</span>[<span class="id">T</span> <span class="pkg">comparable</span>](<span class="id">s</span> []<span class="id">T</span>, <span class="id">v</span> <span class="id">T</span>) <span class="pkg">bool</span> {
+    <span class="kw">for</span> _, <span class="id">x</span> := <span class="kw">range</span> <span class="id">s</span> {
+        <span class="kw">if</span> <span class="id">x</span> == <span class="id">v</span> { <span class="kw">return</span> <span class="kw">true</span> }
+    }
+    <span class="kw">return</span> <span class="kw">false</span>
+}
+
+<span class="cm">// ~ 操作符：包含底层类型为 T 的所有类型</span>
+<span class="cm">// ~int 包括 int 以及 type MyInt int</span>
+<span class="kw">type</span> <span class="id">Number</span> <span class="kw">interface</span> {
+    ~<span class="pkg">int</span> | ~<span class="pkg">int8</span> | ~<span class="pkg">int16</span> | ~<span class="pkg">int32</span> | ~<span class="pkg">int64</span> |
+    ~<span class="pkg">uint</span> | ~<span class="pkg">float32</span> | ~<span class="pkg">float64</span>
+}
+
+<span class="kw">func</span> <span class="fn">Sum</span>[<span class="id">T</span> <span class="id">Number</span>](<span class="id">nums</span> []<span class="id">T</span>) <span class="id">T</span> {
+    <span class="kw">var</span> <span class="id">total</span> <span class="id">T</span>
+    <span class="kw">for</span> _, <span class="id">n</span> := <span class="kw">range</span> <span class="id">nums</span> { <span class="id">total</span> += <span class="id">n</span> }
+    <span class="kw">return</span> <span class="id">total</span>
+}
+
+<span class="cm">// 自定义类型也满足 Number</span>
+<span class="kw">type</span> <span class="id">Celsius</span> <span class="pkg">float64</span>
+<span class="id">temps</span> := []<span class="id">Celsius</span>{<span class="num">36.5</span>, <span class="num">37.2</span>, <span class="num">38.0</span>}
+<span class="fn">Sum</span>(<span class="id">temps</span>)  <span class="cm">// OK，Celsius 的底层类型是 float64</span>
+
+<span class="cm">// golang.org/x/exp/constraints 包提供了常用约束</span>
+<span class="cm">// constraints.Ordered：可排序类型（支持 &lt; &gt; 等）</span>
+<span class="cm">// constraints.Integer/Float/Complex</span></pre>
+          <p>约束也可以包含方法要求：</p>
+          <pre><span class="kw">type</span> <span class="id">Stringer</span>[<span class="id">T</span> <span class="pkg">any</span>] <span class="kw">interface</span> {
+    <span class="id">fmt</span>.<span class="id">Stringer</span>
+    <span class="fn">Less</span>(<span class="id">other</span> <span class="id">T</span>) <span class="pkg">bool</span>
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="any-comparable">
+      <div class="section-title"><div class="title-bar"></div><h2>any vs comparable</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>两个内置约束的区别</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p><code>any</code> 是 <code>interface{}</code> 的别名，作为约束时表示"任意类型"，即不加任何限制。<code>comparable</code> 是一个内置约束，表示支持 == 和 != 的类型。</p>
+          <div class="compare-grid">
+            <div class="compare-box bad-box">
+              <h4>any 约束</h4>
+              <p>接受一切类型，包括 slice、map、func 等不可比较的类型。但在函数体内不能用 == 比较，不能用作 map 的 key。</p>
+            </div>
+            <div class="compare-box good-box">
+              <h4>comparable 约束</h4>
+              <p>只接受可比较类型（bool、数值、string、指针、channel、array、struct 所有字段可比较）。可以用 ==，可以用作 map key。</p>
+            </div>
+          </div>
+          <pre><span class="cm">// 泛型 Set（需要可比较类型）</span>
+<span class="kw">type</span> <span class="id">Set</span>[<span class="id">K</span> <span class="pkg">comparable</span>] <span class="kw">struct</span> {
+    <span class="id">m</span> <span class="kw">map</span>[<span class="id">K</span>]<span class="kw">struct</span>{}
+}
+<span class="kw">func</span> (<span class="id">s</span> *<span class="id">Set</span>[<span class="id">K</span>]) <span class="fn">Add</span>(<span class="id">k</span> <span class="id">K</span>) { <span class="id">s</span>.<span class="id">m</span>[<span class="id">k</span>] = <span class="kw">struct</span>{}{} }
+
+<span class="cm">// interface{}/any 不满足 comparable</span>
+<span class="cm">// 因为 any 可以持有 slice 等不可比较的值</span>
+<span class="kw">var</span> _ = <span class="id">Set</span>[<span class="pkg">any</span>]{}  <span class="cm">// ❌ 编译错误</span>
+<span class="kw">var</span> _ = <span class="id">Set</span>[<span class="pkg">int</span>]{}  <span class="cm">// ✓</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="generic-use">
+      <div class="section-title"><div class="title-bar"></div><h2>泛型适用场景</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>什么时候用，什么时候不用</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-body">
+          <p><strong>适合使用泛型的场景：</strong></p>
+          <ul>
+            <li>容器/集合类型：Stack、Queue、Set、Map 等，需要类型安全</li>
+            <li>对多种类型做相同操作：Map、Filter、Reduce 等函数式操作</li>
+            <li>排序、搜索（需要 Ordered/comparable 约束）</li>
+            <li>Go 1.21+ 标准库：<code>slices</code>、<code>maps</code>、<code>cmp</code> 包大量使用泛型</li>
+          </ul>
+          <p><strong>不适合使用泛型的场景：</strong></p>
+          <ul>
+            <li>函数本身只有一种实现，不需要类型参数化（不要为了泛型而泛型）</li>
+            <li>接口已经足够表达多态（不同类型有不同行为）</li>
+            <li>类型参数只用在函数内部不需要类型安全的地方</li>
+          </ul>
+          <pre><span class="cm">// Go 1.21 slices 包 — 泛型的正确使用</span>
+<span class="kw">import</span> <span class="st">"slices"</span>
+
+<span class="id">s</span> := []<span class="pkg">int</span>{<span class="num">3</span>, <span class="num">1</span>, <span class="num">4</span>, <span class="num">1</span>, <span class="num">5</span>}
+<span class="id">slices</span>.<span class="fn">Sort</span>(<span class="id">s</span>)          <span class="cm">// 泛型排序</span>
+<span class="id">slices</span>.<span class="fn">Contains</span>(<span class="id">s</span>, <span class="num">4</span>)  <span class="cm">// 泛型查找</span>
+<span class="id">slices</span>.<span class="fn">Max</span>(<span class="id">s</span>)           <span class="cm">// 泛型最大值</span>
+
+<span class="cm">// Go 1.21 maps 包</span>
+<span class="kw">import</span> <span class="st">"maps"</span>
+<span class="id">m1</span> := <span class="kw">map</span>[<span class="pkg">string</span>]<span class="pkg">int</span>{<span class="st">"a"</span>: <span class="num">1</span>}
+<span class="id">m2</span> := <span class="id">maps</span>.<span class="fn">Clone</span>(<span class="id">m1</span>)   <span class="cm">// 泛型克隆</span>
+<span class="id">maps</span>.<span class="fn">Equal</span>(<span class="id">m1</span>, <span class="id">m2</span>)     <span class="cm">// 泛型相等比较</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="interview">
+      <div class="section-title"><div class="title-bar"></div><h2>面试题</h2></div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">泛型和 interface{} 哪个性能更好？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">泛型通常更好，但取决于实现方式：<br><br>
+        <strong>interface{}/any 的性能开销</strong>：<br>
+        1. 接口值包含 (type, value) 两个指针，装箱/拆箱有内存分配<br>
+        2. 方法调用是间接调用（通过 itab），不能内联<br>
+        3. 逃逸分析：被放入 interface 的值通常逃逸到堆<br><br>
+        <strong>泛型的实现（GCShape stenciling）</strong>：<br>
+        Go 1.18 的泛型实现：对于指针类型，所有指针共享同一份 "GCShape" 代码（类似 Java 的类型擦除），通过字典（dictionary）传递类型信息。对于值类型，每种具体类型可能生成单独的代码实例化版本（类似 C++ 模板）。<br><br>
+        实际中：泛型通常比 interface{} 快（避免装箱），且类型安全。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">约束里的 ~ 是什么意思？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a"><code>~T</code> 表示"底层类型（underlying type）为 T 的所有类型"，包括 T 本身以及所有以 T 为底层类型的自定义类型。<br><br>
+        例如：<code>~int</code> 匹配 int 以及 <code>type MyInt int</code>、<code>type Score int</code> 等所有以 int 为底层类型的类型。<br><br>
+        如果没有 ~，则只匹配精确的 int，不匹配 MyInt。<br><br>
+        典型用法：<code>type Ordered interface { ~int | ~float64 | ~string }</code>，让约束覆盖所有"类 int/float/string"的自定义类型，而不只是内置类型本身。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">泛型方法有什么限制？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">Go 泛型的一个重要限制：<strong>方法不能有额外的类型参数</strong>（只有函数可以独立声明类型参数）。<br><br>
+        合法：<br>
+        <code>type Stack[T any] struct { ... }</code><br>
+        <code>func (s *Stack[T]) Push(v T) { ... }</code>（使用类型自身的类型参数）<br><br>
+        非法：<br>
+        <code>func (s *Stack[T]) Map[U any](f func(T) U) []U</code>（编译错误：方法不能有额外类型参数）<br><br>
+        解决方案：将需要额外类型参数的操作改为包级别的泛型函数：<code>func MapStack[T, U any](s *Stack[T], f func(T) U) []U</code></div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">如何获取泛型类型参数 T 的零值？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">直接声明该类型的变量即可获得零值：<br><br>
+        <code>var zero T</code><br><br>
+        这是惯用法，在需要返回"空值"时使用：<br>
+        <code>func (s *Stack[T]) Pop() (T, bool) {</code><br>
+        <code>&nbsp;&nbsp;if len(s.items) == 0 { var zero T; return zero, false }</code><br>
+        <code>&nbsp;&nbsp;...</code><br>
+        <code>}</code><br><br>
+        Go 1.21+ 也可以用 <code>*new(T)</code>，但 <code>var zero T</code> 更清晰。对于结构体类型，零值是所有字段的零值；对于 interface 类型，零值是 nil。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">泛型 vs interface：如何选择？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">选择原则：<br><br>
+        <strong>用 interface（多态行为）</strong>：<br>
+        • 不同类型有不同的行为实现（io.Writer 的不同实现）<br>
+        • 需要在运行时决定具体类型<br>
+        • 需要将不同类型放入同一集合（[]Animal 存放不同动物）<br><br>
+        <strong>用泛型（类型安全+代码复用）</strong>：<br>
+        • 对多种类型执行完全相同的操作逻辑<br>
+        • 容器/数据结构，需要类型安全的存取<br>
+        • 算法（排序、搜索、Map/Filter/Reduce）<br>
+        • 想要避免 interface{} 的装箱开销和类型断言<br><br>
+        简单记忆：行为多态 → interface；代码复用+类型安全 → 泛型。</div>
+      </div>
+    </div>
+
+    <div class="section" id="pitfalls">
+      <div class="section-title"><div class="title-bar"></div><h2>易错点</h2></div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 泛型滥用：简单情况不需要泛型</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// ❌ 过度泛型化：完全没必要</span>
+<span class="kw">func</span> <span class="fn">Print</span>[<span class="id">T</span> <span class="pkg">any</span>](<span class="id">v</span> <span class="id">T</span>) {
+    <span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">v</span>)
+}
+<span class="cm">// fmt.Println 已经接受 any，这个泛型没意义</span>
+
+<span class="cm">// ❌ 只有一种类型使用的"泛型"</span>
+<span class="kw">func</span> <span class="fn">Add</span>[<span class="id">T</span> <span class="pkg">int</span>](<span class="id">a</span>, <span class="id">b</span> <span class="id">T</span>) <span class="id">T</span> {
+    <span class="kw">return</span> <span class="id">a</span> + <span class="id">b</span>
+}
+<span class="cm">// 如果只处理 int，直接写 int 函数即可</span></pre>
+            <p>泛型会增加代码复杂度，只在真正需要多类型复用时才使用。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// ✓ 真正需要泛型的场景</span>
+<span class="kw">func</span> <span class="fn">Filter</span>[<span class="id">T</span> <span class="pkg">any</span>](<span class="id">s</span> []<span class="id">T</span>,
+    <span class="id">pred</span> <span class="kw">func</span>(<span class="id">T</span>) <span class="pkg">bool</span>) []<span class="id">T</span> {
+    <span class="kw">var</span> <span class="id">result</span> []<span class="id">T</span>
+    <span class="kw">for</span> _, <span class="id">v</span> := <span class="kw">range</span> <span class="id">s</span> {
+        <span class="kw">if</span> <span class="fn">pred</span>(<span class="id">v</span>) {
+            <span class="id">result</span> = <span class="fn">append</span>(<span class="id">result</span>, <span class="id">v</span>)
+        }
+    }
+    <span class="kw">return</span> <span class="id">result</span>
+}
+<span class="cm">// 对 []int、[]string、[]User 都有用</span></pre>
+            <p>当多种不同类型共享完全相同的操作逻辑时，泛型才有价值。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 约束写法错误：union 约束不能用于方法</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">type</span> <span class="id">NumOrStr</span> <span class="kw">interface</span> {
+    ~<span class="pkg">int</span> | ~<span class="pkg">string</span>
+}
+
+<span class="cm">// ❌ 不能调用约束中没有指定的方法</span>
+<span class="kw">func</span> <span class="fn">Bad</span>[<span class="id">T</span> <span class="id">NumOrStr</span>](<span class="id">v</span> <span class="id">T</span>) <span class="pkg">string</span> {
+    <span class="cm">// 不能调用 v.String()——int 没有这个方法</span>
+    <span class="kw">return</span> <span class="id">v</span>.<span class="fn">String</span>()  <span class="cm">// 编译错误</span>
+}</pre>
+            <p>union 约束（A|B|C）只表示类型集合，不保证方法集。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// ✓ 约束中有方法时可以调用</span>
+<span class="kw">type</span> <span class="id">Stringer</span> <span class="kw">interface</span> {
+    <span class="fn">String</span>() <span class="pkg">string</span>
+}
+
+<span class="kw">func</span> <span class="fn">Print</span>[<span class="id">T</span> <span class="id">Stringer</span>](<span class="id">v</span> <span class="id">T</span>) {
+    <span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">v</span>.<span class="fn">String</span>())  <span class="cm">// ✓</span>
+}
+
+<span class="cm">// ✓ union 约束只能用于操作符操作</span>
+<span class="kw">func</span> <span class="fn">Max</span>[<span class="id">T</span> ~<span class="pkg">int</span>|~<span class="pkg">float64</span>](<span class="id">a</span>, <span class="id">b</span> <span class="id">T</span>) <span class="id">T</span> {
+    <span class="kw">if</span> <span class="id">a</span> > <span class="id">b</span> { <span class="kw">return</span> <span class="id">a</span> }  <span class="cm">// 操作符 OK</span>
+    <span class="kw">return</span> <span class="id">b</span>
+}</pre>
+            <p>union 约束中只能使用所有成员类型共同支持的操作（如 +、-、<、>）。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 方法不支持额外类型参数</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">type</span> <span class="id">Transformer</span>[<span class="id">T</span> <span class="pkg">any</span>] <span class="kw">struct</span>{ <span class="id">data</span> []<span class="id">T</span> }
+
+<span class="cm">// ❌ 方法不能有自己的类型参数</span>
+<span class="kw">func</span> (<span class="id">t</span> <span class="id">Transformer</span>[<span class="id">T</span>]) <span class="fn">Map</span>[<span class="id">U</span> <span class="pkg">any</span>](
+    <span class="id">f</span> <span class="kw">func</span>(<span class="id">T</span>) <span class="id">U</span>) []<span class="id">U</span> { <span class="cm">// 编译错误！</span>
+    ...
+}</pre>
+            <p>Go 不允许方法有额外的类型参数，这是与 C++/Java 泛型的重要区别。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// ✓ 改为包级函数</span>
+<span class="kw">func</span> <span class="fn">TransformerMap</span>[<span class="id">T</span>, <span class="id">U</span> <span class="pkg">any</span>](
+    <span class="id">t</span> <span class="id">Transformer</span>[<span class="id">T</span>],
+    <span class="id">f</span> <span class="kw">func</span>(<span class="id">T</span>) <span class="id">U</span>) []<span class="id">U</span> {
+    <span class="id">result</span> := <span class="fn">make</span>([]<span class="id">U</span>, <span class="fn">len</span>(<span class="id">t</span>.<span class="id">data</span>))
+    <span class="kw">for</span> <span class="id">i</span>, <span class="id">v</span> := <span class="kw">range</span> <span class="id">t</span>.<span class="id">data</span> {
+        <span class="id">result</span>[<span class="id">i</span>] = <span class="fn">f</span>(<span class="id">v</span>)
+    }
+    <span class="kw">return</span> <span class="id">result</span>
+}</pre>
+            <p>需要额外类型参数的操作改为包级泛型函数，接受类型实例作为参数。</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>
+function toggleQA(el){el.classList.toggle('open');}
+document.addEventListener('DOMContentLoaded',()=>{
+  if(typeof NavTracker!=='undefined') NavTracker.track('泛型','golang/generics.html','⚡','Golang');
+});
+</script>
+</body>
+</html>

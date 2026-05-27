@@ -1,0 +1,363 @@
+<!DOCTYPE html><html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>接口 - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:72px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(0,173,216,.12);color:var(--accent);border:1px solid rgba(0,173,216,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(0,173,216,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.mem-layout{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:10px 0;}
+.mem-box{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:12px;}
+.mem-box h4{font-size:.78rem;color:var(--accent);margin-bottom:8px;font-family:monospace;}
+.mem-field{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:.74rem;}
+.mem-field:last-child{border-bottom:none;}
+.mem-name{color:var(--dim);}
+.mem-val{color:#c084fc;font-family:monospace;}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}.mem-layout{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">🔌 接口</span>
+  <div class="nav-tags">
+    <span class="ntag">interface</span>
+    <span class="ntag">nil</span>
+    <span class="ntag">iface</span>
+    <span class="ntag">duck-typing</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <aside class="side-nav" id="sideNav">
+    <nav><ul>
+      <li><a href="#duck-typing">隐式满足</a></li>
+      <li><a href="#iface-eface">iface vs eface</a></li>
+      <li><a href="#nil-interface">nil 接口陷阱</a></li>
+      <li><a href="#embed-interface">接口嵌入</a></li>
+      <li><a href="#interview">面试题</a></li>
+      <li><a href="#pitfalls">易错点</a></li>
+    </ul></nav>
+  </aside>
+  <main class="main-content">
+
+    <div class="section" id="duck-typing">
+      <div class="section-title"><div class="title-bar"></div><h2>隐式满足（Duck Typing）</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>不需要 implements 关键字</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>Go 的接口是隐式实现的——只要某类型拥有接口要求的所有方法，它就自动实现了该接口，无需任何显式声明。这是 Go 与 Java/C# 等语言的重要区别。</p>
+          <pre><span class="kw">type</span> <span class="id">Animal</span> <span class="kw">interface</span> {
+    <span class="fn">Sound</span>() <span class="pkg">string</span>
+    <span class="fn">Name</span>() <span class="pkg">string</span>
+}
+
+<span class="kw">type</span> <span class="id">Dog</span> <span class="kw">struct</span>{}
+
+<span class="cm">// Dog 不需要写 "implements Animal"</span>
+<span class="cm">// 只要拥有 Sound() 和 Name() 方法就满足接口</span>
+<span class="kw">func</span> (<span class="id">d</span> <span class="id">Dog</span>) <span class="fn">Sound</span>() <span class="pkg">string</span> { <span class="kw">return</span> <span class="st">"Woof"</span> }
+<span class="kw">func</span> (<span class="id">d</span> <span class="id">Dog</span>) <span class="fn">Name</span>() <span class="pkg">string</span>  { <span class="kw">return</span> <span class="st">"Dog"</span> }
+
+<span class="kw">var</span> <span class="id">a</span> <span class="id">Animal</span> = <span class="id">Dog</span>{}  <span class="cm">// 自动满足 Animal 接口</span>
+
+<span class="cm">// 编译时验证接口实现（惯用法）</span>
+<span class="kw">var</span> _ <span class="id">Animal</span> = (*<span class="id">Dog</span>)(nil)</pre>
+          <p>接口方法集规则：值类型 T 的方法集只包含值接收者方法；指针类型 *T 的方法集包含值接收者和指针接收者的所有方法。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="iface-eface">
+      <div class="section-title"><div class="title-bar"></div><h2>iface vs eface 内存布局</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>接口的运行时表示</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-body">
+          <p>接口值在运行时占 16 字节，包含两个指针：</p>
+          <div class="mem-layout">
+            <div class="mem-box">
+              <h4>iface（有方法的接口）</h4>
+              <div class="mem-field"><span class="mem-name">tab *itab</span><span class="mem-val">类型+方法表</span></div>
+              <div class="mem-field"><span class="mem-name">data unsafe.Pointer</span><span class="mem-val">指向具体值</span></div>
+            </div>
+            <div class="mem-box">
+              <h4>eface（空接口 interface{}）</h4>
+              <div class="mem-field"><span class="mem-name">_type *_type</span><span class="mem-val">类型信息</span></div>
+              <div class="mem-field"><span class="mem-name">data unsafe.Pointer</span><span class="mem-val">指向具体值</span></div>
+            </div>
+          </div>
+          <pre><span class="cm">// itab 结构（简化）</span>
+<span class="kw">type</span> <span class="id">itab</span> <span class="kw">struct</span> {
+    <span class="id">inter</span> *<span class="id">interfacetype</span>  <span class="cm">// 接口类型信息</span>
+    <span class="id">_type</span> *<span class="id">_type</span>         <span class="cm">// 具体类型信息</span>
+    <span class="id">hash</span>  <span class="pkg">uint32</span>          <span class="cm">// 类型哈希（用于类型断言）</span>
+    <span class="id">fun</span>   [<span class="num">1</span>]<span class="pkg">uintptr</span>      <span class="cm">// 方法地址表（动态分发）</span>
+}</pre>
+          <p>itab 会被缓存（itabTable），同一 (接口类型, 具体类型) 对只创建一次，避免重复计算。类型断言时通过比较 itab 指针或 hash 来判断类型。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="nil-interface">
+      <div class="section-title"><div class="title-bar"></div><h2>nil interface 陷阱</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>(*T)(nil) != nil 的经典陷阱</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>interface 值只有在 type 和 value 都为 nil 时，整个 interface 才等于 nil。如果只有 value 是 nil，但 type 字段非空，则 interface != nil。</p>
+          <pre><span class="kw">type</span> <span class="id">MyError</span> <span class="kw">struct</span>{ <span class="id">msg</span> <span class="pkg">string</span> }
+<span class="kw">func</span> (<span class="id">e</span> *<span class="id">MyError</span>) <span class="fn">Error</span>() <span class="pkg">string</span> { <span class="kw">return</span> <span class="id">e</span>.<span class="id">msg</span> }
+
+<span class="cm">// 错误示例：返回具体类型的 nil 指针</span>
+<span class="kw">func</span> <span class="fn">badFunc</span>() <span class="pkg">error</span> {
+    <span class="kw">var</span> <span class="id">err</span> *<span class="id">MyError</span> = <span class="kw">nil</span>
+    <span class="kw">return</span> <span class="id">err</span>  <span class="cm">// 接口持有 (type=*MyError, value=nil)</span>
+}
+
+<span class="id">err</span> := <span class="fn">badFunc</span>()
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">err</span> == <span class="kw">nil</span>)  <span class="cm">// false ！！！</span>
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">err</span>)          <span class="cm">// &lt;nil&gt;</span>
+
+<span class="cm">// 正确：直接返回 nil</span>
+<span class="kw">func</span> <span class="fn">goodFunc</span>() <span class="pkg">error</span> {
+    <span class="kw">return</span> <span class="kw">nil</span>  <span class="cm">// interface 的 type 和 value 都为 nil</span>
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="embed-interface">
+      <div class="section-title"><div class="title-bar"></div><h2>接口嵌入与组合</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>io.ReadWriter 等组合接口</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-body">
+          <p>接口可以嵌入其他接口，形成更大的接口。实现组合接口的类型必须实现所有嵌入接口的方法。</p>
+          <pre><span class="cm">// io 包的经典组合</span>
+<span class="kw">type</span> <span class="id">Reader</span> <span class="kw">interface</span> {
+    <span class="fn">Read</span>(<span class="id">p</span> []<span class="pkg">byte</span>) (<span class="id">n</span> <span class="pkg">int</span>, <span class="id">err</span> <span class="pkg">error</span>)
+}
+<span class="kw">type</span> <span class="id">Writer</span> <span class="kw">interface</span> {
+    <span class="fn">Write</span>(<span class="id">p</span> []<span class="pkg">byte</span>) (<span class="id">n</span> <span class="pkg">int</span>, <span class="id">err</span> <span class="pkg">error</span>)
+}
+<span class="cm">// 嵌入组合</span>
+<span class="kw">type</span> <span class="id">ReadWriter</span> <span class="kw">interface</span> {
+    <span class="id">Reader</span>  <span class="cm">// 嵌入 Reader</span>
+    <span class="id">Writer</span>  <span class="cm">// 嵌入 Writer</span>
+}
+
+<span class="cm">// 自定义组合</span>
+<span class="kw">type</span> <span class="id">Stringer</span> <span class="kw">interface</span> {
+    <span class="fn">String</span>() <span class="pkg">string</span>
+}
+<span class="kw">type</span> <span class="id">Named</span> <span class="kw">interface</span> {
+    <span class="id">Stringer</span>
+    <span class="fn">Name</span>() <span class="pkg">string</span>
+}</pre>
+          <p><strong>接口设计原则</strong>：接口越小越好（最小接口原则）。<code>io.Reader</code>、<code>io.Writer</code> 只有一个方法，组合性极强。设计时优先用小接口组合，而非大而全的接口。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="interview">
+      <div class="section-title"><div class="title-bar"></div><h2>面试题</h2></div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">nil interface 和含 nil 指针的 interface 区别？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">接口值包含两个字段：(type, value)。<br>
+        • <strong>nil interface</strong>：type == nil &amp;&amp; value == nil，整个接口 == nil<br>
+        • <strong>含 nil 指针的 interface</strong>：type != nil（有具体类型）但 value == nil（指针为空），整个接口 != nil<br><br>
+        这是 Go 中最著名的陷阱之一。最常见场景是函数返回 error 接口时，不要返回具体类型的 nil 指针，要直接 <code>return nil</code>。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">interface{} 和 any 有什么区别？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">没有区别。Go 1.18 引入 <code>any</code> 作为 <code>interface{}</code> 的内置别名（<code>type any = interface{}</code>），完全等价，可以互换使用。<br><br>
+        Go 标准库和新代码推荐使用 <code>any</code>，更简洁。老代码中的 <code>interface{}</code> 无需修改，两者可以混用。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">接口方法集规则：值接收者和指针接收者的区别？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">方法集规则：<br>
+        • 类型 <code>T</code> 的方法集：只包含<strong>值接收者</strong>定义的方法<br>
+        • 类型 <code>*T</code> 的方法集：包含值接收者<strong>和</strong>指针接收者定义的所有方法<br><br>
+        实践含义：如果接口的方法用指针接收者实现，必须用 <code>*T</code> 赋值给接口，不能用 T：<br>
+        <code>var r io.Reader = &amp;myReader{}</code>（正确）<br>
+        <code>var r io.Reader = myReader{}</code>（如果 Read 是指针接收者，编译错误）</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">接口的动态分发（dynamic dispatch）是如何实现的？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">接口方法调用通过 itab 中的 fun 函数指针表实现间接调用（类似 C++ vtable）。调用流程：<br>
+        1. 从接口值取出 itab 指针<br>
+        2. 从 itab.fun 数组中找到对应方法的函数指针（按接口方法排序）<br>
+        3. 间接调用该函数，传入 data 指针作为第一个参数（即 receiver）<br><br>
+        与直接调用相比，接口调用多一次内存读（load itab）和一次间接跳转，在热路径上可能有影响，但通常可以忽略。如果需要极致性能，可以用泛型或 type switch 替代。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">如何在编译时检查某类型是否实现了某接口？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">Go 惯用法：使用空赋值触发编译时接口检查：<br>
+        <code>var _ io.Reader = (*MyReader)(nil)</code><br>
+        或：<code>var _ io.Reader = MyReader{}</code><br><br>
+        这行代码本身不占运行时资源（空标识符丢弃值，nil 不会实际分配），只是让编译器验证接口是否被满足。如果未满足，编译时立刻报错。通常放在 struct 定义附近，作为文档和编译保证。</div>
+      </div>
+    </div>
+
+    <div class="section" id="pitfalls">
+      <div class="section-title"><div class="title-bar"></div><h2>易错点</h2></div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 返回 (*T)(nil) 赋给 interface，导致 != nil</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">type</span> <span class="id">MyErr</span> <span class="kw">struct</span>{}
+<span class="kw">func</span> (<span class="id">e</span> *<span class="id">MyErr</span>) <span class="fn">Error</span>() <span class="pkg">string</span> { <span class="kw">return</span> <span class="st">""</span> }
+
+<span class="kw">func</span> <span class="fn">doSomething</span>() <span class="pkg">error</span> {
+    <span class="kw">var</span> <span class="id">e</span> *<span class="id">MyErr</span>
+    <span class="kw">if</span> <span class="id">someCondition</span> {
+        <span class="id">e</span> = &amp;<span class="id">MyErr</span>{}
+    }
+    <span class="kw">return</span> <span class="id">e</span>  <span class="cm">// ❌ 即使 e==nil 也返回非nil error</span>
+}</pre>
+            <p>即使 someCondition 为 false，返回的 error 接口不为 nil。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">doSomething</span>() <span class="pkg">error</span> {
+    <span class="kw">if</span> <span class="id">someCondition</span> {
+        <span class="kw">return</span> &amp;<span class="id">MyErr</span>{}
+    }
+    <span class="kw">return</span> <span class="kw">nil</span>  <span class="cm">// ✓ 直接返回 nil</span>
+}
+
+<span class="cm">// 调用方可以正确判断</span>
+<span class="id">err</span> := <span class="fn">doSomething</span>()
+<span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> {  <span class="cm">// 正确工作</span>
+    <span class="id">log</span>.<span class="fn">Fatal</span>(<span class="id">err</span>)
+}</pre>
+            <p>返回错误接口时，正常情况直接 return nil，不要先声明具体类型变量再返回。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 值类型实现指针接收者方法，无法赋给接口</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">type</span> <span class="id">Counter</span> <span class="kw">struct</span>{ <span class="id">n</span> <span class="pkg">int</span> }
+
+<span class="cm">// 指针接收者方法</span>
+<span class="kw">func</span> (<span class="id">c</span> *<span class="id">Counter</span>) <span class="fn">Inc</span>() { <span class="id">c</span>.<span class="id">n</span>++ }
+
+<span class="kw">type</span> <span class="id">Incer</span> <span class="kw">interface</span>{ <span class="fn">Inc</span>() }
+
+<span class="kw">var</span> <span class="id">i</span> <span class="id">Incer</span> = <span class="id">Counter</span>{}
+<span class="cm">// 编译错误：Counter 的方法集不包含</span>
+<span class="cm">// 指针接收者方法 Inc</span></pre>
+            <p>值类型的方法集不包含指针接收者方法，只有指针类型才包含。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 正确：用指针类型赋给接口</span>
+<span class="kw">var</span> <span class="id">i</span> <span class="id">Incer</span> = &amp;<span class="id">Counter</span>{}  <span class="cm">// ✓</span>
+
+<span class="cm">// 或者改用值接收者方法</span>
+<span class="kw">func</span> (<span class="id">c</span> <span class="id">Counter</span>) <span class="fn">Inc</span>() { <span class="cm">/* 但无法修改 c.n */</span> }
+
+<span class="cm">// 编译时检查接口实现</span>
+<span class="kw">var</span> _ <span class="id">Incer</span> = (*<span class="id">Counter</span>)(<span class="kw">nil</span>)</pre>
+            <p>规则记忆：方法需要修改 receiver 时用指针接收者，接口变量用 &amp;T。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 空接口和具体类型的类型断言未做 ok 检查</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">process</span>(<span class="id">v</span> <span class="pkg">any</span>) {
+    <span class="cm">// 单值断言：失败时 panic</span>
+    <span class="id">s</span> := <span class="id">v</span>.(<span class="pkg">string</span>)
+    <span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">s</span>)
+}
+
+<span class="fn">process</span>(<span class="num">42</span>)
+<span class="cm">// panic: interface conversion:</span>
+<span class="cm">// interface {} is int, not string</span></pre>
+            <p>不检查 ok 的类型断言失败时直接 panic。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">process</span>(<span class="id">v</span> <span class="pkg">any</span>) {
+    <span class="cm">// 两值断言：安全</span>
+    <span class="id">s</span>, <span class="id">ok</span> := <span class="id">v</span>.(<span class="pkg">string</span>)
+    <span class="kw">if</span> !<span class="id">ok</span> {
+        <span class="id">fmt</span>.<span class="fn">Println</span>(<span class="st">"not a string"</span>)
+        <span class="kw">return</span>
+    }
+    <span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">s</span>)
+}
+
+<span class="cm">// 或用 type switch 处理多类型</span>
+<span class="kw">switch</span> <span class="id">x</span> := <span class="id">v</span>.(<span class="kw">type</span>) {
+<span class="kw">case</span> <span class="pkg">string</span>: ...
+<span class="kw">case</span> <span class="pkg">int</span>: ...
+}</pre>
+            <p>始终用两值形式的类型断言，或用 type switch 处理多种类型。</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>
+function toggleQA(el){el.classList.toggle('open');}
+document.addEventListener('DOMContentLoaded',()=>{
+  if(typeof NavTracker!=='undefined') NavTracker.track('接口','golang/interface.html','🔌','Golang');
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Golang 专题 - 码海拾贝</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;--green:#4ade80;--yellow:#fbbf24;--purple:#c084fc;--orange:#fb923c;--red:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:14px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0}.back-btn{color:var(--dim);text-decoration:none;font-size:.9rem}.back-btn:hover{color:var(--text)}nav h1{font-size:1.12rem;font-weight:700}.tags{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}.tag{font-size:.72rem;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace}
+.main{display:flex;flex:1;overflow:hidden}.steps-panel{width:256px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden}.steps-area{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px}.topic-sum{border:1px solid var(--border);border-radius:14px;background:linear-gradient(135deg,rgba(0,173,216,.14),rgba(74,222,128,.04));padding:14px}.topic-sum h2{font-size:1.05rem;margin-bottom:6px;color:var(--accent)}.topic-sum p{color:var(--dim);line-height:1.65;font-size:.8rem}.diagram-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;min-width:0}.diagram-area{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.lane-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.lane{border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.035);padding:14px;text-align:center}.lane.active{border-color:var(--accent);background:rgba(0,173,216,.12)}.lane strong{display:block;color:var(--accent);font-family:monospace;margin-bottom:5px}.lane span{font-size:.78rem;color:var(--dim);line-height:1.45}
+.step-list{display:grid;gap:10px}.step{border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.035);padding:13px 15px}.step.active{border-color:var(--accent);box-shadow:0 0 22px rgba(0,173,216,.13)}.step strong{display:block;margin-bottom:5px}.step span{color:var(--dim);font-size:.82rem;line-height:1.65}
+.step-foot{padding:8px 14px;border-top:1px solid var(--border);font-size:.72rem;color:var(--dim2);font-family:monospace;text-align:right;flex-shrink:0}.code-panel{width:44%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;background:var(--panel2)}.code-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:.84rem;color:var(--dim);display:flex;gap:8px;align-items:center}.dot{width:10px;height:10px;border-radius:50%;background:var(--accent)}.code-body{flex:1;overflow:auto;padding:16px 0;background:#0d1117}.code-line{display:flex;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.8rem;line-height:1.65;border-left:2px solid transparent}.code-line.active{background:rgba(0,173,216,.12);border-left-color:var(--accent)}.ln{min-width:44px;padding:0 12px 0 14px;color:#4b5563;text-align:right;user-select:none}.lc{padding:0 16px 0 4px;white-space:pre-wrap;word-break:break-word}.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0}.btn{background:rgba(255,255,255,.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:8px;cursor:pointer;font-size:.85rem;font-family:inherit}.btn.primary{background:rgba(0,173,216,.16);border-color:rgba(0,173,216,.34);color:var(--accent)}.btn:disabled{opacity:.4;cursor:not-allowed}.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:.8rem;color:var(--dim)}input[type=range]{width:90px}
+.diagram{border:1px solid var(--border);border-radius:16px;background:radial-gradient(circle at 20% 0%,rgba(0,173,216,.12),transparent 32%),rgba(13,17,23,.72);padding:16px;overflow:auto}.diagram-title{font-size:.76rem;color:var(--dim);text-transform:uppercase;letter-spacing:.12em;font-weight:800;margin-bottom:10px}
+.arch-svg{width:100%;min-width:580px;height:330px;display:block}.box{fill:rgba(255,255,255,.045);stroke:#334155;stroke-width:1.4}.box.active{fill:rgba(0,173,216,.16);stroke:#00add8;stroke-width:2}.box.hot{fill:rgba(56,189,248,.12);stroke:#38bdf8}.box.ok{fill:rgba(74,222,128,.1);stroke:#4ade80}.box.warn{fill:rgba(251,191,36,.1);stroke:#fbbf24}.box.io{fill:rgba(251,146,60,.1);stroke:#fb923c}
+.svg-label{fill:#e2e8f0;font:700 12px 'Segoe UI',sans-serif}.svg-sub{fill:#94a3b8;font:10px 'Segoe UI',sans-serif}.svg-mini{fill:#64748b;font:9px 'JetBrains Mono',monospace}.svg-accent{fill:#00add8}
+.arrow-line{stroke:#64748b;stroke-width:1.5;fill:none;marker-end:url(#arr)}.arrow-hot{stroke:#00add8;stroke-width:2;fill:none;marker-end:url(#arrHot)}.dash{stroke-dasharray:5 4}
+.step-card{border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.035);padding:11px}.step-card.active{border-color:var(--accent);box-shadow:0 0 18px rgba(0,173,216,.13)}.step-card strong{display:block;margin-bottom:4px;font-size:.78rem;color:var(--dim2)}.step-card span{color:var(--dim);font-size:.77rem;line-height:1.6}
+@media(max-width:768px){body{height:auto;min-height:100vh;overflow-y:auto;overflow-x:hidden}nav{padding:10px 16px}.tags{width:100%;margin-left:0}.main{flex-direction:column;overflow:visible;height:auto;flex:none}.steps-panel{width:100%;border-right:none;border-bottom:1px solid var(--border);overflow:visible}.diagram-panel{border-right:none;border-bottom:1px solid var(--border);min-width:0}.lane-grid{grid-template-columns:1fr}.code-panel{width:100%;min-width:0;height:360px;flex:none}.controls{flex-wrap:wrap;padding:10px 14px}.speed-wrap{margin-left:0;width:100%;justify-content:flex-end}}
+</style>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+</head>
+<body>
+<nav><a href="index.html" class="back-btn">← 返回</a><h1 id="pageTitle">Golang 专题</h1><div class="tags" id="tags"></div></nav>
+<div class="main">
+  <div class="steps-panel">
+    <div class="steps-area">
+      <div class="topic-sum"><h2 id="topicTitle"></h2><p id="topicSummary"></p></div>
+      <div id="stepCards"></div>
+    </div>
+    <div class="step-foot"><span id="stepCounter">0 / 0</span></div>
+    <span id="descText" style="display:none"></span>
+  </div>
+  <div class="diagram-panel">
+    <div class="diagram-area">
+      <div class="diagram"><div class="diagram-title" id="diagramTitle"></div><div id="diagramArea"></div></div>
+      <div class="lane-grid" id="laneGrid"></div>
+    </div>
+  </div>
+  <div class="code-panel"><div class="code-header"><span class="dot"></span><span id="codeName">topic.go</span></div><div class="code-body" id="codeBody"></div></div>
+</div>
+<div class="controls"><button class="btn" id="btnReset">⏮ 重置</button><button class="btn" id="btnPrev">← 上一步</button><button class="btn primary" id="btnPlay">▶ 播放</button><button class="btn" id="btnNext">下一步 →</button><div class="speed-wrap"><span>速度</span><input type="range" id="speedRange" min="1" max="5" value="3"></div></div>
+<script>
+const TOPICS={
+  syntax:{title:'Go 语法与类型',tags:['interface','generic','error'],summary:'Go 的核心是少量语法、组合优先、接口隐式实现和显式错误处理。接口不需要 implements 声明——满足方法集就是满足接口。写清晰 Go 代码，关键是边界明确、少抽象、error 显式处理。',concepts:[['接口','接口描述行为集合，任何实现了方法集的类型自动满足接口，无需显式声明。这让调用方依赖”行为”而非”类型”，使测试和扩展更自然。接口越小越好，通常只有 1–2 个方法。'],['错误处理','error 是普通 interface 值，调用方必须显式处理，不允许忽略。用 fmt.Errorf(“context: %w”, err) 包装保留调用链，用 errors.Is / errors.As 解包判断类型。错误即值，简单但需要纪律。'],['泛型','Go 1.18+ 支持 type parameter，适合实现容器（Queue[T]）、通用算法（Map/Filter）等真实代码重复场景，而不是构建复杂的继承体系。类型约束用 any 或 comparable，业务代码不必过度使用泛型。']],lanes:[['type','类型系统'],['interface','行为抽象'],['error','错误值']],steps:['用 struct 表达数据边界，字段命名清晰，只暴露需要的信息。隐藏实现细节，依赖倒置从这里开始。','用 interface 描述调用方真正需要的行为（而非实现拥有的所有方法）。接口定义在使用方，而非实现方，这是 Go 接口的惯用法。','每个函数返回 error，调用方立即处理——决定是重试、降级、透传还是包装上下文。不要在深层悄悄吞掉错误，调用链断了就难以排查。','当确实存在类型参数重复（如多个类型相同的容器操作）时，引入泛型。不要为了”将来可能复用”就提前泛型化，YAGNI 同样适用于 Go。'],code:['type Store[T any] interface {','    Find(ctx context.Context, id string) (T, error)','    Save(ctx context.Context, v T) error','}','','func Handle[T any](ctx context.Context, store Store[T], id string) error {','    v, err := store.Find(ctx, id)','    if err != nil {','        // %w 包装，保留调用链，可用 errors.Is 解包','        return fmt.Errorf(“find %s: %w”, id, err)','    }','    return store.Save(ctx, v)','}']},
+  concurrency:{title:'Goroutine 与 Channel',tags:['goroutine','channel','context'],summary:'Go 并发不是”随便 go 一下”，而是要设计生命周期、取消信号、背压和错误传播。goroutine 泄漏是最常见的 bug——每个 goroutine 在创建时就必须知道何时退出。',concepts:[['Goroutine','轻量执行单元，初始栈 2KB，由 runtime 动态扩缩。创建廉价但泄漏代价高。goroutine 泄漏是高并发服务中内存缓慢增长的首要原因，必须有明确的退出路径。'],['Channel','channel 用于传递所有权（数据）和传递信号（done/error）。带缓冲 channel 提供背压：生产者比消费者快时会阻塞，而不是无限堆积。select 实现多路 channel 监听。'],['Context','context.Context 跨 goroutine 传播取消信号、截止时间和请求级 key-value。context.WithCancel / WithTimeout 是控制 goroutine 生命周期的标准方式，不要用全局变量或 WaitGroup 手工替代。']],lanes:[['G','goroutine'],['chan','message'],['ctx','cancel']],steps:['创建 goroutine 前先确认退出条件：谁来关闭 context？谁来关闭 jobs channel？没有退出路径的 goroutine 会泄漏，长期运行的服务中每次请求泄漏一个 goroutine，最终 OOM。','用 context 传递取消信号：通过 context.WithCancel 或 context.WithTimeout 创建带取消的 ctx，传给所有子 goroutine。ctx.Done() 是一个只读 channel，关闭时通知所有监听者退出。','用 channel 传递结果或所有权：生产者 goroutine 把数据发送到 channel，消费者接收。发送者决定关闭时机，接收者用 range 消费直到 channel 关闭，自然退出。','确保所有 worker goroutine 在返回前都能收到退出信号（select ctx.Done 或 range 结束）。用 WaitGroup 等待全部退出，再释放资源，避免 data race 和 use-after-free。'],code:['func worker(ctx context.Context, jobs <-chan Job) error {','    for {','        select {','        case <-ctx.Done():','            // context 取消：干净退出，不泄漏','            return ctx.Err()','        case job, ok := <-jobs:','            if !ok {','                return nil // channel 关闭：正常退出','            }','            if err := handle(job); err != nil {','                return err // 出错：上报后退出','            }','        }','    }','}']},
+  runtime:{title:'GMP 调度器',tags:['GMP','netpoll','scheduler'],summary:'Go runtime 把成千上万个 goroutine 映射到少量 OS thread。P 持有本地运行队列（最多 256 个 G），M 是真正被内核调度的线程，G 是用户态任务。work-stealing 保证 CPU 不闲置。',concepts:[['G','Goroutine：用户态任务，包含函数栈和执行状态。初始栈 2KB，可动态增长到 1GB。大量 G 存活时堆内存开销主要来自各 G 的栈，而非 GMP 结构本身。'],['M','Machine：OS thread，由内核调度，数量等于活跃的 P 数量（加上阻塞在 syscall 的 M）。默认最多 10000 个 M（GOMAXPROCS 控制并发 P 数，不是 M 上限）。'],['P','Processor：本地运行队列（runq），容量 256。P 的数量默认等于 CPU 核数（runtime.GOMAXPROCS）。M 必须持有 P 才能执行 G，P 是运行资源（内存缓存、局部分配器）的持有者。']],lanes:[['G','task'],['M','thread'],['P','queue']],steps:['go func() 创建新 G，优先放入当前 P 的本地 runq（无锁）。runq 满时批量移入全局队列（有锁）。G 创建时也会尝试唤醒空闲 M 来及时处理。','M 绑定一个 P 后进入调度循环：优先从 P 的本地 runq 取 G（无锁 FIFO），每 61 次循环强制从全局队列取一次（防止全局队列饥饿）。','本地队列为空时触发 work-stealing：随机选另一个 P，偷走其 runq 后半段（一半）。这让 CPU 利用率接近 100%，避免部分 P 空转而其他 P 积压的情况。','G 阻塞在网络 I/O（如 net.Read）时，runtime 将其注册到 netpoller（epoll/kqueue），M 立即去执行其他 G 而不是阻塞等待。I/O 就绪时 netpoller 把 G 重新加入 runq。'],code:['// 简化的调度循环','func schedule(p *P) {','    // 每 61 次从全局队列取，防止全局饥饿','    if p.schedtick%61 == 0 {','        if g := globalRunq.pop(); g != nil {','            execute(p, g); return','        }','    }','    // 优先本地队列（无锁）','    if g := p.runq.pop(); g != nil {','        execute(p, g); return','    }','    // work-stealing：偷其他 P 的任务','    if g := stealWork(p); g != nil {','        execute(p, g); return','    }','    // 检查 netpoller 中已就绪的 G','    if g := netpoll(0); g != nil {','        execute(p, g)','    }','}']},
+  gc:{title:'GC 与逃逸分析',tags:['GC','escape','pprof'],summary:'Go GC 是并发三色标记清扫，目标是低暂停时间（通常 <1ms）。GC 压力来自堆分配速率和存活对象数量。逃逸分析决定变量在栈还是堆，减少逃逸是降低 GC 压力最直接的手段。',concepts:[['三色标记','白色=未访问（待回收），灰色=已发现但子节点未全扫描，黑色=已完整扫描。GC 从根对象出发，把所有可达对象染成黑色，最终回收白色对象。扫描过程与应用并发执行。'],['写屏障','并发标记期间，应用代码可能新建指针引用。写屏障（Dijkstra 混合写屏障）在指针赋值时记录旧值/新值，防止扫描漏掉新增的活跃对象。写屏障是 GC 正确性的保证，代价是极小的写操作开销。'],['逃逸分析','编译器通过逃逸分析决定变量分配在栈上（函数返回后自动释放）还是堆上（需要 GC 管理）。返回局部指针、存入 interface{}、闭包捕获等都可能导致逃逸。栈分配零 GC 压力。']],lanes:[['alloc','分配'],['mark','标记'],['sweep','清扫']],steps:['程序分配对象：小对象（<32KB）走 mcache 本地分配（无锁），大对象直接从堆分配（有锁）。逃逸到堆的变量会增加 GC 需要扫描和管理的对象数量。','GC 启动（由 GOGC 或内存阈值触发）：首先 STW（<1ms）设置写屏障并扫描根对象（goroutine 栈、全局变量）；然后与应用并发扫描堆上所有可达对象。','并发标记阶段应用代码仍在运行，可能修改对象指针。写屏障拦截所有指针赋值，把被覆盖的旧指针和新指针都标记为灰色，确保不漏掉活跃对象（三色不变性）。','扫描完成后再次 STW（<0.5ms）处理最后一批写屏障记录，然后并发清扫：清空所有白色对象的内存，归还给 mheap 复用，不立即释放给 OS（避免频繁的 mmap/munmap 开销）。'],code:['// 逃逸到堆：返回局部变量的指针','func makeUser(name string) *User {','    return &User{Name: name} // 逃逸，GC 需要跟踪','}','','// 不逃逸：值类型在调用方栈上分配','func makeUserVal(name string) User {','    return User{Name: name} // 不逃逸','}','','// 用 sync.Pool 复用高频临时对象，减少 GC 压力','var pool = sync.Pool{New: func() any { return &bytes.Buffer{} }}','','// 诊断命令','// go build -gcflags=”-m -m” ./... 查看逃逸决策','// go test -bench=. -benchmem 观察 alloc/op','// go tool pprof -alloc_space 找分配热点']}
+  ,testing:{title:'工程实践与诊断',tags:['testing','pprof','benchmark'],summary:'Go 内置 testing 包，配合 benchmark、race detector 和 pprof 可以系统地发现正确性问题、性能瓶颈和并发 bug。测试不是”有没有”的问题，而是”够不够快定位问题”的问题。',concepts:[['table-driven test','把所有测试用例组织成结构体切片，用 t.Run 为每个 case 建立子测试。子测试有独立名字，可以单独运行（-run）、并行（t.Parallel()）、报告精确的失败行，是 Go 最惯用的测试写法。'],['benchmark','func BenchmarkXxx(b *testing.B) 中循环 b.N 次，testing 框架自动调整 N 保证结果稳定。-benchmem 报告每次操作的内存分配次数和字节数，是识别”分配热点”最快的方法。'],['pprof','pprof 生成 CPU、内存（heap）、goroutine、阻塞（block）、互斥锁（mutex）等 profile。import _ “net/http/pprof” 在服务中暴露 /debug/pprof 端点，go tool pprof 交互式分析，火焰图可视化调用栈占比。']],lanes:[['test','验证'],['bench','性能'],['profile','诊断']],steps:['用 table-driven test 覆盖边界值：零值、最大值、错误路径。每个 case 有 name 字段，t.Run(tc.name, ...) 让失败信息精确定位到具体用例，而不是模糊的”第 3 个 assert 失败”。','用 go test -bench=BenchmarkFind -benchmem 量化函数的时间和内存开销。对比优化前后的 ns/op 和 allocs/op，确保改动有实际收益而不是主观感觉变快了。','用 go test -race ./... 在本地和 CI 中持续运行 race detector。race detector 通过 shadow memory 追踪所有内存访问，可以捕获一般测试和 review 难以发现的数据竞争，代价是约 5–10× 减速（仅在测试中用）。','生产服务中 import net/http/pprof，在发现高 CPU 或内存增长时用 go tool pprof 采样。CPU profile 找函数级热点，heap profile 找高分配路径，goroutine profile 排查泄漏，trace 找调度延迟。'],code:['// table-driven test 惯用法','func TestFind(t *testing.T) {','    cases := []struct {','        name    string','        id      string','        wantErr bool','    }{','        {“found”, “42”, false},','        {“not found”, “0”, true},','    }','    for _, tc := range cases {','        t.Run(tc.name, func(t *testing.T) {','            _, err := store.Find(context.Background(), tc.id)','            if (err != nil) != tc.wantErr {','                t.Errorf(“got err=%v, wantErr=%v”, err, tc.wantErr)','            }','        })','    }','}','','// go test -bench=. -benchmem -count=3','// go test -race ./...','// go tool pprof http://localhost:6060/debug/pprof/heap']}
+};
+function defs(){return `<defs><marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#64748b"/></marker><marker id="arrHot" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#00add8"/></marker></defs>`;}
+function box(x,y,w,h,label,sub,cls,active){return `<rect class="box ${cls||''} ${active?'active':''}" x="${x}" y="${y}" width="${w}" height="${h}" rx="12"/><text class="svg-label" x="${x+w/2}" y="${y+24}" text-anchor="middle">${label}</text>${sub?`<text class="svg-sub" x="${x+w/2}" y="${y+43}" text-anchor="middle">${sub}</text>`:''}`;}
+function syntaxDiagram(){
+  return `<svg class="arch-svg" viewBox="0 0 680 330">${defs()}<text class="svg-label svg-accent" x="24" y="24">Go 类型系统 · struct → interface (隐式) → 泛型 + 错误</text>
+${box(36,50,158,84,'struct User','Name, ID, ...','',cur>=0)}
+${box(244,50,190,84,'interface Store[T]','Find(ctx,id)(T,err)','hot',cur>=1)}
+${box(480,50,162,84,'func Handle[T]','泛型调用者','',cur>=2)}
+<path class="${cur>=1?'arrow-hot':'arrow-line'}" d="M194 92 H244"/>
+<text class="svg-mini" x="196" y="84">隐式满足</text>
+<path class="${cur>=2?'arrow-hot':'arrow-line'}" d="M434 92 H480"/>
+<text class="svg-mini" x="436" y="84">依赖行为</text>
+${box(36,186,208,82,'fmt.Errorf("%w",err)','错误包装，保留调用链','warn',cur>=2)}
+${box(280,186,194,82,'errors.Is / errors.As','解包判断错误类型','',cur>=2)}
+${box(518,186,136,82,'type T any','comparable 约束','',cur>=3)}
+<path class="${cur>=2?'arrow-hot':'arrow-line'}" d="M244 227 H280"/>
+<text class="svg-mini" x="38" y="292">接口定义在使用方；error 是普通值；泛型只在真实重复出现时引入（YAGNI 同样适用）。</text></svg>`;
+}
+function concurrencyDiagram(){
+  return `<svg class="arch-svg" viewBox="0 0 680 330">${defs()}<text class="svg-label svg-accent" x="24" y="24">Goroutine 生命周期 · ctx + chan + select + WaitGroup</text>
+${box(36,52,128,68,'context','WithCancel/Timeout','hot',cur>=1)}
+${box(216,52,128,68,'G1 producer','go func(){}','',cur>=0)}
+${box(390,46,112,80,'chan&lt;- Job','buffered','hot',cur>=2)}
+${box(552,52,104,68,'G2 worker','select{ }','',cur>=2)}
+<path class="${cur>=1?'arrow-hot':'arrow-line'}" d="M164 86 H216"/>
+<text class="svg-mini" x="166" y="79">Done()</text>
+<path class="${cur>=2?'arrow-hot':'arrow-line'}" d="M344 86 H390"/>
+<path class="${cur>=2?'arrow-hot':'arrow-line'}" d="M502 86 H552"/>
+<rect class="box warn ${cur===0?'active':''}" x="552" y="168" width="104" height="62" rx="10"/>
+<text class="svg-sub" x="604" y="196" text-anchor="middle" fill="${cur===0?'#fbbf24':'#64748b'}">goroutine</text>
+<text class="svg-sub" x="604" y="214" text-anchor="middle" fill="${cur===0?'#fbbf24':'#64748b'}">⚠ leak!</text>
+${box(36,168,274,82,'select { ctx.Done / jobs }','多路监听，优先取消','',cur>=2)}
+${box(354,168,156,82,'sync.WaitGroup','等待所有 G 退出','ok',cur>=3)}
+<text class="svg-mini" x="38" y="280">每个 goroutine 必须有退出路径；select 优先处理取消信号；WaitGroup 等所有 worker 完成再释放资源。</text></svg>`;
+}
+function runtimeDiagram(){
+  return `<svg class="arch-svg" viewBox="0 0 680 330">${defs()}<text class="svg-label svg-accent" x="24" y="24">GMP 调度器 · work-stealing + netpoll</text>
+${box(36,48,186,94,'P1  [G G G G]','本地 runq (满)','hot',cur>=0)}
+${box(264,48,178,94,'P2  [G G · ·]','本地 runq (半)','',cur>=2)}
+${box(484,48,164,94,'Global Queue','overflow 时入队','',cur>=0)}
+${box(36,198,186,72,'M1 (OS thread)','执行 P1 的 G','hot',cur>=1)}
+${box(264,198,178,72,'M2 (OS thread)','执行 P2 的 G','',cur>=1)}
+${box(484,198,164,72,'netpoller','epoll / kqueue','',cur>=3)}
+<path class="arrow-line" d="M438 95 H484"/>
+<path class="${cur>=1?'arrow-hot':'arrow-line'}" d="M129 142 V198"/>
+<path class="${cur>=1?'arrow-hot':'arrow-line'}" d="M353 142 V198"/>
+<path class="${cur>=2?'arrow-hot':'arrow-line'}" d="M264 95 C246 140,222 140,222 142"/>
+<text class="svg-mini svg-accent" x="224" y="132">${cur>=2?'← steal':''}</text>
+<path class="${cur>=3?'arrow-hot':'arrow-line'}" d="M566 198 V188 C566 160,526 142,490 140"/>
+<text class="svg-mini" x="38" y="290">M 必须持有 P 才能执行 G；runq 空时 work-stealing 随机偷其他 P 的后半段；网络 I/O 注册 netpoll，M 不阻塞。</text></svg>`;
+}
+function gcDiagram(){
+  const wfill=cur>=3?'rgba(248,113,113,.25)':'rgba(255,255,255,.06)', wstk=cur>=3?'#f87171':'#475569';
+  const gfill=cur>=1?'rgba(251,191,36,.2)':'rgba(255,255,255,.06)', gstk=cur>=1?'#fbbf24':'#475569';
+  const bfill=cur>=2?'rgba(74,222,128,.2)':'rgba(255,255,255,.06)', bstk=cur>=2?'#4ade80':'#475569';
+  return `<svg class="arch-svg" viewBox="0 0 680 330">${defs()}
+<text class="svg-label svg-accent" x="24" y="24">三色标记 GC · 写屏障 + 逃逸分析</text>
+<text class="svg-sub" x="44" y="56">White（待回收）</text>
+${[0,1,2,3].map(i=>`<rect x="${44+i*54}" y="64" width="44" height="44" rx="22" fill="${wfill}" stroke="${wstk}" stroke-width="1.5"/>
+<text class="svg-mini" x="${66+i*54}" y="91" text-anchor="middle" fill="${wstk}">w${i}</text>`).join('')}
+<text class="svg-sub" x="278" y="56">Gray（扫描中）</text>
+${[0,1].map(i=>`<rect x="${278+i*60}" y="64" width="44" height="44" rx="22" fill="${gfill}" stroke="${gstk}" stroke-width="${cur>=1?2:1.5}"/>
+<text class="svg-mini" x="${300+i*60}" y="91" text-anchor="middle" fill="${gstk}">g${i}</text>`).join('')}
+<text class="svg-sub" x="430" y="56">Black（已完成）</text>
+${[0,1,2].map(i=>`<rect x="${430+i*60}" y="64" width="44" height="44" rx="22" fill="${bfill}" stroke="${bstk}" stroke-width="${cur>=2?2:1.5}"/>
+<text class="svg-mini" x="${452+i*60}" y="91" text-anchor="middle" fill="${bstk}">b${i}</text>`).join('')}
+<path class="${cur>=1?'arrow-hot':'arrow-line'}" d="M236 86 H274"/>
+<path class="${cur>=2?'arrow-hot':'arrow-line'}" d="M398 86 H426"/>
+<text class="svg-mini svg-accent" x="240" y="78">${cur>=1?'GC 扫描 →':''}</text>
+${box(36,134,170,70,'STW 1 (&lt;1ms)','设写屏障 + 扫描根对象','hot',cur>=1)}
+${box(236,134,200,70,'并发标记 + 写屏障','与应用同时运行','',cur>=2)}
+${box(466,134,178,70,'STW 2 + 并发清扫','白色对象 → 归还内存','io',cur>=3)}
+${box(36,224,192,56,'mcache 小对象无锁','&lt;32KB 本地分配','ok',cur>=0)}
+${box(258,224,192,56,'逃逸分析','编译期决定栈还是堆','warn',cur>=0)}
+${box(480,224,164,56,'sync.Pool 复用','减少堆分配和 GC 压力','',cur>=3)}
+<text class="svg-mini" x="38" y="304">go build -gcflags="-m -m" 查看逃逸决策；go test -benchmem 观测 allocs/op；go tool pprof -alloc_space 找分配热点。</text></svg>`;
+}
+function testingDiagram(){
+  return `<svg class="arch-svg" viewBox="0 0 680 330">${defs()}<text class="svg-label svg-accent" x="24" y="24">Go 工程质量 · test + bench + race + pprof</text>
+${box(28,52,140,84,'go test','table-driven\nt.Run sub-test','hot',cur>=0)}
+${box(190,52,140,84,'go test -bench','ns/op\nallocs/op','',cur>=1)}
+${box(354,52,140,84,'go test -race','shadow memory\ndata race','warn',cur>=2)}
+${box(518,52,136,84,'pprof / trace','CPU heap goroutine\ntrace 调度延迟','',cur>=3)}
+<path class="${cur>=1?'arrow-hot':'arrow-line'}" d="M168 94 H190"/>
+<path class="${cur>=2?'arrow-hot':'arrow-line'}" d="M330 94 H354"/>
+<path class="${cur>=3?'arrow-hot':'arrow-line'}" d="M494 94 H518"/>
+${box(28,188,272,78,'struct { name, input, wantErr }','t.Run(tc.name,...) 精确定位失败','ok',cur>=0)}
+${box(322,188,178,78,'b.N 次循环','testing 自动调整稳定','',cur>=1)}
+${box(522,188,132,78,'import _ pprof','暴露 /debug/pprof','',cur>=3)}
+<text class="svg-mini" x="28" y="288">race detector 约 5–10× 减速，仅测试用；pprof 在生产服务中按需采样，对 QPS 影响极小。</text></svg>`;
+}
+function diagram(){
+  return id==='concurrency'?concurrencyDiagram():id==='runtime'?runtimeDiagram():id==='gc'?gcDiagram():id==='testing'?testingDiagram():syntaxDiagram();
+}
+const params=new URLSearchParams(location.search);const id=params.get('id')||'syntax';const data=TOPICS[id]||TOPICS.syntax;let cur=0,playing=false,timer=null;const SPEED=[1500,1200,900,650,420];
+window.PAGE_CONCEPTS=data.concepts.map(c=>({title:c[0],body:c[1]}));pageTitle.textContent=data.title;topicTitle.textContent=data.title;topicSummary.textContent=data.summary;tags.innerHTML=data.tags.map(t=>`<span class="tag">${t}</span>`).join('');codeName.textContent=id+'.go';
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function codeHtml(s){
+  let r=esc(s);
+  r=r.replace(/"(?:[^"\\]|\\.)*"/g,m=>'<span class="st">'+m+'</span>');
+  r=r.replace(/\/\/.*/g,m=>'<span class="cm">'+m+'</span>');
+  r=r.replace(/\b(type|interface|struct|func|return|if|else|for|select|case|nil|error|defer|go|chan|make|len|cap|append|var|const|range|break|continue|import|package|any)\b/g,'<span class="kw">$1</span>');
+  r=r.replace(/\b(context|fmt|sync|errors|strings|bytes|io|http|json|atomic)\b/g,'<span class="pkg">$1</span>');
+  r=r.replace(/\b(\d+(?:\.\d+)?)\b/g,'<span class="num">$1</span>');
+  r=r.replace(/\b([A-Z][A-Za-z0-9]*)\b/g,'<span class="id">$1</span>');
+  r=r.replace(/\b([a-z][a-zA-Z0-9_]*)(?=\s*\()/g,'<span class="fn">$1</span>');
+  return r;
+}
+function render(){
+  stepCards.innerHTML=data.steps.map((s,i)=>`<div class="step-card${i===cur?' active':''}"><strong>Step ${i+1}</strong><span>${s}</span></div>`).join('');
+  diagramTitle.textContent=data.title+' · 架构图';
+  diagramArea.innerHTML=diagram();
+  laneGrid.innerHTML=data.lanes.map((l,i)=>`<div class="lane${i<=cur%data.lanes.length?' active':''}"><strong>${l[0]}</strong><span>${l[1]}</span></div>`).join('');
+  codeBody.innerHTML=data.code.map((l,i)=>`<div class="code-line${Math.abs(i-cur-1)<=1?' active':''}"><span class="ln">${i+1}</span><span class="lc">${codeHtml(l)||'&nbsp;'}</span></div>`).join('');
+  descText.textContent=data.steps[cur];stepCounter.textContent=`${cur+1} / ${data.steps.length}`;
+  btnPrev.disabled=cur===0;btnNext.disabled=cur===data.steps.length-1;
+}
+function pause(){playing=false;clearTimeout(timer);btnPlay.textContent='▶ 播放';}
+function play(){if(cur>=data.steps.length-1)cur=0;playing=true;btnPlay.textContent='⏸ 暂停';tick();}
+function tick(){if(!playing)return;if(cur<data.steps.length-1){cur++;render();timer=setTimeout(tick,SPEED[+speedRange.value-1]);}else pause();}
+btnReset.onclick=()=>{pause();cur=0;render();};btnPrev.onclick=()=>{pause();if(cur>0){cur--;render();}};btnNext.onclick=()=>{pause();if(cur<data.steps.length-1){cur++;render();}};btnPlay.onclick=()=>playing?pause():play();
+render();if(window.NavTracker)NavTracker.track(data.title,location.href,'🐹','Golang');
+</script>
+<script src="../footer.js"></script>
+</body>
+</html>

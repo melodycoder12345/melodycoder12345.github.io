@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>补码 / IEEE 754 — CS 基础</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;--g:#38bdf8;--m:#fb923c;--p:#c084fc;--q:#4ade80;}
+*{box-sizing:border-box;margin:0;padding:0;}
+
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;min-height:100vh;}
+.nav{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);flex-shrink:0;position:sticky;top:var(--snav-h,44px);z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;display:flex;align-items:center;gap:5px;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.main-area{display:flex;flex:none;height:calc(100vh - var(--snav-h,44px) - 88px);min-height:300px;overflow:hidden;}
+.steps-panel{width:270px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid var(--border2);overflow:hidden;background:rgba(15,23,42,.6);}
+.scenarios{display:flex;gap:0;border-bottom:1px solid var(--border2);overflow-x:auto;}
+.sc-btn{flex:1;background:none;border:none;color:var(--dim);padding:9px 6px;cursor:pointer;font-size:.72rem;font-family:inherit;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;text-align:center;}
+.sc-btn:hover{color:var(--text);}
+.sc-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+.step-scroll{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
+.step-desc-card{border:1px solid var(--border2);border-radius:12px;background:rgba(255,255,255,.025);padding:14px;transition:border-color .3s,box-shadow .3s;}
+.step-desc-card.lit{border-color:var(--accent);box-shadow:0 0 20px rgba(0,173,216,.12);}
+.step-desc-card .step-num{font-size:.66rem;font-family:monospace;color:var(--accent);margin-bottom:6px;}
+.step-desc-card h3{font-size:.88rem;font-weight:700;margin-bottom:6px;}
+.step-desc-card p{font-size:.78rem;color:var(--dim);line-height:1.68;}
+.flow-nav{padding:10px 14px;border-top:1px solid var(--border2);display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.fn-dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--border2);background:rgba(255,255,255,.04);cursor:pointer;font-size:.68rem;font-family:monospace;color:var(--dim);display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;}
+.fn-dot:hover{border-color:var(--dim);color:var(--text);}
+.fn-dot.done{border-color:var(--accent);background:rgba(0,173,216,.15);color:var(--accent);}
+.fn-dot.cur{border-color:var(--accent);background:rgba(0,173,216,.25);color:var(--accent);transform:scale(1.12);}
+.step-ctr{margin-left:auto;font-size:.7rem;font-family:monospace;color:var(--dim2);}
+.diagram-panel{flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid var(--border2);overflow:hidden;}
+.diagram-inner{flex:1;overflow:auto;padding:20px;background:radial-gradient(ellipse 70% 50% at 30% 20%,rgba(0,173,216,.07),transparent 60%);}
+.diagram-svg{width:100%;max-width:620px;display:block;}
+.code-panel{width:44%;min-width:360px;flex-shrink:0;display:flex;flex-direction:column;background:var(--panel2);overflow:hidden;}
+.code-hd{padding:10px 16px;border-bottom:1px solid var(--border2);font-size:.8rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);}
+.code-body{flex:1;overflow-y:auto;padding:14px 0;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.78rem;line-height:1.7;}
+.cl{display:flex;border-left:2px solid transparent;transition:background .25s,border-color .25s;}
+.cl.hi{background:rgba(0,173,216,.1);border-left-color:var(--accent);}
+.ln{min-width:42px;padding:0 10px 0 12px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;}
+.lc{padding:0 14px 0 4px;white-space:pre-wrap;word-break:break-word;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.controls{display:flex;align-items:center;gap:10px;padding:11px 22px;border-top:1px solid var(--border2);background:var(--panel);flex-shrink:0;}
+.ctrl-btn{background:rgba(255,255,255,.07);border:1px solid var(--border2);color:var(--text);padding:7px 16px;border-radius:8px;cursor:pointer;font-size:.82rem;font-family:inherit;transition:all .15s;}
+.ctrl-btn:hover{background:rgba(255,255,255,.12);}
+.ctrl-btn:disabled{opacity:.35;cursor:not-allowed;}
+.ctrl-btn.primary{background:rgba(0,173,216,.16);border-color:rgba(0,173,216,.35);color:var(--accent);}
+.ctrl-btn.primary:hover{background:rgba(0,173,216,.25);}
+.node-rect{transition:fill .35s cubic-bezier(.4,0,.2,1),stroke .35s,filter .35s;}
+.node-text{transition:fill .35s;}
+.edge{transition:stroke .35s,opacity .35s,stroke-dashoffset .6s ease-out;}
+@keyframes glow-pulse{0%,100%{filter:drop-shadow(0 0 4px rgba(56,189,248,.6));}50%{filter:drop-shadow(0 0 12px rgba(56,189,248,.95));}}
+@keyframes particle-flow{0%{stroke-dashoffset:200;}100%{stroke-dashoffset:0;}}
+@keyframes bounce-x{0%,100%{transform:translateX(0);}50%{transform:translateX(8px);}}
+@keyframes pulse-scale{0%,100%{transform:scale(1);}50%{transform:scale(1.06);}}
+.flow-arrow{stroke-dasharray:8 5;animation:particle-flow 1.2s linear infinite;}
+.active-node{animation:glow-pulse 2s infinite;}
+.bounce{animation:bounce-x 1s ease-in-out infinite;}
+.extras{padding:48px 40px;background:var(--bg);border-top:1px solid var(--border2);}
+.ext-section{margin-bottom:48px;}
+.ext-hd{display:flex;align-items:center;gap:12px;margin-bottom:22px;}
+.ext-hd-bar{width:4px;height:20px;border-radius:2px;background:var(--accent);}
+.ext-hd h2{font-size:1.25rem;font-weight:700;}
+.qa-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.qa-card{border:1px solid var(--border2);border-radius:12px;overflow:hidden;}
+.qa-q{padding:13px 16px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);font-size:.84rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .15s;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:13px 16px;font-size:.82rem;color:var(--dim);line-height:1.72;}
+.qa-card.open .qa-a{display:block;}
+.qa-a code{font-family:monospace;color:var(--accent);font-size:.78rem;}
+.pitfall-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.78rem;font-weight:700;border-bottom:1px solid var(--border2);}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;gap:0;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--dim);line-height:1.6;white-space:pre-wrap;}
+.pitfall-col p{font-size:.76rem;color:var(--dim);line-height:1.65;margin-top:6px;}
+.pitfall-col p strong{color:var(--text);}
+@media(max-width:900px){body{overflow-y:auto;height:auto;}.main-area{flex-direction:column;overflow:visible;height:auto;flex:none;}.steps-panel{width:100%;border-right:none;border-bottom:1px solid var(--border2);}.diagram-panel{border-right:none;min-height:340px;}.code-panel{width:100%;min-width:0;height:320px;flex:none;}.qa-grid,.pitfall-grid{grid-template-columns:1fr;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}.extras{padding:32px 20px;}}
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">补码 / IEEE 754 — CS 基础</span>
+  <div class="nav-tags">
+    <span class="ntag">two-s-complement</span>
+    <span class="ntag">IEEE754</span>
+    <span class="ntag">float</span>
+    <span class="ntag">overflow</span>
+    <span class="ntag">precision</span>
+  </div>
+</div>
+
+<div class="main-area">
+  <div class="steps-panel">
+    <div class="scenarios" id="scenarios"></div>
+    <div class="step-scroll">
+      <div class="step-desc-card lit" id="stepCard">
+        <div class="step-num" id="stepNum">步骤 1</div>
+        <h3 id="stepTitle"></h3>
+        <p id="stepDesc"></p>
+      </div>
+    </div>
+    <div class="flow-nav" id="flowNav"></div>
+  </div>
+
+  <div class="diagram-panel">
+    <div class="diagram-inner">
+      <svg id="svg" class="diagram-svg" viewBox="0 0 620 360" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </div>
+
+  <div class="code-panel">
+    <div class="code-hd"><div class="code-dot"></div><span id="codeTitle">main.go</span></div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="ctrl-btn" id="btnReset" onclick="reset()">⏮ 重置</button>
+  <button class="ctrl-btn primary" id="btnPrev" onclick="prev()">← 上一步</button>
+  <button class="ctrl-btn primary" id="btnNext" onclick="next()">下一步 →</button>
+</div>
+
+<div class="extras">
+  <div class="ext-section">
+    <div class="ext-hd"><div class="ext-hd-bar"></div><h2>面试题</h2></div>
+    <div class="qa-grid">
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">int8 的范围为什么是 -128~127 而不是 -127~127？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">补码中 8 位能表示 256 个值。正数范围 0~127（含 0），负数范围 -1~-128，共 128 个负数。10000000（-128）没有对应的正数形式，所以范围是非对称的。原码有 +0（00000000）和 -0（10000000）两种表示，浪费了一个编码位置；补码消除了 -0，将其复用为 -128，让范围多了一个。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">为什么 0.1 + 0.2 ≠ 0.3？如何在代码中处理浮点比较？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">0.1 和 0.2 的二进制表示是无限循环小数，IEEE 754 只能截断存储，存在舍入误差。两个误差相加后结果为 0.30000000000000004。<br>处理方式：<br>1. 使用容差比较：<code>math.Abs(a-b) &lt; 1e-9</code><br>2. 金融场景用整数（分而非元）<br>3. 使用 <code>math/big.Float</code> 或 <code>shopspring/decimal</code> 库</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">NaN、+Inf、-Inf 在 IEEE 754 中如何编码？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">IEEE 754 用特殊指数字段编码：<br>• 指数全 1（E=255）+ 尾数非零 → NaN（Not a Number），如 0/0、sqrt(-1)<br>• 指数全 1 + 尾数全 0 + 符号位 0 → +Inf<br>• 指数全 1 + 尾数全 0 + 符号位 1 → -Inf<br>• 指数全 0 + 尾数非零 → 非规格化数（接近 0 的极小值）<br>NaN 是唯一不等于自身的值：<code>NaN != NaN</code> 为 true。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">Go 中 int 的大小是固定的吗？int32 和 int 的区别？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a"><code>int</code> 的大小由平台决定：64 位系统上是 64 位，32 位系统上是 32 位。<code>int32</code> 是固定 32 位，不随平台变化。<br>实践建议：<br>• 数组索引、循环计数用 <code>int</code>（与平台 native 大小匹配，性能最优）<br>• 需要确定精确位宽时用 <code>int32</code>/<code>int64</code>（如协议字段、序列化）<br>• 不要混用 <code>int</code> 和 <code>int64</code> 做比较，需要显式转换。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ext-section">
+    <div class="ext-hd"><div class="ext-hd-bar"></div><h2>易错点</h2></div>
+    <div class="pitfall-grid">
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 整数溢出：Go 不会 panic</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col"><pre>var x int8 = 127
+x++
+// x 变为 -128，不会报错
+// 01111111 + 1 = 10000000
+
+// 检测溢出需手动判断
+if x == 127 {
+    // 将要溢出，处理...
+}</pre></div>
+          <div class="pitfall-col"><pre>import "math/bits"
+
+// 安全加法：检测溢出
+func safeAdd(a, b uint64) (uint64, bool) {
+    sum, carry := bits.Add64(a, b, 0)
+    return sum, carry == 0
+}
+
+// 或使用 math.MaxInt8 做边界检查
+if x > math.MaxInt8-1 {
+    return errors.New("overflow")
+}</pre><p><strong>原则：</strong>Go 的整数溢出是静默的，关键业务逻辑中必须手动检查边界。</p></div>
+        </div>
+      </div>
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 浮点数直接用 == 比较</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col"><pre>a := 0.1 + 0.2
+b := 0.3
+if a == b {
+    // 永远不会进入！
+    // a = 0.30000000000000004
+    // b = 0.3
+}
+
+// 同样错误
+var sum float64
+for i := 0; i < 10; i++ {
+    sum += 0.1
+}
+fmt.Println(sum == 1.0) // false</pre></div>
+          <div class="pitfall-col"><pre>import "math"
+
+// 正确：使用容差比较
+const eps = 1e-9
+if math.Abs(a-b) < eps {
+    // 认为相等
+}
+
+// 金融场景：使用整数
+// 存储分而非元，避免浮点
+cents := 10 + 20  // 30 分，精确
+
+// 或使用 big.Float
+x := new(big.Float).SetFloat64(0.1)
+y := new(big.Float).SetFloat64(0.2)
+z := new(big.Float).Add(x, y)</pre><p><strong>原则：</strong>永远不要用 <code>==</code> 比较浮点数（特殊情况：检查 NaN、Inf 除外）。</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── SVG helpers ──────────────────────────────────────────────
+function defs(){return`<defs>
+<marker id="arr" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#475569"/></marker>
+<marker id="arrA" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#00add8"/></marker>
+<marker id="arrG" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#38bdf8"/></marker>
+<marker id="arrR" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#f87171"/></marker>
+<filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="glow2"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>`;}
+
+function box(x,y,w,h,label,sub,color,active,rx=10){
+  const fill=active?`rgba(${hexToRgb(color)},.18)`:`rgba(255,255,255,.03)`;
+  const stroke=active?color:'#334155';
+  const filt=active?' filter="url(#glow)"':'';
+  const lc=active?color:'#94a3b8';
+  const sc=active?'#e2e8f0':'#64748b';
+  return`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${active?2:1}"${filt}/>
+<text x="${x+w/2}" y="${y+h/2-(sub?6:0)}" text-anchor="middle" fill="${lc}" font-size="12" font-weight="700" font-family="monospace">${label}</text>`+
+(sub?`<text x="${x+w/2}" y="${y+h/2+10}" text-anchor="middle" fill="${sc}" font-size="9" font-family="monospace">${sub}</text>`:'');
+}
+
+function arr(x1,y1,x2,y2,color,dashed,anim){
+  const cls=anim?'class="flow-arrow" ':'';
+  const da=dashed?'stroke-dasharray="6 4" ':'';
+  const mkId=color==='#00add8'?'arrA':color==='#38bdf8'?'arrG':color==='#f87171'?'arrR':'arr';
+  return`<line ${cls}${da}x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="1.8" marker-end="url(#${mkId})"/>`;
+}
+
+function lbl(x,y,t,c,s){return`<text x="${x}" y="${y}" fill="${c||'#64748b'}" font-size="${s||9}" font-family="monospace">${t}</text>`;}
+
+function hexToRgb(hex){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return`${r},${g},${b}`;}
+
+// ── 8-bit grid helper ────────────────────────────────────────
+// bits: string "10000101", colors: array of 8 color strings
+function bitGrid(x,y,bits,colors,label){
+  const W=36,H=36,GAP=2;
+  let s='';
+  if(label) s+=`<text x="${x+4*(W+GAP)}" y="${y-10}" text-anchor="middle" fill="#64748b" font-size="10" font-family="monospace">${label}</text>`;
+  for(let i=0;i<8;i++){
+    const bx=x+i*(W+GAP);
+    const col=colors&&colors[i]?colors[i]:'#334155';
+    const bit=bits?bits[i]:'0';
+    const isActive=colors&&colors[i]&&colors[i]!=='#334155';
+    const fill=isActive?`rgba(${hexToRgb(col)},.20)`:'rgba(255,255,255,.03)';
+    s+=`<rect x="${bx}" y="${y}" width="${W}" height="${H}" rx="5" fill="${fill}" stroke="${col}" stroke-width="${isActive?2:1}"${isActive?' filter="url(#glow)"':''}/>`;
+    s+=`<text x="${bx+W/2}" y="${y+H/2+5}" text-anchor="middle" fill="${isActive?col:'#94a3b8'}" font-size="16" font-weight="700" font-family="monospace">${bit}</text>`;
+  }
+  // bit position labels
+  s+=`<text x="${x}" y="${y+H+14}" fill="#475569" font-size="8" font-family="monospace">b7</text>`;
+  s+=`<text x="${x+7*(W+GAP)}" y="${y+H+14}" fill="#475569" font-size="8" font-family="monospace">b0</text>`;
+  return s;
+}
+
+// ── Scenarios ────────────────────────────────────────────────
+let curScene=0, curStep=0;
+
+const SCENARIOS=[
+// ── 场景 A: 补码表示 ─────────────────────────────────────────
+{
+  label:'补码表示',
+  codeTitle:'twos_complement.go',
+  steps:[
+    {title:'十进制 -5 的原码',desc:'需要用 8 位二进制表示 -5。原码（Sign-Magnitude）：最高位 b7 为符号位（1代表负），其余7位表示绝对值 5 = 0000101，原码 = 10000101。'},
+    {title:'反码（One\'s Complement）',desc:'反码规则：符号位不变，其余各位取反。10000101 → 符号位1保持，其余 0000101 取反变为 1111010，反码 = 11111010。'},
+    {title:'补码（Two\'s Complement）',desc:'补码 = 反码 + 1。11111010 + 1 = 11111011。-5 的补码表示为 11111011。这是计算机中实际存储的值。'},
+    {title:'验证：-5 + 5 = 0',desc:'-5 的补码 11111011 加上 5 的原码/补码 00000101，结果为 100000000（9位），最高位进位丢弃，低8位 = 00000000 = 0，验证正确！'},
+    {title:'补码的优点',desc:'补码优点：① 加减法统一用加法电路，无需单独减法器；② 0 表示唯一（原码有+0和-0两种）；③ 8位范围 -128~127，比原码多表示一个数 -128。'},
+  ],
+  hl:[[4,5],[7],[9],[12,13,14],[17,18,19]],
+  code:[
+`package main
+
+import "fmt"
+
+// -5 的原码：符号位1 + 绝对值 5
+// 5  = 00000101
+// -5 原码 = 10000101
+var original = int8(-5) // 原码表示
+
+// 打印二进制
+func main() {
+    fmt.Printf("原码: %08b\n", uint8(5)|0x80)
+    // 输出: 10000101
+}`,
+`package main
+
+import "fmt"
+
+// 反码：符号位不变，其余各位取反
+// 原码 10000101
+//      ↓ 取反（除符号位）
+// 反码 11111010
+func main() {
+    orig := uint8(0b10000101)
+    // 保留符号位，其余取反
+    ones := (orig & 0x80) | (^orig & 0x7F)
+    fmt.Printf("反码: %08b\n", ones) // 11111010
+}`,
+`package main
+
+import "fmt"
+
+// 补码 = 反码 + 1
+// 反码: 11111010
+//    +         1
+// ─────────────
+// 补码: 11111011  ← -5 的补码
+
+func main() {
+    var x int8 = -5
+    fmt.Printf("补码: %08b\n", uint8(x))
+    // 输出: 11111011
+}`,
+`package main
+
+import "fmt"
+
+func main() {
+    // 验证：-5 + 5 = 0
+    //   11111011  (-5 的补码)
+    // + 00000101  (+5 的补码)
+    // ──────────
+    // 100000000  ← 进位丢弃
+    //  00000000  ← 结果 = 0 ✓
+
+    var a int8 = -5
+    var b int8 = 5
+    fmt.Println(a + b) // 0
+}`,
+`package main
+
+import (
+    "fmt"
+    "math"
+)
+
+func main() {
+    // 补码范围：-128 ~ 127
+    fmt.Println(math.MinInt8) // -128
+    fmt.Println(math.MaxInt8) // 127
+
+    // 溢出：Go 不报错！
+    var x int8 = 127
+    x++ // x = -128（溢出）
+    fmt.Printf("%08b = %d\n", uint8(x), x)
+    // 10000000 = -128
+}`,
+  ],
+  render(step){
+    let s=defs();
+    const gx=20, gy=40;
+
+    // Color schemes per step
+    // step 0: original code 10000101 - orange sign bit, blue value bits
+    // step 1: ones complement 11111010 - orange sign, purple flipped bits
+    // step 2: twos complement 11111011 - orange sign, accent final
+    // step 3: addition verification
+    // step 4: summary
+
+    if(step<=2){
+      const bits_map=[
+        '10000101',
+        '11111010',
+        '11111011',
+      ];
+      const colors_map=[
+        ['#fb923c','#38bdf8','#38bdf8','#38bdf8','#38bdf8','#38bdf8','#38bdf8','#38bdf8'],
+        ['#fb923c','#c084fc','#c084fc','#c084fc','#c084fc','#c084fc','#c084fc','#c084fc'],
+        ['#fb923c','#00add8','#00add8','#00add8','#00add8','#00add8','#00add8','#00add8'],
+      ];
+      const labels=['原码 (10000101)','反码 (11111010)','补码 (11111011)'];
+      s+=bitGrid(gx,gy,bits_map[step],colors_map[step]);
+      s+=lbl(gx,gy-10,labels[step],'#94a3b8',10);
+
+      // Legend
+      s+=`<rect x="${gx}" y="${gy+68}" width="14" height="14" rx="3" fill="rgba(251,146,60,.2)" stroke="#fb923c"/>`;
+      s+=lbl(gx+18,gy+80,'符号位（Sign）','#fb923c',9);
+      if(step===0){
+        s+=`<rect x="${gx+140}" y="${gy+68}" width="14" height="14" rx="3" fill="rgba(56,189,248,.2)" stroke="#38bdf8"/>`;
+        s+=lbl(gx+158,gy+80,'数值位（Magnitude）','#38bdf8',9);
+      }
+      if(step===1){
+        s+=`<rect x="${gx+140}" y="${gy+68}" width="14" height="14" rx="3" fill="rgba(192,132,252,.2)" stroke="#c084fc"/>`;
+        s+=lbl(gx+158,gy+80,'取反位（Flipped）','#c084fc',9);
+      }
+      if(step===2){
+        s+=`<rect x="${gx+140}" y="${gy+68}" width="14" height="14" rx="3" fill="rgba(0,173,216,.2)" stroke="#00add8"/>`;
+        s+=lbl(gx+158,gy+80,'补码位','#00add8',9);
+      }
+
+      // Transformation arrow
+      if(step===1){
+        s+=`<text x="${gx+4*38}" y="${gy+110}" text-anchor="middle" fill="#c084fc" font-size="11" font-family="monospace">↓ 符号位不变，其余各位取反</text>`;
+        s+=bitGrid(gx,gy+130,'10000101',['#fb923c','#334155','#334155','#334155','#334155','#334155','#334155','#334155']);
+        s+=lbl(gx,gy+120,'原码','#64748b',9);
+      }
+      if(step===2){
+        s+=`<text x="${gx+4*38}" y="${gy+110}" text-anchor="middle" fill="#00add8" font-size="11" font-family="monospace">↓ 反码 + 1</text>`;
+        // show addition
+        s+=`<text x="${gx}" y="${gy+135}" fill="#64748b" font-size="11" font-family="monospace">  11111010  (反码)</text>`;
+        s+=`<text x="${gx}" y="${gy+152}" fill="#64748b" font-size="11" font-family="monospace">+        1</text>`;
+        s+=`<line x1="${gx}" y1="${gy+158}" x2="${gx+308}" y2="${gy+158}" stroke="#334155" stroke-width="1"/>`;
+        s+=`<text x="${gx}" y="${gy+172}" fill="#4ade80" font-size="11" font-family="monospace">  11111011  ✓</text>`;
+      }
+    }
+
+    if(step===3){
+      // Carry addition verification
+      s+=`<text x="310" y="30" text-anchor="middle" fill="#94a3b8" font-size="12" font-family="monospace">验证：-5 + 5 = 0（补码加法）</text>`;
+      // -5
+      s+=bitGrid(gx,gy+10,'11111011',['#00add8','#00add8','#00add8','#00add8','#00add8','#00add8','#00add8','#00add8']);
+      s+=lbl(gx,gy+2,'-5 的补码 = 11111011','#00add8',10);
+      // + sign
+      s+=`<text x="${gx-16}" y="${gy+80}" fill="#94a3b8" font-size="16" font-family="monospace">+</text>`;
+      // +5
+      s+=bitGrid(gx,gy+90,'00000101',['#4ade80','#4ade80','#4ade80','#4ade80','#4ade80','#4ade80','#4ade80','#4ade80']);
+      s+=lbl(gx,gy+82,'+5 的补码 = 00000101','#4ade80',10);
+      // result line
+      s+=`<line x1="${gx}" y1="${gy+140}" x2="${gx+308}" y2="${gy+140}" stroke="#334155" stroke-width="1.5"/>`;
+      // carry indicator
+      s+=`<text x="${gx-18}" y="${gy+165}" fill="#f87171" font-size="10" font-family="monospace">1</text>`;
+      s+=`<rect x="${gx-20}" y="${gy+148}" width="18" height="18" rx="3" fill="rgba(248,113,113,.15)" stroke="#f87171" stroke-width="1" stroke-dasharray="3 2"/>`;
+      s+=lbl(gx,gy+165+10,'进位丢弃','#f87171',8);
+      s+=bitGrid(gx,gy+158,'00000000',['#4ade80','#4ade80','#4ade80','#4ade80','#4ade80','#4ade80','#4ade80','#4ade80']);
+      s+=lbl(gx,gy+150,'结果 = 00000000 = 0 ✓','#4ade80',10);
+    }
+
+    if(step===4){
+      // Summary: advantage of two's complement
+      s+=`<text x="310" y="35" text-anchor="middle" fill="#94a3b8" font-size="12" font-family="monospace">补码的优点</text>`;
+
+      // Box 1: Unified arithmetic
+      s+=box(30,55,170,55,'加减统一','用加法电路完成','#4ade80',true,8);
+      // Box 2: Unique zero
+      s+=box(220,55,170,55,'零的唯一性','无 +0 / -0 之分','#00add8',true,8);
+      // Box 3: Range
+      s+=box(410,55,170,55,'表示范围','8位：-128 ~ 127','#c084fc',true,8);
+
+      // Original vs Two's complement range
+      s+=`<text x="310" y="145" text-anchor="middle" fill="#64748b" font-size="10" font-family="monospace">原码 0 表示（2种）vs 补码 0 表示（1种）</text>`;
+      // original +0 and -0
+      s+=bitGrid(20,160,'00000000',['#334155','#334155','#334155','#334155','#334155','#334155','#334155','#334155']);
+      s+=lbl(20,155,'+0 (原码)','#64748b',9);
+      s+=bitGrid(340,160,'10000000',['#f87171','#334155','#334155','#334155','#334155','#334155','#334155','#334155']);
+      s+=lbl(340,155,'-0 (原码，浪费！)','#f87171',9);
+      s+=`<text x="310" y="225" text-anchor="middle" fill="#4ade80" font-size="10" font-family="monospace">补码将 10000000 复用为 -128，范围变为 -128~127 ✓</text>`;
+    }
+
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+
+// ── 场景 B: IEEE 754 结构 ────────────────────────────────────
+{
+  label:'IEEE 754',
+  codeTitle:'ieee754.go',
+  steps:[
+    {title:'32位浮点数整体结构',desc:'IEEE 754 单精度浮点：1位符号(S) + 8位指数(E) + 23位尾数(M)，共32位。公式：value = (-1)^S × (1+M) × 2^(E-127)。以 3.14 为例演示各字段含义。'},
+    {title:'符号位 S=0（正数）',desc:'最高位 bit31 为符号位。0 表示正数，1 表示负数。3.14 > 0，所以符号位 S = 0（橙色高亮）。'},
+    {title:'指数字段 E=10000000',desc:'指数字段 bit30~bit23，共8位，使用偏置编码：E_stored = 实际指数 + 127。3.14 ≈ 1.57 × 2^1，实际指数 = 1，存储值 E = 1 + 127 = 128 = 10000000（紫色高亮）。'},
+    {title:'尾数字段 M（隐含首位1）',desc:'尾数字段 bit22~bit0，共23位。规格化数隐含最高位为1：完整尾数 = 1.M。3.14 的尾数 M ≈ 10010001111010111000011（蓝色高亮）。最终值 = (-1)^0 × 1.M × 2^1 ≈ 3.14。'},
+  ],
+  hl:[[4,5,6],[8,9],[11,12,13],[15,16,17]],
+  code:[
+`package main
+
+import (
+    "fmt"
+    "math"
+)
+
+// 32位浮点 3.14 的结构:
+// S  EEEEEEEE  MMMMMMMMMMMMMMMMMMMMMMM
+// 0  10000000  10010001111010111000011
+
+func main() {
+    f := float32(3.14)
+    bits := math.Float32bits(f)
+    fmt.Printf("%032b\n", bits)
+}`,
+`package main
+
+import (
+    "fmt"
+    "math"
+)
+
+// 符号位 S = bit31
+// 3.14 > 0，所以 S = 0（正数）
+func main() {
+    f := float32(3.14)
+    bits := math.Float32bits(f)
+    s := bits >> 31       // 取 bit31
+    fmt.Printf("S = %d\n", s) // 0
+}`,
+`package main
+
+import (
+    "fmt"
+    "math"
+)
+
+// 指数字段 E = bit30~bit23
+// E_stored = 128 = 10000000
+// 实际指数 = E - 127 = 128 - 127 = 1
+func main() {
+    f := float32(3.14)
+    bits := math.Float32bits(f)
+    e := (bits >> 23) & 0xFF  // 取8位指数
+    fmt.Printf("E = %d (%08b)\n", e, e)
+    fmt.Printf("实际指数 = %d\n", int(e)-127)
+}`,
+`package main
+
+import (
+    "fmt"
+    "math"
+)
+
+// 尾数 M = bit22~bit0，23位
+// 完整尾数 = 1.M（隐含首位1）
+// value = (-1)^0 × 1.M × 2^1
+func main() {
+    f := float32(3.14)
+    bits := math.Float32bits(f)
+    m := bits & 0x7FFFFF // 取23位尾数
+    fmt.Printf("M = %023b\n", m)
+    // 完整: 1.10010001111010111000011
+    fmt.Printf("值 ≈ %v\n", f)
+}`,
+  ],
+  render(step){
+    let s=defs();
+
+    // 32-bit representation: S(1) + E(8) + M(23)
+    // Layout: 32 small cells
+    const sx=10, sy=60, cw=18, ch=26, gap=1;
+    const totalW=32*(cw+gap)-gap;
+
+    // Draw all 32 bits
+    // Actual bits of float32(3.14): 0 10000000 10010001111010111000011
+    const allBits='01000000010010001111010111000011';
+
+    for(let i=0;i<32;i++){
+      const bx=sx+i*(cw+gap);
+      let col='#334155';
+      let fill='rgba(255,255,255,.03)';
+      const bit=allBits[i];
+
+      if(step===1&&i===0){col='#fb923c';fill=`rgba(${hexToRgb('#fb923c')},.2)`;}
+      if(step===2&&i>=1&&i<=8){col='#c084fc';fill=`rgba(${hexToRgb('#c084fc')},.2)`;}
+      if(step===3&&i>=9){col='#38bdf8';fill=`rgba(${hexToRgb('#38bdf8')},.2)`;}
+      if(step===0){
+        if(i===0) col='#fb923c';
+        else if(i<=8) col='#c084fc';
+        else col='#38bdf8';
+        fill='rgba(255,255,255,.06)';
+      }
+
+      const isActive=step>0&&((step===1&&i===0)||(step===2&&i>=1&&i<=8)||(step===3&&i>=9));
+      s+=`<rect x="${bx}" y="${sy}" width="${cw}" height="${ch}" rx="3" fill="${fill}" stroke="${col}" stroke-width="${isActive?2:1}"${isActive?' filter="url(#glow)"':''}/>`;
+      s+=`<text x="${bx+cw/2}" y="${sy+ch/2+4}" text-anchor="middle" fill="${col}" font-size="${cw>14?9:8}" font-weight="${isActive?'700':'400'}" font-family="monospace">${bit}</text>`;
+    }
+
+    // Bit position labels
+    s+=`<text x="${sx}" y="${sy-8}" fill="#64748b" font-size="8" font-family="monospace">31</text>`;
+    s+=`<text x="${sx+31*(cw+gap)}" y="${sy-8}" fill="#64748b" font-size="8" font-family="monospace">0</text>`;
+
+    // Field bracket labels
+    // S field
+    s+=`<line x1="${sx+0.5*(cw+gap)}" y1="${sy+ch+4}" x2="${sx+0.5*(cw+gap)}" y2="${sy+ch+16}" stroke="${step===1?'#fb923c':'#475569'}" stroke-width="1"/>`;
+    s+=lbl(sx-2,sy+ch+26,'S','#fb923c',10);
+
+    // E field
+    const ex=sx+(cw+gap);
+    const ew=8*(cw+gap);
+    s+=`<line x1="${ex}" y1="${sy+ch+4}" x2="${ex+ew-1}" y2="${sy+ch+4}" stroke="${step===2?'#c084fc':'#475569'}" stroke-width="1.5"/>`;
+    s+=lbl(ex+ew/2-12,sy+ch+16,'指数 E (8位)','#c084fc',9);
+
+    // M field
+    const mx=sx+9*(cw+gap);
+    const mw=23*(cw+gap);
+    s+=`<line x1="${mx}" y1="${sy+ch+4}" x2="${mx+mw-1}" y2="${sy+ch+4}" stroke="${step===3?'#38bdf8':'#475569'}" stroke-width="1.5"/>`;
+    s+=lbl(mx+mw/2-22,sy+ch+16,'尾数 M (23位)','#38bdf8',9);
+
+    // Formula
+    const fy=sy+ch+50;
+    s+=`<text x="310" y="${fy}" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="monospace">value = (-1)^S × (1+M) × 2^(E-127)</text>`;
+
+    // Step-specific annotations
+    if(step===0){
+      s+=box(30,fy+20,140,40,'符号 S','1 bit 正/负','#fb923c',false,8);
+      s+=box(185,fy+20,150,40,'指数 E','8 bits 偏置127','#c084fc',false,8);
+      s+=box(350,fy+20,240,40,'尾数 M','23 bits 隐含首1','#38bdf8',false,8);
+    }
+    if(step===1){
+      s+=`<text x="310" y="${fy+30}" text-anchor="middle" fill="#fb923c" font-size="12" font-family="monospace">S = 0  →  正数</text>`;
+      s+=`<text x="310" y="${fy+50}" text-anchor="middle" fill="#64748b" font-size="10" font-family="monospace">(-1)^0 = +1</text>`;
+    }
+    if(step===2){
+      s+=`<text x="310" y="${fy+25}" text-anchor="middle" fill="#c084fc" font-size="11" font-family="monospace">E = 10000000₂ = 128₁₀</text>`;
+      s+=`<text x="310" y="${fy+45}" text-anchor="middle" fill="#c084fc" font-size="11" font-family="monospace">实际指数 = 128 - 127 = 1  →  × 2¹</text>`;
+    }
+    if(step===3){
+      s+=`<text x="310" y="${fy+25}" text-anchor="middle" fill="#38bdf8" font-size="11" font-family="monospace">M = 10010001111010111000011₂</text>`;
+      s+=`<text x="310" y="${fy+45}" text-anchor="middle" fill="#38bdf8" font-size="11" font-family="monospace">完整尾数 = 1.M  →  1.5700...× 2¹ ≈ 3.14 ✓</text>`;
+    }
+
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+
+// ── 场景 C: 精度陷阱 ─────────────────────────────────────────
+{
+  label:'精度陷阱',
+  codeTitle:'float_precision.go',
+  steps:[
+    {title:'0.1 的二进制：无限循环',desc:'0.1 在二进制中是无限循环小数：0.0001100110011001100110011...（1100循环），IEEE 754 只能截断存储，产生舍入误差约 +1.39e-17。'},
+    {title:'0.2 的二进制：同样无限',desc:'0.2 = 2 × 0.1，同样是无限循环：0.001100110011...（1100循环）。截断后误差约 +2.78e-17。两个有误差的值相加，误差会叠加。'},
+    {title:'0.1 + 0.2 = 0.30000000000000004',desc:'两个截断值相加，累积误差 ≈ 4e-17，使得结果变为 0.30000000000000004 而非 0.3。这在所有遵循 IEEE 754 的语言中都会发生（Python/JS/C/Go 均如此）。'},
+    {title:'修复方法',desc:'① 整数计分（金融用 int64 存分而非元）；② math/big.Float 任意精度；③ 容差比较 math.Abs(a-b) < 1e-9；④ github.com/shopspring/decimal 库。'},
+  ],
+  hl:[[6,7],[10,11],[14,15],[18,19,20,21]],
+  code:[
+`package main
+
+import "fmt"
+
+func main() {
+    // 0.1 的二进制：0.0001100110011... (循环)
+    fmt.Printf("%.20f\n", 0.1)
+    // 0.10000000000000000555...
+    // 截断误差：+5.55e-18
+
+    // 0.2 的二进制：0.00110011... (循环)
+    fmt.Printf("%.20f\n", 0.2)
+    // 0.20000000000000001110...
+
+    // 0.1 + 0.2 实际结果
+    fmt.Printf("%.17f\n", 0.1+0.2)
+    // 0.30000000000000004  ← 不等于 0.3！
+
+    // 修复：容差比较
+    import "math"
+    const eps = 1e-9
+    fmt.Println(math.Abs(0.1+0.2-0.3) < eps) // true
+}`,
+`package main
+
+import "fmt"
+
+func main() {
+    // 0.1 = 0.0001100110011...₂ (循环)
+    fmt.Printf("%.20f\n", 0.1)
+    // 截断 → 存储值略大于真实 0.1
+
+    // 0.2 = 0.001100110011...₂ (循环)
+    fmt.Printf("%.20f\n", 0.2)
+    // 截断 → 存储值略大于真实 0.2
+
+    // 两个误差叠加...
+    fmt.Printf("%.17f\n", 0.1+0.2)
+    // 0.30000000000000004
+
+    // 修复：整数计分
+    fmt.Println(math.Abs(0.1+0.2-0.3) < eps)
+}`,
+`package main
+
+import "fmt"
+
+func main() {
+    // 0.1 + 0.2 的真实值
+    a := 0.1
+    b := 0.2
+    c := a + b
+
+    // 17位精度输出
+    fmt.Printf("%.17f\n", c)
+    // 0.30000000000000004  ← 不是 0.3！
+
+    fmt.Println(c == 0.3)  // false！
+
+    // 修复：容差比较
+    const eps = 1e-9
+    fmt.Println(math.Abs(0.1+0.2-0.3) < eps) // true
+}`,
+`package main
+
+import (
+    "fmt"
+    "math"
+    "math/big"
+)
+
+func main() {
+    // 方法1：整数（金融首选）
+    cents := int64(10) + int64(20) // 30分
+    fmt.Println(cents, "分 =", float64(cents)/100, "元")
+
+    // 方法2：容差比较
+    const eps = 1e-9
+    ok := math.Abs(0.1+0.2-0.3) < eps
+    fmt.Println("容差比较:", ok) // true
+
+    // 方法3：math/big.Float
+    x := new(big.Float).SetFloat64(0.1)
+    y := new(big.Float).SetFloat64(0.2)
+    z := new(big.Float).Add(x, y)
+    fmt.Println("big.Float:", z) // 0.3
+}`,
+  ],
+  render(step){
+    let s=defs();
+
+    // Visual: binary sequence with repeating pattern indicator
+    const by=30;
+
+    if(step===0){
+      // Show 0.1 binary representation
+      s+=`<text x="310" y="${by}" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="monospace">0.1 的二进制表示（无限循环小数）</text>`;
+      s+=`<text x="20" y="${by+28}" fill="#38bdf8" font-size="11" font-family="monospace">0.1₁₀  =  0.</text>`;
+      s+=`<text x="103" y="${by+28}" fill="#94a3b8" font-size="11" font-family="monospace">0001</text>`;
+      // Repeating part
+      s+=`<rect x="133" y="${by+12}" width="56" height="20" rx="4" fill="rgba(251,146,60,.1)" stroke="#fb923c" stroke-width="1.5" stroke-dasharray="4 2"/>`;
+      s+=`<text x="133" y="${by+28}" fill="#fb923c" font-size="11" font-family="monospace">1100</text>`;
+      s+=`<text x="190" y="${by+28}" fill="#fb923c" font-size="11" font-family="monospace">1100</text>`;
+      s+=`<text x="247" y="${by+28}" fill="#fb923c" font-size="11" font-family="monospace">1100</text>`;
+      s+=`<text x="304" y="${by+28}" fill="#64748b" font-size="11" font-family="monospace">...∞</text>`;
+      s+=lbl(145,by+8,'循环节','#fb923c',8);
+
+      // Truncation indicator
+      s+=`<line x1="340" y1="${by+8}" x2="340" y2="${by+34}" stroke="#f87171" stroke-width="2" stroke-dasharray="3 2"/>`;
+      s+=lbl(344,by+20,'截断','#f87171',9);
+      s+=`<text x="310" y="${by+60}" text-anchor="middle" fill="#f87171" font-size="10" font-family="monospace">IEEE 754 只有 23 位尾数，必须截断</text>`;
+
+      // 52-bit stored value
+      s+=`<text x="20" y="${by+90}" fill="#64748b" font-size="10" font-family="monospace">存储值：0.1000000000000000055511151231257827021181583404541015625</text>`;
+      s+=`<text x="20" y="${by+110}" fill="#f87171" font-size="10" font-family="monospace">误差 ≈ +5.55e-18</text>`;
+
+      // Number line
+      s+=`<line x1="50" y1="${by+155}" x2="550" y2="${by+155}" stroke="#334155" stroke-width="1.5"/>`;
+      s+=`<line x1="200" y1="${by+148}" x2="200" y2="${by+162}" stroke="#334155" stroke-width="1"/>`;
+      s+=lbl(185,by+175,'0.0','#64748b',9);
+      s+=`<line x1="400" y1="${by+148}" x2="400" y2="${by+162}" stroke="#334155" stroke-width="1"/>`;
+      s+=lbl(385,by+175,'0.2','#64748b',9);
+      // True 0.1
+      s+=`<line x1="300" y1="${by+145}" x2="300" y2="${by+165}" stroke="#38bdf8" stroke-width="2"/>`;
+      s+=lbl(280,by+140,'真实 0.1','#38bdf8',9);
+      // Stored 0.1 (slightly to the right)
+      s+=`<line x1="305" y1="${by+145}" x2="305" y2="${by+165}" stroke="#fb923c" stroke-width="2"/>`;
+      s+=lbl(308,by+140,'存储值','#fb923c',9);
+      s+=arr(302,by+155,306,by+155,'#f87171',false,false);
+    }
+
+    if(step===1){
+      // Both 0.1 and 0.2
+      s+=`<text x="310" y="${by}" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="monospace">0.1 和 0.2 的截断误差</text>`;
+
+      // 0.1
+      s+=`<text x="20" y="${by+35}" fill="#38bdf8" font-size="11" font-family="monospace">0.1₂ = 0.0001[1100]∞  →  存储：0.1 + ε₁</text>`;
+      s+=`<rect x="20" y="${by+40}" width="580" height="2" rx="1" fill="rgba(56,189,248,.3)"/>`;
+      s+=lbl(300,by+55,'ε₁ ≈ +5.55e-18','#38bdf8',9);
+
+      // 0.2
+      s+=`<text x="20" y="${by+80}" fill="#c084fc" font-size="11" font-family="monospace">0.2₂ = 0.001[1001]∞   →  存储：0.2 + ε₂</text>`;
+      s+=`<rect x="20" y="${by+85}" width="580" height="2" rx="1" fill="rgba(192,132,252,.3)"/>`;
+      s+=lbl(300,by+100,'ε₂ ≈ +1.11e-17','#c084fc',9);
+
+      // Error accumulation
+      s+=`<text x="310" y="${by+130}" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="monospace">两者相加：误差叠加</text>`;
+      s+=`<text x="310" y="${by+155}" text-anchor="middle" fill="#f87171" font-size="12" font-family="monospace">ε₁ + ε₂ ≈ 4e-17  →  结果偏大</text>`;
+      s+=box(150,by+170,320,44,'0.30000000000000004','≠ 0.3','#f87171',true,8);
+    }
+
+    if(step===2){
+      // The actual comparison failure
+      s+=`<text x="310" y="${by+10}" text-anchor="middle" fill="#94a3b8" font-size="12" font-family="monospace">0.1 + 0.2 ≠ 0.3（所有 IEEE 754 语言均如此）</text>`;
+
+      s+=box(30,by+30,250,44,'0.1 + 0.2','= 0.30000000000000004','#f87171',true,8);
+      s+=`<text x="310" y="${by+60}" text-anchor="middle" fill="#f87171" font-size="18">≠</text>`;
+      s+=box(340,by+30,250,44,'0.3','= 0.29999999999999998...','#4ade80',true,8);
+
+      s+=`<text x="310" y="${by+105}" text-anchor="middle" fill="#f87171" font-size="11" font-family="monospace">fmt.Println(0.1+0.2 == 0.3)  // false！</text>`;
+
+      // Visual diff
+      s+=`<text x="310" y="${by+140}" text-anchor="middle" fill="#64748b" font-size="10" font-family="monospace">差值 = 0.30000000000000004 - 0.3 ≈ 5.55e-17</text>`;
+
+      // Languages affected
+      s+=`<text x="310" y="${by+175}" text-anchor="middle" fill="#64748b" font-size="10" font-family="monospace">Python / JavaScript / C / C++ / Java / Go 均如此</text>`;
+      s+=`<text x="310" y="${by+195}" text-anchor="middle" fill="#64748b" font-size="10" font-family="monospace">这是 IEEE 754 标准的必然结果，不是 Bug</text>`;
+    }
+
+    if(step===3){
+      // Fix methods
+      s+=`<text x="310" y="${by+15}" text-anchor="middle" fill="#94a3b8" font-size="12" font-family="monospace">修复方法</text>`;
+
+      s+=box(20,by+30,140,50,'整数计分','int64 存分而非元','#4ade80',true,8);
+      s+=box(175,by+30,140,50,'容差比较','Abs(a-b) &lt; eps','#00add8',true,8);
+      s+=box(330,by+30,130,50,'big.Float','任意精度库','#c084fc',true,8);
+      s+=box(475,by+30,125,50,'decimal','shopspring库','#38bdf8',true,8);
+
+      s+=`<text x="310" y="${by+115}" text-anchor="middle" fill="#4ade80" font-size="11" font-family="monospace">// 金融计算：整数避免浮点</text>`;
+      s+=`<text x="310" y="${by+135}" text-anchor="middle" fill="#4ade80" font-size="11" font-family="monospace">price := int64(999)  // 9.99 元 = 999 分</text>`;
+      s+=`<text x="310" y="${by+155}" text-anchor="middle" fill="#00add8" font-size="11" font-family="monospace">// 科学计算：容差比较</text>`;
+      s+=`<text x="310" y="${by+175}" text-anchor="middle" fill="#00add8" font-size="11" font-family="monospace">math.Abs(a-b) &lt; 1e-9  // 判断"相等"</text>`;
+    }
+
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+];
+
+// ── Engine ───────────────────────────────────────────────────
+function render(){
+  const sc=SCENARIOS[curScene];
+  const st=sc.steps[curStep];
+  document.getElementById('stepNum').textContent='步骤 '+(curStep+1);
+  document.getElementById('stepTitle').textContent=st.title;
+  document.getElementById('stepDesc').textContent=st.desc;
+  document.getElementById('codeTitle').textContent=sc.codeTitle||'main.go';
+  sc.render(curStep);
+  renderCode();
+  renderFlowNav();
+}
+
+function renderSceneBtns(){
+  const c=document.getElementById('scenarios');
+  c.innerHTML=SCENARIOS.map((s,i)=>`<button class="sc-btn${i===curScene?' active':''}" onclick="switchScene(${i})">${s.label}</button>`).join('');
+}
+
+function renderFlowNav(){
+  const sc=SCENARIOS[curScene];
+  const n=document.getElementById('flowNav');
+  n.innerHTML=sc.steps.map((_,i)=>`<div class="fn-dot${i<curStep?' done':i===curStep?' cur':''}" onclick="jumpTo(${i})">${i+1}</div>`).join('')+`<span class="step-ctr">${curStep+1}/${sc.steps.length}</span>`;
+}
+
+function renderCode(){
+  const sc=SCENARIOS[curScene];
+  const code=sc.code[curStep]||sc.code[sc.code.length-1];
+  const hl=sc.hl[curStep]||[];
+  const lines=code.split('\n');
+  document.getElementById('codeBody').innerHTML=lines.map((l,i)=>{
+    const n=i+1;
+    const hi=hl.includes(n)?'hi':'';
+    return`<div class="cl ${hi}"><span class="ln">${n}</span><span class="lc">${l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span></div>`;
+  }).join('');
+}
+
+function next(){if(curStep<SCENARIOS[curScene].steps.length-1){curStep++;render();}}
+function prev(){if(curStep>0){curStep--;render();}}
+function reset(){curStep=0;render();}
+function jumpTo(i){curStep=i;render();}
+function switchScene(i){curScene=i;curStep=0;renderSceneBtns();render();}
+function toggleQA(el){el.classList.toggle('open');}
+
+renderSceneBtns();
+render();
+
+if(typeof NavTracker!=='undefined') NavTracker.track('补码 / IEEE 754','cs/number.html','🔢','CS基础');
+</script>
+</body>
+</html>

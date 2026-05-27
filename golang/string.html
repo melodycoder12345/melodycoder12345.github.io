@@ -1,0 +1,349 @@
+<!DOCTYPE html><html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>字符串 - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:72px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(0,173,216,.12);color:var(--accent);border:1px solid rgba(0,173,216,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(0,173,216,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.perf-table{width:100%;border-collapse:collapse;font-size:.82rem;margin:10px 0;}
+.perf-table th{background:rgba(0,173,216,.08);color:var(--accent);padding:8px 12px;text-align:left;border:1px solid var(--border2);font-size:.78rem;}
+.perf-table td{padding:7px 12px;border:1px solid var(--border2);color:var(--dim);}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">📝 字符串</span>
+  <div class="nav-tags">
+    <span class="ntag">string</span>
+    <span class="ntag">rune</span>
+    <span class="ntag">utf-8</span>
+    <span class="ntag">builder</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <aside class="side-nav" id="sideNav">
+    <nav><ul>
+      <li><a href="#string-internals">底层结构</a></li>
+      <li><a href="#rune-byte">rune vs byte</a></li>
+      <li><a href="#string-ops">字符串操作</a></li>
+      <li><a href="#string-builder">strings.Builder</a></li>
+      <li><a href="#interview">面试题</a></li>
+      <li><a href="#pitfalls">易错点</a></li>
+    </ul></nav>
+  </aside>
+  <main class="main-content">
+
+    <div class="section" id="string-internals">
+      <div class="section-title"><div class="title-bar"></div><h2>字符串底层结构</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>StringHeader：两字段结构</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>Go 的 string 在运行时由 <code>reflect.StringHeader</code> 表示，包含两个字段：指向字节数组的指针 Data 和字节长度 Len。字符串本身是<strong>不可变的</strong>——不能修改某个字节，只能创建新字符串。</p>
+          <pre><span class="cm">// runtime/string.go（简化）</span>
+<span class="kw">type</span> <span class="id">StringHeader</span> <span class="kw">struct</span> {
+    <span class="id">Data</span> <span class="pkg">uintptr</span>  <span class="cm">// 指向只读内存段的字节数组</span>
+    <span class="id">Len</span>  <span class="pkg">int</span>      <span class="cm">// 字节数（不是字符数）</span>
+}
+
+<span class="id">s</span> := <span class="st">"hello"</span>
+<span class="id">h</span> := (*<span class="id">reflect</span>.<span class="id">StringHeader</span>)(<span class="id">unsafe</span>.<span class="fn">Pointer</span>(&amp;<span class="id">s</span>))
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">h</span>.<span class="id">Len</span>)   <span class="cm">// 5</span></pre>
+          <p>字符串赋值只拷贝这 16 字节的 header（指针+长度），不拷贝底层字节数据，所以赋值是 O(1) 的。字符串拼接才会分配新内存。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="rune-byte">
+      <div class="section-title"><div class="title-bar"></div><h2>rune vs byte</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>UTF-8 编码与字符迭代</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>Go 源码使用 UTF-8 编码。ASCII 字符占 1 字节，中文等 CJK 字符占 3 字节，emoji 占 4 字节。</p>
+          <ul>
+            <li><code>len(s)</code>：返回字节数（UTF-8 编码后的字节总数）</li>
+            <li><code>s[i]</code>：返回第 i 个<strong>字节</strong>（byte），不是第 i 个字符</li>
+            <li><code>for i, r := range s</code>：按 Unicode 码点（rune）迭代，i 是字节偏移</li>
+          </ul>
+          <pre><span class="id">s</span> := <span class="st">"Go语言"</span>
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="fn">len</span>(<span class="id">s</span>))           <span class="cm">// 8（2 + 3 + 3）</span>
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="fn">len</span>([]<span class="pkg">rune</span>(<span class="id">s</span>)))  <span class="cm">// 4（字符数）</span>
+
+<span class="kw">for</span> <span class="id">i</span>, <span class="id">r</span> := <span class="kw">range</span> <span class="id">s</span> {
+    <span class="id">fmt</span>.<span class="fn">Printf</span>(<span class="st">"[%d] %c (%d bytes)\n"</span>, <span class="id">i</span>, <span class="id">r</span>, <span class="id">utf8</span>.<span class="fn">RuneLen</span>(<span class="id">r</span>))
+}
+<span class="cm">// [0] G (1 bytes)</span>
+<span class="cm">// [1] o (1 bytes)</span>
+<span class="cm">// [2] 语 (3 bytes)</span>
+<span class="cm">// [5] 言 (3 bytes)</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="string-ops">
+      <div class="section-title"><div class="title-bar"></div><h2>字符串操作</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>strings 包常用函数</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <ul>
+            <li><code>strings.Contains(s, sub)</code> — 是否包含子串</li>
+            <li><code>strings.HasPrefix/HasSuffix</code> — 前缀/后缀检查</li>
+            <li><code>strings.Split(s, sep)</code> — 按分隔符分割</li>
+            <li><code>strings.Join(slice, sep)</code> — 拼接切片</li>
+            <li><code>strings.TrimSpace(s)</code> — 去除两端空白</li>
+            <li><code>strings.Replace(s, old, new, n)</code> — 替换，n=-1 替换全部</li>
+            <li><code>strings.ToLower/ToUpper</code> — 大小写转换</li>
+            <li><code>strings.Index(s, sub)</code> — 查找子串位置（-1表示不存在）</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>拼接方式性能对比</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <table class="perf-table">
+            <tr><th>方式</th><th>原理</th><th>适用场景</th></tr>
+            <tr><td><code>+</code> 操作符</td><td>每次创建新字符串，O(n²)</td><td>少量（2-3个）</td></tr>
+            <tr><td><code>fmt.Sprintf</code></td><td>格式化，反射，最慢</td><td>需要格式化时</td></tr>
+            <tr><td><code>strings.Join</code></td><td>预计算总长，一次分配</td><td>已有 slice</td></tr>
+            <tr><td><code>strings.Builder</code></td><td>动态增长，最终一次转换</td><td>循环拼接（推荐）</td></tr>
+            <tr><td><code>bytes.Buffer</code></td><td>类似 Builder，额外支持读</td><td>需要 io.Writer 接口</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="string-builder">
+      <div class="section-title"><div class="title-bar"></div><h2>strings.Builder</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>高效字符串构建</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-body">
+          <p>Go 1.10 引入 <code>strings.Builder</code>，专为字符串拼接优化。内部维护 <code>[]byte</code>，调用 <code>String()</code> 时通过 unsafe 零拷贝转换为 string，避免额外内存分配。</p>
+          <pre><span class="kw">var</span> <span class="id">b</span> <span class="id">strings</span>.<span class="id">Builder</span>
+<span class="id">b</span>.<span class="fn">Grow</span>(<span class="num">64</span>)  <span class="cm">// 预分配容量，减少扩容次数</span>
+
+<span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="num">10</span>; <span class="id">i</span>++ {
+    <span class="id">fmt</span>.<span class="fn">Fprintf</span>(&amp;<span class="id">b</span>, <span class="st">"item%d,"</span>, <span class="id">i</span>)  <span class="cm">// 实现 io.Writer</span>
+    <span class="id">b</span>.<span class="fn">WriteString</span>(<span class="st">"sep"</span>)           <span class="cm">// 写字符串</span>
+    <span class="id">b</span>.<span class="fn">WriteByte</span>(<span class="st">'\n'</span>)              <span class="cm">// 写单字节</span>
+    <span class="id">b</span>.<span class="fn">WriteRune</span>(<span class="st">'龙'</span>)              <span class="cm">// 写 Unicode 字符</span>
+}
+
+<span class="id">result</span> := <span class="id">b</span>.<span class="fn">String</span>()  <span class="cm">// 零拷贝转换</span>
+<span class="id">b</span>.<span class="fn">Reset</span>()             <span class="cm">// 重置，复用底层 []byte</span></pre>
+          <p><strong>注意</strong>：Builder 不能被复制（内部有 copyCheck），只能通过指针传递。如果需要并发写，需要外部加锁。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="interview">
+      <div class="section-title"><div class="title-bar"></div><h2>面试题</h2></div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">string 的底层结构是什么？为什么是不可变的？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">string 底层是 <code>reflect.StringHeader{Data uintptr, Len int}</code>，16 字节。Data 指向一段只读内存（通常在程序的 rodata 段），所以不能修改。这种设计保证：<br>
+        1. 字符串赋值/传参只拷贝 header，O(1) 操作<br>
+        2. 多个字符串可以安全共享底层数据（子串切片时）<br>
+        3. 不需要加锁，天然并发安全<br>
+        如果需要修改，需转换为 <code>[]byte</code>（会发生内存拷贝）修改后再转回 string。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">修改 string 中某个字符的方法？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">Go 的 string 不可变，不能直接 <code>s[i] = 'x'</code>。修改方法：<br>
+        1. 转换为 <code>[]byte</code>，修改后转回：<code>b := []byte(s); b[0] = 'X'; s = string(b)</code>（有两次内存拷贝）<br>
+        2. 如果处理 Unicode，转换为 <code>[]rune</code> 修改后转回（处理中文等多字节字符）<br>
+        3. 使用 strings.Map/strings.Replace 等函数式方法<br>
+        注意：每次 string ↔ []byte 转换都会发生内存拷贝，频繁修改的场景直接用 []byte 操作。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">[]byte 和 string 互转的内存开销？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">通常情况下，<code>string([]byte)</code> 和 <code>[]byte(string)</code> 都会发生内存拷贝，时间复杂度 O(n)。<br><br>
+        但 Go 编译器对以下场景做了优化（零拷贝）：<br>
+        • <code>m[string(b)]</code>：map 查找时的 key 转换<br>
+        • <code>switch string(b) {}</code>：switch 语句的比较<br>
+        • <code>for range string(b)</code>：range 遍历<br>
+        • 字符串比较 <code>string(b) == "foo"</code><br><br>
+        如果需要真正零拷贝转换，需要借助 unsafe.Pointer，但有内存安全风险，生产代码需谨慎。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">为什么 strings.Builder 比 bytes.Buffer 更适合构建字符串？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">两者都用 <code>[]byte</code> 做底层存储，写入性能相近。关键区别在于获取最终字符串时：<br>
+        • <code>bytes.Buffer.String()</code>：调用 <code>string(b.buf[b.off:])</code>，发生一次内存拷贝<br>
+        • <code>strings.Builder.String()</code>：通过 unsafe 包将 []byte 指针直接转换为 string，零拷贝<br><br>
+        另外 Builder 不支持 Read 操作，API 更简洁。如果需要同时读写或实现 io.ReadWriter，用 bytes.Buffer；单纯构建字符串用 Builder。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">如何高效统计 UTF-8 字符串的字符数？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">三种方法，推荐第一种：<br>
+        1. <code>utf8.RuneCountInString(s)</code>：标准库，O(n) 遍历字节，不分配内存<br>
+        2. <code>len([]rune(s))</code>：先将字符串转换为 rune slice（会分配内存），再取长度，不推荐<br>
+        3. <code>for range s</code>：手动计数，等价于方法1<br><br>
+        <code>len(s)</code> 返回字节数，对于纯 ASCII 字符串 len(s) == 字符数，但对包含中文的字符串则不等。</div>
+      </div>
+    </div>
+
+    <div class="section" id="pitfalls">
+      <div class="section-title"><div class="title-bar"></div><h2>易错点</h2></div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ len() 返回字节数，不是字符数</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="id">s</span> := <span class="st">"你好"</span>
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="fn">len</span>(<span class="id">s</span>))  <span class="cm">// 6，不是 2！</span>
+
+<span class="cm">// 错误地按字节截取</span>
+<span class="id">first</span> := <span class="id">s</span>[:<span class="num">1</span>]  <span class="cm">// 乱码！</span></pre>
+            <p>中文字符每个占 3 字节，len() 返回字节总数 6。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="id">s</span> := <span class="st">"你好"</span>
+<span class="id">runes</span> := []<span class="pkg">rune</span>(<span class="id">s</span>)
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="fn">len</span>(<span class="id">runes</span>))  <span class="cm">// 2 ✓</span>
+
+<span class="cm">// 或使用标准库</span>
+<span class="kw">import</span> <span class="st">"unicode/utf8"</span>
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">utf8</span>.<span class="fn">RuneCountInString</span>(<span class="id">s</span>)) <span class="cm">// 2</span></pre>
+            <p>用 utf8.RuneCountInString 或转 []rune 后取 len。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ for i 与 for i,v range 遍历行为不同</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="id">s</span> := <span class="st">"Go语"</span>
+<span class="cm">// for i — 按字节遍历</span>
+<span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="fn">len</span>(<span class="id">s</span>); <span class="id">i</span>++ {
+    <span class="id">fmt</span>.<span class="fn">Printf</span>(<span class="st">"%x "</span>, <span class="id">s</span>[<span class="id">i</span>])
+}
+<span class="cm">// 47 6f e8 af ad</span>
+<span class="cm">// "语" 的3字节被分别输出</span></pre>
+            <p>for i 循环按字节遍历，中文字符会被拆开。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="id">s</span> := <span class="st">"Go语"</span>
+<span class="cm">// for range — 按 rune 遍历</span>
+<span class="kw">for</span> <span class="id">i</span>, <span class="id">r</span> := <span class="kw">range</span> <span class="id">s</span> {
+    <span class="id">fmt</span>.<span class="fn">Printf</span>(<span class="st">"[%d]%c "</span>, <span class="id">i</span>, <span class="id">r</span>)
+}
+<span class="cm">// [0]G [1]o [2]语</span>
+<span class="cm">// i 是字节偏移，r 是完整字符</span></pre>
+            <p>for range 自动解码 UTF-8，正确处理多字节字符。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 循环中用 + 拼接字符串性能差</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// 错误：O(n²) 的内存分配</span>
+<span class="id">result</span> := <span class="st">""</span>
+<span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="num">10000</span>; <span class="id">i</span>++ {
+    <span class="id">result</span> += <span class="id">fmt</span>.<span class="fn">Sprintf</span>(<span class="st">"item%d\n"</span>, <span class="id">i</span>)
+}
+<span class="cm">// 每次迭代都分配新字符串</span></pre>
+            <p>每次 += 都创建新的字符串对象，O(n²) 内存操作。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 正确：使用 strings.Builder</span>
+<span class="kw">var</span> <span class="id">b</span> <span class="id">strings</span>.<span class="id">Builder</span>
+<span class="id">b</span>.<span class="fn">Grow</span>(<span class="num">10000</span> * <span class="num">10</span>)  <span class="cm">// 预分配</span>
+<span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="num">10000</span>; <span class="id">i</span>++ {
+    <span class="id">fmt</span>.<span class="fn">Fprintf</span>(&amp;<span class="id">b</span>, <span class="st">"item%d\n"</span>, <span class="id">i</span>)
+}
+<span class="id">result</span> := <span class="id">b</span>.<span class="fn">String</span>()  <span class="cm">// O(n) 总计</span></pre>
+            <p>strings.Builder 预分配容量后，均摊 O(1) 写入，最终一次性转换字符串。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 字符串转换后修改 []byte 影响原字符串（不会！但要理解原因）</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="id">s</span> := <span class="st">"hello"</span>
+<span class="id">b</span> := []<span class="pkg">byte</span>(<span class="id">s</span>)
+<span class="id">b</span>[<span class="num">0</span>] = <span class="st">'H'</span>
+<span class="cm">// 误以为 s 会变成 "Hello"</span>
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">s</span>)  <span class="cm">// "hello"（不变）</span></pre>
+            <p>string→[]byte 会发生内存拷贝，b 是独立的副本，修改 b 不影响 s。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="id">s</span> := <span class="st">"hello"</span>
+<span class="id">b</span> := []<span class="pkg">byte</span>(<span class="id">s</span>)  <span class="cm">// 拷贝</span>
+<span class="id">b</span>[<span class="num">0</span>] = <span class="st">'H'</span>
+<span class="id">s</span> = <span class="pkg">string</span>(<span class="id">b</span>)  <span class="cm">// 再拷贝回来</span>
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">s</span>)  <span class="cm">// "Hello" ✓</span>
+
+<span class="cm">// 如果只需要修改，直接操作 []byte</span>
+<span class="cm">// 不必来回转换 string</span></pre>
+            <p>需要明确：string 不可变，转换总有拷贝。如需频繁修改，整个流程用 []byte。</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>
+function toggleQA(el){el.classList.toggle('open');}
+document.addEventListener('DOMContentLoaded',()=>{
+  if(typeof NavTracker!=='undefined') NavTracker.track('字符串','golang/string.html','📝','Golang');
+});
+</script>
+</body>
+</html>

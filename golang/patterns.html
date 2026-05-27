@@ -1,0 +1,592 @@
+<!DOCTYPE html><html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Go 设计模式 - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:72px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(0,173,216,.12);color:var(--accent);border:1px solid rgba(0,173,216,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.badge-high{background:rgba(251,146,60,.12);color:#fb923c;border:1px solid rgba(251,146,60,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(0,173,216,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.table-wrap{overflow-x:auto;margin:10px 0;}
+table{width:100%;border-collapse:collapse;font-size:.82rem;}
+th{background:rgba(0,173,216,.08);color:var(--accent);padding:8px 12px;text-align:left;border:1px solid var(--border2);font-size:.78rem;}
+td{padding:7px 12px;border:1px solid var(--border2);color:var(--dim);}
+tr:hover td{background:rgba(255,255,255,.02);}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">🏗️ Go 设计模式</span>
+  <div class="nav-tags">
+    <span class="ntag">patterns</span>
+    <span class="ntag">functional-options</span>
+    <span class="ntag">middleware</span>
+  </div>
+</div>
+
+<div class="page-wrap">
+  <aside class="side-nav" id="sideNav">
+    <nav><ul>
+      <li><a href="#functional-options">Functional Options</a></li>
+      <li><a href="#middleware">Middleware</a></li>
+      <li><a href="#idioms">常用惯用法</a></li>
+      <li><a href="#traps">常见陷阱</a></li>
+      <li><a href="#interview">面试题</a></li>
+      <li><a href="#pitfalls">易错点</a></li>
+    </ul></nav>
+  </aside>
+
+  <main class="main-content">
+
+    <!-- ── Functional Options ── -->
+    <div class="section" id="functional-options">
+      <div class="section-title"><div class="title-bar"></div><h2>Functional Options 模式</h2></div>
+
+      <div class="card">
+        <div class="card-hd"><h3>问题：构造函数参数爆炸</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>当一个结构体有多个可选参数时，传统做法要么用一个胖构造函数（调用者被迫传大量零值），要么单独暴露 setter（不利于链式初始化、并发安全）。Functional Options 把每个配置项封装成 <code>func(*Server)</code> 类型的函数，调用方按需传入，缺省值由构造函数设置。</p>
+          <pre><span class="cm">// 选项类型</span>
+<span class="kw">type</span> <span class="id">Option</span> <span class="kw">func</span>(*<span class="id">Server</span>)
+
+<span class="cm">// 服务器结构体</span>
+<span class="kw">type</span> <span class="id">Server</span> <span class="kw">struct</span> {
+    addr     <span class="pkg">string</span>
+    timeout  <span class="pkg">time</span>.<span class="id">Duration</span>
+    maxConns <span class="pkg">int</span>
+    tls      <span class="pkg">bool</span>
+}
+
+<span class="cm">// 选项函数</span>
+<span class="kw">func</span> <span class="fn">WithTimeout</span>(d <span class="pkg">time</span>.<span class="id">Duration</span>) <span class="id">Option</span> {
+    <span class="kw">return func</span>(s *<span class="id">Server</span>) { s.timeout = d }
+}
+
+<span class="kw">func</span> <span class="fn">WithMaxConn</span>(n <span class="pkg">int</span>) <span class="id">Option</span> {
+    <span class="kw">return func</span>(s *<span class="id">Server</span>) { s.maxConns = n }
+}
+
+<span class="kw">func</span> <span class="fn">WithTLS</span>() <span class="id">Option</span> {
+    <span class="kw">return func</span>(s *<span class="id">Server</span>) { s.tls = <span class="kw">true</span> }
+}
+
+<span class="cm">// 构造函数：先设默认值，再应用选项</span>
+<span class="kw">func</span> <span class="fn">NewServer</span>(addr <span class="pkg">string</span>, opts ...<span class="id">Option</span>) *<span class="id">Server</span> {
+    s := &amp;<span class="id">Server</span>{
+        addr:     addr,
+        timeout:  <span class="num">30</span> * <span class="pkg">time</span>.<span class="id">Second</span>,
+        maxConns: <span class="num">100</span>,
+    }
+    <span class="kw">for</span> _, opt := <span class="kw">range</span> opts { opt(s) }
+    <span class="kw">return</span> s
+}
+
+<span class="cm">// 调用方：只传关心的参数</span>
+s := <span class="fn">NewServer</span>(<span class="st">":8080"</span>,
+    <span class="fn">WithTimeout</span>(<span class="num">10</span>*<span class="pkg">time</span>.<span class="id">Second</span>),
+    <span class="fn">WithMaxConn</span>(<span class="num">200</span>),
+    <span class="fn">WithTLS</span>(),
+)</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h3>接口扩展无破坏性变更</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-body">
+          <p>新增选项只需新增一个 <code>WithXxx</code> 函数，<strong>不改变</strong> <code>NewServer</code> 签名，已有调用方代码零改动。这是 Functional Options 对比 Config Struct 的最大优势——Config Struct 新增字段后，若调用方使用字面量初始化会触发编译错误。</p>
+          <div class="table-wrap">
+            <table>
+              <tr><th>对比维度</th><th>Config Struct</th><th>Functional Options</th><th>Builder</th></tr>
+              <tr><td>新增参数向后兼容</td><td>❌ 字面量初始化报错</td><td>✅ 只加新函数</td><td>✅ 加新方法</td></tr>
+              <tr><td>参数验证位置</td><td>构造函数集中验证</td><td>选项函数内验证</td><td>Build() 时验证</td></tr>
+              <tr><td>链式调用</td><td>❌</td><td>✅ 变参传入</td><td>✅ 方法链</td></tr>
+              <tr><td>可测试性</td><td>高</td><td>高</td><td>高</td></tr>
+              <tr><td>Go 惯用度</td><td>中</td><td>⭐ 最高</td><td>中</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Middleware ── -->
+    <div class="section" id="middleware">
+      <div class="section-title"><div class="title-bar"></div><h2>Middleware / 装饰器模式</h2></div>
+
+      <div class="card">
+        <div class="card-hd"><h3>HTTP Handler 包装链</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>Go 的 <code>http.Handler</code> 接口只有一个方法，天然适合函数式包装。中间件接收一个 Handler、返回一个 Handler，通过嵌套调用形成洋葱模型——请求从外向内穿透，响应从内向外冒泡。</p>
+          <pre><span class="cm">// 中间件类型别名（可读性）</span>
+<span class="kw">type</span> <span class="id">Middleware</span> <span class="kw">func</span>(<span class="pkg">http</span>.<span class="id">Handler</span>) <span class="pkg">http</span>.<span class="id">Handler</span>
+
+<span class="cm">// Logging 中间件</span>
+<span class="kw">func</span> <span class="fn">Logging</span>(next <span class="pkg">http</span>.<span class="id">Handler</span>) <span class="pkg">http</span>.<span class="id">Handler</span> {
+    <span class="kw">return</span> <span class="pkg">http</span>.<span class="fn">HandlerFunc</span>(<span class="kw">func</span>(w <span class="pkg">http</span>.<span class="id">ResponseWriter</span>, r *<span class="pkg">http</span>.<span class="id">Request</span>) {
+        start := <span class="pkg">time</span>.<span class="fn">Now</span>()
+        next.<span class="fn">ServeHTTP</span>(w, r)
+        <span class="pkg">log</span>.<span class="fn">Printf</span>(<span class="st">"%s %s %v"</span>, r.<span class="id">Method</span>, r.<span class="id">URL</span>, <span class="pkg">time</span>.<span class="fn">Since</span>(start))
+    })
+}
+
+<span class="cm">// Auth 中间件</span>
+<span class="kw">func</span> <span class="fn">Auth</span>(next <span class="pkg">http</span>.<span class="id">Handler</span>) <span class="pkg">http</span>.<span class="id">Handler</span> {
+    <span class="kw">return</span> <span class="pkg">http</span>.<span class="fn">HandlerFunc</span>(<span class="kw">func</span>(w <span class="pkg">http</span>.<span class="id">ResponseWriter</span>, r *<span class="pkg">http</span>.<span class="id">Request</span>) {
+        <span class="kw">if</span> r.<span class="id">Header</span>.<span class="fn">Get</span>(<span class="st">"Authorization"</span>) == <span class="st">""</span> {
+            <span class="pkg">http</span>.<span class="fn">Error</span>(w, <span class="st">"unauthorized"</span>, <span class="num">401</span>)
+            <span class="kw">return</span>
+        }
+        next.<span class="fn">ServeHTTP</span>(w, r)
+    })
+}
+
+<span class="cm">// Recover 中间件（必须最外层）</span>
+<span class="kw">func</span> <span class="fn">Recover</span>(next <span class="pkg">http</span>.<span class="id">Handler</span>) <span class="pkg">http</span>.<span class="id">Handler</span> {
+    <span class="kw">return</span> <span class="pkg">http</span>.<span class="fn">HandlerFunc</span>(<span class="kw">func</span>(w <span class="pkg">http</span>.<span class="id">ResponseWriter</span>, r *<span class="pkg">http</span>.<span class="id">Request</span>) {
+        <span class="kw">defer func</span>() {
+            <span class="kw">if</span> rv := <span class="fn">recover</span>(); rv != <span class="kw">nil</span> {
+                <span class="pkg">http</span>.<span class="fn">Error</span>(w, <span class="st">"internal error"</span>, <span class="num">500</span>)
+            }
+        }()
+        next.<span class="fn">ServeHTTP</span>(w, r)
+    })
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h3>函数式组合 Chain</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-body">
+          <p><code>Chain</code> 工具函数把中间件列表折叠成单个包装，调用顺序是<strong>从左到右</strong>（第一个中间件最外层，最后执行 handler）。<code>Recover</code> 放第一位保证能捕获所有 panic。</p>
+          <pre><span class="cm">// Chain 按顺序叠加中间件：Chain(h, m1, m2) == m1(m2(h))</span>
+<span class="kw">func</span> <span class="fn">Chain</span>(h <span class="pkg">http</span>.<span class="id">Handler</span>, mws ...<span class="id">Middleware</span>) <span class="pkg">http</span>.<span class="id">Handler</span> {
+    <span class="kw">for</span> i := <span class="fn">len</span>(mws) - <span class="num">1</span>; i &gt;= <span class="num">0</span>; i-- {
+        h = mws[i](h)
+    }
+    <span class="kw">return</span> h
+}
+
+<span class="cm">// 组装：Recover → Logging → Auth → 业务Handler</span>
+handler := <span class="fn">Chain</span>(
+    <span class="pkg">http</span>.<span class="fn">HandlerFunc</span>(myHandler),
+    <span class="fn">Recover</span>,   <span class="cm">// 最外层：能捕获后续所有 panic</span>
+    <span class="fn">Logging</span>,   <span class="cm">// 记录整个请求耗时</span>
+    <span class="fn">Auth</span>,      <span class="cm">// 最靠近 handler：验证通过才执行</span>
+)
+<span class="pkg">http</span>.<span class="fn">ListenAndServe</span>(<span class="st">":8080"</span>, handler)</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Idioms ── -->
+    <div class="section" id="idioms">
+      <div class="section-title"><div class="title-bar"></div><h2>常用惯用法</h2></div>
+
+      <div class="card">
+        <div class="card-hd"><h3>Table-Driven 测试</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>用结构体切片描述测试用例，一个循环驱动所有断言。新增用例只加一行数据，测试逻辑复用，失败信息带名字易定位。</p>
+          <pre><span class="kw">func</span> <span class="fn">TestAdd</span>(t *<span class="pkg">testing</span>.<span class="id">T</span>) {
+    tests := []<span class="kw">struct</span> {
+        name     <span class="pkg">string</span>
+        a, b     <span class="pkg">int</span>
+        expected <span class="pkg">int</span>
+    }{
+        {<span class="st">"正数"</span>, <span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>},
+        {<span class="st">"负数"</span>, -<span class="num">1</span>, -<span class="num">2</span>, -<span class="num">3</span>},
+        {<span class="st">"零"</span>, <span class="num">0</span>, <span class="num">0</span>, <span class="num">0</span>},
+    }
+    <span class="kw">for</span> _, tt := <span class="kw">range</span> tests {
+        t.<span class="fn">Run</span>(tt.name, <span class="kw">func</span>(t *<span class="pkg">testing</span>.<span class="id">T</span>) {
+            <span class="kw">if</span> got := <span class="fn">Add</span>(tt.a, tt.b); got != tt.expected {
+                t.<span class="fn">Errorf</span>(<span class="st">"got %d, want %d"</span>, got, tt.expected)
+            }
+        })
+    }
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h3>done channel 信号 + Context 透传</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>用 <code>chan struct{}</code> 通知 goroutine 退出（关闭即广播）；生产级代码改用 <code>context.Context</code> 透传取消信号、截止时间和请求范围值，两者可结合使用。</p>
+          <pre><span class="cm">// done channel 模式</span>
+done := <span class="fn">make</span>(<span class="kw">chan struct</span>{})
+<span class="kw">go func</span>() {
+    <span class="kw">for</span> {
+        <span class="kw">select</span> {
+        <span class="kw">case</span> &lt;-done:
+            <span class="kw">return</span>                <span class="cm">// 收到关闭信号，退出</span>
+        <span class="kw">case</span> job := &lt;-jobCh:
+            <span class="fn">process</span>(job)
+        }
+    }
+}()
+<span class="fn">close</span>(done)  <span class="cm">// 广播给所有监听者</span>
+
+<span class="cm">// context 透传模式（推荐）</span>
+ctx, cancel := <span class="pkg">context</span>.<span class="fn">WithTimeout</span>(context.<span class="id">Background</span>(), <span class="num">5</span>*<span class="pkg">time</span>.<span class="id">Second</span>)
+<span class="kw">defer</span> <span class="fn">cancel</span>()  <span class="cm">// 务必 defer cancel，防止泄漏</span>
+
+<span class="kw">go func</span>(ctx <span class="pkg">context</span>.<span class="id">Context</span>) {
+    <span class="kw">select</span> {
+    <span class="kw">case</span> &lt;-ctx.<span class="fn">Done</span>():
+        <span class="pkg">log</span>.<span class="fn">Println</span>(<span class="st">"cancelled:"</span>, ctx.<span class="fn">Err</span>())
+        <span class="kw">return</span>
+    <span class="kw">case</span> result := &lt;-<span class="fn">doWork</span>(ctx):
+        <span class="fn">handleResult</span>(result)
+    }
+}(ctx)</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h3>错误 Sentinel + %w 包装</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>包级 sentinel 错误用 <code>errors.New</code> 定义，调用方用 <code>errors.Is</code> 匹配；<code>fmt.Errorf("...: %w", err)</code> 包装错误链，保留原始错误可被 <code>errors.Unwrap</code> 拆解。</p>
+          <pre><span class="cm">// 定义 sentinel</span>
+<span class="kw">var</span> (
+    <span class="id">ErrNotFound</span>  = <span class="pkg">errors</span>.<span class="fn">New</span>(<span class="st">"not found"</span>)
+    <span class="id">ErrForbidden</span> = <span class="pkg">errors</span>.<span class="fn">New</span>(<span class="st">"forbidden"</span>)
+)
+
+<span class="cm">// 包装：保留错误链</span>
+<span class="kw">func</span> <span class="fn">GetUser</span>(id <span class="pkg">int</span>) (*<span class="id">User</span>, <span class="pkg">error</span>) {
+    u, err := <span class="id">db</span>.<span class="fn">Find</span>(id)
+    <span class="kw">if</span> err != <span class="kw">nil</span> {
+        <span class="kw">return nil</span>, <span class="pkg">fmt</span>.<span class="fn">Errorf</span>(<span class="st">"GetUser(%d): %w"</span>, id, <span class="id">ErrNotFound</span>)
+    }
+    <span class="kw">return</span> u, <span class="kw">nil</span>
+}
+
+<span class="cm">// 匹配：不管包装了多少层</span>
+err := <span class="fn">GetUser</span>(<span class="num">42</span>)
+<span class="kw">if</span> <span class="pkg">errors</span>.<span class="fn">Is</span>(err, <span class="id">ErrNotFound</span>) {
+    <span class="cm">// 处理 404</span>
+}
+
+<span class="cm">// 自定义错误类型用 errors.As 提取</span>
+<span class="kw">var</span> ve *<span class="id">ValidationError</span>
+<span class="kw">if</span> <span class="pkg">errors</span>.<span class="fn">As</span>(err, &amp;ve) {
+    <span class="pkg">log</span>.<span class="fn">Println</span>(ve.<span class="id">Field</span>, ve.<span class="id">Message</span>)
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Traps ── -->
+    <div class="section" id="traps">
+      <div class="section-title"><div class="title-bar"></div><h2>常见陷阱集</h2></div>
+
+      <div class="card">
+        <div class="card-hd"><h3>goroutine 泄漏：忘记取消</h3><span class="badge badge-high">高频</span></div>
+        <div class="card-body">
+          <p>启动 goroutine 后没有提供退出路径，goroutine 永久阻塞在 channel 接收或无限循环，内存持续增长。常见于：HTTP 请求超时但 goroutine 还在等 DB 响应。</p>
+          <pre><span class="cm">// ❌ 泄漏：goroutine 会一直等待 ch，永不退出</span>
+<span class="kw">func</span> <span class="fn">leak</span>() {
+    ch := <span class="fn">make</span>(<span class="kw">chan int</span>)
+    <span class="kw">go func</span>() {
+        val := &lt;-ch     <span class="cm">// 永远阻塞</span>
+        <span class="fn">process</span>(val)
+    }()
+    <span class="cm">// ch 从未被写入，goroutine 泄漏</span>
+}
+
+<span class="cm">// ✅ 修复：使用 context 控制生命周期</span>
+<span class="kw">func</span> <span class="fn">noLeak</span>(ctx <span class="pkg">context</span>.<span class="id">Context</span>) {
+    ch := <span class="fn">make</span>(<span class="kw">chan int</span>, <span class="num">1</span>)
+    <span class="kw">go func</span>() {
+        <span class="kw">select</span> {
+        <span class="kw">case</span> val := &lt;-ch:
+            <span class="fn">process</span>(val)
+        <span class="kw">case</span> &lt;-ctx.<span class="fn">Done</span>():
+            <span class="kw">return</span>    <span class="cm">// 退出路径</span>
+        }
+    }()
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h3>map 并发写 panic</h3><span class="badge badge-high">高频</span></div>
+        <div class="card-body">
+          <p>Go 内建 map 不是并发安全的，多 goroutine 同时写（或一读一写）会触发 <code>concurrent map writes</code> panic。使用 <code>sync.RWMutex</code> 或 <code>sync.Map</code>（读多写少场景）保护。</p>
+          <pre><span class="cm">// ❌ panic：并发写 map</span>
+m := <span class="kw">map</span>[<span class="pkg">string</span>]<span class="pkg">int</span>{}
+<span class="kw">go func</span>() { m[<span class="st">"a"</span>] = <span class="num">1</span> }()
+<span class="kw">go func</span>() { m[<span class="st">"b"</span>] = <span class="num">2</span> }()
+
+<span class="cm">// ✅ 方案一：sync.RWMutex 包装</span>
+<span class="kw">type</span> <span class="id">SafeMap</span> <span class="kw">struct</span> {
+    mu <span class="pkg">sync</span>.<span class="id">RWMutex</span>
+    m  <span class="kw">map</span>[<span class="pkg">string</span>]<span class="pkg">int</span>
+}
+<span class="kw">func</span> (s *<span class="id">SafeMap</span>) <span class="fn">Set</span>(k <span class="pkg">string</span>, v <span class="pkg">int</span>) {
+    s.mu.<span class="fn">Lock</span>(); <span class="kw">defer</span> s.mu.<span class="fn">Unlock</span>()
+    s.m[k] = v
+}
+
+<span class="cm">// ✅ 方案二：sync.Map（读远多于写）</span>
+<span class="kw">var</span> sm <span class="pkg">sync</span>.<span class="id">Map</span>
+sm.<span class="fn">Store</span>(<span class="st">"a"</span>, <span class="num">1</span>)
+v, ok := sm.<span class="fn">Load</span>(<span class="st">"a"</span>)</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h3>循环变量闭包捕获</h3><span class="badge badge-high">高频</span></div>
+        <div class="card-body">
+          <p>Go 1.22 之前，<code>for range</code> 的循环变量是同一个内存地址，goroutine 闭包捕获的是引用而非值，所有 goroutine 可能读到循环结束后的同一个值。</p>
+          <pre><span class="cm">// ❌ Go 1.21 及以前：全部打印最后一个值</span>
+<span class="kw">for</span> _, v := <span class="kw">range</span> []<span class="pkg">int</span>{<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>} {
+    <span class="kw">go func</span>() { <span class="pkg">fmt</span>.<span class="fn">Println</span>(v) }()  <span class="cm">// 捕获了变量 v 的地址</span>
+}
+
+<span class="cm">// ✅ 修复一：局部变量遮蔽</span>
+<span class="kw">for</span> _, v := <span class="kw">range</span> []<span class="pkg">int</span>{<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>} {
+    v := v  <span class="cm">// 新建局部变量，捕获值拷贝</span>
+    <span class="kw">go func</span>() { <span class="pkg">fmt</span>.<span class="fn">Println</span>(v) }()
+}
+
+<span class="cm">// ✅ 修复二：通过参数传值</span>
+<span class="kw">for</span> _, v := <span class="kw">range</span> []<span class="pkg">int</span>{<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>} {
+    <span class="kw">go func</span>(n <span class="pkg">int</span>) { <span class="pkg">fmt</span>.<span class="fn">Println</span>(n) }(v)
+}
+
+<span class="cm">// Go 1.22+ 循环变量语义已修正，每次迭代独立</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h3>interface nil 陷阱</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-body">
+          <p>接口由 <code>(type, value)</code> 两字段构成。把 <code>nil</code> 指针赋给接口变量，接口的 <code>type</code> 字段非 nil，<strong>接口本身不等于 nil</strong>。</p>
+          <pre><span class="kw">type</span> <span class="id">MyError</span> <span class="kw">struct</span>{ <span class="id">msg</span> <span class="pkg">string</span> }
+<span class="kw">func</span> (e *<span class="id">MyError</span>) <span class="fn">Error</span>() <span class="pkg">string</span> { <span class="kw">return</span> e.msg }
+
+<span class="cm">// ❌ 陷阱：返回 nil 指针包装进 error 接口</span>
+<span class="kw">func</span> <span class="fn">getError</span>(fail <span class="pkg">bool</span>) <span class="pkg">error</span> {
+    <span class="kw">var</span> err *<span class="id">MyError</span>  <span class="cm">// nil *MyError</span>
+    <span class="kw">if</span> fail { err = &amp;<span class="id">MyError</span>{<span class="st">"oops"</span>} }
+    <span class="kw">return</span> err        <span class="cm">// 即使 fail=false，返回的 error != nil！</span>
+}
+
+err := <span class="fn">getError</span>(<span class="kw">false</span>)
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(err == <span class="kw">nil</span>) <span class="cm">// false ← 反直觉</span>
+
+<span class="cm">// ✅ 修复：直接返回 nil（不通过具体类型）</span>
+<span class="kw">func</span> <span class="fn">getError</span>(fail <span class="pkg">bool</span>) <span class="pkg">error</span> {
+    <span class="kw">if</span> fail { <span class="kw">return</span> &amp;<span class="id">MyError</span>{<span class="st">"oops"</span>} }
+    <span class="kw">return nil</span>  <span class="cm">// 直接返回 nil，接口两字段都为零值</span>
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Interview ── -->
+    <div class="section" id="interview">
+      <div class="section-title"><div class="title-bar"></div><h2>面试题</h2></div>
+
+      <div class="qa-card" onclick="this.classList.toggle('open')">
+        <div class="qa-q">Functional Options 模式解决了什么问题？和 Builder 模式有何区别？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">
+          Functional Options 解决了<strong>构造函数参数爆炸</strong>和<strong>向后兼容扩展</strong>两个问题：可选参数多时调用方不必传大量零值；新增参数不改变函数签名，已有代码无需修改。<br><br>
+          与 Builder 模式的区别：Builder 需要额外的 Builder 类型和 Build() 终结方法，适合参数之间有复杂依赖关系、需要统一验证的场景；Functional Options 更轻量，是 Go 社区的惯用法，配置项之间独立、各自验证时首选。两者都实现了"不传则用默认值"，但 Functional Options 在 Go 中对泛型/接口更友好。
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="this.classList.toggle('open')">
+        <div class="qa-q">Go 中如何实现 HTTP 中间件链？为何不用继承？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">
+          中间件是 <code>func(http.Handler) http.Handler</code> 类型的函数。通过嵌套调用（或 Chain 工具函数反向折叠）形成洋葱模型：请求从最外层中间件流入，最后到达业务 Handler，响应原路返回。<br><br>
+          Go 不用继承因为接口+组合更灵活：中间件无需感知彼此的实现，只依赖 <code>http.Handler</code> 接口；可以在运行时动态组合；复用粒度更细。继承会导致深层次类型耦合，Go 的设计哲学是"组合优于继承"。
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="this.classList.toggle('open')">
+        <div class="qa-q">如何优雅地处理 goroutine 的生命周期？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">
+          核心原则：<strong>启动者负责回收</strong>。具体手段：<br>
+          1. 传入 <code>context.Context</code>，goroutine 监听 <code>ctx.Done()</code> 退出；<br>
+          2. 用 <code>sync.WaitGroup</code> 等待所有 goroutine 完成；<br>
+          3. 用带缓冲 channel 或 <code>errgroup</code>（golang.org/x/sync）收集错误；<br>
+          4. 服务关闭时调用 <code>cancel()</code>，给 goroutine 合理的清理时间（<code>context.WithTimeout</code>）。<br><br>
+          避免：无限制地启动 goroutine（用 worker pool 限流）；goroutine 内 panic 未 recover（中间件层统一兜底）。
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="this.classList.toggle('open')">
+        <div class="qa-q">为什么 Go 中"不要过早抽象"？举例说明<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">
+          Go 接口是隐式实现，<strong>接口应该在使用方定义，而非实现方强加</strong>。过早定义宽接口（大量方法）会让实现方和测试方都变得臃肿；只有当有两个以上实现、或需要 mock 测试时，才有必要提取接口。<br><br>
+          例：一开始就定义 <code>UserRepository interface { FindByID; FindByEmail; Create; Update; Delete; List; Count }</code>，真实实现和 mock 都要实现 6 个方法。更好的做法是：各调用处只定义自己需要的小接口（<code>interface{ FindByID(int) (*User, error) }</code>），测试时只需 mock 这一个方法，后续合并也很容易。
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="this.classList.toggle('open')">
+        <div class="qa-q">context.WithValue 的 key 为什么要用自定义类型而不是字符串？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">
+          <code>context.Value</code> 的 key 比较用 <code>==</code>，如果用字符串，不同包使用相同字符串作 key 会产生<strong>隐式冲突</strong>——A 包存的值可能被 B 包读到，造成数据泄漏或类型断言 panic。<br><br>
+          使用包私有的自定义类型（如 <code>type contextKey int</code> 或 <code>type contextKey struct{}</code>），即使 key 的值相同，类型不同则 <code>==</code> 结果不同，天然隔离各包的命名空间。Go 官方文档也明确建议：不要用内建类型做 context key。
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Pitfalls ── -->
+    <div class="section" id="pitfalls">
+      <div class="section-title"><div class="title-bar"></div><h2>易错点</h2></div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">⚠ 易错 1：循环中启动 goroutine 捕获循环变量引用</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// ❌ 所有 goroutine 看到最后一个值</span>
+funcs := <span class="fn">make</span>([]<span class="kw">func</span>(), <span class="num">3</span>)
+<span class="kw">for</span> i := <span class="num">0</span>; i &lt; <span class="num">3</span>; i++ {
+    funcs[i] = <span class="kw">func</span>() {
+        <span class="pkg">fmt</span>.<span class="fn">Println</span>(i)  <span class="cm">// 捕获引用</span>
+    }
+}
+<span class="kw">for</span> _, f := <span class="kw">range</span> funcs {
+    <span class="kw">go</span> <span class="fn">f</span>()  <span class="cm">// 打印三个 3</span>
+}</pre>
+            <p>循环结束后 i=3，所有闭包访问同一地址，输出全为 3（Go 1.21 及以前）。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// ✅ 每次迭代创建新局部变量</span>
+funcs := <span class="fn">make</span>([]<span class="kw">func</span>(), <span class="num">3</span>)
+<span class="kw">for</span> i := <span class="num">0</span>; i &lt; <span class="num">3</span>; i++ {
+    i := i  <span class="cm">// 局部变量遮蔽</span>
+    funcs[i] = <span class="kw">func</span>() {
+        <span class="pkg">fmt</span>.<span class="fn">Println</span>(i)  <span class="cm">// 捕获副本</span>
+    }
+}
+<span class="kw">for</span> _, f := <span class="kw">range</span> funcs {
+    <span class="kw">go</span> <span class="fn">f</span>()  <span class="cm">// 0 1 2（顺序不定）</span>
+}</pre>
+            <p>Go 1.22+ 循环变量语义已自动修正，每次迭代有独立变量，但旧代码仍需注意。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">⚠ 易错 2：middleware 链顺序错误（recover 未置最外层）</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// ❌ Recover 在 Logging 内层</span>
+handler := <span class="fn">Chain</span>(h,
+    <span class="fn">Logging</span>,   <span class="cm">// 最外层</span>
+    <span class="fn">Auth</span>,
+    <span class="fn">Recover</span>,   <span class="cm">// ❌ 只能捕获 Auth 之后的 panic</span>
+)
+<span class="cm">// Logging 中间件 panic 无法被捕获</span></pre>
+            <p>Recover 只能捕获其内部（靠近 handler 侧）的 panic，外层中间件的 panic 不在覆盖范围内。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// ✅ Recover 必须最外层</span>
+handler := <span class="fn">Chain</span>(h,
+    <span class="fn">Recover</span>,   <span class="cm">// ✅ 最外层，覆盖所有后续 panic</span>
+    <span class="fn">Logging</span>,
+    <span class="fn">Auth</span>,
+)
+<span class="cm">// 任意中间件或 handler panic
+// 都能被 Recover 捕获并返回 500</span></pre>
+            <p>中间件顺序决定执行顺序，Recover 放最前（最外层）才能保护整个链路。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">⚠ 易错 3：包装了 nil 指针的接口变量不等于 nil</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">type</span> <span class="id">Conn</span> <span class="kw">interface</span> { <span class="fn">Close</span>() <span class="pkg">error</span> }
+
+<span class="kw">func</span> <span class="fn">openConn</span>(ok <span class="pkg">bool</span>) <span class="id">Conn</span> {
+    <span class="kw">var</span> c *<span class="id">TCPConn</span>  <span class="cm">// nil 具体类型</span>
+    <span class="kw">if</span> ok { c = <span class="fn">dial</span>() }
+    <span class="kw">return</span> c  <span class="cm">// ❌ 接口有 type 字段！</span>
+}
+
+conn := <span class="fn">openConn</span>(<span class="kw">false</span>)
+<span class="cm">// conn != nil，调用 Close() 会 panic</span>
+<span class="kw">if</span> conn != <span class="kw">nil</span> { conn.<span class="fn">Close</span>() }</pre>
+            <p>接口 = <code>(type=*TCPConn, value=nil)</code>，type 不为零，故 <code>conn != nil</code>。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">openConn</span>(ok <span class="pkg">bool</span>) <span class="id">Conn</span> {
+    <span class="kw">if</span> !ok {
+        <span class="kw">return nil</span>  <span class="cm">// ✅ 直接返回 nil</span>
+    }
+    <span class="kw">return</span> <span class="fn">dial</span>()
+}
+
+<span class="cm">// 或者在需要判断时用 reflect：</span>
+<span class="kw">func</span> <span class="fn">isNil</span>(i <span class="kw">interface</span>{}) <span class="pkg">bool</span> {
+    <span class="kw">if</span> i == <span class="kw">nil</span> { <span class="kw">return true</span> }
+    v := <span class="pkg">reflect</span>.<span class="fn">ValueOf</span>(i)
+    <span class="kw">return</span> v.<span class="fn">Kind</span>() == <span class="pkg">reflect</span>.<span class="id">Ptr</span> &amp;&amp;
+           v.<span class="fn">IsNil</span>()
+}</pre>
+            <p>函数返回接口类型时，nil 具体指针要显式 <code>return nil</code>，不能通过具体类型变量间接返回。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+NavTracker.track('Go 设计模式','golang/patterns.html','🏗️','Golang');
+</script>
+</body>
+</html>

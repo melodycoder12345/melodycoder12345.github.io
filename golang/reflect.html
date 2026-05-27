@@ -1,0 +1,681 @@
+<!DOCTYPE html><html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>反射 - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:72px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(0,173,216,.12);color:var(--accent);border:1px solid rgba(0,173,216,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.badge-high{background:rgba(251,146,60,.12);color:#fb923c;border:1px solid rgba(251,146,60,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(0,173,216,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.table-wrap{overflow-x:auto;margin:10px 0;}
+table{width:100%;border-collapse:collapse;font-size:.82rem;}
+th{background:rgba(0,173,216,.08);color:var(--accent);padding:8px 12px;text-align:left;border:1px solid var(--border2);font-size:.78rem;}
+td{padding:7px 12px;border:1px solid var(--border2);color:var(--dim);}
+tr:hover td{background:rgba(255,255,255,.02);}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">🔬 反射</span>
+  <div class="nav-tags">
+    <span class="ntag">reflect</span>
+    <span class="ntag">type-assertion</span>
+    <span class="ntag">type-switch</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <aside class="side-nav" id="sideNav">
+    <nav><ul>
+      <li><a href="#type-value">Type &amp; Value</a></li>
+      <li><a href="#read-write">读取与修改</a></li>
+      <li><a href="#type-assert">类型断言</a></li>
+      <li><a href="#use-cases">性能与场景</a></li>
+      <li><a href="#interview">面试题</a></li>
+      <li><a href="#pitfalls">易错点</a></li>
+    </ul></nav>
+  </aside>
+  <main class="main-content">
+
+    <!-- Section 1: Type & Value -->
+    <section class="section" id="type-value">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>reflect.Type 与 reflect.Value</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>TypeOf 与 ValueOf 基础</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p><code>reflect.TypeOf(x)</code> 返回 <code>reflect.Type</code> 接口，描述 x 的静态类型信息（类型名、方法集等）；<code>reflect.ValueOf(x)</code> 返回 <code>reflect.Value</code> 结构体，封装 x 的具体值，可进行读取、修改和调用操作。</p>
+          <pre><span class="kw">import</span> <span class="st">"reflect"</span>
+
+<span class="kw">type</span> <span class="id">Point</span> <span class="kw">struct</span>{ <span class="id">X</span>, <span class="id">Y</span> <span class="kw">float64</span> }
+
+<span class="id">p</span> := <span class="id">Point</span>{<span class="num">1.0</span>, <span class="num">2.0</span>}
+
+<span class="id">t</span> := <span class="pkg">reflect</span>.<span class="fn">TypeOf</span>(<span class="id">p</span>)
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">t</span>.<span class="fn">Name</span>())       <span class="cm">// "Point"</span>
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">t</span>.<span class="fn">Kind</span>())       <span class="cm">// struct</span>
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">t</span>.<span class="fn">NumField</span>())  <span class="cm">// 2</span>
+
+<span class="id">v</span> := <span class="pkg">reflect</span>.<span class="fn">ValueOf</span>(<span class="id">p</span>)
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">v</span>.<span class="fn">Field</span>(<span class="num">0</span>).<span class="fn">Float</span>()) <span class="cm">// 1.0</span>
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">v</span>.<span class="fn">FieldByName</span>(<span class="st">"Y"</span>).<span class="fn">Float</span>()) <span class="cm">// 2.0</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>Kind vs Type 的区别</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p><code>Type</code> 是具体的命名类型（如 <code>main.Point</code>、<code>int</code>、<code>[]string</code>），<code>Kind</code> 是底层的类型种类（如 <code>struct</code>、<code>int</code>、<code>slice</code>），是一组有限枚举值。</p>
+          <div class="table-wrap">
+            <table>
+              <tr><th>表达式</th><th>Type</th><th>Kind</th></tr>
+              <tr><td><code>Point{}</code></td><td>main.Point</td><td>struct</td></tr>
+              <tr><td><code>42</code></td><td>int</td><td>int</td></tr>
+              <tr><td><code>type MyInt int</code></td><td>main.MyInt</td><td>int</td></tr>
+              <tr><td><code>[]string{}</code></td><td>[]string</td><td>slice</td></tr>
+              <tr><td><code>map[string]int{}</code></td><td>map[string]int</td><td>map</td></tr>
+            </table>
+          </div>
+          <pre><span class="kw">type</span> <span class="id">MyInt</span> <span class="kw">int</span>
+<span class="id">v</span> := <span class="pkg">reflect</span>.<span class="fn">ValueOf</span>(<span class="id">MyInt</span>(<span class="num">5</span>))
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">v</span>.<span class="fn">Type</span>())       <span class="cm">// main.MyInt</span>
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">v</span>.<span class="fn">Kind</span>())       <span class="cm">// int</span>
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">v</span>.<span class="fn">Kind</span>() == <span class="pkg">reflect</span>.<span class="id">Int</span>) <span class="cm">// true</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>reflect.DeepEqual</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p><code>reflect.DeepEqual</code> 递归比较两个值是否"深度相等"，可处理 map、slice、struct 等复合类型。常用于测试断言，但有一些语义陷阱需要注意。</p>
+          <ul>
+            <li>nil slice 和 空 slice（<code>[]int{}</code>）不相等</li>
+            <li>nil map 和 空 map 不相等</li>
+            <li>函数值只有两个都为 nil 时才相等</li>
+            <li>循环引用的结构可能无限递归（DeepEqual 内部有循环检测）</li>
+          </ul>
+          <pre><span class="pkg">reflect</span>.<span class="fn">DeepEqual</span>([]<span class="kw">int</span>{<span class="num">1</span>,<span class="num">2</span>}, []<span class="kw">int</span>{<span class="num">1</span>,<span class="num">2</span>}) <span class="cm">// true</span>
+<span class="pkg">reflect</span>.<span class="fn">DeepEqual</span>([]<span class="kw">int</span>{}, (<span class="kw">[]int</span>)(<span class="kw">nil</span>))    <span class="cm">// false! 注意</span>
+
+<span class="kw">var</span> <span class="id">a</span>, <span class="id">b</span> <span class="kw">map</span>[<span class="kw">string</span>]<span class="kw">int</span>
+<span class="pkg">reflect</span>.<span class="fn">DeepEqual</span>(<span class="id">a</span>, <span class="id">b</span>)                <span class="cm">// true (both nil)</span>
+<span class="pkg">reflect</span>.<span class="fn">DeepEqual</span>(<span class="id">a</span>, <span class="kw">map</span>[<span class="kw">string</span>]<span class="kw">int</span>{}) <span class="cm">// false!</span></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: 读取与修改 -->
+    <section class="section" id="read-write">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>读取与修改值</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>Value.Field / Method / Interface</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p>通过 <code>reflect.Value</code> 可以枚举和访问结构体字段、调用方法、提取原始值。</p>
+          <pre><span class="kw">type</span> <span class="id">User</span> <span class="kw">struct</span> {
+    <span class="id">Name</span> <span class="kw">string</span> <span class="st">`json:"name"`</span>
+    <span class="id">Age</span>  <span class="kw">int</span>    <span class="st">`json:"age"`</span>
+}
+<span class="kw">func</span> (<span class="id">u</span> <span class="id">User</span>) <span class="fn">Greet</span>() <span class="kw">string</span> { <span class="kw">return</span> <span class="st">"Hi, "</span> + <span class="id">u</span>.<span class="id">Name</span> }
+
+<span class="id">u</span> := <span class="id">User</span>{<span class="id">Name</span>: <span class="st">"Alice"</span>, <span class="id">Age</span>: <span class="num">30</span>}
+<span class="id">v</span> := <span class="pkg">reflect</span>.<span class="fn">ValueOf</span>(<span class="id">u</span>)
+<span class="id">t</span> := <span class="pkg">reflect</span>.<span class="fn">TypeOf</span>(<span class="id">u</span>)
+
+<span class="cm">// 遍历字段</span>
+<span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> < <span class="id">t</span>.<span class="fn">NumField</span>(); <span class="id">i</span>++ {
+    <span class="id">f</span> := <span class="id">t</span>.<span class="fn">Field</span>(<span class="id">i</span>)
+    <span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"%s = %v (tag:%s)\n"</span>,
+        <span class="id">f</span>.<span class="id">Name</span>, <span class="id">v</span>.<span class="fn">Field</span>(<span class="id">i</span>), <span class="id">f</span>.<span class="id">Tag</span>.<span class="fn">Get</span>(<span class="st">"json"</span>))
+}
+
+<span class="cm">// 调用方法</span>
+<span class="id">m</span> := <span class="id">v</span>.<span class="fn">MethodByName</span>(<span class="st">"Greet"</span>)
+<span class="id">res</span> := <span class="id">m</span>.<span class="fn">Call</span>(<span class="kw">nil</span>)
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">res</span>[<span class="num">0</span>].<span class="fn">String</span>()) <span class="cm">// "Hi, Alice"</span>
+
+<span class="cm">// 提取原始值</span>
+<span class="id">name</span> := <span class="id">v</span>.<span class="fn">FieldByName</span>(<span class="st">"Name"</span>).<span class="fn">Interface</span>().(<span class="kw">string</span>)</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>可设置性与 CanSet</h3>
+          <span class="badge badge-adv">advanced</span>
+        </div>
+        <div class="card-body">
+          <p>修改值的前提：<code>Value.CanSet()</code> 返回 true。要让 Value 可设置，必须通过<strong>指针</strong>取反射，并调用 <code>Elem()</code> 解引用，且字段必须是<strong>导出的</strong>。</p>
+          <pre><span class="kw">type</span> <span class="id">Config</span> <span class="kw">struct</span> {
+    <span class="id">Host</span>    <span class="kw">string</span>
+    <span class="id">Port</span>    <span class="kw">int</span>
+    <span class="id">timeout</span> <span class="kw">int</span> <span class="cm">// 未导出</span>
+}
+
+<span class="id">cfg</span> := <span class="id">Config</span>{<span class="id">Host</span>: <span class="st">"localhost"</span>, <span class="id">Port</span>: <span class="num">8080</span>}
+
+<span class="cm">// 必须传指针</span>
+<span class="id">v</span> := <span class="pkg">reflect</span>.<span class="fn">ValueOf</span>(&<span class="id">cfg</span>).<span class="fn">Elem</span>()
+
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">v</span>.<span class="fn">CanSet</span>()) <span class="cm">// true</span>
+
+<span class="id">v</span>.<span class="fn">FieldByName</span>(<span class="st">"Host"</span>).<span class="fn">SetString</span>(<span class="st">"0.0.0.0"</span>)
+<span class="id">v</span>.<span class="fn">FieldByName</span>(<span class="st">"Port"</span>).<span class="fn">SetInt</span>(<span class="num">9090</span>)
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">cfg</span>) <span class="cm">// {0.0.0.0 9090 0}</span>
+
+<span class="cm">// 未导出字段无法设置</span>
+<span class="id">tf</span> := <span class="id">v</span>.<span class="fn">FieldByName</span>(<span class="st">"timeout"</span>)
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">tf</span>.<span class="fn">CanSet</span>()) <span class="cm">// false</span>
+<span class="cm">// tf.SetInt(30) // panic: unexported field</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>动态创建与修改 Slice/Map</h3>
+          <span class="badge badge-adv">advanced</span>
+        </div>
+        <div class="card-body">
+          <p>反射可以动态创建和操作 slice、map，在泛型化框架（如 ORM、序列化）中很有用。</p>
+          <pre><span class="cm">// 动态创建 slice</span>
+<span class="id">sliceType</span> := <span class="pkg">reflect</span>.<span class="fn">TypeOf</span>([]<span class="kw">int</span>{})
+<span class="id">s</span> := <span class="pkg">reflect</span>.<span class="fn">MakeSlice</span>(<span class="id">sliceType</span>, <span class="num">0</span>, <span class="num">3</span>)
+<span class="id">s</span> = <span class="pkg">reflect</span>.<span class="fn">Append</span>(<span class="id">s</span>, <span class="pkg">reflect</span>.<span class="fn">ValueOf</span>(<span class="num">10</span>))
+<span class="id">s</span> = <span class="pkg">reflect</span>.<span class="fn">Append</span>(<span class="id">s</span>, <span class="pkg">reflect</span>.<span class="fn">ValueOf</span>(<span class="num">20</span>))
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">s</span>.<span class="fn">Interface</span>()) <span class="cm">// [10 20]</span>
+
+<span class="cm">// 动态创建 map</span>
+<span class="id">mapType</span> := <span class="pkg">reflect</span>.<span class="fn">MapOf</span>(
+    <span class="pkg">reflect</span>.<span class="fn">TypeOf</span>(<span class="st">""</span>),
+    <span class="pkg">reflect</span>.<span class="fn">TypeOf</span>(<span class="num">0</span>),
+)
+<span class="id">m</span> := <span class="pkg">reflect</span>.<span class="fn">MakeMap</span>(<span class="id">mapType</span>)
+<span class="id">m</span>.<span class="fn">SetMapIndex</span>(
+    <span class="pkg">reflect</span>.<span class="fn">ValueOf</span>(<span class="st">"key"</span>),
+    <span class="pkg">reflect</span>.<span class="fn">ValueOf</span>(<span class="num">42</span>),
+)
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">m</span>.<span class="fn">Interface</span>()) <span class="cm">// map[key:42]</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>利用反射读取 struct tag</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p>Struct tag 是 Go 序列化（JSON/XML/ORM）的基础。反射可以在运行时读取 tag，实现字段映射和验证逻辑。</p>
+          <pre><span class="kw">type</span> <span class="id">Article</span> <span class="kw">struct</span> {
+    <span class="id">Title</span>   <span class="kw">string</span> <span class="st">`json:"title"   db:"title"   validate:"required"`</span>
+    <span class="id">Content</span> <span class="kw">string</span> <span class="st">`json:"content" db:"content"`</span>
+    <span class="id">Views</span>   <span class="kw">int</span>    <span class="st">`json:"-"       db:"views"`</span>
+}
+
+<span class="id">t</span> := <span class="pkg">reflect</span>.<span class="fn">TypeOf</span>(<span class="id">Article</span>{})
+<span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> < <span class="id">t</span>.<span class="fn">NumField</span>(); <span class="id">i</span>++ {
+    <span class="id">f</span> := <span class="id">t</span>.<span class="fn">Field</span>(<span class="id">i</span>)
+    <span class="id">jsonTag</span> := <span class="id">f</span>.<span class="id">Tag</span>.<span class="fn">Get</span>(<span class="st">"json"</span>)
+    <span class="id">dbTag</span>   := <span class="id">f</span>.<span class="id">Tag</span>.<span class="fn">Get</span>(<span class="st">"db"</span>)
+    <span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"Field: %-8s json:%-8s db:%s\n"</span>,
+        <span class="id">f</span>.<span class="id">Name</span>, <span class="id">jsonTag</span>, <span class="id">dbTag</span>)
+}</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: 类型断言 -->
+    <section class="section" id="type-assert">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>类型断言与 type switch</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>单值断言 vs 双值断言</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p>类型断言从接口值中提取具体类型。单值形式在类型不匹配时直接 panic；双值形式通过 ok 安全检查，推荐在类型不确定时使用。</p>
+          <pre><span class="kw">var</span> <span class="id">i</span> <span class="kw">interface</span>{} = <span class="st">"hello"</span>
+
+<span class="cm">// 单值：类型不匹配直接 panic</span>
+<span class="id">s</span> := <span class="id">i</span>.(<span class="kw">string</span>)          <span class="cm">// OK</span>
+<span class="cm">// n := i.(int)           // panic: interface conversion</span>
+
+<span class="cm">// 双值：安全检查</span>
+<span class="kw">if</span> <span class="id">s</span>, <span class="id">ok</span> := <span class="id">i</span>.(<span class="kw">string</span>); <span class="id">ok</span> {
+    <span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="st">"string:"</span>, <span class="id">s</span>)
+}
+<span class="kw">if</span> <span class="id">n</span>, <span class="id">ok</span> := <span class="id">i</span>.(<span class="kw">int</span>); <span class="id">ok</span> {
+    <span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="st">"int:"</span>, <span class="id">n</span>)
+} <span class="kw">else</span> {
+    <span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="st">"not int"</span>, <span class="id">n</span>) <span class="cm">// n 为零值 0</span>
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>type switch 语法与使用</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p><code>type switch</code> 是处理多种可能类型的惯用写法，比多个 if/else 类型断言更清晰。每个 case 中变量会自动绑定为对应类型。</p>
+          <pre><span class="kw">func</span> <span class="fn">describe</span>(<span class="id">i</span> <span class="kw">interface</span>{}) <span class="kw">string</span> {
+    <span class="kw">switch</span> <span class="id">v</span> := <span class="id">i</span>.(<span class="kw">type</span>) {
+    <span class="kw">case</span> <span class="kw">int</span>:
+        <span class="kw">return</span> <span class="pkg">fmt</span>.<span class="fn">Sprintf</span>(<span class="st">"int(%d)"</span>, <span class="id">v</span>)
+    <span class="kw">case</span> <span class="kw">string</span>:
+        <span class="kw">return</span> <span class="pkg">fmt</span>.<span class="fn">Sprintf</span>(<span class="st">"string(%q)"</span>, <span class="id">v</span>)
+    <span class="kw">case</span> <span class="kw">bool</span>:
+        <span class="kw">return</span> <span class="pkg">fmt</span>.<span class="fn">Sprintf</span>(<span class="st">"bool(%v)"</span>, <span class="id">v</span>)
+    <span class="kw">case</span> []<span class="kw">byte</span>:
+        <span class="kw">return</span> <span class="pkg">fmt</span>.<span class="fn">Sprintf</span>(<span class="st">"bytes(len=%d)"</span>, <span class="fn">len</span>(<span class="id">v</span>))
+    <span class="kw">case</span> <span class="kw">nil</span>:
+        <span class="kw">return</span> <span class="st">"nil"</span>
+    <span class="kw">default</span>:
+        <span class="kw">return</span> <span class="pkg">fmt</span>.<span class="fn">Sprintf</span>(<span class="st">"unknown(%T)"</span>, <span class="id">v</span>)
+    }
+}
+
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="fn">describe</span>(<span class="num">42</span>))          <span class="cm">// int(42)</span>
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="fn">describe</span>(<span class="st">"go"</span>))         <span class="cm">// string("go")</span>
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="fn">describe</span>([]<span class="kw">byte</span>{<span class="num">1</span>,<span class="num">2</span>}))  <span class="cm">// bytes(len=2)</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>接口类型断言</h3>
+          <span class="badge badge-adv">advanced</span>
+        </div>
+        <div class="card-body">
+          <p>类型断言不仅可以断言到具体类型，也可以断言到<strong>接口类型</strong>，用于检查一个接口值是否同时满足另一个接口。</p>
+          <pre><span class="kw">type</span> <span class="id">Animal</span> <span class="kw">interface</span>{ <span class="fn">Sound</span>() <span class="kw">string</span> }
+<span class="kw">type</span> <span class="id">Runner</span> <span class="kw">interface</span>{ <span class="fn">Run</span>() }
+
+<span class="kw">type</span> <span class="id">Dog</span> <span class="kw">struct</span>{}
+<span class="kw">func</span> (<span class="id">d</span> <span class="id">Dog</span>) <span class="fn">Sound</span>() <span class="kw">string</span> { <span class="kw">return</span> <span class="st">"woof"</span> }
+<span class="kw">func</span> (<span class="id">d</span> <span class="id">Dog</span>) <span class="fn">Run</span>()           { <span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="st">"running"</span>) }
+
+<span class="kw">var</span> <span class="id">a</span> <span class="id">Animal</span> = <span class="id">Dog</span>{}
+
+<span class="cm">// 断言到另一个接口</span>
+<span class="kw">if</span> <span class="id">r</span>, <span class="id">ok</span> := <span class="id">a</span>.(<span class="id">Runner</span>); <span class="id">ok</span> {
+    <span class="id">r</span>.<span class="fn">Run</span>() <span class="cm">// Dog 同时满足 Runner</span>
+}
+
+<span class="cm">// type switch 中也可用接口类型</span>
+<span class="kw">switch</span> <span class="id">v</span> := <span class="id">a</span>.(<span class="kw">type</span>) {
+<span class="kw">case</span> <span class="id">Runner</span>:
+    <span class="id">v</span>.<span class="fn">Run</span>()
+}</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: 性能与场景 -->
+    <section class="section" id="use-cases">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>反射的性能与适用场景</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>反射的性能开销</h3>
+          <span class="badge badge-high">高频考点</span>
+        </div>
+        <div class="card-body">
+          <p>反射操作比直接调用慢约 <strong>10~100 倍</strong>，主要来源：</p>
+          <ul>
+            <li><strong>类型信息查找</strong>：运行时通过 typelinks 查找类型元数据</li>
+            <li><strong>接口装箱/拆箱</strong>：每次 ValueOf/Interface() 都涉及 heap 分配</li>
+            <li><strong>间接调用</strong>：方法调用通过函数指针，无法内联</li>
+            <li><strong>逃逸分析失效</strong>：反射传值基本都逃逸到堆上，GC 压力增大</li>
+          </ul>
+          <pre><span class="cm">// 基准对比（仅示意数量级）</span>
+<span class="cm">// 直接调用:  ~1  ns/op</span>
+<span class="cm">// 类型断言:  ~2  ns/op</span>
+<span class="cm">// 反射调用:  ~50 ns/op</span>
+<span class="cm">// 反射 Set:  ~80 ns/op</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>合理使用场景</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p>反射适合在<strong>框架层</strong>使用，业务代码应尽量避免：</p>
+          <div class="table-wrap">
+            <table>
+              <tr><th>推荐使用</th><th>避免使用</th></tr>
+              <tr><td>encoding/json、XML 序列化</td><td>热路径的类型判断（用接口代替）</td></tr>
+              <tr><td>ORM 字段映射（GORM、sqlx）</td><td>简单的 map/slice 遍历</td></tr>
+              <tr><td>依赖注入框架</td><td>已知类型的字段访问</td></tr>
+              <tr><td>测试断言库（testify）</td><td>每次请求都执行的逻辑</td></tr>
+              <tr><td>配置文件解析（viper）</td><td>可以用泛型解决的场景（Go 1.18+）</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>反射优化策略</h3>
+          <span class="badge badge-adv">advanced</span>
+        </div>
+        <div class="card-body">
+          <p>在必须使用反射的场景下，以下策略可显著降低开销：</p>
+          <ul>
+            <li><strong>缓存 reflect.Type</strong>：TypeOf 结果是不可变的，可以存入全局变量复用</li>
+            <li><strong>缓存字段索引</strong>：用 FieldByName 找到字段后记录 Index，后续用 Field(i)</li>
+            <li><strong>sync.Map 缓存类型方案</strong>：按类型缓存编解码器，避免重复反射</li>
+            <li><strong>unsafe 包直接操作</strong>：极端性能场景下绕过反射直接操作内存偏移量</li>
+          </ul>
+          <pre><span class="cm">// 缓存字段偏移，避免每次 FieldByName</span>
+<span class="kw">var</span> <span class="id">nameIdx</span> <span class="kw">int</span>
+<span class="kw">func</span> <span class="fn">init</span>() {
+    <span class="id">t</span> := <span class="pkg">reflect</span>.<span class="fn">TypeOf</span>(<span class="id">User</span>{})
+    <span class="id">f</span>, _ := <span class="id">t</span>.<span class="fn">FieldByName</span>(<span class="st">"Name"</span>)
+    <span class="id">nameIdx</span> = <span class="id">f</span>.<span class="id">Index</span>[<span class="num">0</span>] <span class="cm">// 缓存索引</span>
+}
+
+<span class="kw">func</span> <span class="fn">GetName</span>(<span class="id">u</span> <span class="id">User</span>) <span class="kw">string</span> {
+    <span class="kw">return</span> <span class="pkg">reflect</span>.<span class="fn">ValueOf</span>(<span class="id">u</span>).<span class="fn">Field</span>(<span class="id">nameIdx</span>).<span class="fn">String</span>()
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>泛型 vs 反射的选择（Go 1.18+）</h3>
+          <span class="badge badge-adv">advanced</span>
+        </div>
+        <div class="card-body">
+          <p>Go 1.18 引入泛型后，许多以前依赖反射的场景可以用泛型替代，获得编译期类型安全和更好的性能。</p>
+          <pre><span class="cm">// 反射版本：运行时类型检查，有开销</span>
+<span class="kw">func</span> <span class="fn">ContainsReflect</span>(<span class="id">slice</span>, <span class="id">elem</span> <span class="kw">interface</span>{}) <span class="kw">bool</span> {
+    <span class="id">sv</span> := <span class="pkg">reflect</span>.<span class="fn">ValueOf</span>(<span class="id">slice</span>)
+    <span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> < <span class="id">sv</span>.<span class="fn">Len</span>(); <span class="id">i</span>++ {
+        <span class="kw">if</span> <span class="pkg">reflect</span>.<span class="fn">DeepEqual</span>(<span class="id">sv</span>.<span class="fn">Index</span>(<span class="id">i</span>).<span class="fn">Interface</span>(), <span class="id">elem</span>) {
+            <span class="kw">return</span> <span class="kw">true</span>
+        }
+    }
+    <span class="kw">return</span> <span class="kw">false</span>
+}
+
+<span class="cm">// 泛型版本：编译期类型安全，性能接近直接代码</span>
+<span class="kw">func</span> <span class="fn">Contains</span>[<span class="id">T</span> <span class="id">comparable</span>](<span class="id">s</span> []<span class="id">T</span>, <span class="id">e</span> <span class="id">T</span>) <span class="kw">bool</span> {
+    <span class="kw">for</span> <span class="id">_</span>, <span class="id">v</span> := <span class="kw">range</span> <span class="id">s</span> {
+        <span class="kw">if</span> <span class="id">v</span> == <span class="id">e</span> { <span class="kw">return</span> <span class="kw">true</span> }
+    }
+    <span class="kw">return</span> <span class="kw">false</span>
+}</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Interview Section -->
+    <section class="section" id="interview">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>面试题</h2>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this.parentElement)">
+          reflect.Type 和 reflect.Value 分别表示什么？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          <code>reflect.Type</code> 是一个接口，描述某个 Go 类型的<strong>静态元数据</strong>：类型名、包路径、字段列表、方法集、Kind 等。它是不可变的，可以安全地缓存。<br><br>
+          <code>reflect.Value</code> 是一个结构体，封装某个变量的<strong>具体值</strong>和类型信息。通过它可以读取字段值、调用方法、设置值（需满足 CanSet 条件）。Value 包含一个指向实际数据的指针，因此修改 Value 内部字段会影响原始变量（前提是通过指针取的 Elem）。
+        </div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this.parentElement)">
+          Kind() 和 Type() 有何区别？举例说明
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          <code>Type()</code> 返回具体的命名类型，<code>Kind()</code> 返回底层的类型种类（枚举值）。<br><br>
+          例如：<code>type MyInt int</code>，则 <code>reflect.TypeOf(MyInt(0)).Type()</code> 返回 <code>main.MyInt</code>，而 <code>.Kind()</code> 返回 <code>reflect.Int</code>。<br><br>
+          实际应用中，通常用 Kind 来做通用的类型分发（switch on Kind），用 Type 来做精确的类型匹配或类型注册（如 JSON codec 按类型缓存编码器）。
+        </div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this.parentElement)">
+          如何用反射修改一个 struct 的字段值？有什么前提条件？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          前提条件：<br>
+          1. 必须通过<strong>指针</strong>调用 <code>reflect.ValueOf(&s)</code>，再通过 <code>.Elem()</code> 解引用得到可寻址的 Value。<br>
+          2. 目标字段必须是<strong>导出的</strong>（首字母大写），未导出字段 CanSet() 返回 false。<br>
+          3. 调用对应类型的 Set 方法（<code>SetString</code>、<code>SetInt</code>、<code>SetFloat</code> 等），或通用的 <code>Set(reflect.Value)</code>。<br><br>
+          若对不可寻址的 Value 调用 Set，会触发 panic: <em>reflect: reflect.Value.SetString using value obtained using unexported field</em> 或 <em>reflect.Value.Set using unaddressable value</em>。
+        </div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this.parentElement)">
+          类型断言和类型 switch 各自适用什么场景？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          <strong>类型断言</strong>（<code>v, ok := i.(T)</code>）适合<strong>已知少数几种可能类型</strong>，或仅需判断是否满足某个接口的场景。使用双值形式可以安全检查，单值形式在类型确定的情况下使用更简洁。<br><br>
+          <strong>type switch</strong> 适合<strong>需要区分多种类型</strong>分别处理的场景，代码可读性更好。编译器会对 type switch 进行优化，性能略优于多个 if/else 类型断言。<br><br>
+          两者都只能作用于接口类型值；若 i 是具体类型（非接口），断言会在编译期报错。
+        </div>
+      </div>
+
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this.parentElement)">
+          反射为何性能低？有哪些优化策略？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          <strong>性能低的原因</strong>：<br>
+          1. 类型元数据查找需要在运行时遍历 typelinks 链表；<br>
+          2. ValueOf/Interface() 产生接口装箱，触发堆分配和 GC 压力；<br>
+          3. 方法调用是间接调用（函数指针），编译器无法内联；<br>
+          4. 逃逸分析无法优化反射路径上的变量。<br><br>
+          <strong>优化策略</strong>：<br>
+          1. 缓存 reflect.Type 和字段索引，避免重复查找；<br>
+          2. 使用 sync.Map 按类型缓存编解码方案（如 encoding/json 内部实现）；<br>
+          3. 代码生成（go generate）在编译期生成具体类型的处理代码，完全避免反射；<br>
+          4. Go 1.18+ 优先考虑泛型替代反射，兼顾类型安全和性能。
+        </div>
+      </div>
+    </section>
+
+    <!-- Pitfalls Section -->
+    <section class="section" id="pitfalls">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>易错点</h2>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">✗ 对不可寻址的 Value 调用 CanSet/Set 导致 panic</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">type</span> <span class="id">User</span> <span class="kw">struct</span>{ <span class="id">Name</span> <span class="kw">string</span> }
+
+<span class="id">u</span> := <span class="id">User</span>{<span class="id">Name</span>: <span class="st">"Alice"</span>}
+
+<span class="cm">// 错误：直接传值，不可寻址</span>
+<span class="id">v</span> := <span class="pkg">reflect</span>.<span class="fn">ValueOf</span>(<span class="id">u</span>)
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">v</span>.<span class="fn">CanSet</span>()) <span class="cm">// false</span>
+<span class="cm">// v.FieldByName("Name").SetString("Bob")</span>
+<span class="cm">// panic: reflect.Value.SetString using</span>
+<span class="cm">// unaddressable value</span></pre>
+            <p>直接传值给 ValueOf，得到的是值的副本，不可寻址，无法修改原始变量。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">type</span> <span class="id">User</span> <span class="kw">struct</span>{ <span class="id">Name</span> <span class="kw">string</span> }
+
+<span class="id">u</span> := <span class="id">User</span>{<span class="id">Name</span>: <span class="st">"Alice"</span>}
+
+<span class="cm">// 正确：传指针再 Elem()</span>
+<span class="id">v</span> := <span class="pkg">reflect</span>.<span class="fn">ValueOf</span>(&<span class="id">u</span>).<span class="fn">Elem</span>()
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">v</span>.<span class="fn">CanSet</span>()) <span class="cm">// true</span>
+<span class="id">v</span>.<span class="fn">FieldByName</span>(<span class="st">"Name"</span>).<span class="fn">SetString</span>(<span class="st">"Bob"</span>)
+<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">u</span>.<span class="id">Name</span>)   <span class="cm">// Bob</span></pre>
+            <p>传指针并调用 Elem() 解引用，得到可寻址的 Value，才能安全修改字段值。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">✗ 混淆 Kind（底层种类）和 Type（具体类型名）</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">type</span> <span class="id">Celsius</span> <span class="kw">float64</span>
+
+<span class="id">temp</span> := <span class="id">Celsius</span>(<span class="num">37.5</span>)
+<span class="id">v</span> := <span class="pkg">reflect</span>.<span class="fn">ValueOf</span>(<span class="id">temp</span>)
+
+<span class="cm">// 错误理解：以为 Type() == "float64"</span>
+<span class="cm">// 实际 Type() 是 "main.Celsius"</span>
+<span class="kw">if</span> <span class="id">v</span>.<span class="fn">Type</span>().<span class="fn">Name</span>() == <span class="st">"float64"</span> {
+    <span class="cm">// 永远不会进入！</span>
+    <span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="st">"is float64"</span>)
+}</pre>
+            <p>混淆 Type 和 Kind 导致条件永远不满足，逻辑静默失效。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">type</span> <span class="id">Celsius</span> <span class="kw">float64</span>
+
+<span class="id">temp</span> := <span class="id">Celsius</span>(<span class="num">37.5</span>)
+<span class="id">v</span> := <span class="pkg">reflect</span>.<span class="fn">ValueOf</span>(<span class="id">temp</span>)
+
+<span class="cm">// 用 Kind 检查底层类型种类</span>
+<span class="kw">if</span> <span class="id">v</span>.<span class="fn">Kind</span>() == <span class="pkg">reflect</span>.<span class="id">Float64</span> {
+    <span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="st">"float-like:"</span>, <span class="id">v</span>.<span class="fn">Float</span>())
+}
+
+<span class="cm">// 用 Type 精确匹配具体类型</span>
+<span class="kw">if</span> <span class="id">v</span>.<span class="fn">Type</span>() == <span class="pkg">reflect</span>.<span class="fn">TypeOf</span>(<span class="id">Celsius</span>(<span class="num">0</span>)) {
+    <span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="st">"is Celsius"</span>)
+}</pre>
+            <p>通用处理用 Kind，精确匹配用 Type，两者职责不同，不可混用。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">✗ 类型断言不用双值形式，类型不匹配时 panic</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">process</span>(<span class="id">v</span> <span class="kw">interface</span>{}) {
+    <span class="cm">// 单值断言：若 v 不是 string 直接 panic</span>
+    <span class="id">s</span> := <span class="id">v</span>.(<span class="kw">string</span>)
+    <span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="st">"len:"</span>, <span class="fn">len</span>(<span class="id">s</span>))
+}
+
+<span class="fn">process</span>(<span class="st">"hello"</span>) <span class="cm">// OK</span>
+<span class="fn">process</span>(<span class="num">42</span>)      <span class="cm">// panic: interface conversion:</span>
+                  <span class="cm">// interface {} is int, not string</span></pre>
+            <p>在类型不确定的情况下使用单值类型断言，一旦类型不匹配就会 panic，导致服务崩溃。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">process</span>(<span class="id">v</span> <span class="kw">interface</span>{}) {
+    <span class="cm">// 双值断言：安全处理</span>
+    <span class="id">s</span>, <span class="id">ok</span> := <span class="id">v</span>.(<span class="kw">string</span>)
+    <span class="kw">if</span> !<span class="id">ok</span> {
+        <span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"expected string, got %T\n"</span>, <span class="id">v</span>)
+        <span class="kw">return</span>
+    }
+    <span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="st">"len:"</span>, <span class="fn">len</span>(<span class="id">s</span>))
+}
+
+<span class="fn">process</span>(<span class="st">"hello"</span>) <span class="cm">// len: 5</span>
+<span class="fn">process</span>(<span class="num">42</span>)      <span class="cm">// expected string, got int</span></pre>
+            <p>类型不确定时始终用双值形式；只有在确保类型正确（如先经过 type switch 分支）时才可用单值形式。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+<script>
+function toggleQA(el){el.classList.toggle('open');}
+document.addEventListener('DOMContentLoaded',()=>{
+  if(typeof NavTracker!=='undefined') NavTracker.track('反射','golang/reflect.html','🔬','Golang');
+});
+</script>
+</body>
+</html>

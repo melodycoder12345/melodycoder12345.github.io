@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPU 与流水线 — CS 基础</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;--g:#38bdf8;--m:#fb923c;--p:#c084fc;--q:#4ade80;}
+*{box-sizing:border-box;margin:0;padding:0;}
+
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;min-height:100vh;}
+.nav{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);flex-shrink:0;position:sticky;top:var(--snav-h,44px);z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;display:flex;align-items:center;gap:5px;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.main-area{display:flex;flex:none;height:calc(100vh - var(--snav-h,44px) - 88px);min-height:300px;overflow:hidden;}
+.steps-panel{width:270px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid var(--border2);overflow:hidden;background:rgba(15,23,42,.6);}
+.scenarios{display:flex;gap:0;border-bottom:1px solid var(--border2);overflow-x:auto;}
+.sc-btn{flex:1;background:none;border:none;color:var(--dim);padding:9px 6px;cursor:pointer;font-size:.72rem;font-family:inherit;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;text-align:center;}
+.sc-btn:hover{color:var(--text);}
+.sc-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+.step-scroll{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
+.step-desc-card{border:1px solid var(--border2);border-radius:12px;background:rgba(255,255,255,.025);padding:14px;transition:border-color .3s,box-shadow .3s;}
+.step-desc-card.lit{border-color:var(--accent);box-shadow:0 0 20px rgba(0,173,216,.12);}
+.step-desc-card .step-num{font-size:.66rem;font-family:monospace;color:var(--accent);margin-bottom:6px;}
+.step-desc-card h3{font-size:.88rem;font-weight:700;margin-bottom:6px;}
+.step-desc-card p{font-size:.78rem;color:var(--dim);line-height:1.68;}
+.flow-nav{padding:10px 14px;border-top:1px solid var(--border2);display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.fn-dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--border2);background:rgba(255,255,255,.04);cursor:pointer;font-size:.68rem;font-family:monospace;color:var(--dim);display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;}
+.fn-dot:hover{border-color:var(--dim);color:var(--text);}
+.fn-dot.done{border-color:var(--accent);background:rgba(0,173,216,.15);color:var(--accent);}
+.fn-dot.cur{border-color:var(--accent);background:rgba(0,173,216,.25);color:var(--accent);transform:scale(1.12);}
+.step-ctr{margin-left:auto;font-size:.7rem;font-family:monospace;color:var(--dim2);}
+.diagram-panel{flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid var(--border2);overflow:hidden;}
+.diagram-inner{flex:1;overflow:auto;padding:20px;background:radial-gradient(ellipse 70% 50% at 30% 20%,rgba(0,173,216,.07),transparent 60%);}
+.diagram-svg{width:100%;max-width:620px;display:block;}
+.code-panel{width:44%;min-width:360px;flex-shrink:0;display:flex;flex-direction:column;background:var(--panel2);overflow:hidden;}
+.code-hd{padding:10px 16px;border-bottom:1px solid var(--border2);font-size:.8rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);}
+.code-body{flex:1;overflow-y:auto;padding:14px 0;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.78rem;line-height:1.7;}
+.cl{display:flex;border-left:2px solid transparent;transition:background .25s,border-color .25s;}
+.cl.hi{background:rgba(0,173,216,.1);border-left-color:var(--accent);}
+.cl.hi2{background:rgba(192,132,252,.08);border-left-color:var(--p);}
+.ln{min-width:42px;padding:0 10px 0 12px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;}
+.lc{padding:0 14px 0 4px;white-space:pre-wrap;word-break:break-word;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.controls{display:flex;align-items:center;gap:10px;padding:11px 22px;border-top:1px solid var(--border2);background:var(--panel);flex-shrink:0;}
+.ctrl-btn{background:rgba(255,255,255,.07);border:1px solid var(--border2);color:var(--text);padding:7px 16px;border-radius:8px;cursor:pointer;font-size:.82rem;font-family:inherit;transition:all .15s;}
+.ctrl-btn:hover{background:rgba(255,255,255,.12);}
+.ctrl-btn:disabled{opacity:.35;cursor:not-allowed;}
+.ctrl-btn.primary{background:rgba(0,173,216,.16);border-color:rgba(0,173,216,.35);color:var(--accent);}
+.ctrl-btn.primary:hover{background:rgba(0,173,216,.25);}
+.node-rect{transition:fill .35s cubic-bezier(.4,0,.2,1),stroke .35s,filter .35s;}
+.node-text{transition:fill .35s;}
+.edge{transition:stroke .35s,opacity .35s,stroke-dashoffset .6s ease-out;}
+@keyframes glow-pulse{0%,100%{filter:drop-shadow(0 0 4px rgba(56,189,248,.6));}50%{filter:drop-shadow(0 0 12px rgba(56,189,248,.95));}}
+@keyframes particle-flow{0%{stroke-dashoffset:200;}100%{stroke-dashoffset:0;}}
+@keyframes bounce-x{0%,100%{transform:translateX(0);}50%{transform:translateX(8px);}}
+@keyframes pulse-scale{0%,100%{transform:scale(1);}50%{transform:scale(1.06);}}
+.flow-arrow{stroke-dasharray:8 5;animation:particle-flow 1.2s linear infinite;}
+.active-node{animation:glow-pulse 2s infinite;}
+.bounce{animation:bounce-x 1s ease-in-out infinite;}
+.extras{padding:48px 40px;background:var(--bg);border-top:1px solid var(--border2);}
+.ext-section{margin-bottom:48px;}
+.ext-hd{display:flex;align-items:center;gap:12px;margin-bottom:22px;}
+.ext-hd-bar{width:4px;height:20px;border-radius:2px;background:var(--accent);}
+.ext-hd h2{font-size:1.25rem;font-weight:700;}
+.qa-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.qa-card{border:1px solid var(--border2);border-radius:12px;overflow:hidden;}
+.qa-q{padding:13px 16px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);font-size:.84rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .15s;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:13px 16px;font-size:.82rem;color:var(--dim);line-height:1.72;}
+.qa-card.open .qa-a{display:block;}
+.qa-a code{font-family:monospace;color:var(--accent);font-size:.78rem;}
+.pitfall-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.78rem;font-weight:700;border-bottom:1px solid var(--border2);}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;gap:0;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--dim);line-height:1.6;white-space:pre-wrap;}
+.pitfall-col p{font-size:.76rem;color:var(--dim);line-height:1.65;margin-top:6px;}
+.pitfall-col p strong{color:var(--text);}
+@media(max-width:900px){body{overflow-y:auto;height:auto;}.main-area{flex-direction:column;overflow:visible;height:auto;flex:none;}.steps-panel{width:100%;border-right:none;border-bottom:1px solid var(--border2);}.diagram-panel{border-right:none;min-height:340px;}.code-panel{width:100%;min-width:0;height:320px;flex:none;}.qa-grid,.pitfall-grid{grid-template-columns:1fr;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}.extras{padding:32px 20px;}}
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">CPU 与流水线</span>
+  <div class="nav-tags">
+    <span class="ntag">cpu</span>
+    <span class="ntag">pipeline</span>
+    <span class="ntag">hazard</span>
+    <span class="ntag">OoO</span>
+  </div>
+</div>
+
+<div class="main-area">
+  <div class="steps-panel">
+    <div class="scenarios" id="scenarios"></div>
+    <div class="step-scroll">
+      <div class="step-desc-card lit" id="stepCard">
+        <div class="step-num" id="stepNum">步骤 1</div>
+        <h3 id="stepTitle"></h3>
+        <p id="stepDesc"></p>
+      </div>
+    </div>
+    <div class="flow-nav" id="flowNav"></div>
+  </div>
+
+  <div class="diagram-panel">
+    <div class="diagram-inner">
+      <svg id="svg" class="diagram-svg" viewBox="0 0 620 360" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </div>
+
+  <div class="code-panel">
+    <div class="code-hd"><div class="code-dot"></div><span id="codeTitle">cpu.asm</span></div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="ctrl-btn" id="btnReset" onclick="reset()">⏮ 重置</button>
+  <button class="ctrl-btn primary" id="btnPrev" onclick="prev()">← 上一步</button>
+  <button class="ctrl-btn primary" id="btnNext" onclick="next()">下一步 →</button>
+</div>
+
+<div class="extras">
+  <div class="ext-section">
+    <div class="ext-hd"><div class="ext-hd-bar"></div><h2>面试题</h2></div>
+    <div class="qa-grid">
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">流水线的五个阶段各自的职责？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">IF（取指）：从 PC 地址取出指令；ID（译码）：解析指令操作码，读寄存器；EX（执行）：ALU 运算或计算内存地址；MEM（访存）：读写数据缓存；WB（写回）：将结果写回寄存器文件。每个阶段占用一个时钟周期，五级流水线理想情况下每周期出一条指令（吞吐率 1 IPC）。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">数据冒险、结构冒险、控制冒险的区别？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a"><strong>数据冒险（RAW/WAR/WAW）</strong>：指令间存在数据依赖，后续指令需要前指令尚未写回的结果。解决方案：forwarding（数据前递）+ stall。<br><strong>结构冒险</strong>：多条指令同时需要同一硬件资源（如单端口内存）。解决方案：资源复制（分离 I-Cache/D-Cache）。<br><strong>控制冒险</strong>：分支/跳转指令导致 PC 不确定。解决方案：分支预测 + flush。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">分支预测失败的代价有多大？现代 CPU 准确率多少？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">五级流水线中预测失败会 flush 已进入流水线的 3 条指令，损失约 3 个时钟周期。现代超标量 CPU（如 Intel Skylake）流水线深度达 14-19 级，错误预测代价高达 15-20 个周期。现代 CPU 分支预测准确率通常在 95%~99% 之间，使用 TAGE（带标签的几何历史长度预测器）等复杂算法。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">乱序执行为什么不会破坏程序语义？ROB 的作用？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">乱序执行（Out-of-Order Execution）允许指令按数据准备情况乱序进入执行单元，但 <strong>ROB（重排序缓冲区，Re-Order Buffer）</strong> 保证按原程序顺序提交（retire）结果。ROB 是一个循环队列，追踪所有在途指令的状态；只有队首指令完成且无异常，才提交结果到体系结构状态（寄存器文件/内存）。这保证了精确例外（precise exception）语义。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ext-section">
+    <div class="ext-hd"><div class="ext-hd-bar"></div><h2>易错点</h2></div>
+    <div class="pitfall-grid">
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 误区：流水线 = 多核并行</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre>// 流水线（单核）
+// 同一时刻多条指令处于
+// 不同阶段，但仍是一条
+// 逻辑执行流，没有真正
+// 的并行计算
+
+// 时钟周期 3：
+// I1: EX  阶段
+// I2: ID  阶段
+// I3: IF  阶段
+// 三条指令同时在硬件上
+// 活跃，但属于同一 core</pre>
+            <p><strong>流水线</strong>是指令级流水（ILP），提升吞吐，不是多核并行。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre>// 多核并行（真正并行）
+// Core 0 和 Core 1 各自
+// 独立执行不同线程
+
+// Core 0: 执行线程 A
+// Core 1: 执行线程 B
+// 同一时刻真正执行两条
+// 不同指令流
+
+// 需要 OS 调度 + 显式
+// 并发编程（goroutine 等）</pre>
+            <p><strong>多核</strong>才是真正的并行，需要程序员显式使用并发原语。</p>
+          </div>
+        </div>
+      </div>
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ Forwarding 不能解决所有数据冒险</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre>; LOAD-USE hazard：
+; forwarding 无法消除
+LW  R1, [R2]   ; MEM阶段才有数据
+ADD R3, R1, R4 ; 需要R1，但LW
+               ; EX结束时数据不在
+
+; 即使加 forwarding，
+; LW 的结果在 MEM 阶段
+; 末尾才可用，ADD 的 EX
+; 阶段已经过了 → 仍需
+; 1 个 stall 周期</pre>
+            <p><strong>LOAD-USE hazard</strong>：Load 后紧跟使用该寄存器的指令，必须插入 1 个 stall。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre>; 编译器优化：指令调度
+; 将无关指令插入 LOAD 后
+
+LW  R1, [R2]   ; 取数
+ADD R5, R6, R7 ; 无关指令填 stall
+ADD R3, R1, R4 ; 现在 R1 已就绪
+
+; 运行时：硬件插 bubble
+LW  R1, [R2]
+NOP            ; 硬件 stall 1 周期
+ADD R3, R1, R4 ; forwarding 传值</pre>
+            <p><strong>编译器</strong>通过指令调度消除 LOAD-USE stall；硬件检测到时自动插 bubble。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── SVG helpers ──────────────────────────────────────────────
+function defs(){return`<defs>
+<marker id="arr" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#475569"/></marker>
+<marker id="arrA" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#00add8"/></marker>
+<marker id="arrG" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#38bdf8"/></marker>
+<marker id="arrR" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#f87171"/></marker>
+<filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="glow2"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>`;}
+
+function box(x,y,w,h,label,sub,color,active,rx=10){
+  const fill=active?`rgba(${hexToRgb(color)},.18)`:`rgba(255,255,255,.03)`;
+  const stroke=active?color:'#334155';
+  const filt=active?' filter="url(#glow)"':'';
+  const lc=active?color:'#94a3b8';
+  const sc=active?'#e2e8f0':'#64748b';
+  return`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${active?2:1}"${filt}/>
+<text x="${x+w/2}" y="${y+h/2-(sub?6:0)}" text-anchor="middle" fill="${lc}" font-size="12" font-weight="700" font-family="monospace">${label}</text>`+
+(sub?`<text x="${x+w/2}" y="${y+h/2+10}" text-anchor="middle" fill="${sc}" font-size="9" font-family="monospace">${sub}</text>`:'');
+}
+
+function arr(x1,y1,x2,y2,color,dashed,anim){
+  const cls=anim?'class="flow-arrow" ':'';
+  const da=dashed?'stroke-dasharray="6 4" ':'';
+  const mkId=color==='#00add8'?'arrA':color==='#38bdf8'?'arrG':color==='#f87171'?'arrR':'arr';
+  return`<line ${cls}${da}x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="1.8" marker-end="url(#${mkId})"/>`;
+}
+
+function lbl(x,y,t,c,s){return`<text x="${x}" y="${y}" fill="${c||'#64748b'}" font-size="${s||9}" font-family="monospace">${t}</text>`;}
+
+function hexToRgb(hex){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return`${r},${g},${b}`;}
+
+// ── Pipeline stage colors ─────────────────────────────────────
+const STAGE_COLOR={'IF':'#00add8','ID':'#c084fc','EX':'#fb923c','MEM':'#4ade80','WB':'#38bdf8'};
+const STAGES=['IF','ID','EX','MEM','WB'];
+
+// Draw a pipeline timing cell
+function pipeCell(x,y,w,h,stage,active){
+  if(!stage) return`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="rgba(255,255,255,.02)" stroke="#1e3a5f" stroke-width="1"/>`;
+  const col=STAGE_COLOR[stage]||'#475569';
+  const fill=active?`rgba(${hexToRgb(col)},.28)`:`rgba(${hexToRgb(col)},.10)`;
+  const stroke=active?col:`rgba(${hexToRgb(col)},.35)`;
+  const filt=active?' filter="url(#glow)"':'';
+  return`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="${fill}" stroke="${stroke}" stroke-width="${active?2:1}"${filt}/>
+<text x="${x+w/2}" y="${y+h/2+4}" text-anchor="middle" fill="${active?col:'rgba('+hexToRgb(col)+',.6)'}" font-size="10" font-weight="700" font-family="monospace">${stage}</text>`;
+}
+
+// ── Scenarios ────────────────────────────────────────────────
+let curScene=0, curStep=0;
+
+const SCENARIOS=[
+// ── 场景 A: 五级流水线 ──────────────────────────────────────
+{
+  label:'五级流水线',
+  codeTitle:'pipeline.asm',
+  steps:[
+    {title:'初始状态',desc:'四条指令 I1~I4 等待进入流水线。流水线有 IF/ID/EX/MEM/WB 五个阶段，每阶段占一个时钟周期。'},
+    {title:'周期1：I1 进入 IF',desc:'第一个时钟周期，I1（ADD）从 PC 地址取指（IF 阶段）。其余指令在队列中等待。'},
+    {title:'周期2：I1→ID，I2→IF',desc:'I1 完成取指进入译码（ID），同时 I2 进入取指（IF）。流水线开始并发处理两条指令。'},
+    {title:'周期3：流水线填满展示',desc:'I1 进入 EX，I2 进入 ID，I3 进入 IF。三条指令同时在不同阶段处理，流水线效率逐步提升。'},
+    {title:'完整流水线运行',desc:'4条指令同时在流水线不同阶段：I1-WB，I2-MEM，I3-EX，I4-ID。理想情况下每个周期完成一条指令。'},
+  ],
+  hl:[[1,2,3,4],[1],[2],[3],[1,2,3,4]],
+  code:[
+`; 四条指令等待执行
+ADD R1, R2, R3   ; I1
+SUB R4, R1, R5   ; I2 (依赖 R1)
+LW  R6, [R7]     ; I3
+MUL R8, R6, R9   ; I4`,
+`; 周期 1：I1 进入 IF 阶段
+ADD R1, R2, R3   ; I1 → [IF]
+SUB R4, R1, R5   ; I2 等待
+LW  R6, [R7]     ; I3 等待
+MUL R8, R6, R9   ; I4 等待`,
+`; 周期 2：I1→ID，I2→IF
+ADD R1, R2, R3   ; I1 → [ID]
+SUB R4, R1, R5   ; I2 → [IF]
+LW  R6, [R7]     ; I3 等待
+MUL R8, R6, R9   ; I4 等待`,
+`; 周期 3：流水线半满
+ADD R1, R2, R3   ; I1 → [EX]
+SUB R4, R1, R5   ; I2 → [ID]
+LW  R6, [R7]     ; I3 → [IF]
+MUL R8, R6, R9   ; I4 等待`,
+`; 流水线满载（周期 5+）
+ADD R1, R2, R3   ; I1 → [WB]
+SUB R4, R1, R5   ; I2 → [MEM]
+LW  R6, [R7]     ; I3 → [EX]
+MUL R8, R6, R9   ; I4 → [ID]`,
+  ],
+  render(step){
+    let s=defs();
+    // Layout: timing diagram
+    // Rows: I1~I4, Cols: cycle 1~8
+    const ox=60, oy=40, cw=60, rh=44, cols=8, rows=4;
+    // Header: cycle labels
+    s+=lbl(ox-50,oy-8,'指令','#94a3b8',10);
+    for(let c=0;c<cols;c++){
+      s+=lbl(ox+c*cw+cw/2-8,oy-8,`C${c+1}`,'#64748b',9);
+    }
+    // Row labels
+    const instLabels=['I1: ADD','I2: SUB','I3: LW','I4: MUL'];
+    for(let r=0;r<rows;r++){
+      s+=lbl(ox-52,oy+r*rh+rh/2+4,instLabels[r],'#94a3b8',9);
+    }
+    // Pipeline schedule: [row][col] = stage or null
+    // step 0: all empty, step 1: I1@IF(c0), step2: I1@ID(c1), I2@IF(c0), etc.
+    // Full schedule for each step display:
+    // Ideal: I1: IF ID EX MEM WB at cycles 1 2 3 4 5
+    //        I2: IF ID EX MEM WB at cycles 2 3 4 5 6
+    //        I3: IF ID EX MEM WB at cycles 3 4 5 6 7
+    //        I4: IF ID EX MEM WB at cycles 4 5 6 7 8
+    const schedule=[
+      // [iRow][cycle(0-indexed)] => stage
+      [null,null,null,null,null,null,null,null], // I1
+      [null,null,null,null,null,null,null,null], // I2
+      [null,null,null,null,null,null,null,null], // I3
+      [null,null,null,null,null,null,null,null], // I4
+    ];
+    const fullSchedule=[
+      ['IF','ID','EX','MEM','WB',null,null,null],
+      [null,'IF','ID','EX','MEM','WB',null,null],
+      [null,null,'IF','ID','EX','MEM','WB',null],
+      [null,null,null,'IF','ID','EX','MEM','WB'],
+    ];
+    // Determine visible stages per step
+    const visibleCycles=[0,1,2,3,4]; // step => max cycle visible (0-indexed)
+    const maxCycle=[0,0,1,2,7][step]; // how many cycles to show
+    // Active cells per step (highlighted)
+    const activeCells=[
+      [],
+      [[0,0]], // step1: I1@IF
+      [[0,1],[1,0]], // step2: I1@ID, I2@IF
+      [[0,2],[1,1],[2,0]], // step3
+      [[0,4],[1,3],[2,2],[3,1]], // step4: WB,MEM,EX,ID
+    ][step];
+    const activeSet=new Set(activeCells.map(([r,c])=>`${r},${c}`));
+    for(let r=0;r<rows;r++){
+      for(let c=0;c<cols;c++){
+        const stg=fullSchedule[r][c];
+        const show=stg&&c<=maxCycle;
+        const active=activeSet.has(`${r},${c}`);
+        s+=pipeCell(ox+c*cw,oy+r*rh,cw-2,rh-4,show?stg:null,active);
+      }
+    }
+    // Grid lines
+    for(let r=0;r<=rows;r++) s+=`<line x1="${ox-2}" y1="${oy+r*rh-2}" x2="${ox+cols*cw-2}" y2="${oy+r*rh-2}" stroke="#1e3a5f" stroke-width="1"/>`;
+    for(let c=0;c<=cols;c++) s+=`<line x1="${ox+c*cw-2}" y1="${oy-2}" x2="${ox+c*cw-2}" y2="${oy+rows*rh-2}" stroke="#1e3a5f" stroke-width="1"/>`;
+    // Legend
+    const legX=60, legY=240;
+    s+=lbl(legX,legY,'图例：','#64748b',9);
+    let lx=legX+36;
+    for(const [st,col] of Object.entries(STAGE_COLOR)){
+      s+=`<rect x="${lx}" y="${legY-10}" width="28" height="14" rx="3" fill="rgba(${hexToRgb(col)},.18)" stroke="${col}" stroke-width="1"/>`;
+      s+=`<text x="${lx+14}" y="${legY+1}" text-anchor="middle" fill="${col}" font-size="8" font-family="monospace">${st}</text>`;
+      lx+=36;
+    }
+    // annotation
+    if(step===4) s+=`<text x="310" y="310" text-anchor="middle" fill="#4ade80" font-size="10" font-family="monospace">理想情况：每周期完成一条指令（IPC = 1）</text>`;
+    if(step===0) s+=`<text x="310" y="310" text-anchor="middle" fill="#64748b" font-size="10" font-family="monospace">四条指令等待进入流水线...</text>`;
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+
+// ── 场景 B: 数据冒险 ────────────────────────────────────────
+{
+  label:'数据冒险',
+  codeTitle:'hazard.asm',
+  steps:[
+    {title:'RAW 数据依赖',desc:'I1=ADD R1,R2,R3；I2=SUB R4,R1,R5。I2 需要 I1 写入 R1 的结果，产生 RAW（Read-After-Write）数据冒险。'},
+    {title:'无 Forwarding：插入 Stall',desc:'I2 在 ID 阶段读寄存器时，I1 才在 EX 阶段，R1 还未写回。必须插入 2 个 stall（NOP）气泡，直到 I1 WB 完成。'},
+    {title:'Forwarding：数据前递',desc:'加入 forwarding 路径：I1 EX 阶段结果直接通过旁路传给 I2 的 EX 输入，无需等待 WB。消除大部分 stall。'},
+    {title:'Forwarding 消除 Stall',desc:'启用 forwarding 后，I1 与 I2 无需插入气泡，流水线效率完全恢复。Forwarding 是消除 RAW 冒险的关键硬件优化。'},
+  ],
+  hl:[[1,2],[1,2,3,4],[1,2],[1,2]],
+  code:[
+`; RAW 数据冒险示例
+ADD R1, R2, R3   ; I1: 写 R1
+SUB R4, R1, R5   ; I2: 读 R1 ← 依赖!
+; I2 在 ID 阶段需要 R1
+; 但 I1 要到 WB 才写回`,
+`; 无 Forwarding → 插入 stall
+ADD R1, R2, R3   ; I1: IF ID EX MEM WB
+NOP              ; stall 气泡 1
+NOP              ; stall 气泡 2
+SUB R4, R1, R5   ; I2: 等待 R1 写回
+; 损失 2 个时钟周期`,
+`; Forwarding 路径（硬件旁路）
+ADD R1, R2, R3   ; I1: EX结果 ──┐
+SUB R4, R1, R5   ; I2: EX ◀────┘ forwarding
+; EX→EX forwarding: 无需等 WB
+; 数据直接从 I1 EX 输出
+; 传递到 I2 EX 输入`,
+`; Forwarding 效果
+ADD R1, R2, R3   ; I1: IF ID EX MEM WB
+SUB R4, R1, R5   ; I2: IF ID EX MEM WB
+; 无 stall！CPI = 1
+; forwarding 消除了 RAW 冒险`,
+  ],
+  render(step){
+    let s=defs();
+    const ox=30, oy=30, cw=52, rh=42;
+    // Step 0: show dependency
+    if(step===0){
+      s+=lbl(10,oy-8,'指令','#94a3b8',9);
+      for(let c=0;c<7;c++) s+=lbl(ox+c*cw+cw/2-6,oy-8,`C${c+1}`,'#64748b',9);
+      // I1 row
+      const i1stages=['IF','ID','EX','MEM','WB'];
+      for(let c=0;c<7;c++){
+        s+=pipeCell(ox+c*cw,oy,cw-2,rh-4,c<5?i1stages[c]:null,c<5);
+      }
+      s+=lbl(ox-20,oy+rh/2+4,'I1','#00add8',10);
+      // I2 row
+      const i2stages=[null,'IF','ID','EX','MEM','WB'];
+      for(let c=0;c<7;c++){
+        s+=pipeCell(ox+c*cw,oy+rh,cw-2,rh-4,c>=1&&c<=5?i2stages[c]:null,c>=1&&c<=5);
+      }
+      s+=lbl(ox-20,oy+rh+rh/2+4,'I2','#c084fc',10);
+      // Dependency arrow: I1 WB → I2 ID
+      const i1wbX=ox+4*cw+cw/2, i1wbY=oy+rh-4;
+      const i2idX=ox+2*cw+cw/2, i2idY=oy+rh;
+      s+=`<path d="M${i1wbX},${i1wbY} C${i1wbX},${i1wbY+20} ${i2idX},${i2idY-20} ${i2idX},${i2idY}" stroke="#f87171" stroke-width="1.5" fill="none" stroke-dasharray="5 3"/>`;
+      s+=lbl(ox+2*cw+10,oy+2*rh+20,'RAW: I2.ID 需要 I1.WB 的结果','#f87171',9);
+      s+=box(ox+20,oy+2*rh+40,220,28,'依赖关系','I2 读 R1，I1 尚未写回','#f87171',true,8);
+    }
+    // Step 1: stalls
+    if(step===1){
+      s+=lbl(10,oy-8,'指令','#94a3b8',9);
+      for(let c=0;c<9;c++) s+=lbl(ox+c*cw+cw/2-6,oy-8,`C${c+1}`,'#64748b',9);
+      const i1=['IF','ID','EX','MEM','WB'];
+      for(let c=0;c<9;c++) s+=pipeCell(ox+c*cw,oy,cw-2,rh-4,c<5?i1[c]:null,c<5);
+      s+=lbl(ox-20,oy+rh/2+4,'I1','#00add8',10);
+      // Stall bubbles at cols 1,2
+      for(let c=1;c<=2;c++){
+        s+=`<rect x="${ox+c*cw}" y="${oy+rh}" width="${cw-2}" height="${rh-4}" rx="4" fill="rgba(248,113,113,.15)" stroke="#f87171" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+        s+=`<text x="${ox+c*cw+cw/2}" y="${oy+rh+rh/2}" text-anchor="middle" fill="#f87171" font-size="9" font-family="monospace">stall</text>`;
+      }
+      s+=lbl(ox-22,oy+rh+rh/2+2,'NOP','#f87171',9);
+      // I2 shifted right by 2
+      const i2=['IF','ID','EX','MEM','WB'];
+      for(let c=0;c<9;c++) s+=pipeCell(ox+c*cw,oy+2*rh,cw-2,rh-4,c>=3&&c<=7?i2[c-3]:null,c>=3&&c<=7);
+      s+=lbl(ox-20,oy+2*rh+rh/2+4,'I2','#c084fc',10);
+      s+=`<text x="310" y="${oy+3*rh+20}" text-anchor="middle" fill="#f87171" font-size="10" font-family="monospace">损失 2 个周期（stall 气泡）</text>`;
+    }
+    // Step 2: forwarding path
+    if(step===2){
+      s+=lbl(10,oy-8,'指令','#94a3b8',9);
+      for(let c=0;c<7;c++) s+=lbl(ox+c*cw+cw/2-6,oy-8,`C${c+1}`,'#64748b',9);
+      const stages=['IF','ID','EX','MEM','WB'];
+      for(let c=0;c<7;c++) s+=pipeCell(ox+c*cw,oy,cw-2,rh-4,c<5?stages[c]:null,c===2);
+      s+=lbl(ox-20,oy+rh/2+4,'I1','#00add8',10);
+      for(let c=0;c<7;c++) s+=pipeCell(ox+c*cw,oy+rh,cw-2,rh-4,c>=1&&c<=5?stages[c-1]:null,c===3);
+      s+=lbl(ox-20,oy+rh+rh/2+4,'I2','#c084fc',10);
+      // Forwarding arrow: I1.EX → I2.EX
+      const fwX1=ox+2*cw+cw/2, fwY1=oy+rh-4;
+      const fwX2=ox+3*cw+cw/2, fwY2=oy+rh;
+      s+=`<path d="M${fwX1},${fwY1} L${fwX1},${fwY1+14} L${fwX2},${fwY1+14} L${fwX2},${fwY2}" stroke="#00add8" stroke-width="2" fill="none" marker-end="url(#arrA)"/>`;
+      s+=lbl(fwX1-10,fwY1+26,'EX→EX forwarding','#00add8',9);
+      s+=`<text x="310" y="${oy+2*rh+30}" text-anchor="middle" fill="#00add8" font-size="10" font-family="monospace">数据旁路：I1 EX 结果直接传给 I2 EX</text>`;
+    }
+    // Step 3: no stall
+    if(step===3){
+      s+=lbl(10,oy-8,'指令','#94a3b8',9);
+      for(let c=0;c<7;c++) s+=lbl(ox+c*cw+cw/2-6,oy-8,`C${c+1}`,'#64748b',9);
+      const stages=['IF','ID','EX','MEM','WB'];
+      for(let c=0;c<7;c++) s+=pipeCell(ox+c*cw,oy,cw-2,rh-4,c<5?stages[c]:null,c<5);
+      s+=lbl(ox-20,oy+rh/2+4,'I1','#00add8',10);
+      for(let c=0;c<7;c++) s+=pipeCell(ox+c*cw,oy+rh,cw-2,rh-4,c>=1&&c<=5?stages[c-1]:null,c>=1&&c<=5);
+      s+=lbl(ox-20,oy+rh+rh/2+4,'I2','#c084fc',10);
+      const fwX1=ox+2*cw+cw/2, fwY1=oy+rh-4, fwX2=ox+3*cw+cw/2, fwY2=oy+rh;
+      s+=`<path d="M${fwX1},${fwY1} L${fwX1},${fwY1+14} L${fwX2},${fwY1+14} L${fwX2},${fwY2}" stroke="#4ade80" stroke-width="2" fill="none" marker-end="url(#arrG)"/>`;
+      s+=box(ox+100,oy+2*rh+20,200,28,'Forwarding 生效','无 stall，CPI = 1 ✓','#4ade80',true,8);
+    }
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+
+// ── 场景 C: 分支预测失败 ───────────────────────────────────
+{
+  label:'分支预测',
+  codeTitle:'branch.asm',
+  steps:[
+    {title:'遇到分支指令 BEQ',desc:'CPU 取到条件分支指令 BEQ（Branch if Equal）。分支结果在 EX 阶段才能确定，CPU 必须做出预测才能继续取指。'},
+    {title:'预测不跳转，继续取指',desc:'CPU 预测"不跳转"（静态预测），继续从下一条地址取 I2、I3、I4 进入流水线，不等分支结果。'},
+    {title:'预测失败！实际发生跳转',desc:'BEQ 在 EX 阶段执行完成，发现实际应该跳转。已进入流水线的 I2、I3、I4 全部无效，必须 flush。'},
+    {title:'Flush + 重新取指',desc:'Pipeline flush：I2、I3、I4 变为 NOP 气泡（红色），CPU 从跳转目标地址 TARGET 重新取指。损失 3 个时钟周期。'},
+  ],
+  hl:[[5],[5,6,7,8],[5,10,11,12],[5,13,14]],
+  code:[
+`; 条件分支场景
+; beq 在 EX 才能确定结果
+LOOP:
+  LW  R1, [R2]   ; ...
+  BEQ R1, R0, TARGET  ; 分支
+  ADD R3, R4, R5 ; I2
+  SUB R6, R7, R8 ; I3
+  MUL R9, R1, R2 ; I4
+  ...
+TARGET:
+  MOV R1, #0    ; 实际目标
+  ADD R2, R2, #1
+  B   LOOP`,
+`; CPU 预测：不跳转
+; 继续取 I2 I3 I4
+LOOP:
+  LW  R1, [R2]
+  BEQ R1, R0, TARGET  ; [EX] 计算中...
+  ADD R3, R4, R5 ; [ID]  ← 预测取进来
+  SUB R6, R7, R8 ; [IF]  ← 预测取进来
+  MUL R9, R1, R2 ;       ← 准备取
+TARGET:
+  MOV R1, #0
+  ADD R2, R2, #1
+  B   LOOP`,
+`; 预测失败！BEQ=跳转
+; 流水线中的 I2 I3 I4 无效
+LOOP:
+  LW  R1, [R2]
+  BEQ R1, R0, TARGET  ; EX: 实际跳转!
+  ADD R3, R4, R5 ; ← 无效！flush
+  SUB R6, R7, R8 ; ← 无效！flush
+  MUL R9, R1, R2 ; ← 无效！flush
+TARGET:
+  MOV R1, #0    ; ← 正确路径`,
+`; Flush 完成，从 TARGET 取指
+; 损失了 3 个时钟周期
+BEQ  ; [MEM/WB]
+NOP  ; 气泡（原 I2 位置）
+NOP  ; 气泡（原 I3 位置）
+NOP  ; 气泡（原 I4 位置）
+TARGET:
+  MOV R1, #0    ; [IF] 重新取指
+  ADD R2, R2, #1`,
+  ],
+  render(step){
+    let s=defs();
+    const ox=30, oy=30, cw=52, rh=40;
+    const instLabels=['BEQ','I2','I3','I4'];
+    s+=lbl(ox-20,oy-8,'指令','#94a3b8',9);
+    for(let c=0;c<8;c++) s+=lbl(ox+c*cw+cw/2-6,oy-8,`C${c+1}`,'#64748b',9);
+    if(step===0){
+      const bstages=['IF','ID','EX','MEM','WB'];
+      for(let c=0;c<8;c++) s+=pipeCell(ox+c*cw,oy,cw-2,rh-4,c<5?bstages[c]:null,c===0);
+      s+=lbl(ox-22,oy+rh/2+2,'BEQ','#fb923c',9);
+      s+=box(ox+60,oy+rh+10,240,28,'分支结果在 EX 才能确定','需要 3 个额外周期才知道','#fb923c',true,8);
+    }
+    if(step===1){
+      const bstages=['IF','ID','EX','MEM','WB'];
+      for(let c=0;c<8;c++) s+=pipeCell(ox+c*cw,oy,cw-2,rh-4,c<5?bstages[c]:null,true);
+      s+=lbl(ox-22,oy+rh/2+2,'BEQ','#fb923c',9);
+      const pstages=['IF','ID','EX','MEM','WB'];
+      for(let c=0;c<8;c++) s+=pipeCell(ox+c*cw,oy+rh,cw-2,rh-4,c>=1&&c<=5?pstages[c-1]:null,c>=1&&c<=3);
+      s+=lbl(ox-18,oy+rh+rh/2+2,'I2','#38bdf8',9);
+      for(let c=0;c<8;c++) s+=pipeCell(ox+c*cw,oy+2*rh,cw-2,rh-4,c>=2&&c<=6?pstages[c-2]:null,c===2);
+      s+=lbl(ox-18,oy+2*rh+rh/2+2,'I3','#38bdf8',9);
+      s+=`<text x="310" y="${oy+3*rh+16}" text-anchor="middle" fill="#38bdf8" font-size="10" font-family="monospace">预测不跳转，I2/I3/I4 已进入流水线</text>`;
+    }
+    if(step===2){
+      const bstages=['IF','ID','EX','MEM','WB'];
+      for(let c=0;c<8;c++) s+=pipeCell(ox+c*cw,oy,cw-2,rh-4,c<5?bstages[c]:null,c===2);
+      s+=lbl(ox-22,oy+rh/2+2,'BEQ','#fb923c',9);
+      // I2 I3 flushed (red)
+      for(let ri=0;ri<2;ri++){
+        for(let c=ri+1;c<8;c++){
+          const st=['IF','ID','EX','MEM','WB'][c-ri-1]||null;
+          if(st&&c<=ri+5){
+            s+=`<rect x="${ox+c*cw}" y="${oy+(ri+1)*rh}" width="${cw-2}" height="${rh-4}" rx="4" fill="rgba(248,113,113,.18)" stroke="#f87171" stroke-width="1.5"/>`;
+            s+=`<text x="${ox+c*cw+cw/2}" y="${oy+(ri+1)*rh+rh/2}" text-anchor="middle" fill="#f87171" font-size="9" font-weight="700" font-family="monospace">FLUSH</text>`;
+          }
+        }
+        s+=lbl(ox-18,oy+(ri+1)*rh+rh/2+2,`I${ri+2}`,'#f87171',9);
+      }
+      s+=`<text x="310" y="${oy+3*rh+20}" text-anchor="middle" fill="#f87171" font-size="10" font-family="monospace">预测失败！BEQ 实际发生跳转，flush 3 条指令</text>`;
+    }
+    if(step===3){
+      const bstages=['IF','ID','EX','MEM','WB'];
+      for(let c=0;c<8;c++) s+=pipeCell(ox+c*cw,oy,cw-2,rh-4,c<5?bstages[c]:null,c>=3&&c<=4);
+      s+=lbl(ox-22,oy+rh/2+2,'BEQ','#fb923c',9);
+      // 3 NOP bubbles
+      for(let ri=0;ri<3;ri++){
+        for(let c=ri+1;c<8;c++){
+          const st=['IF','ID','EX','MEM','WB'][c-ri-1]||null;
+          if(st&&c<=ri+5){
+            s+=`<rect x="${ox+c*cw}" y="${oy+(ri+1)*rh}" width="${cw-2}" height="${rh-4}" rx="4" fill="rgba(248,113,113,.10)" stroke="#f87171" stroke-width="1" stroke-dasharray="4 3"/>`;
+            s+=`<text x="${ox+c*cw+cw/2}" y="${oy+(ri+1)*rh+rh/2}" text-anchor="middle" fill="#f87171" font-size="9" font-family="monospace">NOP</text>`;
+          }
+        }
+        s+=lbl(ox-22,oy+(ri+1)*rh+rh/2+2,ri===0?'bubble':ri===1?'bubble':'bubble','#f87171',9);
+      }
+      s+=box(ox+80,oy+4*rh+8,280,26,'损失 3 个周期 → 从 TARGET 重新取指','','#4ade80',true,8);
+    }
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+
+// ── 场景 D: 乱序执行 ────────────────────────────────────────
+{
+  label:'乱序执行',
+  codeTitle:'ooo.asm',
+  steps:[
+    {title:'程序顺序',desc:'I1 是长延迟 LOAD（~100 周期），I2 依赖 I1，I3/I4 与 I1/I2 独立。顺序执行会因等待 LOAD 而大量停顿。'},
+    {title:'乱序：I3/I4 先执行',desc:'I3/I4 与 I1 无数据依赖，乱序执行单元（Execution Units）检测到这一点，I3/I4 先进入执行，不等 LOAD 返回。'},
+    {title:'LOAD 返回，I2 开始执行',desc:'I1 LOAD 完成，数据从 L1/L2 Cache 返回。I2 依赖 I1，现在可以进入执行单元。与此同时 I3/I4 可能已完成。'},
+    {title:'ROB 按顺序提交结果',desc:'ROB（重排序缓冲区）监控所有在途指令。即使 I3/I4 先完成，ROB 也确保按 I1→I2→I3→I4 原始顺序提交，保持程序语义。'},
+  ],
+  hl:[[1,2,3,4],[3,4],[1,2],[1,2,3,4]],
+  code:[
+`; 程序顺序（Program Order）
+I1: LW   R1, [R2]    ; 长延迟 LOAD
+I2: ADD  R3, R1, R4  ; 依赖 I1(R1)
+I3: MUL  R5, R6, R7  ; 独立
+I4: SUB  R8, R9, R10 ; 独立`,
+`; 乱序：分析数据依赖
+I1: LW   R1, [R2]    ; → 发射，等 Cache
+I2: ADD  R3, R1, R4  ; → 等待 R1（阻塞）
+I3: MUL  R5, R6, R7  ; → 直接发射执行!
+I4: SUB  R8, R9, R10 ; → 直接发射执行!
+; 执行单元：I3 I4 先占用 ALU`,
+`; I1 LOAD 完成
+I1: LW   R1, [R2]    ; ← 数据从 Cache 返回
+I2: ADD  R3, R1, R4  ; ← R1 就绪，现在可执行
+I3: MUL  R5, R6, R7  ; 已完成（乱序）
+I4: SUB  R8, R9, R10 ; 已完成（乱序）`,
+`; ROB 按原始顺序提交
+; Re-Order Buffer 追踪所有指令
+I1: LW   R1, [R2]    ; ROB[0] → 提交 ✓
+I2: ADD  R3, R1, R4  ; ROB[1] → 提交 ✓
+I3: MUL  R5, R6, R7  ; ROB[2] → 提交 ✓
+I4: SUB  R8, R9, R10 ; ROB[3] → 提交 ✓
+; 程序语义保持不变！`,
+  ],
+  render(step){
+    let s=defs();
+    // Layout: frontend / backend / ROB
+    const cpuX=20, cpuY=20;
+    // Issue queue
+    s+=box(cpuX,cpuY,120,120,'Issue Queue','待发射指令','#c084fc',false,8);
+    const insts=[
+      {id:'I1',label:'LW R1,[R2]',color:'#fb923c',dep:true},
+      {id:'I2',label:'ADD R3,R1,R4',color:'#f87171',dep:true},
+      {id:'I3',label:'MUL R5,R6,R7',color:'#4ade80',dep:false},
+      {id:'I4',label:'SUB R8,R9,R10',color:'#38bdf8',dep:false},
+    ];
+    const iqY=[cpuY+20,cpuY+44,cpuY+68,cpuY+92];
+    for(let i=0;i<4;i++){
+      const inst=insts[i];
+      let ready=false;
+      if(step===0) ready=false;
+      if(step===1) ready=i>=2;
+      if(step===2) ready=i===1||i>=2;
+      if(step===3) ready=true;
+      const col=ready?inst.color:'#475569';
+      s+=`<rect x="${cpuX+4}" y="${iqY[i]}" width="112" height="18" rx="3" fill="rgba(${hexToRgb(col)},.12)" stroke="${col}" stroke-width="${ready?1.5:1}"/>`;
+      s+=`<text x="${cpuX+60}" y="${iqY[i]+12}" text-anchor="middle" fill="${col}" font-size="8" font-family="monospace">${inst.id}: ${inst.label}</text>`;
+    }
+    // Execution units
+    const euX=180, euY=30;
+    s+=lbl(euX,euY-8,'执行单元','#64748b',9);
+    // ALU 0
+    const alu0act=step===1||step===2;
+    const alu0label=step===1?'MUL(I3)':step===2?'ADD(I2)':'ALU 0';
+    s+=box(euX,euY,90,36,alu0label,'',step===1?'#4ade80':step===2?'#f87171':'#334155',alu0act,6);
+    // ALU 1
+    const alu1act=step===1;
+    s+=box(euX,euY+44,90,36,step===1?'SUB(I4)':'ALU 1','',step===1?'#38bdf8':'#334155',alu1act,6);
+    // Load Unit
+    const loadact=step===0||step===1||step===2;
+    const loadlabel=step===2?'LW 返回 ✓':step===0||step===1?'LOAD(I1)':'Load';
+    s+=box(euX,euY+88,90,36,loadlabel,'',step===2?'#4ade80':loadact?'#fb923c':'#334155',loadact,6);
+    // Arrows from issue to exec
+    if(step>=1){
+      s+=arr(cpuX+120,iqY[2]+9,euX,euY+18,'#4ade80',false,step===1);
+      s+=arr(cpuX+120,iqY[3]+9,euX,euY+62,'#38bdf8',false,step===1);
+    }
+    if(step>=2) s+=arr(cpuX+120,iqY[0]+9,euX,euY+106,'#fb923c',false,false);
+    if(step===2) s+=arr(cpuX+120,iqY[1]+9,euX,euY+18,'#f87171',false,true);
+    // ROB
+    const robX=320, robY=20;
+    s+=box(robX,robY,140,130,'ROB','重排序缓冲区','#c084fc',step===3,8);
+    const robStates=[
+      step===3?'完成':'等待中',
+      step>=3?'完成':'等待中',
+      step>=2?'已完成':'执行中',
+      step>=1?'已完成':'等待',
+    ];
+    const robCols=['#fb923c','#f87171','#4ade80','#38bdf8'];
+    for(let i=0;i<4;i++){
+      const done=step===3||(i>=2&&step>=2)||(i>=2&&step>=1);
+      const col=done?robCols[i]:'#475569';
+      s+=`<rect x="${robX+6}" y="${robY+18+i*26}" width="128" height="20" rx="3" fill="rgba(${hexToRgb(col)},.12)" stroke="${col}" stroke-width="${done?1.5:1}"/>`;
+      s+=`<text x="${robX+70}" y="${robY+18+i*26+13}" text-anchor="middle" fill="${col}" font-size="8" font-family="monospace">ROB[${i}] ${insts[i].id} → ${done?'完成 ✓':'等待'}</text>`;
+    }
+    // Commit arrow
+    const commitX=robX+140, commitY=robY+65;
+    s+=box(commitX+10,commitY-20,80,40,'提交','架构状态','#4ade80',step===3,8);
+    if(step===3) s+=arr(commitX,commitY,commitX+8,commitY,'#4ade80',false,true);
+    s+=`<text x="310" y="320" text-anchor="middle" fill="${step===3?'#4ade80':'#64748b'}" font-size="10" font-family="monospace">${step===0?'顺序取指，分析依赖关系':step===1?'I3/I4无依赖，先乱序执行':step===2?'I1 LOAD返回，I2解除阻塞':step===3?'ROB按原序提交，程序语义不变 ✓':''}</text>`;
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+];
+
+// ── Engine ───────────────────────────────────────────────────
+function goHL(code){
+  return code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/("(?:[^"\\]|\\.)*")/g,'<span class="st">$1</span>')
+    .replace(/(\/\/[^\n]*)/g,'<span class="cm">$1</span>')
+    .replace(/(;[^\n]*)/g,'<span class="cm">$1</span>')
+    .replace(/\b(LW|SW|ADD|SUB|MUL|DIV|BEQ|BNE|MOV|NOP|stall|flush|IF|ID|EX|MEM|WB|ROB)\b/g,'<span class="kw">$1</span>')
+    .replace(/\b(R[0-9]+|TARGET|LOOP)\b/g,'<span class="id">$1</span>')
+    .replace(/\b([0-9]+)\b/g,'<span class="num">$1</span>');
+}
+
+function renderCode(lines,highlights){
+  const codeArr=typeof lines==='string'?lines.split('\n'):lines;
+  const body=document.getElementById('codeBody');
+  const hiSet=new Set((highlights||[]).map(h=>h-1));
+  body.innerHTML=codeArr.map((l,i)=>{
+    const cls=hiSet.has(i)?'cl hi':'cl';
+    return`<div class="${cls}"><span class="ln">${i+1}</span><span class="lc">${goHL(l)}</span></div>`;
+  }).join('');
+}
+
+function initScenarios(){
+  const sc=SCENARIOS[curScene];
+  const cont=document.getElementById('scenarios');
+  cont.innerHTML=SCENARIOS.map((s,i)=>`<button class="sc-btn${i===curScene?' active':''}" onclick="switchScene(${i})">${s.label}</button>`).join('');
+  document.getElementById('codeTitle').textContent=sc.codeTitle;
+  updateStep();
+}
+
+function updateStep(){
+  const sc=SCENARIOS[curScene];
+  const st=sc.steps[curStep];
+  document.getElementById('stepNum').textContent=`步骤 ${curStep+1}`;
+  document.getElementById('stepTitle').textContent=st.title;
+  document.getElementById('stepDesc').textContent=st.desc;
+  const nav=document.getElementById('flowNav');
+  nav.innerHTML=sc.steps.map((_,i)=>{
+    let cls='fn-dot';
+    if(i<curStep) cls+=' done';
+    else if(i===curStep) cls+=' cur';
+    return`<div class="${cls}" onclick="jumpStep(${i})">${i+1}</div>`;
+  }).join('')+`<span class="step-ctr">${curStep+1}/${sc.steps.length}</span>`;
+  const codeIdx=Math.min(curStep,sc.code.length-1);
+  renderCode(sc.code[codeIdx],sc.hl[curStep]);
+  const svgEl=document.getElementById('svg');
+  svgEl.style.opacity='0';
+  svgEl.style.transition='opacity .2s';
+  setTimeout(()=>{sc.render(curStep);svgEl.style.opacity='1';},120);
+  document.getElementById('btnPrev').disabled=curStep===0;
+  document.getElementById('btnNext').disabled=curStep===sc.steps.length-1;
+}
+
+function switchScene(i){curScene=i;curStep=0;initScenarios();}
+function jumpStep(i){curStep=i;updateStep();}
+function next(){if(curStep<SCENARIOS[curScene].steps.length-1){curStep++;updateStep();}}
+function prev(){if(curStep>0){curStep--;updateStep();}}
+function reset(){curStep=0;updateStep();}
+function toggleQA(el){el.classList.toggle('open');}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  if(typeof NavTracker!=='undefined') NavTracker.track('CPU 与流水线','cs/cpu.html','⚙️','CS基础');
+  initScenarios();
+});
+</script>
+</body>
+</html>

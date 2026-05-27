@@ -9,7 +9,7 @@
   --bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;
   --text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;
   --algo:#38bdf8;--db:#fbbf24;--kafka:#ff6b35;--redis:#dc382c;
-  --linux:#f7c948;--network:#2dd4bf;--concept:#c084fc;
+  --linux:#6ee7b7;--network:#10b981;--distributed:#c084fc;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:radial-gradient(circle at 20% 0%,rgba(56,189,248,.12),transparent 34%),radial-gradient(circle at 90% 10%,rgba(192,132,252,.10),transparent 30%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;overflow:hidden;}
@@ -20,7 +20,7 @@ a{color:inherit;}
 .detail{border-left:1px solid var(--border);padding:22px 20px;overflow:auto;}
 .back{display:inline-flex;align-items:center;gap:6px;color:var(--dim);text-decoration:none;font-size:.9rem;margin-bottom:18px;}
 .back:hover{color:var(--text);}
-.eyebrow{font-size:.7rem;color:var(--concept);text-transform:uppercase;letter-spacing:.16em;font-weight:700;margin-bottom:8px;}
+.eyebrow{font-size:.7rem;color:var(--distributed);text-transform:uppercase;letter-spacing:.16em;font-weight:700;margin-bottom:8px;}
 h1{font-size:2rem;line-height:1.1;margin-bottom:12px;letter-spacing:-.04em;}
 .intro{color:var(--dim);font-size:.92rem;line-height:1.8;margin-bottom:20px;}
 .search{width:100%;height:42px;border:1px solid var(--border);background:rgba(15,23,42,.82);color:var(--text);border-radius:10px;padding:0 12px;font-size:.9rem;outline:none;}
@@ -35,6 +35,7 @@ h1{font-size:2rem;line-height:1.1;margin-bottom:12px;letter-spacing:-.04em;}
 .filter-insight{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:14px;margin:0 0 18px;}
 .filter-insight h3{font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px;}
 .insight-summary{font-size:.82rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+
 .insight-group{padding-top:10px;border-top:1px solid rgba(255,255,255,.06);margin-top:10px;}
 .insight-group:first-of-type{border-top:0;margin-top:0;padding-top:0;}
 .insight-module{display:flex;align-items:center;gap:7px;font-size:.82rem;font-weight:700;margin-bottom:7px;}
@@ -80,13 +81,14 @@ h1{font-size:2rem;line-height:1.1;margin-bottom:12px;letter-spacing:-.04em;}
     <a href="index.html" class="back">← 返回首页</a>
     <div class="eyebrow">Knowledge Graph</div>
     <h1>知识星图</h1>
-    <p class="intro">像 Obsidian 双链一样，把算法、数据库、Redis、Linux、网络、Kafka 中相关的概念连起来。点击节点可查看关联页面，拖动画布可探索全局结构。</p>
-    <input id="search" class="search" placeholder="搜索：B+ 树、epoll、QUIC、MVCC...">
+    <p class="intro">像 Obsidian 双链一样，把算法、组成原理、Golang、数据库、Redis、Linux、网络、Kafka 与分布式系统连起来。点击节点可查看关联页面，拖动画布可探索全局结构。</p>
+    <input id="search" class="search" placeholder="搜索：B+ 树、Raft、CAP、epoll、QUIC...">
     <div class="filters" id="filters"></div>
     <div class="stats">
-      <div class="stat"><strong id="nodeCount">0</strong><span>概念节点</span></div>
+      <div class="stat"><strong id="nodeCount">0</strong><span>图谱节点</span></div>
       <div class="stat"><strong id="edgeCount">0</strong><span>关联边</span></div>
     </div>
+
     <div class="filter-insight" id="filterInsight"></div>
     <div class="legend">
       <h3>模块颜色</h3>
@@ -96,6 +98,9 @@ h1{font-size:2rem;line-height:1.1;margin-bottom:12px;letter-spacing:-.04em;}
       <div class="legend-row"><span><i class="dot" style="background:var(--linux)"></i>Linux</span><span>系统调用</span></div>
       <div class="legend-row"><span><i class="dot" style="background:var(--network)"></i>网络</span><span>协议栈</span></div>
       <div class="legend-row"><span><i class="dot" style="background:var(--kafka)"></i>Kafka</span><span>消息流</span></div>
+      <div class="legend-row"><span><i class="dot" style="background:#a78bfa"></i>组成原理</span><span>硬件底座</span></div>
+      <div class="legend-row"><span><i class="dot" style="background:#00add8"></i>Golang</span><span>语言运行时</span></div>
+      <div class="legend-row"><span><i class="dot" style="background:var(--distributed)"></i>分布式</span><span>一致性协议</span></div>
     </div>
   </aside>
 
@@ -111,124 +116,13 @@ h1{font-size:2rem;line-height:1.1;margin-bottom:12px;letter-spacing:-.04em;}
   </aside>
 </div>
 
+<script src="graph-data.js"></script>
 <script>
-const MODULES = {
-  algo: { label:'算法', color:'#38bdf8' },
-  db: { label:'数据库', color:'#fbbf24' },
-  redis: { label:'Redis', color:'#dc382c' },
-  linux: { label:'Linux', color:'#f7c948' },
-  network: { label:'网络', color:'#2dd4bf' },
-  kafka: { label:'Kafka', color:'#ff6b35' },
-  concept: { label:'概念', color:'#c084fc' }
-};
+const MODULES = window.GRAPH_MODULES;
 
-const NODES = [
-  {id:'algo', label:'数据结构与算法', module:'algo', type:'module', href:'algo/index.html', desc:'排序、树、图、动态规划与工程常用数据结构。'},
-  {id:'db', label:'数据库原理', module:'db', type:'module', href:'db/index.html', desc:'从 SQL 解析到索引、事务、日志、缓存和分布式数据库。'},
-  {id:'redis', label:'Redis 原理', module:'redis', type:'module', href:'redis/index.html', desc:'内存数据结构、持久化、淘汰策略、集群和分布式锁。'},
-  {id:'linux', label:'Linux', module:'linux', type:'module', href:'linux/index.html', desc:'命令、进程、内存、I/O、文件系统和调度器。'},
-  {id:'network', label:'计算机网络', module:'network', type:'module', href:'network/index.html', desc:'TCP/IP、HTTP、DNS、TLS、负载均衡和现代 QUIC。'},
-  {id:'kafka', label:'Kafka', module:'kafka', type:'module', href:'kafka/index.html', desc:'Producer、Consumer、分区副本、消费者组和现代 KRaft 方向。'},
+const NODES = window.GRAPH_NODES;
 
-  {id:'bplus', label:'B+ 树', module:'db', type:'page', href:'db/btree-index.html', desc:'数据库主流索引结构，依赖多路平衡树、页和叶子链表。'},
-  {id:'algo-bplus', label:'算法 B+ 树', module:'algo', type:'page', href:'algo/b-plus-tree.html', desc:'从数据结构角度理解 B+ 树节点、分裂与范围遍历。'},
-  {id:'hash', label:'哈希表 / 哈希索引', module:'algo', type:'page', href:'algo/hash-table.html', desc:'O(1) 平均查找的基础，也是缓存、索引和分片的关键。'},
-  {id:'skiplist', label:'跳表', module:'algo', type:'page', href:'algo/skip-list.html', desc:'多层链表的概率平衡结构，Redis 大 ZSet 常见基础。'},
-  {id:'heap', label:'堆 / Top-K', module:'algo', type:'page', href:'algo/heap.html', desc:'优先队列、外部排序、调度和 Top-K 的底层结构。'},
-  {id:'bfs', label:'BFS', module:'algo', type:'page', href:'algo/bfs.html', desc:'逐层扩展的图遍历算法，用于最短跳数、依赖扩散和网络连通性分析。'},
-  {id:'dfs', label:'DFS', module:'algo', type:'page', href:'algo/dfs.html', desc:'深度优先遍历可用于环检测、死锁检测、拓扑排序和依赖图分析。'},
-  {id:'dijkstra', label:'Dijkstra', module:'algo', type:'page', href:'algo/dijkstra.html', desc:'单源最短路径算法，是理解路由选择、网络代价和服务路径优化的基础。'},
-  {id:'union-find', label:'并查集', module:'algo', type:'page', href:'algo/union-find.html', desc:'高效维护连通分量，可类比集群成员、网络分区和副本组连通性。'},
-  {id:'topo', label:'拓扑排序', module:'algo', type:'page', href:'algo/topological-sort.html', desc:'处理 DAG 依赖顺序，常见于任务调度、数据管道和构建/发布依赖。'},
-  {id:'trie', label:'Trie 前缀树', module:'algo', type:'page', href:'algo/trie.html', desc:'前缀匹配结构，可用于 DNS 域名层级、路由匹配、自动补全和字典检索。'},
-  {id:'binary-search', label:'二分查找', module:'algo', type:'page', href:'algo/binary-search.html', desc:'在有序空间中快速定位边界，是索引查找、范围查询和分片定位的基础。'},
-  {id:'segment-tree', label:'线段树 / 区间聚合', module:'algo', type:'page', href:'algo/segment-tree.html', desc:'维护区间聚合和在线更新，可类比监控窗口、时间序列和区间统计。'},
-  {id:'kmp', label:'KMP / 字符串匹配', module:'algo', type:'page', href:'algo/kmp.html', desc:'高效字符串匹配思想，可连接日志检索、协议解析和关键字过滤。'},
-  {id:'sliding-window', label:'滑动窗口', module:'algo', type:'concept', href:'modern-topic.html?id=sliding-window', desc:'连续窗口内增量维护状态，是限流、TCP 拥塞窗口、流式统计的基础模式。'},
-  {id:'monotonic', label:'单调队列 / 栈', module:'algo', type:'concept', href:'modern-topic.html?id=monotonic-structures', desc:'维护候选集合单调性，用于窗口最值、监控峰值和实时指标计算。'},
-  {id:'probabilistic-ds', label:'近似数据结构', module:'algo', type:'concept', href:'modern-topic.html?id=probabilistic-ds', desc:'Bloom、HLL、Count-Min Sketch 用可控误差换内存，适合海量判重、基数和频率估计。'},
-  {id:'heavy-hitters', label:'Top-K / Heavy Hitters', module:'algo', type:'concept', href:'modern-topic.html?id=top-k-heavy-hitters', desc:'用堆、哈希和近似计数发现热点数据，连接热 key、日志分析、告警和推荐。'},
-  {id:'consistent-hash', label:'一致性哈希', module:'algo', type:'concept', desc:'把 key 映射到环上，减少扩缩容时的数据迁移，是缓存、分片、负载均衡的经典算法。'},
-  {id:'lru-lfu', label:'LRU / LFU', module:'algo', type:'concept', desc:'缓存淘汰算法，连接 Redis 淘汰策略、数据库 Buffer Pool 和多级缓存设计。'},
-  {id:'bloom', label:'Bloom Filter', module:'concept', type:'concept', desc:'概率型判重结构，适合缓存穿透防护与大规模集合过滤。'},
-
-  {id:'buffer', label:'Buffer Pool', module:'db', type:'page', href:'db/buffer-pool.html', desc:'数据库页缓存，和 LRU、脏页、WAL 强相关。'},
-  {id:'wal', label:'WAL / Redo', module:'db', type:'page', href:'db/wal.html', desc:'先写日志再写数据页，保证崩溃恢复。'},
-  {id:'mvcc', label:'MVCC', module:'db', type:'page', href:'db/mvcc.html', desc:'通过版本链和快照读实现读写不阻塞。'},
-  {id:'locks', label:'锁 / 死锁', module:'db', type:'page', href:'db/transaction.html', desc:'两阶段锁、等待图和 DFS 环检测。'},
-  {id:'join', label:'Join 算法', module:'db', type:'page', href:'db/join-algo.html', desc:'Nested Loop、Hash Join、Sort-Merge Join 的执行代价。'},
-  {id:'sort', label:'外部排序', module:'db', type:'page', href:'db/external-sort.html', desc:'分块排序与 K 路归并，依赖堆和磁盘 I/O。'},
-  {id:'storage-layout', label:'存储布局 / 页', module:'db', type:'page', href:'db/storage-layout.html', desc:'页、区、段和磁盘布局，是 B+ 树、Buffer Pool、WAL 的物理基础。'},
-  {id:'cache-layers', label:'缓存分层', module:'db', type:'page', href:'db/cache-layers.html', desc:'从浏览器、CDN、应用缓存、Redis 到数据库 Buffer Pool 的多级缓存链路。'},
-  {id:'distributed-db', label:'分布式数据库', module:'db', type:'page', href:'db/distributed-db.html', desc:'CAP、Raft、分片和副本，和 Kafka ISR、网络分区、一致性语义相互关联。'},
-  {id:'lsm', label:'LSM Tree', module:'concept', type:'concept', desc:'面向写入优化的存储结构，RocksDB/TiKV/LevelDB 生态常见。'},
-  {id:'vector', label:'向量索引', module:'concept', type:'concept', desc:'HNSW、IVF、PQ 等 ANN 索引是 RAG 与向量数据库基础。'},
-  {id:'sequential-io', label:'顺序写 / Page Cache', module:'concept', type:'concept', desc:'Kafka、WAL、LSM 都依赖顺序写、批量刷盘和 Linux Page Cache 提升吞吐。'},
-
-  {id:'redis-types', label:'Redis 数据类型', module:'redis', type:'page', href:'redis/data-types.html', desc:'String/List/Hash/Set/ZSet 与 listpack、quicklist、skiplist。'},
-  {id:'redis-eviction', label:'Redis 淘汰策略', module:'redis', type:'page', href:'redis/eviction.html', desc:'LRU、LFU、TTL 与内存上限控制。'},
-  {id:'redis-persistence', label:'Redis 持久化', module:'redis', type:'page', href:'redis/persistence.html', desc:'RDB、AOF、rewrite 与 fsync 策略，和 WAL、Page Cache、顺序写相关。'},
-  {id:'redis-cluster', label:'Redis Cluster', module:'redis', type:'page', href:'redis/cluster.html', desc:'槽位分片、主从复制和故障转移，和一致性、网络分区、客户端路由相关。'},
-  {id:'redis-lock', label:'Redis 分布式锁', module:'redis', type:'page', href:'redis/distributed-lock.html', desc:'SET NX PX、Lua 原子释放、Redlock 与一致性边界。'},
-  {id:'redis-stream', label:'Redis Stream', module:'redis', type:'concept', desc:'带消费者组和 ACK 的消息流结构，可与 Kafka 对比。'},
-
-  {id:'epoll', label:'epoll / I/O 多路复用', module:'linux', type:'page', href:'linux/io-models.html', desc:'高并发服务器和 Redis 单线程事件循环的系统基础。'},
-  {id:'vm', label:'虚拟内存 / mmap', module:'linux', type:'page', href:'linux/virtual-memory.html', desc:'页表、TLB、缺页异常、mmap 与数据库页缓存有关。'},
-  {id:'fs', label:'VFS / inode', module:'linux', type:'page', href:'linux/filesystem.html', desc:'文件系统抽象，和 WAL、日志文件、零拷贝链路相关。'},
-  {id:'linux-commands', label:'Linux 常用命令', module:'linux', type:'page', href:'linux/commands.html', desc:'ps、ss、df、du、curl、grep 等命令连接进程、网络、磁盘和日志排障。'},
-  {id:'sched', label:'CFS / EEVDF', module:'linux', type:'page', href:'linux/scheduling.html', desc:'进程调度、公平性和延迟优化。'},
-  {id:'ebpf', label:'eBPF', module:'concept', type:'concept', desc:'现代 Linux 可观测、网络和安全能力的核心技术。'},
-  {id:'cgroup', label:'cgroup v2 / Namespace', module:'concept', type:'concept', desc:'容器资源限制和隔离的系统基础。'},
-
-  {id:'tcp', label:'TCP 握手', module:'network', type:'page', href:'network/tcp-handshake.html', desc:'连接建立、关闭、TIME_WAIT 和可靠传输基础。'},
-  {id:'congestion', label:'拥塞控制', module:'network', type:'page', href:'network/tcp-congestion.html', desc:'慢启动、拥塞避免、CUBIC、BBR 与网络吞吐。'},
-  {id:'http', label:'HTTP/2 / HTTP/3', module:'network', type:'page', href:'network/http.html', desc:'HTTP 演进、TLS 1.3、QUIC 和队头阻塞。'},
-  {id:'dns', label:'DNS / CDN', module:'network', type:'page', href:'network/dns.html', desc:'域名解析、缓存、TTL 和边缘调度。'},
-  {id:'lb', label:'负载均衡', module:'network', type:'page', href:'network/load-balancing.html', desc:'四层/七层负载均衡、健康检查、会话保持和反向代理。'},
-  {id:'quic', label:'QUIC', module:'concept', type:'concept', desc:'UDP 上的现代传输协议，内置 TLS 1.3、连接迁移和独立流。'},
-
-  {id:'kafka-overview', label:'Kafka 存储模型', module:'kafka', type:'page', href:'kafka/kafka-overview.html', desc:'Topic、Partition、Segment、Offset、顺序写和 Page Cache 构成 Kafka 高吞吐基础。'},
-  {id:'kafka-producer', label:'Kafka Producer', module:'kafka', type:'page', href:'kafka/producer.html', desc:'Batch、linger.ms、acks、幂等性和吞吐延迟权衡。'},
-  {id:'kafka-consumer', label:'Kafka Consumer', module:'kafka', type:'page', href:'kafka/consumer.html', desc:'Offset、提交语义、消费组和 Exactly Once 边界。'},
-  {id:'kafka-replica', label:'Partition / ISR', module:'kafka', type:'page', href:'kafka/partition-replication.html', desc:'分区、副本、ISR、Leader 选举与高可用。'},
-  {id:'kafka-group', label:'Consumer Group', module:'kafka', type:'page', href:'kafka/consumer-group.html', desc:'Rebalance、分区分配和消费扩展。'},
-  {id:'kraft', label:'KRaft', module:'concept', type:'concept', desc:'Kafka 元数据管理的新模式，逐步替代 ZooKeeper。'},
-  {id:'exactly-once', label:'Exactly Once', module:'concept', type:'concept', desc:'幂等 Producer、事务和 offset 原子提交组合出的端到端处理语义。'}
-];
-
-const EDGES = [
-  ['algo','bplus'],['algo','hash'],['algo','skiplist'],['algo','heap'],['algo','bfs'],['algo','dfs'],['algo','dijkstra'],['algo','union-find'],['algo','topo'],['algo','trie'],['algo','binary-search'],['algo','segment-tree'],['algo','kmp'],['algo','sliding-window'],['algo','monotonic'],['algo','probabilistic-ds'],['algo','heavy-hitters'],['algo','consistent-hash'],['algo','lru-lfu'],['algo','bloom'],
-  ['db','bplus'],['db','buffer'],['db','wal'],['db','mvcc'],['db','locks'],['db','join'],['db','sort'],['db','storage-layout'],['db','cache-layers'],['db','distributed-db'],['db','lsm'],['db','vector'],
-  ['redis','redis-types'],['redis','redis-eviction'],['redis','redis-persistence'],['redis','redis-cluster'],['redis','redis-lock'],['redis','redis-stream'],
-  ['linux','epoll'],['linux','vm'],['linux','fs'],['linux','linux-commands'],['linux','sched'],['linux','ebpf'],['linux','cgroup'],['linux','sequential-io'],
-  ['network','tcp'],['network','congestion'],['network','http'],['network','dns'],['network','lb'],['network','quic'],
-  ['kafka','kafka-overview'],['kafka','kafka-producer'],['kafka','kafka-consumer'],['kafka','kafka-replica'],['kafka','kafka-group'],['kafka','kraft'],['kafka','exactly-once'],
-  ['bplus','algo-bplus'],['bplus','buffer'],['bplus','vm'],['bplus','storage-layout'],['bplus','binary-search'],['binary-search','storage-layout'],['binary-search','redis-types'],['binary-search','kafka-overview'],
-  ['hash','redis-types'],['hash','join'],['hash','redis-eviction'],['hash','redis-cluster'],['hash','kafka-producer'],['hash','consistent-hash'],['hash','bloom'],
-  ['skiplist','redis-types'],['skiplist','binary-search'],['heap','sort'],['heap','sched'],['heap','heavy-hitters'],['heap','kafka-consumer'],
-  ['bfs','dfs'],['bfs','dijkstra'],['bfs','redis-cluster'],['bfs','kafka-replica'],['bfs','distributed-db'],['bfs','lb'],
-  ['dfs','locks'],['dfs','topo'],['dfs','distributed-db'],['dfs','kafka-replica'],
-  ['dijkstra','network'],['dijkstra','lb'],['dijkstra','congestion'],['dijkstra','dns'],
-  ['union-find','distributed-db'],['union-find','redis-cluster'],['union-find','kafka-replica'],['union-find','lb'],
-  ['topo','kafka-overview'],['topo','kafka-consumer'],['topo','distributed-db'],['topo','linux-commands'],
-  ['trie','dns'],['trie','http'],['trie','lb'],['trie','kmp'],
-  ['segment-tree','heavy-hitters'],['segment-tree','redis-stream'],['segment-tree','kafka-consumer'],['segment-tree','cache-layers'],
-  ['kmp','linux-commands'],['kmp','http'],['kmp','dns'],
-  ['sliding-window','congestion'],['sliding-window','http'],['sliding-window','lb'],['sliding-window','redis-stream'],['sliding-window','kafka-consumer'],['sliding-window','heavy-hitters'],
-  ['monotonic','sliding-window'],['monotonic','segment-tree'],['monotonic','heavy-hitters'],
-  ['probabilistic-ds','bloom'],['probabilistic-ds','redis-eviction'],['probabilistic-ds','redis-stream'],['probabilistic-ds','vector'],['probabilistic-ds','heavy-hitters'],
-  ['heavy-hitters','redis-eviction'],['heavy-hitters','kafka-consumer'],['heavy-hitters','linux-commands'],['heavy-hitters','cache-layers'],
-  ['consistent-hash','redis-cluster'],['consistent-hash','kafka-producer'],['consistent-hash','distributed-db'],['consistent-hash','lb'],['consistent-hash','cache-layers'],
-  ['lru-lfu','redis-eviction'],['lru-lfu','buffer'],['lru-lfu','cache-layers'],['lru-lfu','vm'],
-  ['bloom','redis-eviction'],['bloom','cache-layers'],['bloom','vector'],
-  ['buffer','wal'],['buffer','vm'],['buffer','redis-eviction'],['buffer','cache-layers'],['wal','fs'],['wal','mvcc'],['wal','sequential-io'],['mvcc','locks'],['sort','sequential-io'],['storage-layout','fs'],['storage-layout','vm'],['cache-layers','redis-eviction'],['cache-layers','dns'],['distributed-db','locks'],['distributed-db','kafka-replica'],['distributed-db','redis-cluster'],['lsm','wal'],['lsm','sequential-io'],['vector','redis-stream'],
-  ['redis-types','redis-stream'],['redis-persistence','wal'],['redis-persistence','fs'],['redis-persistence','sequential-io'],['redis-lock','locks'],['redis-lock','kafka-consumer'],
-  ['epoll','redis-types'],['epoll','http'],['epoll','tcp'],['epoll','kafka-consumer'],['linux-commands','epoll'],['linux-commands','tcp'],['linux-commands','fs'],['linux-commands','redis-persistence'],['linux-commands','kafka-overview'],
-  ['fs','kafka-overview'],['fs','sequential-io'],['vm','kafka-overview'],['vm','sequential-io'],['ebpf','tcp'],['ebpf','kafka-consumer'],['cgroup','sched'],['cgroup','kafka-consumer'],
-  ['tcp','http'],['tcp','kafka-producer'],['tcp','kafka-consumer'],['tcp','kafka-replica'],['congestion','http'],['congestion','kafka-producer'],['congestion','redis-cluster'],['quic','http'],['dns','http'],['dns','lb'],['lb','http'],['lb','redis-cluster'],['lb','kafka-consumer'],
-  ['kafka-overview','kafka-producer'],['kafka-overview','kafka-consumer'],['kafka-overview','kafka-replica'],['kafka-overview','sequential-io'],['kafka-overview','wal'],['kafka-overview','lsm'],
-  ['kafka-producer','kafka-replica'],['kafka-producer','exactly-once'],['kafka-consumer','kafka-group'],['kafka-consumer','exactly-once'],['kafka-group','redis-stream'],['kafka-replica','kraft'],['kraft','distributed-db']
-];
+const EDGES = window.GRAPH_EDGES;
 
 const canvas = document.getElementById('graph');
 const ctx = canvas.getContext('2d');
@@ -238,6 +132,8 @@ const filters = document.getElementById('filters');
 const tooltip = document.getElementById('tooltip');
 const filterInsight = document.getElementById('filterInsight');
 let activeModule = 'all';
+let currentVisibleSet = null;
+let currentPrimarySet = null;
 let selected = null;
 let hovered = null;
 let scale = 1;
@@ -251,7 +147,7 @@ const nodes = NODES.map((n, i) => ({
   y: Math.sin(i / NODES.length * Math.PI * 2) * 220,
   vx: 0,
   vy: 0,
-  r: n.type === 'module' ? 18 : n.type === 'concept' ? 12 : 10
+  r: n.type === 'module' ? 18 : 10
 }));
 const nodeMap = Object.fromEntries(nodes.map(n => [n.id, n]));
 const edgeSeen = new Set();
@@ -269,7 +165,7 @@ document.getElementById('nodeCount').textContent = nodes.length;
 document.getElementById('edgeCount').textContent = edges.length;
 
 function buildFilters() {
-  [{id:'all',label:'全部',color:'#94a3b8'}, ...Object.entries(MODULES).filter(([id]) => id !== 'concept').map(([id,m]) => ({id,label:m.label,color:m.color}))].forEach(f => {
+  [{id:'all',label:'全部',color:'#94a3b8'}, ...Object.entries(MODULES).map(([id,m]) => ({id,label:m.label,color:m.color}))].forEach(f => {
     const btn = document.createElement('button');
     btn.className = 'chip' + (f.id === 'all' ? ' active' : '');
     btn.textContent = f.label;
@@ -390,14 +286,14 @@ function relationProblem(inside, outside) {
 }
 
 function relationConcept(inside, outside) {
-  return RELATION_CONCEPTS[edgeKey(inside.id, outside.id)] || `${outside.label} 属于 ${MODULES[outside.module].label} 中的${outside.type === 'page' ? '页面知识点' : outside.type === 'module' ? '模块入口' : '抽象概念'}。`;
+  return RELATION_CONCEPTS[edgeKey(inside.id, outside.id)] || `${outside.label} 属于 ${MODULES[outside.module].label} 中的${outside.type === 'page' ? '页面知识点' : outside.type === 'module' ? '模块入口' : '关联节点'}。`;
 }
 
 function renderFilterInsight() {
   if (activeModule === 'all') {
     filterInsight.innerHTML = `
       <h3>关联说明</h3>
-      <p class="insight-summary">选择某个模块后，图中只保留该模块节点；这里会按节点解释它为什么和其他模块有关。比如筛选数据库时，会说明 B+ 树既是数据结构，也是数据库索引的存储形式。</p>
+      <p class="insight-summary">选择某个模块后，图中只保留该模块节点，并带出它们的一跳关联。比如筛选分布式时，会看到 CAP、Raft、Paxos、一致性哈希如何连接数据库、Redis、Kafka 和网络模块。</p>
     `;
     return;
   }
@@ -466,10 +362,20 @@ function simulate() {
   edges.forEach(e => {
     const dx = e.b.x - e.a.x, dy = e.b.y - e.a.y;
     const d = Math.sqrt(dx * dx + dy * dy) || 1;
-    const target = e.a.type === 'module' || e.b.type === 'module' ? 150 : 115;
-    const f = (d - target) * 0.006;
+    const f = (d - 115) * 0.006;
     e.a.vx += dx / d * f; e.a.vy += dy / d * f;
     e.b.vx -= dx / d * f; e.b.vy -= dy / d * f;
+  });
+  // Module hub attracts same-module pages (replaces removed hub-to-page edges)
+  nodes.forEach(n => {
+    if (n.type === 'module') return;
+    const hub = nodeMap[n.module];
+    if (!hub) return;
+    const dx = hub.x - n.x, dy = hub.y - n.y;
+    const d = Math.sqrt(dx * dx + dy * dy) || 1;
+    const f = (d - 150) * 0.006;
+    n.vx += dx / d * f; n.vy += dy / d * f;
+    hub.vx -= dx / d * f; hub.vy -= dy / d * f;
   });
   nodes.forEach(n => {
     n.vx += -n.x * 0.002;
@@ -488,43 +394,75 @@ function draw() {
   const w = canvas.clientWidth, h = canvas.clientHeight;
   ctx.clearRect(0, 0, w, h);
 
-  const visibleSet = new Set(nodes.filter(visible).map(n => n.id));
+  const primarySet = new Set(nodes.filter(visible).map(n => n.id));
+  const visibleSet = new Set(primarySet);
+  if (activeModule !== 'all') {
+    edges.forEach(e => {
+      if (primarySet.has(e.a.id)) visibleSet.add(e.b.id);
+      if (primarySet.has(e.b.id)) visibleSet.add(e.a.id);
+    });
+  }
+  currentPrimarySet = primarySet;
+  currentVisibleSet = visibleSet;
+
   const related = selected ? new Set(edges.flatMap(e => e.a.id === selected.id ? [e.b.id] : e.b.id === selected.id ? [e.a.id] : [])) : null;
 
   edges.forEach(e => {
     if (!visibleSet.has(e.a.id) || !visibleSet.has(e.b.id)) return;
     const a = toScreen(e.a), b = toScreen(e.b);
     const hot = selected && (e.a.id === selected.id || e.b.id === selected.id);
+    const isNeighborEdge = activeModule !== 'all' && (!primarySet.has(e.a.id) || !primarySet.has(e.b.id));
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
-    ctx.strokeStyle = hot ? 'rgba(226,232,240,.82)' : selected ? 'rgba(148,163,184,.10)' : 'rgba(148,163,184,.28)';
+    ctx.strokeStyle = hot ? 'rgba(226,232,240,.82)'
+      : isNeighborEdge ? 'rgba(148,163,184,.12)'
+      : selected ? 'rgba(148,163,184,.10)'
+      : 'rgba(148,163,184,.28)';
     ctx.lineWidth = hot ? 2.2 : 1.25;
     ctx.stroke();
   });
 
   nodes.forEach(n => {
-    if (!visible(n)) return;
+    if (!visibleSet.has(n.id)) return;
+    const isNeighbor = activeModule !== 'all' && !primarySet.has(n.id);
     const p = toScreen(n);
     const color = MODULES[n.module].color;
     const isSelected = selected && selected.id === n.id;
     const isHovered = hovered && hovered.id === n.id;
     const isRelated = related && related.has(n.id);
+
+    // Module hub nodes render as a subtle ring + label only (not filled circles)
+    if (n.type === 'module') {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, n.r * scale, 0, Math.PI * 2);
+      ctx.strokeStyle = color + (isSelected || isHovered ? 'bb' : '55');
+      ctx.lineWidth = isSelected ? 2.5 : 1.5;
+      ctx.stroke();
+      const labelSize = Math.max(10, 13 * Math.min(1, scale));
+      ctx.font = `bold ${labelSize}px system-ui`;
+      ctx.fillStyle = color + (isSelected || isHovered ? 'ff' : 'bb');
+      ctx.textAlign = 'center';
+      ctx.fillText(n.label, p.x, p.y + (n.r + 14) * scale + 6);
+      return;
+    }
+
     ctx.beginPath();
     ctx.arc(p.x, p.y, (n.r + (isSelected ? 5 : isHovered ? 4 : isRelated ? 2 : 0)) * scale, 0, Math.PI * 2);
-    ctx.fillStyle = color + (isSelected || isHovered ? 'ff' : isRelated ? 'dd' : n.type === 'module' ? 'cc' : 'aa');
+    ctx.fillStyle = color + (isSelected || isHovered ? 'ff' : isRelated ? 'dd' : isNeighbor ? '40' : 'aa');
     ctx.shadowColor = color;
-    ctx.shadowBlur = isSelected ? 22 : isHovered ? 20 : isRelated ? 14 : 6;
+    ctx.shadowBlur = isNeighbor ? 3 : (isSelected ? 22 : isHovered ? 20 : isRelated ? 14 : 6);
     ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = isSelected ? '#fff' : 'rgba(255,255,255,.35)';
+    ctx.strokeStyle = isSelected ? '#fff' : isNeighbor ? 'rgba(255,255,255,.12)' : 'rgba(255,255,255,.35)';
     ctx.lineWidth = isSelected ? 2 : 1;
     ctx.stroke();
-    if (scale > .45 || n.type === 'module' || isSelected || isRelated) {
-      const labelSize = Math.max(9, (n.type === 'module' ? 13 : 11) * Math.min(1, Math.max(.78, scale)));
+    const showLabel = !isNeighbor || isHovered || isSelected;
+    if (showLabel) {
+      const labelSize = Math.max(9, 11 * Math.min(1, Math.max(.78, scale)));
       const labelOffset = (n.r + 14) * scale + 6;
       ctx.font = `${labelSize}px system-ui`;
-      ctx.fillStyle = isSelected ? '#f8fafc' : '#cbd5e1';
+      ctx.fillStyle = isSelected ? '#f8fafc' : isNeighbor ? '#94a3b8' : '#cbd5e1';
       ctx.textAlign = 'center';
       ctx.fillText(n.label, p.x, p.y + labelOffset);
     }
@@ -540,12 +478,12 @@ function renderDetail(n) {
   detail.innerHTML = `
     <h2>当前节点</h2>
     <div class="node-title">${n.label}</div>
-    <div class="node-meta" style="border-color:${module.color};color:${module.color}">${module.label} · ${n.type === 'module' ? '模块' : n.type === 'page' ? '页面' : '概念'}</div>
+    <div class="node-meta" style="border-color:${module.color};color:${module.color}">${module.label} · ${n.type === 'module' ? '模块' : '页面'}</div>
     <p class="node-desc">${n.desc || ''}</p>
     ${n.href ? `<a class="open-link" href="${withGraphSource(n.href, n.id)}">打开页面 ↗</a>` : ''}
     <h2>双链关联</h2>
     <div class="related">
-      ${rels.length ? rels.map(r => `<a class="rel-item" style="--rel-color:${MODULES[r.module].color}" href="#" data-id="${r.id}">${r.label}<span>${MODULES[r.module].label} · ${r.type === 'page' ? '页面' : r.type === 'module' ? '模块' : '概念'}</span></a>`).join('') : '<p class="empty">暂无关联节点</p>'}
+      ${rels.length ? rels.map(r => `<a class="rel-item" style="--rel-color:${MODULES[r.module].color}" href="#" data-id="${r.id}">${r.label}<span>${MODULES[r.module].label} · ${r.type === 'module' ? '模块' : '页面'}</span></a>`).join('') : '<p class="empty">暂无关联节点</p>'}
     </div>
   `;
   detail.querySelectorAll('.rel-item').forEach(a => {
@@ -578,7 +516,7 @@ function siteRootPath() {
 function hitTest(x, y) {
   for (let i = nodes.length - 1; i >= 0; i--) {
     const n = nodes[i];
-    if (!visible(n)) continue;
+    if (!currentVisibleSet || !currentVisibleSet.has(n.id)) continue;
     const p = toScreen(n);
     const dx = x - p.x, dy = y - p.y;
     if (Math.sqrt(dx * dx + dy * dy) <= n.r * scale + 8) return n;
@@ -587,7 +525,7 @@ function hitTest(x, y) {
 }
 
 function nodeKind(n) {
-  return n.type === 'module' ? '模块' : n.type === 'page' ? '页面' : '概念';
+  return n.type === 'module' ? '模块' : '页面';
 }
 
 function showTooltip(n, x, y) {

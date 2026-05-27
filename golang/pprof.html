@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>pprof 性能分析 - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:72px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(0,173,216,.12);color:var(--accent);border:1px solid rgba(0,173,216,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.badge-high{background:rgba(251,146,60,.12);color:#fb923c;border:1px solid rgba(251,146,60,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(0,173,216,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.table-wrap{overflow-x:auto;margin:10px 0;}
+table{width:100%;border-collapse:collapse;font-size:.82rem;}
+th{background:rgba(0,173,216,.08);color:var(--accent);padding:8px 12px;text-align:left;border:1px solid var(--border2);font-size:.78rem;}
+td{padding:7px 12px;border:1px solid var(--border2);color:var(--dim);}
+tr:hover td{background:rgba(255,255,255,.02);}
+.shell-block{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.75;margin:10px 0;}
+.shell-block .prompt{color:#4ade80;}
+.shell-block .cmd{color:var(--text);}
+.shell-block .out{color:var(--dim2);}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}}
+</style>
+</head>
+<body>
+
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">📊 pprof 性能分析</span>
+  <div class="nav-tags">
+    <span class="ntag">pprof</span>
+    <span class="ntag">profiling</span>
+    <span class="ntag">flame-graph</span>
+  </div>
+</div>
+
+<div class="page-wrap">
+  <nav class="side-nav">
+    <ul>
+      <li><a href="#profile-types">Profile 类型</a></li>
+      <li><a href="#collect">采集方式</a></li>
+      <li><a href="#flamegraph">火焰图分析</a></li>
+      <li><a href="#workflow">优化工作流</a></li>
+      <li><a href="#qa">面试题</a></li>
+      <li><a href="#pitfalls">易错点</a></li>
+    </ul>
+  </nav>
+
+  <main class="main-content">
+
+    <!-- Section 1: Profile 类型 -->
+    <section class="section" id="profile-types">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>Profile 类型</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>各类 Profile 总览</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Profile 类型</th>
+                  <th>诊断问题</th>
+                  <th>采样方式</th>
+                  <th>开销</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td><code>cpu</code></td><td>CPU 热点函数，耗时瓶颈</td><td>信号中断，100 Hz</td><td>低（&lt;5%）</td></tr>
+                <tr><td><code>heap</code></td><td>内存分配 / 泄漏</td><td>按字节采样</td><td>极低</td></tr>
+                <tr><td><code>goroutine</code></td><td>goroutine 泄漏，阻塞栈</td><td>全量快照</td><td>STW 瞬间停顿</td></tr>
+                <tr><td><code>block</code></td><td>channel/mutex 阻塞时长</td><td>手动开启</td><td>中（需设采样率）</td></tr>
+                <tr><td><code>mutex</code></td><td>锁竞争热点</td><td>手动开启</td><td>低</td></tr>
+                <tr><td><code>threadcreate</code></td><td>OS 线程创建</td><td>全量</td><td>极低</td></tr>
+                <tr><td><code>trace</code></td><td>完整执行时序、GC、调度</td><td>事件插桩</td><td>高（10-20%）</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>heap profile：alloc vs inuse</h3>
+          <span class="badge badge-adv">key</span>
+        </div>
+        <div class="card-body">
+          <p>heap profile 有四个视图，容易混淆：</p>
+          <ul>
+            <li><strong>alloc_space</strong>：程序运行至今累计分配的总字节数（含已释放），反映 GC 压力</li>
+            <li><strong>alloc_objects</strong>：累计分配的总对象数，找高频小对象</li>
+            <li><strong>inuse_space</strong>：当前仍在使用的字节数，排查内存泄漏</li>
+            <li><strong>inuse_objects</strong>：当前存活的对象数</li>
+          </ul>
+          <p style="margin-top:10px;">诊断 GC 频繁看 <code>alloc_space</code>，诊断内存泄漏看 <code>inuse_space</code>。</p>
+          <pre><span class="cm"># 切换 heap profile 视图</span>
+(pprof) <span class="id">sample_index</span> = alloc_space
+(pprof) <span class="id">sample_index</span> = inuse_space
+(pprof) top10</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>block / mutex profile 开启</h3>
+          <span class="badge badge-adv">adv</span>
+        </div>
+        <div class="card-body">
+          <p>block 和 mutex profile 默认关闭，需在代码中显式开启采样率，否则 <code>/debug/pprof/block</code> 始终为空。</p>
+          <pre><span class="kw">func</span> <span class="fn">main</span>() {
+    <span class="cm">// 设为 1 = 所有阻塞事件都采样（开销大，仅调试用）</span>
+    <span class="cm">// 建议生产设置 runtime.SetBlockProfileRate(10000)</span>
+    <span class="pkg">runtime</span>.<span class="fn">SetBlockProfileRate</span>(<span class="num">1</span>)
+
+    <span class="cm">// mutex: 1/n 概率采样，推荐 5</span>
+    <span class="pkg">runtime</span>.<span class="fn">SetMutexProfileFraction</span>(<span class="num">5</span>)
+
+    <span class="cm">// ... 程序逻辑</span>
+}</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: 采集方式 -->
+    <section class="section" id="collect">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>采集方式</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>net/http/pprof — HTTP 端点注册</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p>最常用的方式，import 副作用自动注册路由到 <code>DefaultServeMux</code>。</p>
+          <pre><span class="kw">import</span> (
+    <span class="st">"net/http"</span>
+    _ <span class="st">"net/http/pprof"</span>  <span class="cm">// 副作用导入，自动注册路由</span>
+)
+
+<span class="kw">func</span> <span class="fn">main</span>() {
+    <span class="cm">// 独立端口，不与业务混用（重要！）</span>
+    <span class="kw">go</span> <span class="pkg">http</span>.<span class="fn">ListenAndServe</span>(<span class="st">"localhost:6060"</span>, <span class="kw">nil</span>)
+
+    <span class="cm">// ... 业务代码</span>
+}</pre>
+          <p>注册后可访问的端点：</p>
+          <pre><span class="cm"># 查看所有可用 profile</span>
+http://localhost:6060/debug/pprof/
+
+<span class="cm"># 采集 30 秒 CPU profile（阻塞 30s）</span>
+http://localhost:6060/debug/pprof/profile?seconds=30
+
+<span class="cm"># 当前 heap snapshot</span>
+http://localhost:6060/debug/pprof/heap
+
+<span class="cm"># goroutine 全量栈（debug=2 输出完整格式）</span>
+http://localhost:6060/debug/pprof/goroutine?debug=2</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>runtime/pprof — 手动采集</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p>适合 CLI 工具、批处理程序，或需要精确控制采集时间窗口的场景。</p>
+          <pre><span class="kw">import</span> (
+    <span class="st">"os"</span>
+    <span class="st">"runtime/pprof"</span>
+)
+
+<span class="kw">func</span> <span class="fn">main</span>() {
+    <span class="cm">// CPU profile</span>
+    <span class="id">f</span>, <span class="id">_</span> := <span class="pkg">os</span>.<span class="fn">Create</span>(<span class="st">"cpu.prof"</span>)
+    <span class="kw">defer</span> <span class="id">f</span>.<span class="fn">Close</span>()
+    <span class="pkg">pprof</span>.<span class="fn">StartCPUProfile</span>(<span class="id">f</span>)
+    <span class="kw">defer</span> <span class="pkg">pprof</span>.<span class="fn">StopCPUProfile</span>()
+
+    <span class="cm">// ... 需要分析的代码</span>
+
+    <span class="cm">// Heap profile（在需要的时刻快照）</span>
+    <span class="id">hf</span>, <span class="id">_</span> := <span class="pkg">os</span>.<span class="fn">Create</span>(<span class="st">"mem.prof"</span>)
+    <span class="kw">defer</span> <span class="id">hf</span>.<span class="fn">Close</span>()
+    <span class="pkg">runtime</span>.<span class="fn">GC</span>()              <span class="cm">// 触发 GC，让 inuse 更准确</span>
+    <span class="pkg">pprof</span>.<span class="fn">WriteHeapProfile</span>(<span class="id">hf</span>)
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>go test 集成 profiling</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p>测试与基准测试内置 profiling 标志，无需修改业务代码。</p>
+          <div class="shell-block">
+<span class="prompt">$</span> <span class="cmd">go test -bench=BenchmarkFoo -cpuprofile=cpu.prof ./...</span>
+<span class="out">goos: linux</span>
+<span class="out">BenchmarkFoo-8    1000000    1234 ns/op</span>
+<br>
+<span class="prompt">$</span> <span class="cmd">go test -bench=BenchmarkFoo -memprofile=mem.prof -benchmem ./...</span>
+<span class="out">BenchmarkFoo-8    1000000    1234 ns/op    256 B/op    3 allocs/op</span>
+<br>
+<span class="prompt">$</span> <span class="cmd">go test -bench=BenchmarkFoo -mutexprofile=mutex.prof ./...</span>
+<br>
+<span class="cm"># 生成 profile 后，用 go tool pprof 分析</span>
+<span class="prompt">$</span> <span class="cmd">go tool pprof cpu.prof</span>
+<span class="out">(pprof) top10</span>
+<span class="out">(pprof) web</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>go tool pprof 常用命令</h3>
+          <span class="badge badge-adv">cli</span>
+        </div>
+        <div class="card-body">
+          <div class="shell-block">
+<span class="cm"># 直接从 HTTP 端点采 30s CPU profile 并进入交互</span>
+<span class="prompt">$</span> <span class="cmd">go tool pprof http://localhost:6060/debug/pprof/profile?seconds=30</span>
+<br>
+<span class="cm"># 采集 heap profile</span>
+<span class="prompt">$</span> <span class="cmd">go tool pprof http://localhost:6060/debug/pprof/heap</span>
+<br>
+<span class="cm"># 交互式命令</span>
+<span class="out">(pprof) top            # 按 flat% 排序，前10个函数</span>
+<span class="out">(pprof) top -cum       # 按累计（含调用者）排序</span>
+<span class="out">(pprof) list funcName  # 显示函数源码级热点行</span>
+<span class="out">(pprof) disasm func    # 汇编级热点</span>
+<span class="out">(pprof) web            # 在浏览器打开 SVG 调用图（需 graphviz）</span>
+<span class="out">(pprof) pdf            # 输出 PDF</span>
+<span class="out">(pprof) png > out.png  # 输出 PNG</span>
+<br>
+<span class="cm"># 非交互式直接输出 top</span>
+<span class="prompt">$</span> <span class="cmd">go tool pprof -top cpu.prof</span>
+<br>
+<span class="cm"># 生成火焰图（需安装 go-torch 或使用 pprof -http）</span>
+<span class="prompt">$</span> <span class="cmd">go tool pprof -http=:8080 cpu.prof</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: 火焰图 -->
+    <section class="section" id="flamegraph">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>分析与火焰图</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>go tool pprof -http 生成火焰图</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p>Go 1.11+ 内置火焰图支持，无需 FlameGraph.pl 或 go-torch，直接通过 <code>-http</code> 在浏览器查看。</p>
+          <div class="shell-block">
+<span class="cm"># 启动 Web UI，包含火焰图、调用图、source 视图</span>
+<span class="prompt">$</span> <span class="cmd">go tool pprof -http=:8080 cpu.prof</span>
+<span class="out">Serving web UI on http://localhost:8080</span>
+<br>
+<span class="cm"># 或直接从 HTTP 端点</span>
+<span class="prompt">$</span> <span class="cmd">go tool pprof -http=:8080 http://localhost:6060/debug/pprof/profile?seconds=30</span>
+<br>
+<span class="cm"># 浏览器页面导航</span>
+<span class="cm"># View -> Flame Graph    (火焰图，推荐)</span>
+<span class="cm"># View -> Top            (函数排行)</span>
+<span class="cm"># View -> Graph          (调用关系图)</span>
+<span class="cm"># View -> Source         (源码行级热点)</span>
+          </div>
+          <p>火焰图解读：横轴为 CPU 时间占比（宽 = 耗时多），纵轴为调用栈深度（底部为 main，顶部为叶函数），颜色无特殊含义。</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>top / list / disasm 命令详解</h3>
+          <span class="badge badge-adv">adv</span>
+        </div>
+        <div class="card-body">
+          <pre><span class="cm"># top 输出格式说明</span>
+(pprof) top10
+<span class="cm"># Flat    Flat%   Sum%    Cum     Cum%   Name</span>
+<span class="cm"># ─────────────────────────────────────────────</span>
+<span class="cm"># 0.56s  23.14%  23.14%  0.56s  23.14%  runtime.mallocgc</span>
+<span class="cm"># 0.30s  12.40%  35.54%  0.95s  39.26%  main.processData</span>
+<span class="cm">#</span>
+<span class="cm"># Flat  = 函数自身消耗（不含调用）</span>
+<span class="cm"># Cum   = 函数及其所有子调用消耗</span>
+
+<span class="cm"># list 显示源码热点行</span>
+(pprof) list processData
+<span class="cm"># 在 processData 函数每行旁显示 flat / cum 时间</span>
+<span class="cm"># 可以精准定位到哪一行代码最耗时</span>
+
+<span class="cm"># disasm 汇编级（极致优化时使用）</span>
+(pprof) disasm processData
+<span class="cm"># 每条汇编指令旁显示采样命中次数</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>inuse_space vs alloc_space 选哪个</h3>
+          <span class="badge badge-adv">key</span>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>问题症状</th><th>看哪个视图</th><th>原因</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>内存持续增长 / 泄漏</td><td>inuse_space</td><td>存活对象，GC 未回收</td></tr>
+                <tr><td>GC 频繁，停顿高</td><td>alloc_space</td><td>累计分配量大，GC 触发多</td></tr>
+                <tr><td>内存分配次数多</td><td>alloc_objects</td><td>高频小对象，考虑 sync.Pool</td></tr>
+                <tr><td>存活对象数量异常</td><td>inuse_objects</td><td>对象未释放引用</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="shell-block">
+<span class="prompt">$</span> <span class="cmd">go tool pprof -alloc_space mem.prof</span>  <span class="cm"># 直接指定视图</span>
+<span class="prompt">$</span> <span class="cmd">go tool pprof -inuse_space mem.prof</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: 工作流 -->
+    <section class="section" id="workflow">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>benchmark 与优化工作流</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>标准优化循环</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p>黄金法则：先度量，再优化，再度量，循环迭代。不要凭感觉优化。</p>
+          <pre><span class="cm">// Step 1: 编写基准测试</span>
+<span class="kw">func</span> <span class="fn">BenchmarkProcessData</span>(<span class="id">b</span> *<span class="pkg">testing</span>.<span class="id">B</span>) {
+    <span class="id">data</span> := <span class="fn">generateTestData</span>(<span class="num">10000</span>)
+    <span class="id">b</span>.<span class="fn">ResetTimer</span>()        <span class="cm">// 重置计时器，排除准备时间</span>
+    <span class="id">b</span>.<span class="fn">ReportAllocs</span>()      <span class="cm">// 等同 -benchmem，报告内存分配</span>
+    <span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="id">b</span>.<span class="id">N</span>; <span class="id">i</span>++ {
+        <span class="fn">processData</span>(<span class="id">data</span>)
+    }
+}</pre>
+          <div class="shell-block">
+<span class="cm"># Step 2: 运行基准，采集 profile</span>
+<span class="prompt">$</span> <span class="cmd">go test -bench=BenchmarkProcessData -benchmem -count=3 \</span>
+<span class="cmd">       -cpuprofile=cpu.prof -memprofile=mem.prof ./pkg/...</span>
+<br>
+<span class="cm"># Step 3: 分析 CPU 热点</span>
+<span class="prompt">$</span> <span class="cmd">go tool pprof -http=:8080 cpu.prof</span>
+<br>
+<span class="cm"># Step 4: 分析内存分配</span>
+<span class="prompt">$</span> <span class="cmd">go tool pprof -alloc_space -http=:8081 mem.prof</span>
+<br>
+<span class="cm"># Step 5: 优化后对比（benchstat 对比多次结果）</span>
+<span class="prompt">$</span> <span class="cmd">go test -bench=. -count=5 > after.txt</span>
+<span class="prompt">$</span> <span class="cmd">benchstat before.txt after.txt</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>-benchmem 指标解读</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <pre><span class="cm"># 示例输出</span>
+BenchmarkFoo-8    500000    2345 ns/op    512 B/op    7 allocs/op
+<span class="cm">#                          ─────────     ──────────  ──────────────</span>
+<span class="cm">#                          每次耗时       每次分配字节  每次分配次数</span></pre>
+          <p>优化目标：减少 <code>allocs/op</code> 比减少 <code>B/op</code> 更重要，因为分配次数直接影响 GC 扫描频率。常见手段：</p>
+          <ul>
+            <li>对象复用：<code>sync.Pool</code></li>
+            <li>预分配切片：<code>make([]T, 0, cap)</code></li>
+            <li>值类型代替指针类型（逃逸分析）</li>
+            <li><code>strconv.AppendXxx</code> 代替 <code>FormatXxx</code></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>防止编译器消除基准代码</h3>
+          <span class="badge badge-high">陷阱</span>
+        </div>
+        <div class="card-body">
+          <p>如果基准函数的计算结果没有副作用，Go 编译器可能整体消除这段代码，导致基准结果为 0 ns/op（虚假的极快）。需要用 sink 变量保留结果。</p>
+          <pre><span class="cm">// 错误：编译器可能消除 process() 的调用</span>
+<span class="kw">func</span> <span class="fn">BenchmarkBad</span>(<span class="id">b</span> *<span class="pkg">testing</span>.<span class="id">B</span>) {
+    <span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="id">b</span>.<span class="id">N</span>; <span class="id">i</span>++ {
+        <span class="fn">process</span>(<span class="st">"data"</span>)  <span class="cm">// 结果未使用，可能被消除</span>
+    }
+}
+
+<span class="cm">// 正确：全局 sink 变量保留结果</span>
+<span class="kw">var</span> <span class="id">globalSink</span> <span class="kw">string</span>
+
+<span class="kw">func</span> <span class="fn">BenchmarkGood</span>(<span class="id">b</span> *<span class="pkg">testing</span>.<span class="id">B</span>) {
+    <span class="kw">var</span> <span class="id">s</span> <span class="kw">string</span>
+    <span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="id">b</span>.<span class="id">N</span>; <span class="id">i</span>++ {
+        <span class="id">s</span> = <span class="fn">process</span>(<span class="st">"data"</span>)
+    }
+    <span class="id">globalSink</span> = <span class="id">s</span>  <span class="cm">// 赋值给全局变量，防止消除</span>
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>testing.B 常用方法</h3>
+          <span class="badge badge-adv">adv</span>
+        </div>
+        <div class="card-body">
+          <pre><span class="kw">func</span> <span class="fn">BenchmarkFull</span>(<span class="id">b</span> *<span class="pkg">testing</span>.<span class="id">B</span>) {
+    <span class="cm">// 并发基准</span>
+    <span class="id">b</span>.<span class="fn">RunParallel</span>(<span class="kw">func</span>(<span class="id">pb</span> *<span class="pkg">testing</span>.<span class="id">PB</span>) {
+        <span class="kw">for</span> <span class="id">pb</span>.<span class="fn">Next</span>() {
+            <span class="fn">doWork</span>()
+        }
+    })
+
+    <span class="cm">// 子基准（-bench=BenchmarkFull/small）</span>
+    <span class="id">b</span>.<span class="fn">Run</span>(<span class="st">"small"</span>, <span class="kw">func</span>(<span class="id">b</span> *<span class="pkg">testing</span>.<span class="id">B</span>) {
+        <span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="id">b</span>.<span class="id">N</span>; <span class="id">i</span>++ { <span class="fn">small</span>() }
+    })
+    <span class="id">b</span>.<span class="fn">Run</span>(<span class="st">"large"</span>, <span class="kw">func</span>(<span class="id">b</span> *<span class="pkg">testing</span>.<span class="id">B</span>) {
+        <span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="id">b</span>.<span class="id">N</span>; <span class="id">i</span>++ { <span class="fn">large</span>() }
+    })
+
+    <span class="cm">// 自定义吞吐量指标</span>
+    <span class="id">b</span>.<span class="fn">SetBytes</span>(<span class="num">1024</span>)  <span class="cm">// 报告 MB/s</span>
+}</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 5: Q&A -->
+    <section class="section" id="qa">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>面试题</h2>
+      </div>
+
+      <div class="qa-card" onclick="this.classList.toggle('open')">
+        <div class="qa-q">
+          CPU profile 和 heap profile 分别能诊断什么问题？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          CPU profile 通过每秒 100 次信号中断采集当前调用栈，统计各函数被中断次数来估算 CPU 时间占比，适合诊断 <strong>计算热点</strong>（哪个函数最耗 CPU）。它不能诊断 I/O 等待、锁阻塞等"不占 CPU 的等待"。<br><br>
+          Heap profile 按分配字节采样（默认每 512 KB 采一次），记录分配时的调用栈，适合诊断 <strong>内存分配热点</strong>、<strong>内存泄漏</strong>。看 <code>alloc_space</code> 诊断 GC 压力，看 <code>inuse_space</code> 诊断泄漏。
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="this.classList.toggle('open')">
+        <div class="qa-q">
+          pprof 的采样对性能影响有多大？生产环境能用吗？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          CPU profile 采样频率 100 Hz（10ms 一次），实测额外开销约 3-5%，可在生产使用，但建议按需开启，不要常驻。<br><br>
+          Heap profile 按分配字节触发，开销极低（&lt;1%），可长期开启。<br><br>
+          需要特别注意的是 <code>goroutine</code> profile 会触发短暂 STW，goroutine 数量多（&gt;10 万）时停顿可能达到毫秒级，在线上要谨慎调用频率。Block/mutex profile 开销取决于设置的采样率，生产环境建议 <code>SetBlockProfileRate(10000)</code>（万分之一采样）。
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="this.classList.toggle('open')">
+        <div class="qa-q">
+          火焰图中横轴宽度代表什么？如何找到优化点？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          横轴宽度代表该函数（及其所有子调用）在采样周期内占用 CPU 时间的比例，越宽越耗时。纵轴是调用深度，同一列的函数表示调用链。颜色无特殊含义，仅用于区分相邻函数。<br><br>
+          找优化点的策略：①找最宽的顶部叶子函数（flat 耗时高，直接优化）；②找宽且"矮"的中间函数（cum 高但 flat 低，说明它调用了很多子函数，拆分后找哪个子调用最宽）；③关注 <code>runtime.mallocgc</code> 和 <code>runtime.gcBgMarkWorker</code>，宽则说明内存分配或 GC 是瓶颈。
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="this.classList.toggle('open')">
+        <div class="qa-q">
+          alloc_objects 和 inuse_objects 有何区别？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          <code>alloc_objects</code> 是程序启动至今 <strong>累计分配</strong> 的对象总数，无论是否已被 GC 回收。<code>inuse_objects</code> 是当前时刻 <strong>仍存活</strong>（未被 GC 回收）的对象数。<br><br>
+          两者差值大意味着大量对象被频繁创建又销毁——这正是 GC 压力的来源。可以用 <code>sync.Pool</code> 复用这类短生命周期对象，降低 GC 频率。<code>alloc_objects</code> 高说明分配频繁，优先用 pool 或预分配；<code>inuse_objects</code> 持续增长说明内存泄漏。
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="this.classList.toggle('open')">
+        <div class="qa-q">
+          如何用 go test 对某个函数做 CPU 性能分析？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          三步走：①写 Benchmark 函数；②用 <code>-bench</code> + <code>-cpuprofile</code> 运行；③用 <code>go tool pprof</code> 分析。<br><br>
+          <code>go test -bench=BenchmarkMyFunc -benchmem -cpuprofile=cpu.prof -memprofile=mem.prof -benchtime=10s ./pkg/</code><br><br>
+          <code>-benchtime=10s</code> 让采集时间更长，profile 更准确。然后 <code>go tool pprof -http=:8080 cpu.prof</code> 查看火焰图，用 <code>list BenchmarkMyFunc</code> 查看源码行级热点。注意：<code>go test</code> 会同时生成一个测试二进制，pprof 会自动使用它解析符号。
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 6: Pitfalls -->
+    <section class="section" id="pitfalls">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>易错点</h2>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">✗ 注册 net/http/pprof 但暴露在公网或业务端口</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// 错误：pprof 挂到公网业务端口</span>
+<span class="kw">import</span> _ <span class="st">"net/http/pprof"</span>
+
+<span class="kw">func</span> <span class="fn">main</span>() {
+    <span class="cm">// 业务 handler</span>
+    <span class="pkg">http</span>.<span class="fn">HandleFunc</span>(<span class="st">"/"</span>, <span class="id">businessHandler</span>)
+    <span class="cm">// pprof 也被注册到同一 mux</span>
+    <span class="pkg">http</span>.<span class="fn">ListenAndServe</span>(<span class="st">":8080"</span>, <span class="kw">nil</span>)
+}</pre>
+            <p>任何人都能访问 /debug/pprof 获取堆栈信息、环境变量、内存内容，造成敏感数据泄露。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 正确：独立端口 + 仅监听本地</span>
+<span class="kw">import</span> _ <span class="st">"net/http/pprof"</span>
+
+<span class="kw">func</span> <span class="fn">main</span>() {
+    <span class="cm">// pprof 只监听本地，独立端口</span>
+    <span class="kw">go</span> <span class="pkg">http</span>.<span class="fn">ListenAndServe</span>(
+        <span class="st">"127.0.0.1:6060"</span>, <span class="kw">nil</span>)
+
+    <span class="cm">// 业务使用独立 ServeMux</span>
+    <span class="id">mux</span> := <span class="pkg">http</span>.<span class="fn">NewServeMux</span>()
+    <span class="id">mux</span>.<span class="fn">HandleFunc</span>(<span class="st">"/"</span>, <span class="id">businessHandler</span>)
+    <span class="pkg">http</span>.<span class="fn">ListenAndServe</span>(<span class="st">":8080"</span>, <span class="id">mux</span>)
+}</pre>
+            <p>通过 SSH 隧道或 kubectl port-forward 访问，永远不要对公网开放。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">✗ 只看 inuse heap 误以为没有内存问题</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// 现象：inuse_space 很小，但 GC 频繁</span>
+<span class="cm">// 原因：alloc_space 很大，说明大量短生命</span>
+<span class="cm">// 周期对象已被回收，但每秒分配数百 MB</span>
+
+<span class="cm"># 错误排查方式</span>
+$ go tool pprof -inuse_space mem.prof
+<span class="cm"># 看起来正常，inuse 只有 50MB</span>
+<span class="cm"># 误以为没有内存问题</span></pre>
+            <p>GC 日志显示每秒触发数十次 GC，但只看 inuse 得出"内存没问题"的错误结论。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm"># 正确：同时看 alloc_space</span>
+$ go tool pprof -alloc_space mem.prof
+(pprof) top10
+<span class="cm"># 发现 json.Marshal 累计分配 10 GB</span>
+<span class="cm"># 优化：复用 encoder 或使用 json.NewEncoder</span>
+
+<span class="cm"># 开启 GC trace 验证</span>
+$ GODEBUG=gctrace=1 ./myapp 2>&amp;1 | head -20
+<span class="cm"># gc 1 @0.003s: ...  显示 GC 频率</span></pre>
+            <p>分配频繁是 GC 的根本原因，要同时关注 alloc_space 和 alloc_objects。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">✗ benchmark 没有防止编译器消除无副作用代码</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// 错误：结果未使用，编译器消除</span>
+<span class="kw">func</span> <span class="fn">BenchmarkHash</span>(<span class="id">b</span> *<span class="pkg">testing</span>.<span class="id">B</span>) {
+    <span class="id">data</span> := []<span class="kw">byte</span>(<span class="st">"hello world"</span>)
+    <span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="id">b</span>.<span class="id">N</span>; <span class="id">i</span>++ {
+        <span class="pkg">sha256</span>.<span class="fn">Sum256</span>(<span class="id">data</span>) <span class="cm">// 结果丢弃！</span>
+    }
+}
+<span class="cm"># 输出: 0.3 ns/op — 虚假的极快</span></pre>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 正确：全局 sink 保留结果</span>
+<span class="kw">var</span> <span class="id">sink</span> [<span class="num">32</span>]<span class="kw">byte</span>
+
+<span class="kw">func</span> <span class="fn">BenchmarkHash</span>(<span class="id">b</span> *<span class="pkg">testing</span>.<span class="id">B</span>) {
+    <span class="id">data</span> := []<span class="kw">byte</span>(<span class="st">"hello world"</span>)
+    <span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="id">b</span>.<span class="id">N</span>; <span class="id">i</span>++ {
+        <span class="id">sink</span> = <span class="pkg">sha256</span>.<span class="fn">Sum256</span>(<span class="id">data</span>)
+    }
+}
+<span class="cm"># 输出: 312 ns/op — 真实结果</span></pre>
+            <p>全局变量赋值有副作用，编译器不会消除。sink 类型需与函数返回值匹配。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+if (typeof NavTracker !== 'undefined') {
+  NavTracker.track('pprof 性能分析','golang/pprof.html','📊','Golang');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,385 @@
+<!DOCTYPE html><html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Error 处理 - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:72px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(0,173,216,.12);color:var(--accent);border:1px solid rgba(0,173,216,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(0,173,216,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.chain-diagram{display:flex;align-items:center;gap:8px;margin:14px 0;flex-wrap:wrap;}
+.chain-box{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;font-size:.74rem;font-family:monospace;color:var(--dim);}
+.chain-box span{color:var(--accent);}
+.chain-arrow{color:var(--dim2);font-size:.9rem;}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">⚠️ Error 处理</span>
+  <div class="nav-tags">
+    <span class="ntag">error</span>
+    <span class="ntag">sentinel</span>
+    <span class="ntag">wrap</span>
+    <span class="ntag">errors.Is</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <aside class="side-nav" id="sideNav">
+    <nav><ul>
+      <li><a href="#error-interface">error 接口</a></li>
+      <li><a href="#sentinel-error">sentinel error</a></li>
+      <li><a href="#error-wrap">错误包装</a></li>
+      <li><a href="#custom-error">自定义错误</a></li>
+      <li><a href="#interview">面试题</a></li>
+      <li><a href="#pitfalls">易错点</a></li>
+    </ul></nav>
+  </aside>
+  <main class="main-content">
+
+    <div class="section" id="error-interface">
+      <div class="section-title"><div class="title-bar"></div><h2>error 接口</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>内置 error 接口与惯用模式</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>Go 内置的 <code>error</code> 接口只有一个方法。函数通过多返回值返回错误，调用方立即检查错误。</p>
+          <pre><span class="cm">// error 接口定义</span>
+<span class="kw">type</span> <span class="pkg">error</span> <span class="kw">interface</span> {
+    <span class="fn">Error</span>() <span class="pkg">string</span>
+}
+
+<span class="cm">// 惯用返回模式：(value, error)</span>
+<span class="kw">func</span> <span class="fn">divide</span>(<span class="id">a</span>, <span class="id">b</span> <span class="pkg">float64</span>) (<span class="pkg">float64</span>, <span class="pkg">error</span>) {
+    <span class="kw">if</span> <span class="id">b</span> == <span class="num">0</span> {
+        <span class="kw">return</span> <span class="num">0</span>, <span class="id">fmt</span>.<span class="fn">Errorf</span>(<span class="st">"division by zero"</span>)
+    }
+    <span class="kw">return</span> <span class="id">a</span> / <span class="id">b</span>, <span class="kw">nil</span>
+}
+
+<span class="cm">// 调用方立即处理错误</span>
+<span class="id">result</span>, <span class="id">err</span> := <span class="fn">divide</span>(<span class="num">10</span>, <span class="num">0</span>)
+<span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> {
+    <span class="id">log</span>.<span class="fn">Printf</span>(<span class="st">"error: %v"</span>, <span class="id">err</span>)
+    <span class="kw">return</span>
+}
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">result</span>)</pre>
+          <p>Go 的错误处理是显式的。<code>errors.New</code> 创建简单错误，<code>fmt.Errorf</code> 创建带格式的错误，两者都返回 error 接口值。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="sentinel-error">
+      <div class="section-title"><div class="title-bar"></div><h2>Sentinel Error（哨兵错误）</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>预定义错误值与 errors.Is 比较</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>Sentinel error 是包级别的预定义错误变量，代表特定的错误状态。使用 <code>errors.Is</code> 而非 <code>==</code> 来检查（因为错误可能被包装）。</p>
+          <pre><span class="cm">// 标准库中的 sentinel errors</span>
+<span class="id">io</span>.<span class="id">EOF</span>              <span class="cm">// 正常的文件结束</span>
+<span class="id">io</span>.<span class="id">ErrUnexpectedEOF</span>  <span class="cm">// 非预期的 EOF</span>
+<span class="id">os</span>.<span class="id">ErrNotExist</span>      <span class="cm">// 文件不存在</span>
+<span class="id">sql</span>.<span class="id">ErrNoRows</span>       <span class="cm">// 查询无结果</span>
+<span class="id">context</span>.<span class="id">Canceled</span>   <span class="cm">// context 被取消</span>
+
+<span class="cm">// 定义自己的 sentinel error</span>
+<span class="kw">var</span> <span class="id">ErrNotFound</span> = <span class="id">errors</span>.<span class="fn">New</span>(<span class="st">"not found"</span>)
+<span class="kw">var</span> <span class="id">ErrPermission</span> = <span class="id">errors</span>.<span class="fn">New</span>(<span class="st">"permission denied"</span>)
+
+<span class="cm">// 比较：用 errors.Is，而不是 ==</span>
+<span class="id">err</span> := <span class="fn">someFunc</span>()
+<span class="kw">if</span> <span class="id">errors</span>.<span class="fn">Is</span>(<span class="id">err</span>, <span class="id">ErrNotFound</span>) {
+    <span class="cm">// 处理 not found 情况</span>
+}
+
+<span class="cm">// 读取直到 EOF</span>
+<span class="kw">for</span> {
+    <span class="id">n</span>, <span class="id">err</span> := <span class="id">reader</span>.<span class="fn">Read</span>(<span class="id">buf</span>)
+    <span class="kw">if</span> <span class="id">err</span> == <span class="id">io</span>.<span class="id">EOF</span> { <span class="kw">break</span> }
+    <span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> { <span class="kw">return</span> <span class="id">err</span> }
+    <span class="id">process</span>(<span class="id">buf</span>[:<span class="id">n</span>])
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="error-wrap">
+      <div class="section-title"><div class="title-bar"></div><h2>错误包装（Error Wrapping）</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>%w、Unwrap、errors.Is 与 errors.As</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>Go 1.13 引入标准的错误链，使用 <code>%w</code> 包装错误，保留原始错误的同时添加上下文信息。</p>
+          <div class="chain-diagram">
+            <div class="chain-box"><span>DatabaseErr</span><br>"db: connection refused"</div>
+            <div class="chain-arrow">← Unwrap</div>
+            <div class="chain-box"><span>ServiceErr</span><br>"service: query failed"</div>
+            <div class="chain-arrow">← Unwrap</div>
+            <div class="chain-box"><span>HandlerErr</span><br>"handler: internal error"</div>
+          </div>
+          <pre><span class="cm">// 包装错误：%w 保留错误链</span>
+<span class="kw">func</span> <span class="fn">queryUser</span>(<span class="id">id</span> <span class="pkg">int</span>) (<span class="id">User</span>, <span class="pkg">error</span>) {
+    <span class="id">u</span>, <span class="id">err</span> := <span class="id">db</span>.<span class="fn">Get</span>(<span class="id">id</span>)
+    <span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> {
+        <span class="cm">// %w 包装，保留原始错误</span>
+        <span class="kw">return</span> <span class="id">User</span>{}, <span class="id">fmt</span>.<span class="fn">Errorf</span>(<span class="st">"queryUser(%d): %w"</span>, <span class="id">id</span>, <span class="id">err</span>)
+    }
+    <span class="kw">return</span> <span class="id">u</span>, <span class="kw">nil</span>
+}
+
+<span class="cm">// errors.Is：递归解包，检查错误链中是否包含目标错误</span>
+<span class="id">err</span> := <span class="fn">queryUser</span>(<span class="num">42</span>)
+<span class="kw">if</span> <span class="id">errors</span>.<span class="fn">Is</span>(<span class="id">err</span>, <span class="id">sql</span>.<span class="id">ErrNoRows</span>) {
+    <span class="cm">// 即使 err 被多层包装，也能找到 sql.ErrNoRows</span>
+}
+
+<span class="cm">// errors.As：提取特定类型的错误</span>
+<span class="kw">var</span> <span class="id">pathErr</span> *<span class="id">os</span>.<span class="id">PathError</span>
+<span class="kw">if</span> <span class="id">errors</span>.<span class="fn">As</span>(<span class="id">err</span>, &amp;<span class="id">pathErr</span>) {
+    <span class="id">fmt</span>.<span class="fn">Println</span>(<span class="st">"path:"</span>, <span class="id">pathErr</span>.<span class="id">Path</span>)
+}
+
+<span class="cm">// errors.Unwrap：解开一层包装</span>
+<span class="id">cause</span> := <span class="id">errors</span>.<span class="fn">Unwrap</span>(<span class="id">err</span>)</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="custom-error">
+      <div class="section-title"><div class="title-bar"></div><h2>自定义错误类型</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>带上下文信息的错误类型</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-body">
+          <p>自定义错误类型可以携带更多上下文（如错误码、操作类型、请求 ID），并通过实现 <code>Unwrap</code> 支持错误链。</p>
+          <pre><span class="cm">// 带上下文的自定义错误</span>
+<span class="kw">type</span> <span class="id">AppError</span> <span class="kw">struct</span> {
+    <span class="id">Code</span>    <span class="pkg">int</span>
+    <span class="id">Message</span> <span class="pkg">string</span>
+    <span class="id">Err</span>     <span class="pkg">error</span>  <span class="cm">// 原始错误</span>
+}
+
+<span class="kw">func</span> (<span class="id">e</span> *<span class="id">AppError</span>) <span class="fn">Error</span>() <span class="pkg">string</span> {
+    <span class="kw">if</span> <span class="id">e</span>.<span class="id">Err</span> != <span class="kw">nil</span> {
+        <span class="kw">return</span> <span class="id">fmt</span>.<span class="fn">Sprintf</span>(<span class="st">"[%d] %s: %v"</span>, <span class="id">e</span>.<span class="id">Code</span>, <span class="id">e</span>.<span class="id">Message</span>, <span class="id">e</span>.<span class="id">Err</span>)
+    }
+    <span class="kw">return</span> <span class="id">fmt</span>.<span class="fn">Sprintf</span>(<span class="st">"[%d] %s"</span>, <span class="id">e</span>.<span class="id">Code</span>, <span class="id">e</span>.<span class="id">Message</span>)
+}
+
+<span class="cm">// 实现 Unwrap 支持 errors.Is/As</span>
+<span class="kw">func</span> (<span class="id">e</span> *<span class="id">AppError</span>) <span class="fn">Unwrap</span>() <span class="pkg">error</span> { <span class="kw">return</span> <span class="id">e</span>.<span class="id">Err</span> }
+
+<span class="cm">// 使用</span>
+<span class="kw">var</span> <span class="id">ae</span> *<span class="id">AppError</span>
+<span class="kw">if</span> <span class="id">errors</span>.<span class="fn">As</span>(<span class="id">err</span>, &amp;<span class="id">ae</span>) {
+    <span class="id">fmt</span>.<span class="fn">Println</span>(<span class="st">"error code:"</span>, <span class="id">ae</span>.<span class="id">Code</span>)
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="interview">
+      <div class="section-title"><div class="title-bar"></div><h2>面试题</h2></div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">errors.Is 和 == 的区别是什么？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a"><code>==</code>：直接比较两个错误值是否相等（指针相等或值相等），无法处理被包装的错误。<br><br>
+        <code>errors.Is(err, target)</code>：递归解包错误链，检查链中是否有某个错误 <code>== target</code> 或实现了 <code>Is(error) bool</code> 方法返回 true。<br><br>
+        示例：如果 err 是 <code>fmt.Errorf("wrap: %w", sql.ErrNoRows)</code>，则 <code>err == sql.ErrNoRows</code> 为 false，但 <code>errors.Is(err, sql.ErrNoRows)</code> 为 true。<br><br>
+        结论：使用 <code>errors.Is</code> 来比较错误，不要用 <code>==</code>（除非明确不涉及包装错误的场景，如比较 io.EOF）。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">如何判断并提取特定类型的错误？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">使用 <code>errors.As(err, &amp;target)</code>，它会递归解包错误链，尝试将某个错误赋值给 target（target 必须是具体错误类型的指针）：<br><br>
+        <code>var pathErr *os.PathError</code><br>
+        <code>if errors.As(err, &amp;pathErr) { fmt.Println(pathErr.Path) }</code><br><br>
+        <code>errors.As</code> vs <code>errors.Is</code>：<br>
+        • <code>Is</code>：比较特定的错误<strong>实例</strong>（sentinel error）<br>
+        • <code>As</code>：提取特定<strong>类型</strong>的错误值，可以访问其字段</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">panic 和 error 什么时候分别使用？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a"><strong>使用 error</strong>（推荐，绝大多数情况）：<br>
+        • 可预期的错误：文件不存在、网络超时、参数无效<br>
+        • 业务错误：用户不存在、权限不足<br>
+        • 可恢复的错误：数据库连接失败（可重试）<br><br>
+        <strong>使用 panic</strong>（谨慎，极少情况）：<br>
+        • 程序不变量被违反（如数组越界、nil 指针）：运行时自动 panic<br>
+        • 初始化失败（如 regexp.MustCompile 传入无效正则）<br>
+        • 表明代码有 bug，不应该发生的情况<br><br>
+        库代码应该避免向外 panic（用 recover 转换为 error），让调用方自己决定如何处理。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">%v 和 %w 在 fmt.Errorf 中的区别？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a"><code>%v</code>：将错误格式化为字符串嵌入新错误消息，<strong>不保留</strong>原始错误的引用。<code>errors.Is/As</code> 无法解包到原始错误。<br><br>
+        <code>%w</code>：包装错误，<strong>保留</strong>原始错误的引用。新错误实现 <code>Unwrap() error</code> 方法返回原始错误，<code>errors.Is/As</code> 可以递归解包。<br><br>
+        选择原则：<br>
+        • 如果调用方需要识别原始错误类型 → 用 <code>%w</code><br>
+        • 如果只需要错误信息字符串，不需要识别原始类型 → 用 <code>%v</code>（不泄漏内部实现细节）</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">如何为自定义错误类型支持 errors.Is 自定义比较？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">实现 <code>Is(target error) bool</code> 方法可以自定义 <code>errors.Is</code> 的匹配逻辑：<br><br>
+        <code>func (e *AppError) Is(target error) bool {</code><br>
+        <code>&nbsp;&nbsp;t, ok := target.(*AppError)</code><br>
+        <code>&nbsp;&nbsp;if !ok { return false }</code><br>
+        <code>&nbsp;&nbsp;return e.Code == t.Code  // 按 Code 匹配，不管 Message</code><br>
+        <code>}</code><br><br>
+        这样 <code>errors.Is(err, &amp;AppError{Code: 404})</code> 会匹配所有 Code 为 404 的错误，而不需要精确的实例相等。</div>
+      </div>
+    </div>
+
+    <div class="section" id="pitfalls">
+      <div class="section-title"><div class="title-bar"></div><h2>易错点</h2></div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 忽略 error 返回值</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// ❌ 忽略错误，可能导致 f 为 nil</span>
+<span class="id">f</span>, _ := <span class="id">os</span>.<span class="fn">Open</span>(<span class="st">"file.txt"</span>)
+<span class="id">data</span>, _ := <span class="id">io</span>.<span class="fn">ReadAll</span>(<span class="id">f</span>)
+<span class="cm">// 如果文件不存在，f == nil</span>
+<span class="cm">// ReadAll 会 panic: nil pointer</span></pre>
+            <p>用 _ 忽略 error 相当于祈祷不出错，后续操作可能产生更难调试的 panic。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="id">f</span>, <span class="id">err</span> := <span class="id">os</span>.<span class="fn">Open</span>(<span class="st">"file.txt"</span>)
+<span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> {
+    <span class="kw">return</span> <span class="id">fmt</span>.<span class="fn">Errorf</span>(<span class="st">"open: %w"</span>, <span class="id">err</span>)
+}
+<span class="kw">defer</span> <span class="id">f</span>.<span class="fn">Close</span>()
+<span class="id">data</span>, <span class="id">err</span> := <span class="id">io</span>.<span class="fn">ReadAll</span>(<span class="id">f</span>)
+<span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> {
+    <span class="kw">return</span> <span class="id">fmt</span>.<span class="fn">Errorf</span>(<span class="st">"read: %w"</span>, <span class="id">err</span>)
+}</pre>
+            <p>每个 error 都要检查，用 %w 包装并添加上下文信息后向上传递。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 用 == 比较被包装过的 sentinel error</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="id">err</span> := <span class="fn">queryDB</span>()
+<span class="cm">// 底层是 fmt.Errorf("query: %w", sql.ErrNoRows)</span>
+
+<span class="cm">// ❌ == 无法穿透包装层</span>
+<span class="kw">if</span> <span class="id">err</span> == <span class="id">sql</span>.<span class="id">ErrNoRows</span> {
+    <span class="cm">// 永远不会执行！</span>
+}</pre>
+            <p>wrapped error 用 == 比较一定是 false，因为包装后是不同的对象。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// ✓ errors.Is 递归解包比较</span>
+<span class="kw">if</span> <span class="id">errors</span>.<span class="fn">Is</span>(<span class="id">err</span>, <span class="id">sql</span>.<span class="id">ErrNoRows</span>) {
+    <span class="cm">// 正确处理</span>
+}
+
+<span class="cm">// 提取特定类型也用 errors.As</span>
+<span class="kw">var</span> <span class="id">pgErr</span> *<span class="id">pgconn</span>.<span class="id">PgError</span>
+<span class="kw">if</span> <span class="id">errors</span>.<span class="fn">As</span>(<span class="id">err</span>, &amp;<span class="id">pgErr</span>) {
+    <span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">pgErr</span>.<span class="id">Code</span>)
+}</pre>
+            <p>始终用 errors.Is/As，而不是 == 来比较错误。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 自定义 error 类型未实现 Unwrap，错误链断裂</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">type</span> <span class="id">MyErr</span> <span class="kw">struct</span> {
+    <span class="id">Cause</span> <span class="pkg">error</span>
+    <span class="id">Msg</span>   <span class="pkg">string</span>
+}
+<span class="kw">func</span> (<span class="id">e</span> *<span class="id">MyErr</span>) <span class="fn">Error</span>() <span class="pkg">string</span> {
+    <span class="kw">return</span> <span class="id">e</span>.<span class="id">Msg</span>
+}
+<span class="cm">// ❌ 没有 Unwrap 方法</span>
+
+<span class="cm">// errors.Is 无法找到 Cause</span>
+<span class="id">err</span> := &amp;<span class="id">MyErr</span>{<span class="id">Cause</span>: <span class="id">io</span>.<span class="id">EOF</span>, <span class="id">Msg</span>: <span class="st">"wrapped"</span>}
+<span class="id">errors</span>.<span class="fn">Is</span>(<span class="id">err</span>, <span class="id">io</span>.<span class="id">EOF</span>)  <span class="cm">// false！</span></pre>
+            <p>没有 Unwrap 方法，errors.Is/As 无法解包到 Cause 错误。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">type</span> <span class="id">MyErr</span> <span class="kw">struct</span> {
+    <span class="id">Cause</span> <span class="pkg">error</span>
+    <span class="id">Msg</span>   <span class="pkg">string</span>
+}
+<span class="kw">func</span> (<span class="id">e</span> *<span class="id">MyErr</span>) <span class="fn">Error</span>() <span class="pkg">string</span> {
+    <span class="kw">return</span> <span class="id">e</span>.<span class="id">Msg</span>
+}
+<span class="cm">// ✓ 实现 Unwrap，暴露错误链</span>
+<span class="kw">func</span> (<span class="id">e</span> *<span class="id">MyErr</span>) <span class="fn">Unwrap</span>() <span class="pkg">error</span> {
+    <span class="kw">return</span> <span class="id">e</span>.<span class="id">Cause</span>
+}
+
+<span class="id">err</span> := &amp;<span class="id">MyErr</span>{<span class="id">Cause</span>: <span class="id">io</span>.<span class="id">EOF</span>}
+<span class="id">errors</span>.<span class="fn">Is</span>(<span class="id">err</span>, <span class="id">io</span>.<span class="id">EOF</span>)  <span class="cm">// true ✓</span></pre>
+            <p>自定义错误类型如果持有 Cause，必须实现 Unwrap 方法让错误链可遍历。</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>
+function toggleQA(el){el.classList.toggle('open');}
+document.addEventListener('DOMContentLoaded',()=>{
+  if(typeof NavTracker!=='undefined') NavTracker.track('Error 处理','golang/error.html','⚠️','Golang');
+});
+</script>
+</body>
+</html>

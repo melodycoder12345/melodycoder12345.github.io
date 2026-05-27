@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Golang 思维笔记 - 码海拾贝</title>
+<script src="../nav.js"></script>
+<style>
+:root{
+  --bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;
+  --text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;
+  --go:#00add8;--go2:#38bdf8;--green:#4ade80;--yellow:#fbbf24;
+  --orange:#fb923c;--purple:#c084fc;--red:#f87171;--teal:#2dd4bf;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;line-height:1.6;}
+
+/* ── HERO ── */
+.hero{
+  padding:64px 40px 48px;
+  border-bottom:1px solid var(--border2);
+  background:
+    radial-gradient(ellipse 60% 40% at 15% 0%,rgba(0,173,216,.22),transparent 55%),
+    radial-gradient(ellipse 40% 30% at 90% 20%,rgba(56,189,248,.12),transparent 50%),
+    linear-gradient(160deg,#0f172a 0%,#06192b 55%,#0f172a 100%);
+  position:relative;overflow:hidden;
+}
+.hero::after{
+  content:'';position:absolute;bottom:-1px;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--go),transparent);
+}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:8px;padding:5px 14px;border-radius:100px;
+  background:rgba(0,173,216,.1);border:1px solid rgba(0,173,216,.25);
+  font-size:.76rem;color:var(--go);margin-bottom:24px;letter-spacing:.05em;
+}
+.hero-badge-dot{width:6px;height:6px;border-radius:50%;background:var(--go);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(0,173,216,.5);}50%{opacity:.4;box-shadow:0 0 0 5px rgba(0,173,216,0);}}
+.hero h1{
+  font-size:clamp(2rem,4.5vw,3rem);font-weight:800;line-height:1.12;letter-spacing:-.04em;
+  margin-bottom:16px;
+  background:linear-gradient(120deg,#e2e8f0 0%,var(--go) 40%,var(--go2) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.hero-sub{font-size:1rem;color:var(--dim);max-width:680px;line-height:1.75;margin-bottom:28px;}
+.hero-stats{display:flex;gap:24px;flex-wrap:wrap;}
+.hero-stat{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--dim);}
+.hero-stat strong{color:var(--text);}
+.hero-stat span{width:8px;height:8px;border-radius:50%;}
+
+main{max-width:1220px;margin:0 auto;padding:48px 40px 80px;}
+
+/* ── SECTION HEADER ── */
+.sec-hd{display:flex;align-items:center;gap:12px;margin-bottom:28px;}
+.sec-hd h2{font-size:1.45rem;font-weight:700;letter-spacing:-.02em;}
+.sec-hd-bar{width:4px;height:24px;border-radius:2px;background:var(--go);flex-shrink:0;}
+.sec-num{font-family:monospace;font-size:.76rem;color:var(--go);background:rgba(0,173,216,.1);border:1px solid rgba(0,173,216,.2);border-radius:6px;padding:2px 8px;}
+section{margin-bottom:64px;}
+
+/* ── 基础概念 ── */
+.intro-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px;}
+.intro-card{background:rgba(255,255,255,.03);border:1px solid var(--border2);border-radius:14px;padding:20px;}
+.intro-card h3{font-size:.9rem;font-weight:700;margin-bottom:10px;color:var(--text);display:flex;align-items:center;gap:8px;}
+.intro-card h3 span{font-size:1.1rem;}
+.intro-card p{font-size:.83rem;color:var(--dim);line-height:1.72;}
+
+.compare-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:28px;}
+.cmp{background:rgba(255,255,255,.025);border:1px solid var(--border2);border-radius:12px;padding:14px 16px;}
+.cmp-lang{font-size:.72rem;font-family:monospace;color:var(--dim2);margin-bottom:6px;text-transform:uppercase;}
+.cmp-point{font-size:.82rem;color:var(--text);line-height:1.6;}
+.cmp-point em{color:var(--go);font-style:normal;font-weight:600;}
+
+.qa-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.qa{background:rgba(0,173,216,.04);border:1px solid rgba(0,173,216,.15);border-radius:12px;padding:16px 18px;}
+.qa-q{font-size:.82rem;font-weight:600;color:var(--go2);margin-bottom:7px;display:flex;align-items:flex-start;gap:6px;}
+.qa-q::before{content:'Q';font-family:monospace;font-size:.7rem;background:rgba(0,173,216,.18);border-radius:4px;padding:1px 5px;flex-shrink:0;margin-top:1px;}
+.qa-a{font-size:.82rem;color:var(--dim);line-height:1.7;}
+.qa-a strong{color:var(--text);}
+
+/* ── 核心知识 ── */
+.domain-group{margin-bottom:36px;}
+.domain-label{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.domain-label h3{font-size:.8rem;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;}
+.domain-label::before{content:'';flex:1;height:1px;background:var(--border2);display:none;}
+.domain-sep{flex:1;height:1px;background:var(--border2);}
+.domain-count{font-size:.7rem;font-family:monospace;color:var(--dim2);background:rgba(255,255,255,.04);border:1px solid var(--border2);border-radius:99px;padding:2px 8px;}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;}
+.card{
+  background:var(--panel);border:1px solid var(--border2);border-radius:14px;padding:18px;
+  text-decoration:none;color:inherit;position:relative;overflow:hidden;
+  transition:transform .2s cubic-bezier(.4,0,.2,1),border-color .2s,box-shadow .2s;
+  display:flex;flex-direction:column;
+}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--cc,var(--go));}
+.card:hover{transform:translateY(-3px);border-color:rgba(255,255,255,.12);box-shadow:0 12px 32px rgba(0,0,0,.4);}
+.card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.card-icon{font-size:1.5rem;}
+.card-badge{
+  font-size:.65rem;padding:2px 7px;border-radius:99px;font-family:monospace;
+  border:1px solid;flex-shrink:0;
+}
+.badge-anim{color:#fbbf24;border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.08);}
+.badge-note{color:var(--dim);border-color:rgba(255,255,255,.1);background:rgba(255,255,255,.04);}
+.card-name{font-size:.95rem;font-weight:700;margin-bottom:6px;color:var(--cc,var(--go));}
+.card-desc{font-size:.78rem;color:var(--dim);line-height:1.6;flex:1;}
+.card-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}
+.tag{font-size:.65rem;padding:1px 7px;border-radius:99px;font-family:monospace;background:rgba(255,255,255,.05);color:var(--dim2);border:1px solid rgba(255,255,255,.07);}
+
+/* ── 推荐路线 ── */
+.roadmap{display:grid;grid-template-columns:repeat(4,1fr);gap:0;position:relative;}
+.roadmap::before{
+  content:'';position:absolute;top:36px;left:10%;right:10%;height:2px;
+  background:linear-gradient(90deg,rgba(0,173,216,.2),var(--go),rgba(0,173,216,.2));
+  z-index:0;
+}
+.stage{
+  background:var(--panel);border:1px solid var(--border2);border-radius:16px;padding:20px 18px;
+  position:relative;z-index:1;margin:0 6px;
+  transition:border-color .2s,box-shadow .2s;
+}
+.stage:hover{border-color:rgba(0,173,216,.3);box-shadow:0 8px 24px rgba(0,173,216,.08);}
+.stage-num{
+  font-family:monospace;font-size:.72rem;color:var(--go);
+  background:rgba(0,173,216,.12);border:1px solid rgba(0,173,216,.25);
+  border-radius:999px;padding:3px 10px;display:inline-block;margin-bottom:12px;
+}
+.stage h3{font-size:.95rem;font-weight:700;margin-bottom:8px;}
+.stage ul{list-style:none;display:flex;flex-direction:column;gap:5px;}
+.stage li{font-size:.78rem;color:var(--dim);display:flex;align-items:center;gap:6px;}
+.stage li::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--dim2);flex-shrink:0;}
+.stage li a{color:var(--dim);text-decoration:none;transition:color .15s;}
+.stage li a:hover{color:var(--go);}
+
+@media(max-width:1000px){
+  .roadmap{grid-template-columns:1fr 1fr;gap:12px;}
+  .roadmap::before{display:none;}
+  .stage{margin:0;}
+}
+@media(max-width:760px){
+  .hero{padding:36px 20px 32px;}
+  main{padding:32px 20px 60px;}
+  .intro-grid{grid-template-columns:1fr;}
+  .compare-row{grid-template-columns:1fr;}
+  .qa-grid{grid-template-columns:1fr;}
+  .roadmap{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div style="max-width:1220px;margin:0 auto;padding:0 40px;">
+    <div class="hero-badge"><span class="hero-badge-dot"></span>思维笔记 · 35 个专题</div>
+    <h1>Golang 深度笔记</h1>
+    <p class="hero-sub">从语言核心到运行时，从并发原语到工程实践。每个专题附带动画演示、面试题和易错点，帮助你真正理解 Go 的设计取舍。</p>
+    <div class="hero-stats">
+      <div class="hero-stat"><span style="background:#fbbf24"></span><strong>11</strong> 动画专题</div>
+      <div class="hero-stat"><span style="background:var(--dim)"></span><strong>24</strong> 知识笔记</div>
+      <div class="hero-stat"><span style="background:var(--go)"></span><strong>150+</strong> 面试题</div>
+      <div class="hero-stat"><span style="background:var(--red)"></span><strong>100+</strong> 易错点</div>
+    </div>
+  </div>
+</div>
+
+<main>
+
+<!-- ① 基础概念 -->
+<section id="basics">
+  <div class="sec-hd">
+    <div class="sec-hd-bar"></div>
+    <h2>基础概念</h2>
+    <span class="sec-num">01</span>
+  </div>
+
+  <div class="intro-grid">
+    <div class="intro-card">
+      <h3><span>🎯</span>Go 的定位与设计目标</h3>
+      <p>Google 设计 Go 来解决大型软件工程的痛点：<br>
+      · <strong style="color:var(--text)">编译快</strong> — 模块化依赖，无头文件<br>
+      · <strong style="color:var(--text)">部署简</strong> — 静态链接，单二进制<br>
+      · <strong style="color:var(--text)">并发原生</strong> — goroutine + channel 是一等公民<br>
+      · <strong style="color:var(--text)">简洁语法</strong> — 约 25 个关键字，降低协作成本</p>
+    </div>
+    <div class="intro-card">
+      <h3><span>✨</span>核心特性速览</h3>
+      <p>· 接口<strong style="color:var(--text)">隐式满足</strong>，无需 implements 声明<br>
+      · goroutine 初始栈仅 <strong style="color:var(--text)">2KB</strong>，轻松创建百万级并发<br>
+      · 无继承，用<strong style="color:var(--text)">组合（embedding）</strong>实现代码复用<br>
+      · 错误是普通值，<strong style="color:var(--text)">显式处理</strong>，不依赖异常机制<br>
+      · 内置 GC，目标停顿 <strong style="color:var(--text)">&lt;1ms</strong>（Go 1.14+）</p>
+    </div>
+  </div>
+
+  <div style="margin-bottom:18px;font-size:.78rem;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;">与其他语言对比</div>
+  <div class="compare-row">
+    <div class="cmp">
+      <div class="cmp-lang">vs Java</div>
+      <div class="cmp-point">Go 没有 JVM 热身开销，启动更快；接口隐式满足比 Java 更灵活；但 Go 泛型比 Java 弱，GC 策略不同（低延迟 vs 高吞吐），<em>不适合重 OOP 或复杂继承体系</em>。</div>
+    </div>
+    <div class="cmp">
+      <div class="cmp-lang">vs Python</div>
+      <div class="cmp-point">Go 是编译型，性能高出数十倍；有类型系统，重构安全；并发模型原生。Python 脚本和数据科学更方便，<em>Go 适合对性能和并发有要求的后端服务</em>。</div>
+    </div>
+    <div class="cmp">
+      <div class="cmp-lang">vs C++</div>
+      <div class="cmp-point">Go 有 GC，不需要手动管理内存；编译更快，工具链统一；但运行时性能和底层控制不如 C++，<em>Go 是"够快 + 更安全 + 更易写"的工程折中</em>。</div>
+    </div>
+  </div>
+
+  <div style="margin-bottom:18px;font-size:.78rem;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;">高频 Q &amp; A</div>
+  <div class="qa-grid">
+    <div class="qa">
+      <div class="qa-q">goroutine 和 thread 的区别？</div>
+      <div class="qa-a">goroutine 初始栈 <strong>2KB</strong>（OS thread ~1-8MB），由 Go runtime 在用户态调度，不经过内核。M:N 模型，少量 OS thread 复用大量 goroutine，<strong>百万级并发</strong>不需要百万个线程。</div>
+    </div>
+    <div class="qa">
+      <div class="qa-q">什么时候用 channel，什么时候用 mutex？</div>
+      <div class="qa-a"><strong>传递所有权、协调工作流</strong>用 channel；<strong>保护共享状态</strong>用 mutex。简单计数器、缓存等场景用 mutex 往往更清晰，不要强行 channel。</div>
+    </div>
+    <div class="qa">
+      <div class="qa-q">Go GC 停顿有多长？</div>
+      <div class="qa-a">现代 Go（1.14+）目标 <strong>&lt;1ms</strong>。并发三色标记，只有 mark termination 和 sweep termination 是 STW。GOGC 控制触发频率（默认 100 = 堆翻倍触发），<strong>减少对象数量</strong>比调 GOGC 更根本。</div>
+    </div>
+    <div class="qa">
+      <div class="qa-q">逃逸分析是什么，为什么重要？</div>
+      <div class="qa-a">编译期决定变量分配在<strong>栈</strong>还是<strong>堆</strong>。栈分配零 GC 压力，函数返回即回收。返回指针、赋给 interface{}、闭包捕获等会触发逃逸到堆。用 <code style="font-family:monospace;color:var(--go)">-gcflags=-m</code> 观察逃逸原因。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ② 核心知识 -->
+<section id="topics">
+  <div class="sec-hd">
+    <div class="sec-hd-bar"></div>
+    <h2>核心知识</h2>
+    <span class="sec-num">02</span>
+  </div>
+
+  <!-- 语言核心 -->
+  <div class="domain-group">
+    <div class="domain-label">
+      <h3 style="color:var(--go)">语言核心</h3>
+      <div class="domain-sep"></div>
+      <span class="domain-count">10 个笔记</span>
+    </div>
+    <div class="cards">
+      <a class="card" href="type-system.html" style="--cc:var(--go)">
+        <div class="card-top"><span class="card-icon">🔤</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">类型系统</div>
+        <div class="card-desc">基本类型、复合类型、指针、零值与类型转换规则。</div>
+        <div class="card-tags"><span class="tag">struct</span><span class="tag">pointer</span><span class="tag">zero</span></div>
+      </a>
+      <a class="card" href="string.html" style="--cc:var(--go)">
+        <div class="card-top"><span class="card-icon">📝</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">字符串</div>
+        <div class="card-desc">底层结构、rune/byte、UTF-8 处理、strings.Builder 优化。</div>
+        <div class="card-tags"><span class="tag">rune</span><span class="tag">UTF-8</span><span class="tag">Builder</span></div>
+      </a>
+      <a class="card" href="interface.html" style="--cc:var(--go2)">
+        <div class="card-top"><span class="card-icon">🔌</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">Interface</div>
+        <div class="card-desc">隐式满足、nil interface 陷阱、iface/eface 内部结构。</div>
+        <div class="card-tags"><span class="tag">iface</span><span class="tag">nil 陷阱</span></div>
+      </a>
+      <a class="card" href="embedding.html" style="--cc:var(--teal)">
+        <div class="card-top"><span class="card-icon">🧩</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">嵌入与组合</div>
+        <div class="card-desc">结构体嵌入、方法提升、接口嵌入，组合替代继承。</div>
+        <div class="card-tags"><span class="tag">embedding</span><span class="tag">提升</span></div>
+      </a>
+      <a class="card" href="error.html" style="--cc:var(--red)">
+        <div class="card-top"><span class="card-icon">❗</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">Error 处理</div>
+        <div class="card-desc">error 接口、sentinel、%w 包装、Is/As 展开链、自定义错误。</div>
+        <div class="card-tags"><span class="tag">sentinel</span><span class="tag">%w</span><span class="tag">Is/As</span></div>
+      </a>
+      <a class="card" href="generics.html" style="--cc:var(--purple)">
+        <div class="card-top"><span class="card-icon">⚗️</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">泛型</div>
+        <div class="card-desc">type param、类型约束、any/comparable 与适用场景边界。</div>
+        <div class="card-tags"><span class="tag">1.18+</span><span class="tag">约束</span></div>
+      </a>
+      <a class="card" href="closure.html" style="--cc:var(--yellow)">
+        <div class="card-top"><span class="card-icon">🔒</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">闭包</div>
+        <div class="card-desc">捕获引用而非值、循环变量陷阱、函数值的逃逸行为。</div>
+        <div class="card-tags"><span class="tag">捕获引用</span><span class="tag">循环陷阱</span></div>
+      </a>
+      <a class="card" href="defer-panic.html" style="--cc:var(--orange)">
+        <div class="card-top"><span class="card-icon">⏩</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">Defer / Panic</div>
+        <div class="card-desc">执行顺序、参数求值时机、panic 传播与 recover 边界。</div>
+        <div class="card-tags"><span class="tag">LIFO</span><span class="tag">recover</span></div>
+      </a>
+      <a class="card" href="slice-map.html" style="--cc:var(--green)">
+        <div class="card-top"><span class="card-icon">📦</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">Slice / Map</div>
+        <div class="card-desc">slice 三元组结构、扩容策略、共享底层数组、map bucket。</div>
+        <div class="card-tags"><span class="tag">扩容</span><span class="tag">bucket</span></div>
+      </a>
+      <a class="card" href="reflect.html" style="--cc:var(--dim)">
+        <div class="card-top"><span class="card-icon">🪞</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">Reflect</div>
+        <div class="card-desc">reflect.Type/Value、类型断言、type switch 与性能代价。</div>
+        <div class="card-tags"><span class="tag">Type</span><span class="tag">Value</span></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- 并发 -->
+  <div class="domain-group">
+    <div class="domain-label">
+      <h3 style="color:var(--green)">并发与运行时</h3>
+      <div class="domain-sep"></div>
+      <span class="domain-count">11 动画 + 4 笔记</span>
+    </div>
+    <div class="cards">
+      <a class="card" href="gmp.html" style="--cc:var(--yellow)">
+        <div class="card-top"><span class="card-icon">⚙️</span><span class="card-badge badge-anim">🎬 动画</span></div>
+        <div class="card-name">GMP 调度器</div>
+        <div class="card-desc">正常调度、work-stealing、netpoll 与 syscall 四个场景。</div>
+        <div class="card-tags"><span class="tag">G M P</span><span class="tag">stealing</span></div>
+      </a>
+      <a class="card" href="gc.html" style="--cc:var(--green)">
+        <div class="card-top"><span class="card-icon">♻️</span><span class="card-badge badge-anim">🎬 动画</span></div>
+        <div class="card-name">GC 三色标记</div>
+        <div class="card-desc">完整标记流程、写屏障拦截并发修改、STW 阶段示意。</div>
+        <div class="card-tags"><span class="tag">写屏障</span><span class="tag">STW</span></div>
+      </a>
+      <a class="card" href="channel.html" style="--cc:var(--go)">
+        <div class="card-top"><span class="card-icon">📡</span><span class="card-badge badge-anim">🎬 动画</span></div>
+        <div class="card-name">Channel</div>
+        <div class="card-desc">无缓冲阻塞、有缓冲满/空、close+range、select 多路。</div>
+        <div class="card-tags"><span class="tag">buffered</span><span class="tag">close</span></div>
+      </a>
+      <a class="card" href="goroutine.html" style="--cc:var(--go2)">
+        <div class="card-top"><span class="card-icon">🧵</span><span class="card-badge badge-anim">🎬 动画</span></div>
+        <div class="card-name">Goroutine 生命周期</div>
+        <div class="card-desc">正常流程、goroutine 泄漏、context 取消传播三场景。</div>
+        <div class="card-tags"><span class="tag">泄漏</span><span class="tag">cancel</span></div>
+      </a>
+      <a class="card" href="memory-alloc.html" style="--cc:var(--orange)">
+        <div class="card-top"><span class="card-icon">🗄️</span><span class="card-badge badge-anim">🎬 动画</span></div>
+        <div class="card-name">内存分配器</div>
+        <div class="card-desc">mcache → mcentral → mheap 三级链路，大对象直接堆。</div>
+        <div class="card-tags"><span class="tag">mcache</span><span class="tag">mheap</span></div>
+      </a>
+      <a class="card" href="escape.html" style="--cc:var(--teal)">
+        <div class="card-top"><span class="card-icon">🏃</span><span class="card-badge badge-anim">🎬 动画</span></div>
+        <div class="card-name">逃逸分析</div>
+        <div class="card-desc">栈分配（不逃逸）、返回指针逃逸、interface{} 逃逸三场景。</div>
+        <div class="card-tags"><span class="tag">-gcflags=-m</span></div>
+      </a>
+      <a class="card" href="select.html" style="--cc:var(--purple)">
+        <div class="card-top"><span class="card-icon">🔀</span><span class="card-badge badge-anim">🎬 动画</span></div>
+        <div class="card-name">Select</div>
+        <div class="card-desc">阻塞等待、default 非阻塞分支、time.After 超时模式。</div>
+        <div class="card-tags"><span class="tag">default</span><span class="tag">timeout</span></div>
+      </a>
+      <a class="card" href="context.html" style="--cc:var(--go)">
+        <div class="card-top"><span class="card-icon">🌲</span><span class="card-badge badge-anim">🎬 动画</span></div>
+        <div class="card-name">Context</div>
+        <div class="card-desc">WithCancel 传播树、WithTimeout 截止、WithValue 查询链。</div>
+        <div class="card-tags"><span class="tag">取消树</span><span class="tag">deadline</span></div>
+      </a>
+      <a class="card" href="timer.html" style="--cc:var(--yellow)">
+        <div class="card-top"><span class="card-icon">⏱️</span><span class="card-badge badge-anim">🎬 动画</span></div>
+        <div class="card-name">Timer / Ticker</div>
+        <div class="card-desc">基本使用、Reset 竞态条件、Ticker 定期触发、goroutine 泄漏。</div>
+        <div class="card-tags"><span class="tag">Reset</span><span class="tag">Stop</span></div>
+      </a>
+      <a class="card" href="concurrent-patterns.html" style="--cc:var(--green)">
+        <div class="card-top"><span class="card-icon">🔗</span><span class="card-badge badge-anim">🎬 动画</span></div>
+        <div class="card-name">并发模式</div>
+        <div class="card-desc">pipeline 流水线、fan-out/fan-in、worker pool 三种组合模式。</div>
+        <div class="card-tags"><span class="tag">pipeline</span><span class="tag">fan-out</span></div>
+      </a>
+      <a class="card" href="memory-model.html" style="--cc:var(--red)">
+        <div class="card-top"><span class="card-icon">🧠</span><span class="card-badge badge-anim">🎬 动画</span></div>
+        <div class="card-name">内存模型</div>
+        <div class="card-desc">数据竞争可视化、happens-before 规则、atomic 保证。</div>
+        <div class="card-tags"><span class="tag">race</span><span class="tag">HB</span></div>
+      </a>
+      <a class="card" href="sync.html" style="--cc:var(--go)">
+        <div class="card-top"><span class="card-icon">🔐</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">Sync 原语</div>
+        <div class="card-desc">Mutex/RWMutex/WaitGroup/Once/Cond 使用模式与死锁场景。</div>
+        <div class="card-tags"><span class="tag">Mutex</span><span class="tag">WaitGroup</span></div>
+      </a>
+      <a class="card" href="atomic.html" style="--cc:var(--teal)">
+        <div class="card-top"><span class="card-icon">⚛️</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">Atomic</div>
+        <div class="card-desc">Add/Load/Store/CAS，与 Mutex 的边界选择，内存序。</div>
+        <div class="card-tags"><span class="tag">CAS</span><span class="tag">内存序</span></div>
+      </a>
+      <a class="card" href="syncpool.html" style="--cc:var(--orange)">
+        <div class="card-top"><span class="card-icon">♻️</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">sync.Pool</div>
+        <div class="card-desc">对象复用降低 GC 压力，GC 回收时机与反模式。</div>
+        <div class="card-tags"><span class="tag">复用</span><span class="tag">GC</span></div>
+      </a>
+      <a class="card" href="errgroup.html" style="--cc:var(--purple)">
+        <div class="card-top"><span class="card-icon">👥</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">errgroup</div>
+        <div class="card-desc">结构化并发、goroutine 错误收集，与 WaitGroup 的对比。</div>
+        <div class="card-tags"><span class="tag">errgroup</span><span class="tag">structured</span></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- 标准库 -->
+  <div class="domain-group">
+    <div class="domain-label">
+      <h3 style="color:var(--blue,#38bdf8)">标准库</h3>
+      <div class="domain-sep"></div>
+      <span class="domain-count">5 个笔记</span>
+    </div>
+    <div class="cards">
+      <a class="card" href="io.html" style="--cc:#38bdf8">
+        <div class="card-top"><span class="card-icon">🌊</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">I/O 组合</div>
+        <div class="card-desc">Reader/Writer 组合链、bufio 缓冲、io.Copy、io.Pipe。</div>
+        <div class="card-tags"><span class="tag">Reader</span><span class="tag">bufio</span></div>
+      </a>
+      <a class="card" href="http.html" style="--cc:#38bdf8">
+        <div class="card-top"><span class="card-icon">🌐</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">net/http</div>
+        <div class="card-desc">Handler 接口、ServeMux、middleware chain、Transport 连接池。</div>
+        <div class="card-tags"><span class="tag">Handler</span><span class="tag">middleware</span></div>
+      </a>
+      <a class="card" href="json.html" style="--cc:#38bdf8">
+        <div class="card-top"><span class="card-icon">📋</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">encoding/json</div>
+        <div class="card-desc">struct tag、自定义 Marshal/Unmarshal、流式 Decoder。</div>
+        <div class="card-tags"><span class="tag">tag</span><span class="tag">Decoder</span></div>
+      </a>
+      <a class="card" href="sql.html" style="--cc:#38bdf8">
+        <div class="card-top"><span class="card-icon">🗃️</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">database/sql</div>
+        <div class="card-desc">连接池配置、Tx 事务、Scan 行扫描、prepared statement。</div>
+        <div class="card-tags"><span class="tag">连接池</span><span class="tag">Tx</span></div>
+      </a>
+      <a class="card" href="strings-bytes.html" style="--cc:#38bdf8">
+        <div class="card-top"><span class="card-icon">🔡</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">strings / bytes</div>
+        <div class="card-desc">高频 API 速查、strings.Builder vs + 拼接性能对比、strconv。</div>
+        <div class="card-tags"><span class="tag">Builder</span><span class="tag">strconv</span></div>
+      </a>
+    </div>
+  </div>
+
+  <!-- 工程 -->
+  <div class="domain-group">
+    <div class="domain-label">
+      <h3 style="color:var(--purple)">工程实践</h3>
+      <div class="domain-sep"></div>
+      <span class="domain-count">5 个笔记</span>
+    </div>
+    <div class="cards">
+      <a class="card" href="modules.html" style="--cc:var(--purple)">
+        <div class="card-top"><span class="card-icon">📦</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">Modules</div>
+        <div class="card-desc">go.mod 结构、语义化版本、replace 指令、workspace 模式。</div>
+        <div class="card-tags"><span class="tag">go.mod</span><span class="tag">workspace</span></div>
+      </a>
+      <a class="card" href="testing.html" style="--cc:var(--purple)">
+        <div class="card-top"><span class="card-icon">🧪</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">Testing</div>
+        <div class="card-desc">table-driven、t.Run 子测试、parallel、benchmark 与 race detector。</div>
+        <div class="card-tags"><span class="tag">benchmark</span><span class="tag">-race</span></div>
+      </a>
+      <a class="card" href="pprof.html" style="--cc:var(--purple)">
+        <div class="card-top"><span class="card-icon">🔥</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">pprof / Trace</div>
+        <div class="card-desc">CPU/heap/goroutine profile 采集、火焰图解读、trace 分析。</div>
+        <div class="card-tags"><span class="tag">flame</span><span class="tag">heap</span></div>
+      </a>
+      <a class="card" href="patterns.html" style="--cc:var(--purple)">
+        <div class="card-top"><span class="card-icon">🏗️</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">设计模式</div>
+        <div class="card-desc">functional options、middleware 链、常见陷阱集与代码对比。</div>
+        <div class="card-tags"><span class="tag">options</span><span class="tag">middleware</span></div>
+      </a>
+      <a class="card" href="unsafe.html" style="--cc:var(--red)">
+        <div class="card-top"><span class="card-icon">⚠️</span><span class="card-badge badge-note">📝 笔记</span></div>
+        <div class="card-name">unsafe</div>
+        <div class="card-desc">unsafe.Pointer 用法、uintptr 与 GC 陷阱、Sizeof/Offsetof。</div>
+        <div class="card-tags"><span class="tag">Pointer</span><span class="tag">uintptr</span></div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ③ 推荐路线 -->
+<section id="roadmap">
+  <div class="sec-hd">
+    <div class="sec-hd-bar"></div>
+    <h2>推荐路线</h2>
+    <span class="sec-num">03</span>
+  </div>
+  <div class="roadmap">
+    <div class="stage">
+      <div class="stage-num">阶段 01</div>
+      <h3>语言基础</h3>
+      <ul>
+        <li><a href="type-system.html">类型系统</a></li>
+        <li><a href="interface.html">Interface</a></li>
+        <li><a href="error.html">Error 处理</a></li>
+        <li><a href="slice-map.html">Slice / Map</a></li>
+        <li><a href="string.html">字符串</a></li>
+        <li><a href="defer-panic.html">Defer / Panic</a></li>
+      </ul>
+    </div>
+    <div class="stage">
+      <div class="stage-num">阶段 02</div>
+      <h3>并发编程</h3>
+      <ul>
+        <li><a href="goroutine.html">Goroutine 生命周期</a></li>
+        <li><a href="channel.html">Channel</a></li>
+        <li><a href="select.html">Select</a></li>
+        <li><a href="context.html">Context</a></li>
+        <li><a href="sync.html">Sync 原语</a></li>
+        <li><a href="concurrent-patterns.html">并发模式</a></li>
+      </ul>
+    </div>
+    <div class="stage">
+      <div class="stage-num">阶段 03</div>
+      <h3>运行时内核</h3>
+      <ul>
+        <li><a href="gmp.html">GMP 调度器</a></li>
+        <li><a href="gc.html">GC 三色标记</a></li>
+        <li><a href="escape.html">逃逸分析</a></li>
+        <li><a href="memory-alloc.html">内存分配器</a></li>
+        <li><a href="memory-model.html">内存模型</a></li>
+        <li><a href="atomic.html">Atomic</a></li>
+      </ul>
+    </div>
+    <div class="stage">
+      <div class="stage-num">阶段 04</div>
+      <h3>工程与进阶</h3>
+      <ul>
+        <li><a href="testing.html">Testing</a></li>
+        <li><a href="pprof.html">pprof / Trace</a></li>
+        <li><a href="modules.html">Modules</a></li>
+        <li><a href="patterns.html">设计模式</a></li>
+        <li><a href="generics.html">泛型</a></li>
+        <li><a href="unsafe.html">unsafe</a></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script>
+if(window.NavTracker) NavTracker.track('Golang 深度笔记','golang/index.html','🐹','Golang');
+</script>
+<script src="../footer.js"></script>
+</body>
+</html>

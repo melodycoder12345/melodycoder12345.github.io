@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>内存屏障 — CS 基础</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;--g:#38bdf8;--m:#fb923c;--p:#c084fc;--q:#4ade80;}
+*{box-sizing:border-box;margin:0;padding:0;}
+
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;min-height:100vh;}
+.nav{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);flex-shrink:0;position:sticky;top:var(--snav-h,44px);z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;display:flex;align-items:center;gap:5px;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.main-area{display:flex;flex:none;height:calc(100vh - var(--snav-h,44px) - 88px);min-height:300px;overflow:hidden;}
+.steps-panel{width:270px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid var(--border2);overflow:hidden;background:rgba(15,23,42,.6);}
+.scenarios{display:flex;gap:0;border-bottom:1px solid var(--border2);overflow-x:auto;}
+.sc-btn{flex:1;background:none;border:none;color:var(--dim);padding:9px 6px;cursor:pointer;font-size:.72rem;font-family:inherit;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;text-align:center;}
+.sc-btn:hover{color:var(--text);}
+.sc-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+.step-scroll{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
+.step-desc-card{border:1px solid var(--border2);border-radius:12px;background:rgba(255,255,255,.025);padding:14px;transition:border-color .3s,box-shadow .3s;}
+.step-desc-card.lit{border-color:var(--accent);box-shadow:0 0 20px rgba(0,173,216,.12);}
+.step-desc-card .step-num{font-size:.66rem;font-family:monospace;color:var(--accent);margin-bottom:6px;}
+.step-desc-card h3{font-size:.88rem;font-weight:700;margin-bottom:6px;}
+.step-desc-card p{font-size:.78rem;color:var(--dim);line-height:1.68;}
+.flow-nav{padding:10px 14px;border-top:1px solid var(--border2);display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.fn-dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--border2);background:rgba(255,255,255,.04);cursor:pointer;font-size:.68rem;font-family:monospace;color:var(--dim);display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;}
+.fn-dot:hover{border-color:var(--dim);color:var(--text);}
+.fn-dot.done{border-color:var(--accent);background:rgba(0,173,216,.15);color:var(--accent);}
+.fn-dot.cur{border-color:var(--accent);background:rgba(0,173,216,.25);color:var(--accent);transform:scale(1.12);}
+.step-ctr{margin-left:auto;font-size:.7rem;font-family:monospace;color:var(--dim2);}
+.diagram-panel{flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid var(--border2);overflow:hidden;}
+.diagram-inner{flex:1;overflow:auto;padding:20px;background:radial-gradient(ellipse 70% 50% at 30% 20%,rgba(0,173,216,.07),transparent 60%);}
+.diagram-svg{width:100%;max-width:620px;display:block;}
+.code-panel{width:44%;min-width:360px;flex-shrink:0;display:flex;flex-direction:column;background:var(--panel2);overflow:hidden;}
+.code-hd{padding:10px 16px;border-bottom:1px solid var(--border2);font-size:.8rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);}
+.code-body{flex:1;overflow-y:auto;padding:14px 0;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.78rem;line-height:1.7;}
+.cl{display:flex;border-left:2px solid transparent;transition:background .25s,border-color .25s;}
+.cl.hi{background:rgba(0,173,216,.1);border-left-color:var(--accent);}
+.ln{min-width:42px;padding:0 10px 0 12px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;}
+.lc{padding:0 14px 0 4px;white-space:pre-wrap;word-break:break-word;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.controls{display:flex;align-items:center;gap:10px;padding:11px 22px;border-top:1px solid var(--border2);background:var(--panel);flex-shrink:0;}
+.ctrl-btn{background:rgba(255,255,255,.07);border:1px solid var(--border2);color:var(--text);padding:7px 16px;border-radius:8px;cursor:pointer;font-size:.82rem;font-family:inherit;transition:all .15s;}
+.ctrl-btn:hover{background:rgba(255,255,255,.12);}
+.ctrl-btn:disabled{opacity:.35;cursor:not-allowed;}
+.ctrl-btn.primary{background:rgba(0,173,216,.16);border-color:rgba(0,173,216,.35);color:var(--accent);}
+.ctrl-btn.primary:hover{background:rgba(0,173,216,.25);}
+.node-rect{transition:fill .35s cubic-bezier(.4,0,.2,1),stroke .35s,filter .35s;}
+.node-text{transition:fill .35s;}
+.edge{transition:stroke .35s,opacity .35s,stroke-dashoffset .6s ease-out;}
+@keyframes glow-pulse{0%,100%{filter:drop-shadow(0 0 4px rgba(56,189,248,.6));}50%{filter:drop-shadow(0 0 12px rgba(56,189,248,.95));}}
+@keyframes particle-flow{0%{stroke-dashoffset:200;}100%{stroke-dashoffset:0;}}
+@keyframes bounce-x{0%,100%{transform:translateX(0);}50%{transform:translateX(8px);}}
+@keyframes pulse-scale{0%,100%{transform:scale(1);}50%{transform:scale(1.06);}}
+.flow-arrow{stroke-dasharray:8 5;animation:particle-flow 1.2s linear infinite;}
+.active-node{animation:glow-pulse 2s infinite;}
+.bounce{animation:bounce-x 1s ease-in-out infinite;}
+.extras{padding:48px 40px;background:var(--bg);border-top:1px solid var(--border2);}
+.ext-section{margin-bottom:48px;}
+.ext-hd{display:flex;align-items:center;gap:12px;margin-bottom:22px;}
+.ext-hd-bar{width:4px;height:20px;border-radius:2px;background:var(--accent);}
+.ext-hd h2{font-size:1.25rem;font-weight:700;}
+.qa-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.qa-card{border:1px solid var(--border2);border-radius:12px;overflow:hidden;}
+.qa-q{padding:13px 16px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);font-size:.84rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .15s;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:13px 16px;font-size:.82rem;color:var(--dim);line-height:1.72;}
+.qa-card.open .qa-a{display:block;}
+.qa-a code{font-family:monospace;color:var(--accent);font-size:.78rem;}
+.pitfall-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.78rem;font-weight:700;border-bottom:1px solid var(--border2);}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;gap:0;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--dim);line-height:1.6;white-space:pre-wrap;}
+.pitfall-col p{font-size:.76rem;color:var(--dim);line-height:1.65;margin-top:6px;}
+.pitfall-col p strong{color:var(--text);}
+@media(max-width:900px){body{overflow-y:auto;height:auto;}.main-area{flex-direction:column;overflow:visible;height:auto;flex:none;}.steps-panel{width:100%;border-right:none;border-bottom:1px solid var(--border2);}.diagram-panel{border-right:none;min-height:340px;}.code-panel{width:100%;min-width:0;height:320px;flex:none;}.qa-grid,.pitfall-grid{grid-template-columns:1fr;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}.extras{padding:32px 20px;}}
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">内存屏障 — CS 基础</span>
+  <div class="nav-tags">
+    <span class="ntag">memory-barrier</span>
+    <span class="ntag">reorder</span>
+    <span class="ntag">store-load</span>
+    <span class="ntag">mfence</span>
+    <span class="ntag">Go内存模型</span>
+  </div>
+</div>
+
+<div class="main-area">
+  <div class="steps-panel">
+    <div class="scenarios" id="scenarios"></div>
+    <div class="step-scroll">
+      <div class="step-desc-card lit" id="stepCard">
+        <div class="step-num" id="stepNum">步骤 1</div>
+        <h3 id="stepTitle"></h3>
+        <p id="stepDesc"></p>
+      </div>
+    </div>
+    <div class="flow-nav" id="flowNav"></div>
+  </div>
+
+  <div class="diagram-panel">
+    <div class="diagram-inner">
+      <svg id="svg" class="diagram-svg" viewBox="0 0 620 360" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </div>
+
+  <div class="code-panel">
+    <div class="code-hd"><div class="code-dot"></div><span id="codeTitle">main.go</span></div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="ctrl-btn" id="btnReset" onclick="reset()">⏮ 重置</button>
+  <button class="ctrl-btn primary" id="btnPrev" onclick="prev()">← 上一步</button>
+  <button class="ctrl-btn primary" id="btnNext" onclick="next()">下一步 →</button>
+</div>
+
+<div class="extras">
+  <div class="ext-section">
+    <div class="ext-hd"><div class="ext-hd-bar"></div><h2>面试题</h2></div>
+    <div class="qa-grid">
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">x86 和 ARM 的内存一致性模型有什么不同？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">x86 采用 TSO（Total Store Order）模型：store 操作通过 Store Buffer 异步写入，但所有 load 都能看到最新的 store（acquire 语义）。store 之间的顺序对其他核可见，只有 store-load 顺序可能被打乱。<br><br>ARM 采用弱内存模型（Weakly Ordered）：store-store、load-load、load-store、store-load 四种顺序都可能被重排。需要显式 <code>dmb</code>（Data Memory Barrier）指令保序。因此在 ARM 上更容易触发并发 bug，同时也给了编译器/CPU 更大的优化空间。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">Go 的 sync/atomic 操作能替代所有 mutex 使用吗？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">不能。<code>sync/atomic</code> 适合单一变量的原子读写（如计数器、标志位），保证该变量的读写是原子的且有内存顺序语义。<br>必须用 mutex 的场景：<br>• 多变量一致性（如更新多个相关字段需要保持一致）<br>• 复杂的 read-modify-write 操作（如 map 操作）<br>• 需要条件等待（配合 <code>sync.Cond</code>）<br>• 保护不可原子操作的数据结构（slice、map 等）<br>滥用 atomic 代替 mutex 往往导致代码难以理解且容易出错。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">volatile 关键字（C/Java）能否代替内存屏障？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">不能，两者语义不同：<br><br><strong>C volatile</strong>：仅告诉编译器"每次都从内存读取，不要缓存到寄存器"，阻止编译器优化，但<em>不</em>阻止 CPU 乱序执行，也不保证多核可见性。在多线程中使用 volatile 是不够的。<br><br><strong>Java volatile</strong>：语义强得多，等价于加了 acquire/release 屏障：写入 volatile 变量有 release 语义，读取有 acquire 语义，保证可见性和 happens-before。但仍不保证复合操作的原子性（如 <code>i++</code>）。<br><br>结论：C volatile 不能替代屏障；Java volatile 可以替代部分屏障用途，但不是全内存屏障（mfence）。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">Go 内存模型中的 happens-before 如何通过 channel 建立？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">Go 内存模型规定：<br>• <strong>无缓冲 channel：</strong>第 n 次接收 happens-before 第 n 次发送完成。即接收方解阻塞意味着发送方已完成写入。<br>• <strong>有缓冲 channel：</strong>第 n 次发送 happens-before 第 n 次接收完成。缓冲区容量 c，第 n 次接收 happens-before 第 n+c 次发送。<br>• <strong>close 操作：</strong>channel 关闭 happens-before 接收到零值。<br><br>实践：通过 channel 传递数据，发送前的所有写操作都 happens-before 接收后的所有读操作，无需额外 mutex/atomic。这是 Go 推荐的同步方式。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ext-section">
+    <div class="ext-hd"><div class="ext-hd-bar"></div><h2>易错点</h2></div>
+    <div class="pitfall-grid">
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ Double-Checked Locking 反模式</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col"><pre>// 错误！flag 的写可能在 init()
+// 之前被其他核看到（重排序）
+var flag int32
+var obj *Object
+
+func getInstance() *Object {
+    if flag == 0 {      // 第1次检查
+        lock()
+        if flag == 0 {  // 第2次检查
+            obj = &Object{}
+            init(obj)
+            flag = 1   // 可能被重排到
+                       // init() 之前！
+        }
+        unlock()
+    }
+    return obj  // 可能返回未初始化的 obj
+}</pre></div>
+          <div class="pitfall-col"><pre>// 正确：使用 sync.Once
+// 内部用 atomic 实现正确的
+// double-checked locking
+var once sync.Once
+var obj *Object
+
+func getInstance() *Object {
+    once.Do(func() {
+        obj = &Object{}
+        init(obj)
+    })
+    return obj
+}
+
+// 或者用 atomic.Pointer（Go 1.19+）
+var ptr atomic.Pointer[Object]</pre><p><strong>原则：</strong><code>sync.Once</code> 是 Go 中 lazy initialization 的标准做法，底层已正确处理内存屏障。</p></div>
+        </div>
+      </div>
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 用普通变量做并发标志位</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col"><pre>// 错误！普通变量无内存顺序保证
+var ready bool
+var data int
+
+// Thread 0
+func writer() {
+    data = 42
+    ready = true  // 可能被重排到
+                  // data=42 之前！
+}
+
+// Thread 1
+func reader() {
+    for !ready {}  // 可能永远看不到
+                   // ready=true（寄存器缓存）
+    use(data)  // data 可能仍是 0
+}</pre></div>
+          <div class="pitfall-col"><pre>// 正确：使用 atomic
+var ready atomic.Bool
+var data int
+
+// Thread 0
+func writer() {
+    data = 42
+    // StoreInt32 有 release 语义
+    // 保证 data=42 在 ready=true 之前可见
+    ready.Store(true)
+}
+
+// Thread 1
+func reader() {
+    // Load 有 acquire 语义
+    for !ready.Load() {}
+    use(data)  // 保证看到 data=42 ✓
+}</pre><p><strong>原则：</strong>多 goroutine 共享的标志变量必须用 <code>sync/atomic</code> 或 channel，普通变量赋值没有可见性保证。</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── SVG helpers ──────────────────────────────────────────────
+function defs(){return`<defs>
+<marker id="arr" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#475569"/></marker>
+<marker id="arrA" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#00add8"/></marker>
+<marker id="arrG" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#38bdf8"/></marker>
+<marker id="arrR" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#f87171"/></marker>
+<filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="glow2"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>`;}
+
+function box(x,y,w,h,label,sub,color,active,rx=10){
+  const fill=active?`rgba(${hexToRgb(color)},.18)`:`rgba(255,255,255,.03)`;
+  const stroke=active?color:'#334155';
+  const filt=active?' filter="url(#glow)"':'';
+  const lc=active?color:'#94a3b8';
+  const sc=active?'#e2e8f0':'#64748b';
+  return`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${active?2:1}"${filt}/>
+<text x="${x+w/2}" y="${y+h/2-(sub?6:0)}" text-anchor="middle" fill="${lc}" font-size="12" font-weight="700" font-family="monospace">${label}</text>`+
+(sub?`<text x="${x+w/2}" y="${y+h/2+10}" text-anchor="middle" fill="${sc}" font-size="9" font-family="monospace">${sub}</text>`:'');
+}
+
+function arr(x1,y1,x2,y2,color,dashed,anim){
+  const cls=anim?'class="flow-arrow" ':'';
+  const da=dashed?'stroke-dasharray="6 4" ':'';
+  const mkId=color==='#00add8'?'arrA':color==='#38bdf8'?'arrG':color==='#f87171'?'arrR':'arr';
+  return`<line ${cls}${da}x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="1.8" marker-end="url(#${mkId})"/>`;
+}
+
+function lbl(x,y,t,c,s){return`<text x="${x}" y="${y}" fill="${c||'#64748b'}" font-size="${s||9}" font-family="monospace">${t}</text>`;}
+
+function hexToRgb(hex){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return`${r},${g},${b}`;}
+
+// ── Scenarios ────────────────────────────────────────────────
+let curScene=0, curStep=0;
+
+const SCENARIOS=[
+// ── 场景 A: 指令重排序问题 ────────────────────────────────────
+{
+  label:'重排序问题',
+  codeTitle:'reorder_problem.c',
+  steps:[
+    {title:'初始状态：a=0, flag=0',desc:'初始：a=0, flag=0。Thread0 将执行 a=1; flag=1。Thread1 将执行 if(flag) use(a)。在单线程中顺序没问题，但多核并发时编译器/CPU 可能重排指令。'},
+    {title:'编译器/CPU 重排 Thread0 的写',desc:'为了优化（如 flag 可能在寄存器里更快），编译器或CPU Store Buffer 可能将 flag=1 重排到 a=1 之前。Thread0 实际执行顺序变为：flag=1 → a=1。'},
+    {title:'Thread1 读到 flag=1 但 a 仍是 0',desc:'Thread1 检查 flag，看到 flag=1（Thread0 已写），于是调用 use(a)。但 a=1 的写入尚未对 Thread1 可见（还在 Thread0 的 Store Buffer 中），Thread1 读到 a=0，使用了错误数据！'},
+    {title:'数据竞争：Undefined Behavior',desc:'这是数据竞争（Data Race）。x86 TSO 模型相对强，有时不会触发；ARM/Power 弱内存模型更容易出现。Go 的 race detector 可检测：go run -race。'},
+  ],
+  hl:[[3,4,5,6],[3,4],[8,9],[13,14]],
+  code:[
+`// 初始状态
+int a = 0, flag = 0;
+
+// Thread0
+void thread0() {
+    a = 1;       // 写数据
+    flag = 1;    // 发信号
+}
+
+// Thread1
+void thread1() {
+    if (flag) {     // 检查信号
+        use(a);     // 使用数据
+    }
+}`,
+`// 编译器/CPU 可能重排 Thread0：
+// flag=1 先于 a=1 执行！
+int a = 0, flag = 0;
+
+// Thread0 实际执行顺序（重排后）
+void thread0() {
+    flag = 1;    // ← 重排到这里！
+    a = 1;       // ← 反而后执行
+    // Store Buffer 异步刷新
+}
+
+// Thread1 不受影响（只读）
+void thread1() {
+    if (flag) { use(a); }
+}`,
+`// Thread1 读到 flag=1，但 a 仍是 0！
+int a = 0, flag = 0;
+
+void thread0() {
+    flag = 1;  // ← Thread1 看到了这个
+    a = 1;     // ← 但这个还在 Store Buffer
+}
+
+void thread1() {
+    if (flag) {   // flag=1 ✓
+        use(a);   // a=0 ✗ 数据竞争！
+    }
+}
+// 后果：undefined behavior
+// ARM/Power 比 x86 更容易触发`,
+`// 检测数据竞争
+// go run -race main.go
+
+// C: 需要内存屏障
+// Java/Go: 需要 volatile/atomic
+
+// 竞争条件示例（Go）
+var a int
+var flag int32
+
+func thread0() {
+    a = 1
+    // 缺少屏障，flag 写可能对其他核
+    // 在 a 写之前可见
+    atomic.StoreInt32(&flag, 1)  // 正确做法
+}
+
+func thread1() {
+    if atomic.LoadInt32(&flag) != 0 {
+        fmt.Println(a) // 用 atomic 才安全
+    }
+}`,
+  ],
+  render(step){
+    let s=defs();
+
+    // Layout: Core0 (left), Memory (center), Core1 (right)
+    // Core0 has Store Buffer
+
+    // Memory box
+    const mx=230, my=130, mw=160, mh=70;
+    const memActive=step>=2;
+    s+=box(mx,my,mw,mh,'Memory','a=0  flag=0','#334155',false,8);
+    if(step>=2){
+      // show updated memory state
+      s+=`<text x="${mx+mw/2}" y="${my+mh/2-6}" text-anchor="middle" fill="#f87171" font-size="11" font-weight="700" font-family="monospace">Memory</text>`;
+      s+=`<text x="${mx+mw/2}" y="${my+mh/2+8}" text-anchor="middle" fill="#f87171" font-size="9" font-family="monospace">a=0  flag=1 (旧!)</text>`;
+    }
+
+    // Core 0
+    const c0x=20, c0y=80;
+    s+=box(c0x,c0y,140,50,'Core 0','Thread0','#38bdf8',true,8);
+
+    // Store Buffer for Core0
+    const sbx=c0x, sby=c0y+65;
+    const sbActive=step===1||step===2;
+    s+=`<rect x="${sbx}" y="${sby}" width="140" height="70" rx="6" fill="${sbActive?'rgba(251,146,60,.12)':'rgba(255,255,255,.02)'}" stroke="${sbActive?'#fb923c':'#334155'}" stroke-width="${sbActive?2:1}"/>`;
+    s+=lbl(sbx+4,sby+13,'Store Buffer','#fb923c',9);
+
+    if(step===0){
+      s+=lbl(sbx+6,sby+32,'(空)','#475569',9);
+    }
+    if(step===1){
+      // flag=1 is first in store buffer (reordered)
+      s+=`<rect x="${sbx+6}" y="${sby+18}" width="128" height="20" rx="3" fill="rgba(248,113,113,.15)" stroke="#f87171" stroke-width="1"/>`;
+      s+=lbl(sbx+10,sby+32,'flag=1  (重排！)','#f87171',9);
+      s+=`<rect x="${sbx+6}" y="${sby+42}" width="128" height="20" rx="3" fill="rgba(56,189,248,.1)" stroke="#38bdf8" stroke-width="1"/>`;
+      s+=lbl(sbx+10,sby+56,'a=1  (排后)','#38bdf8',9);
+    }
+    if(step===2){
+      // flag=1 has been flushed (Thread1 can see), a=1 still in buffer
+      s+=`<rect x="${sbx+6}" y="${sby+18}" width="128" height="20" rx="3" fill="rgba(56,189,248,.1)" stroke="#38bdf8" stroke-width="1"/>`;
+      s+=lbl(sbx+10,sby+32,'a=1  (未刷新)','#38bdf8',9);
+      s+=lbl(sbx+10,sby+56,'flag=1 已写入内存','#f87171',9);
+    }
+    if(step===3){
+      s+=lbl(sbx+6,sby+32,'(已刷新)','#4ade80',9);
+    }
+
+    // Arrows from Core0 store buffer to Memory
+    if(step===1){
+      // flag=1 going to memory (reordered)
+      s+=arr(sbx+140,sby+28,mx,my+20,'#f87171',true,true);
+      s+=lbl(sbx+145,sby+22,'flag=1','#f87171',8);
+    }
+    if(step===2){
+      // flag visible in memory
+      s+=arr(sbx+140,sby+38,mx,my+30,'#f87171',false,false);
+    }
+
+    // Core 1
+    const c1x=460, c1y=80;
+    const c1Active=step>=2;
+    s+=box(c1x,c1y,140,50,'Core 1','Thread1',c1Active?'#f87171':'#334155',c1Active,8);
+
+    if(step===2){
+      // Thread1 reads flag=1 but a=0
+      s+=`<rect x="${c1x}" y="${c1y+65}" width="140" height="70" rx="6" fill="rgba(248,113,113,.08)" stroke="#f87171" stroke-width="1.5"/>`;
+      s+=lbl(c1x+4,c1y+78,'读取结果','#f87171',9);
+      s+=lbl(c1x+6,c1y+94,'flag = 1  ✓','#4ade80',10);
+      s+=lbl(c1x+6,c1y+112,'a = 0  ✗ 错误！','#f87171',10);
+    }
+    if(step===3){
+      s+=`<rect x="${c1x}" y="${c1y+65}" width="140" height="70" rx="6" fill="rgba(248,113,113,.08)" stroke="#f87171" stroke-width="1.5"/>`;
+      s+=lbl(c1x+4,c1y+78,'数据竞争','#f87171',9);
+      s+=lbl(c1x+6,c1y+94,'Undefined Behavior','#f87171',9);
+    }
+
+    // Arrow Memory to Core1
+    if(step>=2) s+=arr(mx+mw,my+35,c1x,c1y+35,'#f87171',false,step===2);
+
+    // Program order labels for step 0
+    if(step===0){
+      s+=lbl(c0x,c0y+55+75,'程序顺序：','#64748b',9);
+      s+=lbl(c0x,c0y+55+90,'1. a = 1','#38bdf8',9);
+      s+=lbl(c0x,c0y+55+105,'2. flag = 1','#38bdf8',9);
+    }
+
+    // Reorder indicator for step 1
+    if(step===1){
+      s+=`<text x="310" y="280" text-anchor="middle" fill="#fb923c" font-size="10" font-family="monospace">CPU/编译器重排：flag=1 先于 a=1 写入内存</text>`;
+    }
+    if(step===2){
+      s+=`<text x="310" y="280" text-anchor="middle" fill="#f87171" font-size="10" font-family="monospace">Thread1 看到 flag=1，但 a=1 还在 Store Buffer！</text>`;
+    }
+    if(step===3){
+      s+=`<text x="310" y="280" text-anchor="middle" fill="#64748b" font-size="10" font-family="monospace">解决方案：在 a=1 和 flag=1 之间插入 Store Barrier</text>`;
+    }
+
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+
+// ── 场景 B: Store Barrier ─────────────────────────────────────
+{
+  label:'Store Barrier',
+  codeTitle:'store_barrier.cpp',
+  steps:[
+    {title:'插入 SFENCE（Store Fence）',desc:'Thread0 在 a=1 和 flag=1 之间插入 SFENCE 指令（x86）或 dmb st（ARM）。这是 Store Barrier（写屏障）。'},
+    {title:'SFENCE 语义：强制 drain Store Buffer',desc:'SFENCE 保证：SFENCE 之前的所有 store 操作，必须在 SFENCE 之后的任何 store 对其他处理器可见之前，先对所有处理器可见。即 a=1 必须先 drain 到内存，才能写 flag=1。'},
+    {title:'Store Buffer 强制刷新',desc:'SFENCE 触发 Store Buffer drain：a=1 先写入内存（对所有核可见），然后 flag=1 才能写入。正确的写入顺序被保证。'},
+    {title:'Thread1 看到一致状态',desc:'Thread1 若看到 flag=1，则 a=1 一定已经对它可见（happens-before 关系建立）。数据竞争消除，结果正确。'},
+  ],
+  hl:[[5,6],[8,9,10],[12,13,14],[6,7,8,9]],
+  code:[
+`// C++: std::atomic_thread_fence
+#include <atomic>
+
+void thread0() {
+    a = 1;  // 写数据
+    // Store Barrier：保证 a=1 对所有核
+    // 可见，才能执行后续 store
+    std::atomic_thread_fence(
+        std::memory_order_release
+    );
+    flag = 1;  // 发信号
+}
+
+void thread1() {
+    if (flag) {
+        std::atomic_thread_fence(
+            std::memory_order_acquire
+        );
+        use(a);  // 安全：a 已可见
+    }
+}`,
+`// SFENCE 语义（x86 汇编）
+//   MOV [a], 1
+//   SFENCE          ← 屏障
+//   MOV [flag], 1
+//
+// SFENCE 前的所有 store，必须先 drain
+// 到共享内存，之后的 store 才能进行
+//
+// 等效（ARM）:
+//   STR x1, [a]
+//   DMB ST           ← Data Memory Barrier
+//   STR x1, [flag]
+`,
+`// Store Buffer drain 过程
+//
+// 屏障前：
+//   Store Buffer: [ a=1, flag=1 ]
+//                     ↑ SFENCE
+// 屏障后：
+//   1. a=1 → 写入内存（所有核可见）
+//   2. flag=1 → 写入内存（所有核可见）
+//
+// 顺序保证：a=1 happens-before flag=1
+
+// Go: atomic.StoreInt32 包含写屏障
+atomic.StoreInt32(&flag, 1)
+// x86: XCHG 或 MOV + MFENCE（全屏障）`,
+`// Go 中正确的 flag 同步模式
+package main
+
+import (
+    "fmt"
+    "sync/atomic"
+)
+
+var a int
+var flag int32
+
+func writer() {
+    a = 1
+    atomic.StoreInt32(&flag, 1) // release
+}
+
+func reader() {
+    if atomic.LoadInt32(&flag) != 0 { // acquire
+        fmt.Println(a) // 保证看到 a=1 ✓
+    }
+}`,
+  ],
+  render(step){
+    let s=defs();
+
+    const c0x=20, c0y=70;
+    const mx=240, my=120, mw=140, mh=80;
+    const c1x=460, c1y=70;
+
+    // Core 0
+    s+=box(c0x,c0y,160,50,'Core 0','Thread0','#38bdf8',true,8);
+
+    // Store Buffer
+    const sbx=c0x, sby=c0y+65;
+    const drained=step>=2;
+    s+=`<rect x="${sbx}" y="${sby}" width="160" height="80" rx="6" fill="${drained?'rgba(74,222,128,.08)':'rgba(251,146,60,.08)'}" stroke="${drained?'#4ade80':'#fb923c'}" stroke-width="${step===2?2:1}"/>`;
+    s+=lbl(sbx+4,sby+14,'Store Buffer','#fb923c',9);
+
+    if(step===0){
+      s+=`<rect x="${sbx+5}" y="${sby+20}" width="150" height="20" rx="3" fill="rgba(56,189,248,.1)" stroke="#38bdf8" stroke-width="1"/>`;
+      s+=lbl(sbx+10,sby+34,'a = 1','#38bdf8',9);
+    }
+    if(step===1){
+      s+=`<rect x="${sbx+5}" y="${sby+20}" width="150" height="20" rx="3" fill="rgba(56,189,248,.1)" stroke="#38bdf8" stroke-width="1"/>`;
+      s+=lbl(sbx+10,sby+34,'a = 1  (待刷新)','#38bdf8',9);
+      // SFENCE line
+      s+=`<line x1="${sbx+2}" y1="${sby+44}" x2="${sbx+158}" y2="${sby+44}" stroke="#fb923c" stroke-width="2" stroke-dasharray="6 3"/>`;
+      s+=lbl(sbx+35,sby+56,'SFENCE','#fb923c',10);
+      s+=`<rect x="${sbx+5}" y="${sby+58}" width="150" height="18" rx="3" fill="rgba(56,189,248,.06)" stroke="#38bdf8" stroke-width="1"/>`;
+      s+=lbl(sbx+10,sby+71,'flag = 1  (等待)','#64748b',9);
+    }
+    if(step===2){
+      // Draining
+      s+=lbl(sbx+10,sby+34,'drain...','#fb923c',9);
+      s+=arr(sbx+160,sby+30,mx,my+20,'#fb923c',false,true);
+    }
+    if(step>=3){
+      s+=lbl(sbx+10,sby+34,'(已 drain) ✓','#4ade80',9);
+    }
+
+    // Memory
+    const memStep2 = step===2;
+    const memStep3 = step>=3;
+    s+=`<rect x="${mx}" y="${my}" width="${mw}" height="${mh}" rx="8" fill="${memStep3?'rgba(74,222,128,.1)':'rgba(255,255,255,.03)'}" stroke="${memStep3?'#4ade80':'#334155'}" stroke-width="${memStep3?2:1}"${memStep3?' filter="url(#glow)"':''}/>`;
+    s+=`<text x="${mx+mw/2}" y="${my+22}" text-anchor="middle" fill="${memStep3?'#4ade80':'#94a3b8'}" font-size="11" font-weight="700" font-family="monospace">Memory</text>`;
+    if(step===0){
+      s+=lbl(mx+10,my+42,'a    = 0','#475569',10);
+      s+=lbl(mx+10,my+58,'flag = 0','#475569',10);
+    }
+    if(step===1){
+      s+=lbl(mx+10,my+42,'a    = 0  (旧)','#475569',10);
+      s+=lbl(mx+10,my+58,'flag = 0  (旧)','#475569',10);
+    }
+    if(step===2){
+      s+=lbl(mx+10,my+42,'a    = 1  ✓','#4ade80',10);
+      s+=lbl(mx+10,my+58,'flag = 0  (未写)','#475569',10);
+    }
+    if(step>=3){
+      s+=lbl(mx+10,my+42,'a    = 1  ✓','#4ade80',10);
+      s+=lbl(mx+10,my+58,'flag = 1  ✓','#4ade80',10);
+    }
+
+    // Arrow from memory to memory (a=1 written then flag=1)
+    if(step===2){
+      s+=`<text x="310" y="260" text-anchor="middle" fill="#fb923c" font-size="10" font-family="monospace">SFENCE 强制 a=1 先于 flag=1 写入内存</text>`;
+    }
+    if(step>=3){
+      s+=arr(mx+mw,my+40,c1x,c1y+40,'#4ade80',false,step===3);
+    }
+
+    // Core 1
+    const c1Active=step>=3;
+    s+=box(c1x,c1y,140,50,'Core 1','Thread1',c1Active?'#4ade80':'#334155',c1Active,8);
+    if(step>=3){
+      s+=`<rect x="${c1x}" y="${c1y+65}" width="140" height="60" rx="6" fill="rgba(74,222,128,.08)" stroke="#4ade80" stroke-width="1.5"/>`;
+      s+=lbl(c1x+6,c1y+80,'读取结果','#4ade80',9);
+      s+=lbl(c1x+6,c1y+96,'flag = 1  ✓','#4ade80',10);
+      s+=lbl(c1x+6,c1y+112,'a = 1  ✓ 正确！','#4ade80',10);
+    }
+
+    // SFENCE visual indicator
+    if(step===1){
+      const fy=c0y+130;
+      s+=`<text x="310" y="${fy}" text-anchor="middle" fill="#fb923c" font-size="11" font-family="monospace">SFENCE: 前面所有 store 必须先完成</text>`;
+    }
+    if(step===3){
+      s+=`<text x="310" y="260" text-anchor="middle" fill="#4ade80" font-size="10" font-family="monospace">Store Barrier 保证：flag=1 可见 → a=1 一定已可见 ✓</text>`;
+    }
+
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+
+// ── 场景 C: Load Barrier ──────────────────────────────────────
+{
+  label:'Load Barrier',
+  codeTitle:'load_barrier.cpp',
+  steps:[
+    {title:'Thread1 读取端：LFENCE',desc:'Thread1 的读取端同样需要屏障。在 load(flag) 之后、load(a) 之前插入 LFENCE（Load Fence）。'},
+    {title:'LFENCE 语义',desc:'LFENCE 保证：屏障之后的所有 load 操作，必须在屏障之前的所有 load 都完成之后，才能执行。防止 CPU 将 load(a) 重排到 load(flag) 之前（Load Speculation）。'},
+    {title:'防止 Load Speculation',desc:'CPU 会做 load speculation（预取），可能把 load(a) 提前执行。LFENCE 强制按程序顺序完成所有 load，避免读到 a 的旧值。'},
+    {title:'完整的发布-订阅同步',desc:'Thread0 使用 Store Barrier（release），Thread1 使用 Load Barrier（acquire）。两者配合形成 happens-before：Thread0 写完数据再写 flag，Thread1 读 flag 成功后再读数据。'},
+  ],
+  hl:[[5,6,7],[9,10,11],[6,7,8,9],[3,4,5,6,7,8,9,10]],
+  code:[
+`// Thread1: 读取端插入 LFENCE
+void thread1() {
+    int f = load(flag);
+    // Load Barrier：确保 flag 的 load
+    // 在 a 的 load 之前完成
+    __asm__ volatile("lfence" ::: "memory");
+    if (f) {
+        int v = load(a); // 看到 a=1 ✓
+        use(v);
+    }
+}`,
+`// LFENCE 语义（x86 汇编）
+//   MOV eax, [flag]   ; load flag
+//   LFENCE            ; ← 屏障
+//   MOV ebx, [a]      ; load a
+//
+// LFENCE 前的所有 load 必须完成，
+// LFENCE 后的 load 才能开始执行
+//
+// ARM 等效:
+//   LDR x0, [flag]
+//   DMB ISH           ; Inner Shareable
+//   LDR x1, [a]
+`,
+`// CPU Load Speculation 问题
+//
+// 没有 LFENCE，CPU 可能做：
+//   load(a)   ← 提前预取（speculation）
+//   load(flag)
+//   if (flag) use(a)  ← 可能用了旧 a！
+//
+// LFENCE 强制顺序：
+//   load(flag) 完成
+//   LFENCE
+//   load(a) 才开始  ← 看到最新值
+`,
+`// 完整的 Release-Acquire 同步（Go）
+package main
+
+import "sync/atomic"
+
+var a int
+var flag int32
+
+// Thread0: Release（写屏障）
+func writer() {
+    a = 1                          // 写数据
+    atomic.StoreInt32(&flag, 1)    // release：
+    // 保证 a=1 在 flag=1 之前可见
+}
+
+// Thread1: Acquire（读屏障）
+func reader() {
+    f := atomic.LoadInt32(&flag)   // acquire：
+    // 保证 flag 读完后，再读 a
+    if f != 0 {
+        fmt.Println(a) // 安全看到 a=1 ✓
+    }
+}`,
+  ],
+  render(step){
+    let s=defs();
+
+    const t0x=20, t0y=50, t0w=180, t0h=200;
+    const t1x=420, t1y=50, t1w=180, t1h=200;
+    const memx=220, memy=100, memw=180, memh=80;
+
+    // Thread 0 panel
+    s+=`<rect x="${t0x}" y="${t0y}" width="${t0w}" height="${t0h}" rx="8" fill="rgba(56,189,248,.05)" stroke="#38bdf8" stroke-width="1"/>`;
+    s+=lbl(t0x+4,t0y+14,'Thread0 (Writer)','#38bdf8',10);
+
+    // Thread0 ops
+    s+=lbl(t0x+10,t0y+36,'a = 1','#38bdf8',11);
+    s+=`<line x1="${t0x+8}" y1="${t0y+42}" x2="${t0x+t0w-8}" y2="${t0y+42}" stroke="${step>=1?'#fb923c':'#334155'}" stroke-width="2" stroke-dasharray="${step>=1?'6 3':''}"/>`;
+    if(step>=1) s+=lbl(t0x+50,t0y+55,'SFENCE (release)','#fb923c',9);
+    s+=lbl(t0x+10,t0y+70,'flag = 1','#38bdf8',11);
+    s+=`<rect x="${t0x+4}" y="${t0y+24}" width="${t0w-8}" height="16" rx="3" fill="rgba(56,189,248,.1)" stroke="#38bdf8" stroke-width="1"/>`;
+
+    // Thread 1 panel
+    s+=`<rect x="${t1x}" y="${t1y}" width="${t1w}" height="${t1h}" rx="8" fill="rgba(192,132,252,.05)" stroke="#c084fc" stroke-width="1"/>`;
+    s+=lbl(t1x+4,t1y+14,'Thread1 (Reader)','#c084fc',10);
+
+    s+=lbl(t1x+10,t1y+36,'f = load(flag)','#c084fc',11);
+    s+=`<line x1="${t1x+8}" y1="${t1y+46}" x2="${t1x+t1w-8}" y2="${t1y+46}" stroke="${step>=1?'#00add8':'#334155'}" stroke-width="2" stroke-dasharray="${step>=1?'6 3':''}"/>`;
+    if(step>=1) s+=lbl(t1x+50,t1y+58,'LFENCE (acquire)','#00add8',9);
+    s+=lbl(t1x+10,t1y+74,'v = load(a)','#c084fc',11);
+    if(step>=2) s+=lbl(t1x+10,t1y+92,'use(v)','#4ade80',11);
+    s+=`<rect x="${t1x+4}" y="${t1y+24}" width="${t1w-8}" height="16" rx="3" fill="rgba(192,132,252,.1)" stroke="#c084fc" stroke-width="1"/>`;
+
+    // Memory
+    s+=box(memx,memy,memw,memh,'Memory','a=1  flag=1','#4ade80',step>=3,8);
+    if(step<3){
+      s+=`<text x="${memx+memw/2}" y="${memy+memh/2-6}" text-anchor="middle" fill="#94a3b8" font-size="11" font-weight="700" font-family="monospace">Memory</text>`;
+      s+=`<text x="${memx+memw/2}" y="${memy+memh/2+8}" text-anchor="middle" fill="#64748b" font-size="9" font-family="monospace">a=0  flag=0</text>`;
+    }
+
+    // Arrows
+    if(step>=1){
+      s+=arr(t0x+t0w,t0y+58,memx,memy+25,'#fb923c',false,step===1);
+      s+=arr(t1x,t1y+58,memx+memw,memy+50,'#00add8',false,step===1);
+    }
+    if(step>=3){
+      // Complete sync arrows
+      s+=arr(t0x+t0w,t0y+38,memx,memy+15,'#38bdf8',false,false);
+      s+=arr(memx+memw,memy+35,t1x,t1y+38,'#c084fc',false,false);
+    }
+
+    // Annotations
+    if(step===0){
+      s+=`<text x="310" y="275" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="monospace">读取端需要 Load Barrier 防止 Load Speculation</text>`;
+    }
+    if(step===1){
+      s+=`<text x="310" y="275" text-anchor="middle" fill="#00add8" font-size="10" font-family="monospace">LFENCE: 之后的 load 必须在之前的 load 完成后才执行</text>`;
+    }
+    if(step===2){
+      s+=`<text x="310" y="275" text-anchor="middle" fill="#c084fc" font-size="10" font-family="monospace">防止 CPU 提前预取 a 的值（Load Speculation）</text>`;
+    }
+    if(step===3){
+      s+=`<text x="310" y="260" text-anchor="middle" fill="#4ade80" font-size="11" font-family="monospace">Store Barrier(release) + Load Barrier(acquire) = 完整同步 ✓</text>`;
+      s+=`<text x="310" y="278" text-anchor="middle" fill="#4ade80" font-size="10" font-family="monospace">happens-before: Thread0 写完 a → Thread1 读 a</text>`;
+    }
+
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+
+// ── 场景 D: Go 内存屏障 ───────────────────────────────────────
+{
+  label:'Go内存模型',
+  codeTitle:'go_memory_model.go',
+  steps:[
+    {title:'Go 内存模型：atomic 语义',desc:'Go 的 sync/atomic 操作具有顺序一致性（SeqCst）语义。在 x86 上，atomic store 编译为 XCHG 或 MOV+MFENCE（全屏障）；atomic load 编译为普通 MOV（x86 TSO 下 load 自动有 acquire 语义）。'},
+    {title:'StoreInt32 → XCHG / MFENCE',desc:'atomic.StoreInt32(&flag, 1) 在 x86 编译为 XCHG 指令（隐含全屏障），或 MOV + MFENCE。MFENCE（Memory Fence）是 x86 上最强的屏障，保证 MFENCE 前的所有 store 和 load 全部完成后，才执行后续操作。'},
+    {title:'LoadInt32 → 普通 MOV',desc:'atomic.LoadInt32(&flag) 在 x86 编译为普通 MOV 指令。这是因为 x86 TSO 模型下，load 操作本身就有 acquire 语义（能看到所有之前的 store）。ARM 上会额外生成 DMB ISH 屏障指令。'},
+    {title:'sync.Mutex 内含屏障',desc:'sync.Mutex.Unlock() 内部调用 runtime_Semrelease，包含 store 屏障，保证临界区内的写操作对后续加锁者可见。这也是 Go happens-before 规则的基础：Unlock happens-before 后续 Lock。'},
+  ],
+  hl:[[4,5,6],[8,9,10],[12,13,14],[17,18,19,20]],
+  code:[
+`package main
+
+import "sync/atomic"
+
+// Go atomic 操作具有 SeqCst 语义
+// 在 x86 上：
+// StoreInt32 → XCHG (全屏障)
+// LoadInt32  → MOV  (x86 TSO: load有acquire语义)
+//
+// 在 ARM 上：
+// StoreInt32 → STLR (store-release)
+// LoadInt32  → LDAR (load-acquire)
+var flag int32
+var data int`,
+`package main
+
+import "sync/atomic"
+
+// atomic.StoreInt32 的 x86 汇编输出
+// (go tool objdump 可查看)
+//
+// MOVL $1, CX
+// XCHGL CX, flag(SB)    ; 隐含 MFENCE
+// ; 或：
+// MOVL $1, flag(SB)
+// MFENCE                ; 显式全屏障
+//
+func writer() {
+    data = 42
+    atomic.StoreInt32(&flag, 1)  // release
+}`,
+`package main
+
+import "sync/atomic"
+
+// atomic.LoadInt32 的 x86 汇编输出
+//
+// MOVL flag(SB), AX    ; 普通 MOV
+// ; x86 TSO: MOV 自带 acquire 语义
+//
+// ARM 汇编：
+// LDAR x0, [flag]      ; Load-Acquire
+//
+func reader() {
+    f := atomic.LoadInt32(&flag)  // acquire
+    if f != 0 {
+        _ = data  // 看到最新的 data ✓
+    }
+}`,
+`package main
+
+import "sync"
+
+// sync.Mutex.Unlock() 含 store 屏障
+// Unlock happens-before 后续 Lock
+// 保证临界区写对后续加锁者可见
+
+var mu sync.Mutex
+var shared int
+
+func writer() {
+    mu.Lock()
+    shared = 42   // 临界区写
+    mu.Unlock()   // ← store 屏障
+}
+
+func reader() {
+    mu.Lock()     // ← 后续 lock
+    v := shared   // 保证看到 42 ✓
+    mu.Unlock()
+    _ = v
+}`,
+  ],
+  render(step){
+    let s=defs();
+
+    // Go → compiler → x86 assembly flow
+    const goX=20, goY=50, goW=160, goH=60;
+    const compX=230, compY=50, compW=160, compH=60;
+    const asmX=440, asmY=50, asmW=160, asmH=60;
+
+    s+=box(goX,goY,goW,goH,'Go 源码','sync/atomic','#00add8',step===0,8);
+    s+=arr(goX+goW,goY+goH/2,compX,compY+compH/2,'#475569',false,false);
+    s+=box(compX,compY,compW,compH,'编译器','go tool compile','#c084fc',step===1||step===2,8);
+    s+=arr(compX+compW,compY+compH/2,asmX,asmY+asmH/2,'#475569',false,false);
+    s+=box(asmX,asmY,asmW,asmH,'x86 汇编','MFENCE/XCHG','#38bdf8',step===1,8);
+
+    // ARM path
+    const armY=asmY+80;
+    s+=box(asmX,armY,asmW,goH,'ARM 汇编','STLR/LDAR','#fb923c',step===2,8);
+
+    // Barrier visualization
+    const by=175;
+    if(step===0){
+      // Show atomic vs normal variable
+      s+=box(20,by,250,70,'atomic.StoreInt32','SeqCst语义，全屏障','#4ade80',true,8);
+      s+=box(310,by,250,70,'普通变量赋值','无内存顺序保证','#f87171',true,8);
+      s+=`<text x="310" y="${by+90}" text-anchor="middle" fill="#64748b" font-size="9" font-family="monospace">Go 规范：不使用 atomic/mutex 的并发访问是 race condition</text>`;
+    }
+
+    if(step===1){
+      // Show MFENCE barrier
+      s+=`<text x="310" y="${by+10}" text-anchor="middle" fill="#38bdf8" font-size="11" font-family="monospace">x86: StoreInt32 → XCHG（隐含全屏障）</text>`;
+      // Barrier diagram
+      s+=`<rect x="20" y="${by+20}" width="240" height="30" rx="4" fill="rgba(56,189,248,.1)" stroke="#38bdf8" stroke-width="1"/>`;
+      s+=lbl(28,by+40,'Store: data = 42','#38bdf8',10);
+      s+=`<line x1="20" y1="${by+55}" x2="580" y2="${by+55}" stroke="#fb923c" stroke-width="2.5" stroke-dasharray="8 4"/>`;
+      s+=`<text x="310" y="${by+52}" text-anchor="middle" fill="#fb923c" font-size="10" font-family="monospace" font-weight="700">MFENCE / XCHG（全屏障）</text>`;
+      s+=`<rect x="320" y="${by+62}" width="260" height="30" rx="4" fill="rgba(56,189,248,.1)" stroke="#38bdf8" stroke-width="1"/>`;
+      s+=lbl(328,by+82,'Store: flag = 1','#38bdf8',10);
+    }
+
+    if(step===2){
+      // x86 vs ARM load
+      s+=`<text x="310" y="${by+10}" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="monospace">LoadInt32 的平台差异</text>`;
+      s+=box(20,by+20,260,60,'x86: MOV（普通）','TSO下自带acquire语义','#4ade80',true,8);
+      s+=box(340,by+20,240,60,'ARM: LDAR','显式 Load-Acquire 指令','#fb923c',true,8);
+    }
+
+    if(step===3){
+      // Mutex happens-before chain
+      s+=`<text x="310" y="${by+10}" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="monospace">sync.Mutex：happens-before 链</text>`;
+
+      s+=box(20,by+20,120,40,'writer','Lock + write','#38bdf8',true,8);
+      s+=arr(140,by+40,200,by+40,'#38bdf8',false,false);
+      s+=box(200,by+20,120,40,'Unlock','store 屏障','#fb923c',true,8);
+      s+=arr(320,by+40,380,by+40,'#fb923c',false,false);
+      s+=box(380,by+20,100,40,'Lock','后续加锁','#c084fc',true,8);
+      s+=arr(480,by+40,530,by+40,'#c084fc',false,false);
+      s+=box(530,by+20,70,40,'reader','读数据','#4ade80',true,8);
+
+      s+=`<text x="310" y="${by+82}" text-anchor="middle" fill="#4ade80" font-size="10" font-family="monospace">Unlock hb Lock → 临界区写 hb 临界区读 ✓</text>`;
+    }
+
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+];
+
+// ── Engine ───────────────────────────────────────────────────
+function render(){
+  const sc=SCENARIOS[curScene];
+  const st=sc.steps[curStep];
+  document.getElementById('stepNum').textContent='步骤 '+(curStep+1);
+  document.getElementById('stepTitle').textContent=st.title;
+  document.getElementById('stepDesc').textContent=st.desc;
+  document.getElementById('codeTitle').textContent=sc.codeTitle||'main.go';
+  sc.render(curStep);
+  renderCode();
+  renderFlowNav();
+}
+
+function renderSceneBtns(){
+  const c=document.getElementById('scenarios');
+  c.innerHTML=SCENARIOS.map((s,i)=>`<button class="sc-btn${i===curScene?' active':''}" onclick="switchScene(${i})">${s.label}</button>`).join('');
+}
+
+function renderFlowNav(){
+  const sc=SCENARIOS[curScene];
+  const n=document.getElementById('flowNav');
+  n.innerHTML=sc.steps.map((_,i)=>`<div class="fn-dot${i<curStep?' done':i===curStep?' cur':''}" onclick="jumpTo(${i})">${i+1}</div>`).join('')+`<span class="step-ctr">${curStep+1}/${sc.steps.length}</span>`;
+}
+
+function renderCode(){
+  const sc=SCENARIOS[curScene];
+  const code=sc.code[curStep]||sc.code[sc.code.length-1];
+  const hl=sc.hl[curStep]||[];
+  const lines=code.split('\n');
+  document.getElementById('codeBody').innerHTML=lines.map((l,i)=>{
+    const n=i+1;
+    const hi=hl.includes(n)?'hi':'';
+    return`<div class="cl ${hi}"><span class="ln">${n}</span><span class="lc">${l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span></div>`;
+  }).join('');
+}
+
+function next(){if(curStep<SCENARIOS[curScene].steps.length-1){curStep++;render();}}
+function prev(){if(curStep>0){curStep--;render();}}
+function reset(){curStep=0;render();}
+function jumpTo(i){curStep=i;render();}
+function switchScene(i){curScene=i;curStep=0;renderSceneBtns();render();}
+function toggleQA(el){el.classList.toggle('open');}
+
+renderSceneBtns();
+render();
+
+if(typeof NavTracker!=='undefined') NavTracker.track('内存屏障','cs/barrier.html','🚧','CS基础');
+</script>
+</body>
+</html>

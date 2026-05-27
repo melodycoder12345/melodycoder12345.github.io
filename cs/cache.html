@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cache 层次 — CS 基础</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;--g:#38bdf8;--m:#fb923c;--p:#c084fc;--q:#4ade80;}
+*{box-sizing:border-box;margin:0;padding:0;}
+
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;min-height:100vh;}
+.nav{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);flex-shrink:0;position:sticky;top:var(--snav-h,44px);z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;display:flex;align-items:center;gap:5px;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.main-area{display:flex;flex:none;height:calc(100vh - var(--snav-h,44px) - 88px);min-height:300px;overflow:hidden;}
+.steps-panel{width:270px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid var(--border2);overflow:hidden;background:rgba(15,23,42,.6);}
+.scenarios{display:flex;gap:0;border-bottom:1px solid var(--border2);overflow-x:auto;}
+.sc-btn{flex:1;background:none;border:none;color:var(--dim);padding:9px 6px;cursor:pointer;font-size:.72rem;font-family:inherit;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;text-align:center;}
+.sc-btn:hover{color:var(--text);}
+.sc-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+.step-scroll{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
+.step-desc-card{border:1px solid var(--border2);border-radius:12px;background:rgba(255,255,255,.025);padding:14px;transition:border-color .3s,box-shadow .3s;}
+.step-desc-card.lit{border-color:var(--accent);box-shadow:0 0 20px rgba(0,173,216,.12);}
+.step-desc-card .step-num{font-size:.66rem;font-family:monospace;color:var(--accent);margin-bottom:6px;}
+.step-desc-card h3{font-size:.88rem;font-weight:700;margin-bottom:6px;}
+.step-desc-card p{font-size:.78rem;color:var(--dim);line-height:1.68;}
+.flow-nav{padding:10px 14px;border-top:1px solid var(--border2);display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.fn-dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--border2);background:rgba(255,255,255,.04);cursor:pointer;font-size:.68rem;font-family:monospace;color:var(--dim);display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;}
+.fn-dot:hover{border-color:var(--dim);color:var(--text);}
+.fn-dot.done{border-color:var(--accent);background:rgba(0,173,216,.15);color:var(--accent);}
+.fn-dot.cur{border-color:var(--accent);background:rgba(0,173,216,.25);color:var(--accent);transform:scale(1.12);}
+.step-ctr{margin-left:auto;font-size:.7rem;font-family:monospace;color:var(--dim2);}
+.diagram-panel{flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid var(--border2);overflow:hidden;}
+.diagram-inner{flex:1;overflow:auto;padding:20px;background:radial-gradient(ellipse 70% 50% at 30% 20%,rgba(0,173,216,.07),transparent 60%);}
+.diagram-svg{width:100%;max-width:620px;display:block;}
+.code-panel{width:44%;min-width:360px;flex-shrink:0;display:flex;flex-direction:column;background:var(--panel2);overflow:hidden;}
+.code-hd{padding:10px 16px;border-bottom:1px solid var(--border2);font-size:.8rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);}
+.code-body{flex:1;overflow-y:auto;padding:14px 0;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.78rem;line-height:1.7;}
+.cl{display:flex;border-left:2px solid transparent;transition:background .25s,border-color .25s;}
+.cl.hi{background:rgba(0,173,216,.1);border-left-color:var(--accent);}
+.cl.hi2{background:rgba(192,132,252,.08);border-left-color:var(--p);}
+.ln{min-width:42px;padding:0 10px 0 12px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;}
+.lc{padding:0 14px 0 4px;white-space:pre-wrap;word-break:break-word;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.controls{display:flex;align-items:center;gap:10px;padding:11px 22px;border-top:1px solid var(--border2);background:var(--panel);flex-shrink:0;}
+.ctrl-btn{background:rgba(255,255,255,.07);border:1px solid var(--border2);color:var(--text);padding:7px 16px;border-radius:8px;cursor:pointer;font-size:.82rem;font-family:inherit;transition:all .15s;}
+.ctrl-btn:hover{background:rgba(255,255,255,.12);}
+.ctrl-btn:disabled{opacity:.35;cursor:not-allowed;}
+.ctrl-btn.primary{background:rgba(0,173,216,.16);border-color:rgba(0,173,216,.35);color:var(--accent);}
+.ctrl-btn.primary:hover{background:rgba(0,173,216,.25);}
+.node-rect{transition:fill .35s cubic-bezier(.4,0,.2,1),stroke .35s,filter .35s;}
+.node-text{transition:fill .35s;}
+.edge{transition:stroke .35s,opacity .35s,stroke-dashoffset .6s ease-out;}
+@keyframes glow-pulse{0%,100%{filter:drop-shadow(0 0 4px rgba(56,189,248,.6));}50%{filter:drop-shadow(0 0 12px rgba(56,189,248,.95));}}
+@keyframes particle-flow{0%{stroke-dashoffset:200;}100%{stroke-dashoffset:0;}}
+@keyframes bounce-x{0%,100%{transform:translateX(0);}50%{transform:translateX(8px);}}
+@keyframes pulse-scale{0%,100%{transform:scale(1);}50%{transform:scale(1.06);}}
+.flow-arrow{stroke-dasharray:8 5;animation:particle-flow 1.2s linear infinite;}
+.active-node{animation:glow-pulse 2s infinite;}
+.bounce{animation:bounce-x 1s ease-in-out infinite;}
+.extras{padding:48px 40px;background:var(--bg);border-top:1px solid var(--border2);}
+.ext-section{margin-bottom:48px;}
+.ext-hd{display:flex;align-items:center;gap:12px;margin-bottom:22px;}
+.ext-hd-bar{width:4px;height:20px;border-radius:2px;background:var(--accent);}
+.ext-hd h2{font-size:1.25rem;font-weight:700;}
+.qa-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.qa-card{border:1px solid var(--border2);border-radius:12px;overflow:hidden;}
+.qa-q{padding:13px 16px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);font-size:.84rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .15s;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:13px 16px;font-size:.82rem;color:var(--dim);line-height:1.72;}
+.qa-card.open .qa-a{display:block;}
+.qa-a code{font-family:monospace;color:var(--accent);font-size:.78rem;}
+.pitfall-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.78rem;font-weight:700;border-bottom:1px solid var(--border2);}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;gap:0;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--dim);line-height:1.6;white-space:pre-wrap;}
+.pitfall-col p{font-size:.76rem;color:var(--dim);line-height:1.65;margin-top:6px;}
+.pitfall-col p strong{color:var(--text);}
+@media(max-width:900px){body{overflow-y:auto;height:auto;}.main-area{flex-direction:column;overflow:visible;height:auto;flex:none;}.steps-panel{width:100%;border-right:none;border-bottom:1px solid var(--border2);}.diagram-panel{border-right:none;min-height:340px;}.code-panel{width:100%;min-width:0;height:320px;flex:none;}.qa-grid,.pitfall-grid{grid-template-columns:1fr;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}.extras{padding:32px 20px;}}
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">Cache 层次</span>
+  <div class="nav-tags">
+    <span class="ntag">L1</span>
+    <span class="ntag">L2</span>
+    <span class="ntag">L3</span>
+    <span class="ntag">MESI</span>
+    <span class="ntag">cache-line</span>
+    <span class="ntag">false-sharing</span>
+  </div>
+</div>
+
+<div class="main-area">
+  <div class="steps-panel">
+    <div class="scenarios" id="scenarios"></div>
+    <div class="step-scroll">
+      <div class="step-desc-card lit" id="stepCard">
+        <div class="step-num" id="stepNum">步骤 1</div>
+        <h3 id="stepTitle"></h3>
+        <p id="stepDesc"></p>
+      </div>
+    </div>
+    <div class="flow-nav" id="flowNav"></div>
+  </div>
+
+  <div class="diagram-panel">
+    <div class="diagram-inner">
+      <svg id="svg" class="diagram-svg" viewBox="0 0 620 360" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </div>
+
+  <div class="code-panel">
+    <div class="code-hd"><div class="code-dot"></div><span id="codeTitle">cache.go</span></div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="ctrl-btn" id="btnReset" onclick="reset()">⏮ 重置</button>
+  <button class="ctrl-btn primary" id="btnPrev" onclick="prev()">← 上一步</button>
+  <button class="ctrl-btn primary" id="btnNext" onclick="next()">下一步 →</button>
+</div>
+
+<div class="extras">
+  <div class="ext-section">
+    <div class="ext-hd"><div class="ext-hd-bar"></div><h2>面试题</h2></div>
+    <div class="qa-grid">
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">Cache line 大小通常是多少？为什么是这个大小？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">现代 CPU（x86/ARM）的 Cache line 通常是 <strong>64 字节</strong>。这个大小是工程权衡的结果：<br>• 太小：空间局部性利用率低，tag 存储开销大；<br>• 太大：传输延迟增加，false sharing 概率上升，在 miss 时浪费带宽（加载了不需要的数据）。<br>64B 对应 DDR 内存总线一次突发传输（burst transfer）的典型大小，与内存子系统的物理特性匹配。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">MESI 协议中 M→S 状态转换会发生什么？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">当 Core0 持有 M（Modified，脏数据）状态的 cache line，而另一个 Core1 发出读请求时，会触发 <strong>write-back + share</strong> 流程：<br>1. Core0 通过总线嗅探（bus snooping）感知到 Core1 的读请求；<br>2. Core0 将脏数据写回（write-back）到内存；<br>3. Core0 的状态从 M 降为 S；<br>4. Core1 从内存读取数据，状态也设为 S。<br>最终两个核都持有干净的共享副本。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">False Sharing 如何检测和修复？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a"><strong>检测：</strong><br>• <code>perf stat -e cache-misses,LLC-load-misses ./app</code><br>• <code>perf c2c record ./app</code>（Linux perf c2c 专门检测 cache-to-cache false sharing）<br>• Intel VTune Profiler 的 Memory Access 分析<br><br><strong>修复：</strong><br>• Padding 对齐：在变量间插入填充字节，使其分属不同 cache line；<br>• Go 中常用 <code>_ [56]byte</code> 或 <code>_ [64-unsafe.Sizeof(x)]byte</code>；<br>• 重新设计数据结构，将不同线程访问的字段分离到不同结构体。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">为什么顺序遍历数组比随机访问快得多？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">两个核心原因：<br><strong>1. 空间局部性（Spatial Locality）</strong>：CPU 以 64B cache line 为单位加载数据，顺序访问时每次 cache miss 会预加载后续元素，命中率极高（L1 hit ~4 周期）。随机访问每个元素大概率触发新的 miss（L3 miss ~200 周期）。<br><strong>2. 硬件预取（Hardware Prefetcher）</strong>：现代 CPU 检测到步长规律的访问模式后，会提前将数据从内存预取到 cache，顺序访问完美触发预取器。随机访问无规律，预取器失效。<br>典型差距：顺序访问带宽可达 40-100 GB/s，随机访问可能只有 1-5 GB/s。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ext-section">
+    <div class="ext-hd"><div class="ext-hd-bar"></div><h2>易错点</h2></div>
+    <div class="pitfall-grid">
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 误解 MESI 的 E 状态</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre>// 常见误解：
+// E（Exclusive）= 独占
+// 以为读取操作都需要
+// 经过总线通知
+
+// 实际上 E 状态意味着：
+// 1. 我是唯一持有者
+// 2. 数据是干净的（与内存一致）
+// 3. 可以静默转换为 M
+//    不需要任何总线通信！
+
+// E→M：直接写，无总线流量</pre>
+            <p><strong>误区：</strong>认为 E 状态写入也需要总线 Invalidate 通知。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre>// 正确理解 E 状态的价值
+// E 是重要的性能优化：
+
+// S→M（共享→修改）：
+//   需要发送 Invalidate
+//   等待所有核的 Ack
+//   有总线流量开销
+
+// E→M（独占→修改）：
+//   直接修改，无总线通信
+//   无需等待任何 Ack
+//   这就是 E 状态的意义！</pre>
+            <p><strong>关键</strong>：E 状态允许无总线流量的静默 E→M 转换，是 MESI 相比 MSI 协议的核心优化。</p>
+          </div>
+        </div>
+      </div>
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ False Sharing 难以靠肉眼发现</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre>// 看起来没问题的代码：
+type Stats struct {
+    Hits   int64  // offset 0
+    Misses int64  // offset 8
+}
+// Thread 0 只写 Hits
+// Thread 1 只写 Misses
+// 逻辑上完全独立...
+
+// 但 Hits 和 Misses 在
+// 同一 64B cache line！
+// 严重的 false sharing</pre>
+            <p><strong>陷阱：</strong>两个变量逻辑独立，但物理上共享同一 cache line。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre>// 修复：padding 隔离
+const CacheLineSize = 64
+
+type Stats struct {
+    Hits   int64
+    _      [56]byte // padding
+    Misses int64
+    _      [56]byte // padding
+}
+// 现在 Hits 和 Misses
+// 各占独立 cache line
+
+// 检测工具：
+// perf c2c record ./app
+// perf c2c report</pre>
+            <p><strong>修复</strong>：用 padding 使每个热点字段独占一个 cache line（Go sync.Mutex 内部也这样做）。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── SVG helpers ──────────────────────────────────────────────
+function defs(){return`<defs>
+<marker id="arr" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#475569"/></marker>
+<marker id="arrA" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#00add8"/></marker>
+<marker id="arrG" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#38bdf8"/></marker>
+<marker id="arrR" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#f87171"/></marker>
+<filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="glow2"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>`;}
+
+function box(x,y,w,h,label,sub,color,active,rx=10){
+  const fill=active?`rgba(${hexToRgb(color)},.18)`:`rgba(255,255,255,.03)`;
+  const stroke=active?color:'#334155';
+  const filt=active?' filter="url(#glow)"':'';
+  const lc=active?color:'#94a3b8';
+  const sc=active?'#e2e8f0':'#64748b';
+  return`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${active?2:1}"${filt}/>
+<text x="${x+w/2}" y="${y+h/2-(sub?6:0)}" text-anchor="middle" fill="${lc}" font-size="12" font-weight="700" font-family="monospace">${label}</text>`+
+(sub?`<text x="${x+w/2}" y="${y+h/2+10}" text-anchor="middle" fill="${sc}" font-size="9" font-family="monospace">${sub}</text>`:'');
+}
+
+function arr(x1,y1,x2,y2,color,dashed,anim){
+  const cls=anim?'class="flow-arrow" ':'';
+  const da=dashed?'stroke-dasharray="6 4" ':'';
+  const mkId=color==='#00add8'?'arrA':color==='#38bdf8'?'arrG':color==='#f87171'?'arrR':'arr';
+  return`<line ${cls}${da}x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="1.8" marker-end="url(#${mkId})"/>`;
+}
+
+function lbl(x,y,t,c,s){return`<text x="${x}" y="${y}" fill="${c||'#64748b'}" font-size="${s||9}" font-family="monospace">${t}</text>`;}
+
+function hexToRgb(hex){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return`${r},${g},${b}`;}
+
+// Cache hierarchy layout helper
+function drawHierarchy(hitLevel,missLevels){
+  // hitLevel: 0=CPU,1=L1,2=L2,3=L3,4=RAM, -1=none
+  // missLevels: set of indices that show miss mark
+  let s=defs();
+  const levels=[
+    {label:'CPU',sub:'寄存器',color:'#c084fc',lat:'1 c',w:80,h:44},
+    {label:'L1',sub:'32KB',color:'#4ade80',lat:'4 c',w:96,h:44},
+    {label:'L2',sub:'256KB',color:'#38bdf8',lat:'12 c',w:112,h:44},
+    {label:'L3',sub:'8-32MB',color:'#fb923c',lat:'40 c',w:128,h:44},
+    {label:'RAM',sub:'GB级',color:'#f87171',lat:'200 c',w:144,h:44},
+  ];
+  const totalW=levels.reduce((a,l)=>a+l.w+20,0)-20;
+  let cx=310-totalW/2;
+  const cy=120;
+  const positions=[];
+  for(let i=0;i<levels.length;i++){
+    const l=levels[i];
+    positions.push({x:cx,y:cy,w:l.w,h:l.h});
+    const active=i===hitLevel;
+    const miss=missLevels&&missLevels.has(i);
+    const col=miss?'#f87171':l.color;
+    s+=box(cx,cy,l.w,l.h,l.label,l.sub,col,active,8);
+    if(miss) s+=`<text x="${cx+l.w/2}" y="${cy-8}" text-anchor="middle" fill="#f87171" font-size="14" font-weight="bold">✗</text>`;
+    if(active&&i>0) s+=`<text x="${cx+l.w/2}" y="${cy-8}" text-anchor="middle" fill="${l.color}" font-size="14" font-weight="bold">✓</text>`;
+    // Arrow to next
+    if(i<levels.length-1){
+      const nx=cx+l.w;
+      const ny=cy+l.h/2;
+      s+=arr(nx+2,ny,nx+18,ny,'#475569',false,false);
+    }
+    // Latency label below
+    s+=lbl(cx+l.w/2-12,cy+l.h+14,l.lat,active?l.color:'#475569',9);
+    cx+=l.w+20;
+  }
+  return{s,positions,levels};
+}
+
+// ── Scenarios ────────────────────────────────────────────────
+let curScene=0, curStep=0;
+
+const SCENARIOS=[
+// ── 场景 A: L1 命中 ──────────────────────────────────────────
+{
+  label:'L1 命中',
+  codeTitle:'locality.c',
+  steps:[
+    {title:'CPU 发起内存读取',desc:'CPU 执行 load 指令，请求地址 0x1000 的数据。访问请求首先到达 L1 Cache 进行 tag 查找。'},
+    {title:'L1 Cache 命中',desc:'L1 Cache 的 tag 检查（tag check）：地址 0x1000 在 L1 中有有效的 cache line！命中（hit），绿色高亮。'},
+    {title:'数据从 L1 返回',desc:'命中的 cache line 数据直接返回给 CPU，整个过程约 4 个时钟周期。无需访问更低层次的缓存或内存。'},
+    {title:'延迟层次对比',desc:'L1 命中仅需 4 周期。若 L1 miss 需去 L2（12周期），L2 miss 去 L3（40周期），L3 miss 去 RAM（~200周期）。层次间延迟差异巨大。'},
+  ],
+  hl:[[1,2],[4,5,6],[8,9],[1,2,3,4,5,6,7,8,9,10,11]],
+  code:[
+`// CPU 发起读请求
+// load addr=0x1000
+void read_value() {
+    int val = array[idx]; // 内存读取
+    // 1. 检查 L1 cache...
+    // 2. tag match?
+    // 3. 返回 cache line 数据
+    use(val); // 4 周期后得到数据
+    // 局部性：数组连续访问
+}`,
+`// L1 Cache tag check
+// addr = 0x1000
+// tag = 0x1000 >> 12 = 0x1
+// index = (0x1000 >> 6) & mask
+// offset = 0x1000 & 0x3F = 0
+
+// L1 tag[index] == 0x1? → YES
+// valid bit = 1?         → YES
+// L1 HIT! ✓`,
+`// L1 命中：4 周期返回数据
+// 数据在 cache line 中，
+// 直接从 L1 SRAM 读取：
+uint8_t line[64]; // cache line
+int val = *(int*)(line + offset);
+// offset = addr & 0x3F
+// 4 周期 = ~1.2ns @ 3GHz
+// 相当于 CPU 从本地SRAM取数`,
+`// 各层延迟对比（周期数）
+// L1:  ~4   cycles  ← 命中
+// L2:  ~12  cycles
+// L3:  ~40  cycles
+// RAM: ~200 cycles
+
+// 为什么要利用局部性？
+// 顺序访问数组：L1命中率>95%
+// 随机访问：大量L3/RAM miss
+// 性能差距可达 50x 以上！`,
+  ],
+  render(step){
+    const hitMap=[0,1,1,1]; // which level is hit (CPU=0,L1=1,...)
+    const missMap=[new Set(),new Set(),new Set(),new Set()];
+    const hitLevel=hitMap[step];
+    const {s:hs,positions,levels}=drawHierarchy(hitLevel,missMap[step]);
+    let s=hs;
+    // Request arrow going right
+    if(step===0){
+      s+=arr(positions[0].x+levels[0].w,positions[0].y+22,positions[1].x,positions[1].y+22,'#00add8',false,true);
+      s+=lbl(positions[0].x+levels[0].w+2,positions[0].y+15,'addr=0x1000','#00add8',8);
+    }
+    // Return arrow going left
+    if(step===2){
+      s+=arr(positions[1].x,positions[1].y+28,positions[0].x+levels[0].w,positions[0].y+28,'#4ade80',false,true);
+      s+=lbl(positions[0].x+levels[0].w+2,positions[0].y+40,'4 cycles','#4ade80',8);
+    }
+    // Latency bar chart
+    if(step===3){
+      const bars=[{l:'L1',c:4,col:'#4ade80'},{l:'L2',c:12,col:'#38bdf8'},{l:'L3',c:40,col:'#fb923c'},{l:'RAM',c:200,col:'#f87171'}];
+      const bx=60,by=200,bh=80,maxC=200;
+      s+=lbl(bx,by-12,'延迟（周期数，对数比例）','#94a3b8',9);
+      for(let i=0;i<bars.length;i++){
+        const b=bars[i];
+        const logW=Math.log(b.c)/Math.log(maxC)*320;
+        s+=`<rect x="${bx}" y="${by+i*22}" width="${logW}" height="16" rx="3" fill="rgba(${hexToRgb(b.col)},.2)" stroke="${b.col}" stroke-width="1"/>`;
+        s+=lbl(bx+logW+4,by+i*22+11,`${b.l}: ${b.c}c`,b.col,9);
+      }
+    }
+    // General annotation
+    const msgs=['CPU 发出读请求，addr=0x1000','L1 tag check 命中 ✓','数据从 L1 SRAM 返回 CPU，4 周期','层次越高延迟越大，局部性至关重要'];
+    s+=`<text x="310" y="330" text-anchor="middle" fill="${step===1?'#4ade80':'#64748b'}" font-size="10" font-family="monospace">${msgs[step]}</text>`;
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+
+// ── 场景 B: 缓存缺失链 ──────────────────────────────────────
+{
+  label:'缺失链',
+  codeTitle:'miss_chain.c',
+  steps:[
+    {title:'L1 Miss（红色 ✗）',desc:'CPU 请求未缓存的地址，L1 Cache tag check 失败（miss）。L1 miss 需要向 L2 发起请求，额外代价约 8 个周期。'},
+    {title:'L2 也 Miss，继续向 L3',desc:'L2 Cache 同样未命中（miss）。继续向 L3 发起请求，累计延迟超过 12 周期，L2 miss 代价约 28 个额外周期。'},
+    {title:'L3 命中，加载 Cache Line',desc:'L3 Cache 命中（黄色 ✓）！将完整的 64 字节 cache line 从 L3 填充回 L2 → L1，并返回给 CPU。'},
+    {title:'延迟对比与局部性',desc:'各层延迟：L1=4c，L2=12c，L3=40c，RAM=200c。局部性好的程序 L1 命中率 >95%，随机访问程序大量 L3/RAM miss，性能差距可达 50x。'},
+  ],
+  hl:[[3,4,5],[6,7,8],[9,10,11],[1,2,3,4,5,6,7,8,9,10,11,12]],
+  code:[
+`// 随机访问导致 L1 miss
+void bad_access(int* arr, int n) {
+    for (int i = 0; i < n; i++) {
+        int idx = rand() % n;  // 随机！
+        sum += arr[idx];        // L1 miss
+        // 每次都可能是新地址
+        // L1 tag check 失败
+        // → 向 L2 查询...
+    }
+}`,
+`// L1 miss → L2 查询
+void bad_access(int* arr, int n) {
+    // L1 miss 代价: ~8 cycles
+    // L2 tag check...
+    // L2 也 miss?
+    // → 向 L3 查询
+    // L2 miss 额外代价: ~28c
+    // 累计: ~40 cycles
+}`,
+`// L3 命中，回填 cache line
+// 64 字节 cache line 从 L3
+// 传输到 L2 再到 L1:
+// +---------------------------+
+// | byte 0..63 (cache line) |
+// | ← 包含目标数据 + 邻近数据 |
+// +---------------------------+
+// 回填后 L1/L2 都有了这行
+// 后续访问邻近地址 → 命中!`,
+`// 局部性的巨大影响
+// 顺序访问（好）vs 随机访问（差）
+
+// 顺序: L1命中率 ~95%, 平均~5c
+for (int i=0; i<N; i++) use(a[i]);
+
+// 随机: L3 miss率高, 平均~150c
+for (int i=0; i<N; i++) use(a[r[i]]);
+
+// 性能差距: 150/5 = 30x 以上！
+// 这就是缓存友好代码的价值`,
+  ],
+  render(step){
+    const missSet=[new Set([1]),new Set([1,2]),new Set([1,2]),new Set()];
+    const hitLevel=step===2?3:step===3?1:-1;
+    const {s:hs,positions,levels}=drawHierarchy(hitLevel,missSet[step]);
+    let s=hs;
+    // Miss propagation arrows
+    if(step>=0){
+      s+=arr(positions[0].x+levels[0].w,positions[0].y+22,positions[1].x,positions[1].y+22,'#f87171',false,step===0);
+    }
+    if(step>=1){
+      s+=arr(positions[1].x+levels[1].w,positions[1].y+22,positions[2].x,positions[2].y+22,'#f87171',false,step===1);
+    }
+    if(step===2){
+      // Fill back arrow
+      s+=arr(positions[3].x,positions[3].y+28,positions[2].x+levels[2].w,positions[2].y+28,'#fb923c',false,true);
+      s+=arr(positions[2].x,positions[2].y+28,positions[1].x+levels[1].w,positions[1].y+28,'#38bdf8',false,true);
+      s+=arr(positions[1].x,positions[1].y+28,positions[0].x+levels[0].w,positions[0].y+28,'#4ade80',false,true);
+      s+=lbl(310,240,'64B cache line 回填 L3→L2→L1','#4ade80',10);
+    }
+    if(step===3){
+      // Comparison
+      const bx=60,by=200;
+      s+=lbl(bx,by,'顺序访问（好）:','#4ade80',9);
+      s+=`<rect x="${bx+100}" y="${by-10}" width="80" height="14" rx="3" fill="rgba(74,222,128,.2)" stroke="#4ade80" stroke-width="1"/>`;
+      s+=lbl(bx+130,by,'~5c','#4ade80',9);
+      s+=lbl(bx,by+22,'随机访问（差）:','#f87171',9);
+      s+=`<rect x="${bx+100}" y="${by+12}" width="320" height="14" rx="3" fill="rgba(248,113,113,.2)" stroke="#f87171" stroke-width="1"/>`;
+      s+=lbl(bx+330,by+22,'~150c','#f87171',9);
+      s+=lbl(bx,by+50,'差距约 30x','#fb923c',11);
+    }
+    const msgs=['L1 tag check 失败（miss），向 L2 查询','L2 也 miss，继续向 L3 查询，累计延迟增加','L3 命中！64B cache line 回填到 L2 和 L1','局部性好坏对性能影响巨大（差距 30x 以上）'];
+    s+=`<text x="310" y="330" text-anchor="middle" fill="${step===2?'#4ade80':step===1||step===0?'#f87171':'#64748b'}" font-size="10" font-family="monospace">${msgs[step]}</text>`;
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+
+// ── 场景 C: MESI 状态机 ─────────────────────────────────────
+{
+  label:'MESI',
+  codeTitle:'mesi.go',
+  steps:[
+    {title:'初始状态：未缓存',desc:'两个 CPU Core（Core0 和 Core1）都没有缓存地址 A 的数据。两个 cache 中地址 A 的 cache line 处于 I（Invalid）状态。'},
+    {title:'Core0 读取 A → E 状态',desc:'Core0 发出读请求，从内存加载数据 A。由于没有其他核持有副本，Core0 获得独占权，状态设为 E（Exclusive，独占干净）。'},
+    {title:'Core1 也读取 A → 两者变 S',desc:'Core1 发出读请求，总线嗅探（bus snooping）检测到 Core0 持有 E 状态副本。Core0 降为 S，Core1 也设为 S（Shared，共享干净）。'},
+    {title:'Core0 写 A → Invalidate',desc:'Core0 发出写请求，广播 Invalidate 信号到所有核。Core1 的副本变为 I（Invalid），Core0 状态升为 M（Modified，脏修改）。'},
+    {title:'M 状态数据写回内存',desc:'Core0 的 M 状态 cache line 被驱逐（evict）时，必须将脏数据写回内存（write-back），确保内存数据是最新的。'},
+  ],
+  hl:[[1,2,3],[5,6,7],[8,9,10,11],[12,13,14,15],[16,17,18]],
+  code:[
+`// MESI 协议状态追踪
+// M=Modified E=Exclusive
+// S=Shared   I=Invalid
+
+// 初始：Core0 和 Core1
+// 都没有地址 A 的副本
+// core0.cache[A] = I
+// core1.cache[A] = I`,
+`// Core0 读取 A
+// bus_read(A) → 从内存加载
+core0.cache[A] = E  // Exclusive
+// 只有 Core0 有副本
+// 且数据干净（与内存一致）
+// 优化：E→M 可直接写！`,
+`// Core1 也读取 A
+// bus_snoop：Core0 检测到请求
+// Core0 降级：E → S
+// Core1 获得：I → S
+core0.cache[A] = S  // Shared
+core1.cache[A] = S  // Shared
+// 两者都是干净副本
+// 任一写入需要 Invalidate`,
+`// Core0 写入 A
+// 发送 BusUpgr/Invalidate
+// Core1 收到 → I（Invalid）
+core1.cache[A] = I  // 无效
+core0.cache[A] = M  // Modified
+// M: 数据已修改，与内存不一致
+// 驱逐前必须 write-back`,
+`// Cache line 驱逐（evict）
+// Core0 的 M 状态行被替换
+// 必须 write-back 到内存！
+// memory[A] = core0.cache[A]
+core0.cache[A] = I  // 驱逐后无效
+// memory[A] 现在是最新的
+// write-back policy 保证一致性`,
+  ],
+  render(step){
+    let s=defs();
+    const c0x=60,c1x=380,cy=40,cw=120,ch=120;
+    // State colors
+    const stateColor={M:'#f87171',E:'#4ade80',S:'#38bdf8',I:'#475569'};
+    const stateLabel={M:'M (Modified)',E:'E (Exclusive)',S:'S (Shared)',I:'I (Invalid)'};
+    // Core 0 state
+    const c0states=['I','E','S','M','I'];
+    const c1states=['I','I','S','I','I'];
+    const c0state=c0states[step];
+    const c1state=c1states[step];
+    const c0col=stateColor[c0state];
+    const c1col=stateColor[c1state];
+    // Core 0 box
+    s+=box(c0x,cy,cw,ch,'Core 0',c0state!=='I'?`addr A: ${c0state}`:'addr A: I',c0col,c0state!=='I',12);
+    // State badge
+    s+=`<rect x="${c0x+cw-36}" y="${cy+4}" width="32" height="20" rx="4" fill="${c0col}" opacity=".25"/>`;
+    s+=`<text x="${c0x+cw-20}" y="${cy+17}" text-anchor="middle" fill="${c0col}" font-size="11" font-weight="800" font-family="monospace">${c0state}</text>`;
+    // Core 1 box
+    s+=box(c1x,cy,cw,ch,'Core 1',c1state!=='I'?`addr A: ${c1state}`:'addr A: I',c1col,c1state!=='I',12);
+    s+=`<rect x="${c1x+cw-36}" y="${cy+4}" width="32" height="20" rx="4" fill="${c1col}" opacity=".25"/>`;
+    s+=`<text x="${c1x+cw-20}" y="${cy+17}" text-anchor="middle" fill="${c1col}" font-size="11" font-weight="800" font-family="monospace">${c1state}</text>`;
+    // Bus in the middle
+    const busY=cy+ch+30;
+    s+=`<rect x="${c0x}" y="${busY}" width="${c1x+cw-c0x}" height="22" rx="4" fill="rgba(255,255,255,.03)" stroke="#334155" stroke-width="1"/>`;
+    s+=lbl(c0x+(c1x+cw-c0x)/2-18,busY+14,'共享总线 (Shared Bus)','#475569',9);
+    // Memory
+    const memX=220,memY=busY+50;
+    const memActive=step===0||step===1||step===4;
+    s+=box(memX,memY,120,44,'Memory','addr A','#475569',memActive,8);
+    // Arrows
+    if(step===1){
+      // Core0 reads from memory
+      s+=arr(c0x+cw/2,cy+ch,c0x+cw/2,busY,'#4ade80',false,false);
+      s+=arr(memX+60,memY,memX+60,busY+22,'#4ade80',false,true);
+      s+=lbl(c0x+cw/2+4,cy+ch+16,'bus_read','#4ade80',8);
+    }
+    if(step===2){
+      // Core1 reads, Core0 shares
+      s+=arr(c1x+cw/2,cy+ch,c1x+cw/2,busY,'#38bdf8',false,false);
+      s+=arr(c0x+cw/2,busY,c0x+cw/2,cy+ch,'#38bdf8',false,true);
+      s+=lbl(c1x+cw/2+4,cy+ch+16,'snoop','#38bdf8',8);
+    }
+    if(step===3){
+      // Invalidate
+      s+=arr(c0x+cw,cy+ch/2,c1x,cy+ch/2,'#f87171',false,true);
+      s+=lbl(c0x+cw+20,cy+ch/2-10,'Invalidate','#f87171',9);
+    }
+    if(step===4){
+      // Write back
+      s+=arr(c0x+cw/2,cy+ch,c0x+cw/2,busY,'#fb923c',false,false);
+      s+=arr(memX+60,busY,memX+60,memY,'#fb923c',false,true);
+      s+=lbl(c0x+cw/2+4,cy+ch+16,'write-back','#fb923c',8);
+    }
+    // State transition description
+    const trans=[
+      'I → I（初始，两核均无副本）',
+      'I → E（Core0独占读，仅有者）',
+      'E → S / I → S（总线嗅探，共享）',
+      'S → M / S → I（写Invalidate）',
+      'M → I（驱逐，write-back到内存）',
+    ];
+    s+=box(80,290,420,34,trans[step],'','#00add8',true,8);
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+
+// ── 场景 D: False Sharing ──────────────────────────────────
+{
+  label:'False Sharing',
+  codeTitle:'false_sharing.go',
+  steps:[
+    {title:'同一 Cache Line 中的两变量',desc:'变量 x（偏移 0）和 y（偏移 8）位于同一 64B cache line 中。Thread0 只写 x，Thread1 只写 y，逻辑上完全独立。'},
+    {title:'两线程同时写不同变量',desc:'Thread0 写 x，Thread1 写 y。虽然写的是不同内存地址，但两个地址落在同一个 64 字节 cache line 内！'},
+    {title:'Cache Line 粒度的失效',desc:'Thread0 写 x 导致该 cache line 变为 M 状态，并通过 Invalidate 使 Thread1 的整个 cache line 无效。反之亦然，形成"乒乓"效应。'},
+    {title:'修复：Padding 对齐',desc:'在 x 和 y 之间插入 56 字节 padding，使两者分属不同 cache line。Thread0 和 Thread1 现在操作完全独立的 cache line，无 false sharing。'},
+  ],
+  hl:[[1,2,3,4,5],[7,8,9,10],[12,13,14,15],[17,18,19,20,21,22,23]],
+  code:[
+`// False Sharing 问题
+type BadCounter struct {
+    x int64  // offset 0 (Thread0写)
+    y int64  // offset 8 (Thread1写)
+    // x 和 y 在同一 64B cache line!
+}
+
+// Thread0 只写 x
+// Thread1 只写 y
+// 看起来没问题...`,
+`// 但共享同一 cache line！
+// 64B cache line 覆盖：
+// [offset 0..63]
+//   ├── x: offset 0-7
+//   └── y: offset 8-15
+//       ... (其余 48B)
+// Thread0 写 x → 整行 M
+// Thread1 写 y → 整行 M
+// 相互 Invalidate！`,
+`// Ping-pong 效应
+// Thread0 写 x:
+//   core0: cache line → M
+//   Invalidate core1 的副本
+// Thread1 写 y:
+//   core1: 重新加载 cache line
+//   core1: cache line → M
+//   Invalidate core0 的副本
+// 反复 cache miss！性能暴降`,
+`// 修复：padding 隔离 cache line
+const CacheLineSize = 64
+
+type GoodCounter struct {
+    x int64
+    _ [56]byte  // padding: 64-8=56
+    y int64
+    _ [56]byte  // padding
+}
+// 现在 x 和 y 各占独立 64B
+// 完全消除 false sharing！
+// sync.Mutex 内部也用了 padding`,
+  ],
+  render(step){
+    let s=defs();
+    // Cache line visualization
+    const clX=60,clY=40,clW=500,clH=50;
+    // Cache line block
+    const cl1Active=step>=0&&step<=2;
+    const cl1Color=step===2?'#f87171':step===1?'#fb923c':'#334155';
+    if(step<=2){
+      // Single cache line containing both x and y
+      s+=`<rect x="${clX}" y="${clY}" width="${clW}" height="${clH}" rx="6" fill="rgba(255,255,255,.02)" stroke="${cl1Active?'#fb923c':'#334155'}" stroke-width="${cl1Active?2:1}"/>`;
+      s+=lbl(clX+clW/2-40,clY-8,'同一 64B cache line','#fb923c',9);
+      // x portion
+      const xW=60, yW=60;
+      s+=`<rect x="${clX+4}" y="${clY+6}" width="${xW}" height="${clH-12}" rx="4" fill="rgba(0,173,216,.2)" stroke="#00add8" stroke-width="1.5"/>`;
+      s+=lbl(clX+4+xW/2-6,clY+clH/2+4,'x','#00add8',11);
+      s+=lbl(clX+4,clY+clH+8,'offset 0','#475569',8);
+      // y portion
+      s+=`<rect x="${clX+4+xW+4}" y="${clY+6}" width="${yW}" height="${clH-12}" rx="4" fill="rgba(192,132,252,.2)" stroke="#c084fc" stroke-width="1.5"/>`;
+      s+=lbl(clX+4+xW+4+yW/2-6,clY+clH/2+4,'y','#c084fc',11);
+      s+=lbl(clX+4+xW+4,clY+clH+8,'offset 8','#475569',8);
+      // rest
+      s+=`<rect x="${clX+4+xW+4+yW+4}" y="${clY+6}" width="${clW-xW-yW-20}" height="${clH-12}" rx="4" fill="rgba(255,255,255,.02)" stroke="#1e3a5f" stroke-width="1"/>`;
+      s+=lbl(clX+4+xW+4+yW+4+(clW-xW-yW-20)/2-20,clY+clH/2+4,'padding...','#1e3a5f',9);
+    }
+    if(step===3){
+      // Two separate cache lines
+      const cl1W=240,cl2W=240;
+      s+=`<rect x="${clX}" y="${clY}" width="${cl1W}" height="${clH}" rx="6" fill="rgba(0,173,216,.06)" stroke="#00add8" stroke-width="1.5"/>`;
+      s+=lbl(clX+cl1W/2-30,clY-8,'Cache Line 1 (Thread0)','#00add8',9);
+      s+=`<rect x="${clX+4}" y="${clY+6}" width="60" height="${clH-12}" rx="4" fill="rgba(0,173,216,.2)" stroke="#00add8" stroke-width="1.5"/>`;
+      s+=lbl(clX+4+30-6,clY+clH/2+4,'x','#00add8',11);
+      s+=`<rect x="${clX+68}" y="${clY+6}" width="${cl1W-72}" height="${clH-12}" rx="4" fill="rgba(255,255,255,.02)" stroke="#1e3a5f" stroke-width="1"/>`;
+      s+=lbl(clX+68+(cl1W-72)/2-20,clY+clH/2+4,'[56B pad]','#334155',9);
+      // Line 2
+      const l2x=clX+cl1W+20;
+      s+=`<rect x="${l2x}" y="${clY}" width="${cl2W}" height="${clH}" rx="6" fill="rgba(192,132,252,.06)" stroke="#c084fc" stroke-width="1.5"/>`;
+      s+=lbl(l2x+cl2W/2-30,clY-8,'Cache Line 2 (Thread1)','#c084fc',9);
+      s+=`<rect x="${l2x+4}" y="${clY+6}" width="60" height="${clH-12}" rx="4" fill="rgba(192,132,252,.2)" stroke="#c084fc" stroke-width="1.5"/>`;
+      s+=lbl(l2x+4+30-6,clY+clH/2+4,'y','#c084fc',11);
+      s+=`<rect x="${l2x+68}" y="${clY+6}" width="${cl2W-72}" height="${clH-12}" rx="4" fill="rgba(255,255,255,.02)" stroke="#1e3a5f" stroke-width="1"/>`;
+      s+=lbl(l2x+68+(cl2W-72)/2-20,clY+clH/2+4,'[56B pad]','#334155',9);
+    }
+    // Threads
+    const t0Y=130, t1Y=180;
+    const t0active=step>=1;
+    const t1active=step>=1;
+    s+=box(clX,t0Y,100,34,'Thread 0','写 x',t0active?'#00add8':'#334155',t0active,6);
+    s+=box(clX+200,t0Y,100,34,'Thread 1','写 y',t1active?'#c084fc':'#334155',t1active,6);
+    if(step===1||step===2){
+      s+=arr(clX+50,t0Y,clX+4+30,clY+clH,'#00add8',false,step===1);
+      s+=arr(clX+250,t0Y,clX+4+60+4+30,clY+clH,'#c084fc',false,step===1);
+    }
+    if(step===2){
+      // Cross invalidate arrows
+      s+=`<path d="M${clX+50},${t0Y+34} C${clX+50},${t0Y+60} ${clX+250},${t0Y+60} ${clX+250},${t0Y+34}" stroke="#f87171" stroke-width="1.5" fill="none" stroke-dasharray="5 3" marker-end="url(#arrR)"/>`;
+      s+=lbl(clX+140,t0Y+72,'相互 Invalidate（ping-pong）','#f87171',9);
+    }
+    const msgs=['x(offset 0) 和 y(offset 8) 共享同一 64B cache line','两线程分别写 x 和 y，但共享同一 cache line','写入触发对方 cache line Invalidate，性能暴降','padding 修复后，x 和 y 各占独立 cache line ✓'];
+    s+=`<text x="310" y="290" text-anchor="middle" fill="${step===3?'#4ade80':step===2?'#f87171':'#64748b'}" font-size="10" font-family="monospace">${msgs[step]}</text>`;
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+];
+
+// ── Engine ───────────────────────────────────────────────────
+function goHL(code){
+  return code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/("(?:[^"\\]|\\.)*")/g,'<span class="st">$1</span>')
+    .replace(/(\/\/[^\n]*)/g,'<span class="cm">$1</span>')
+    .replace(/\b(type|struct|const|func|var|int64|int|uint8|void|for|if|return|package)\b/g,'<span class="kw">$1</span>')
+    .replace(/\b(byte|range|make|append|len|cap|sync|atomic)\b/g,'<span class="pkg">$1</span>')
+    .replace(/\b([0-9]+)\b/g,'<span class="num">$1</span>');
+}
+
+function renderCode(lines,highlights){
+  const codeArr=typeof lines==='string'?lines.split('\n'):lines;
+  const body=document.getElementById('codeBody');
+  const hiSet=new Set((highlights||[]).map(h=>h-1));
+  body.innerHTML=codeArr.map((l,i)=>{
+    const cls=hiSet.has(i)?'cl hi':'cl';
+    return`<div class="${cls}"><span class="ln">${i+1}</span><span class="lc">${goHL(l)}</span></div>`;
+  }).join('');
+}
+
+function initScenarios(){
+  const sc=SCENARIOS[curScene];
+  const cont=document.getElementById('scenarios');
+  cont.innerHTML=SCENARIOS.map((s,i)=>`<button class="sc-btn${i===curScene?' active':''}" onclick="switchScene(${i})">${s.label}</button>`).join('');
+  document.getElementById('codeTitle').textContent=sc.codeTitle;
+  updateStep();
+}
+
+function updateStep(){
+  const sc=SCENARIOS[curScene];
+  const st=sc.steps[curStep];
+  document.getElementById('stepNum').textContent=`步骤 ${curStep+1}`;
+  document.getElementById('stepTitle').textContent=st.title;
+  document.getElementById('stepDesc').textContent=st.desc;
+  const nav=document.getElementById('flowNav');
+  nav.innerHTML=sc.steps.map((_,i)=>{
+    let cls='fn-dot';
+    if(i<curStep) cls+=' done';
+    else if(i===curStep) cls+=' cur';
+    return`<div class="${cls}" onclick="jumpStep(${i})">${i+1}</div>`;
+  }).join('')+`<span class="step-ctr">${curStep+1}/${sc.steps.length}</span>`;
+  const codeIdx=Math.min(curStep,sc.code.length-1);
+  renderCode(sc.code[codeIdx],sc.hl[curStep]);
+  const svgEl=document.getElementById('svg');
+  svgEl.style.opacity='0';
+  svgEl.style.transition='opacity .2s';
+  setTimeout(()=>{sc.render(curStep);svgEl.style.opacity='1';},120);
+  document.getElementById('btnPrev').disabled=curStep===0;
+  document.getElementById('btnNext').disabled=curStep===sc.steps.length-1;
+}
+
+function switchScene(i){curScene=i;curStep=0;initScenarios();}
+function jumpStep(i){curStep=i;updateStep();}
+function next(){if(curStep<SCENARIOS[curScene].steps.length-1){curStep++;updateStep();}}
+function prev(){if(curStep>0){curStep--;updateStep();}}
+function reset(){curStep=0;updateStep();}
+function toggleQA(el){el.classList.toggle('open');}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  if(typeof NavTracker!=='undefined') NavTracker.track('Cache 层次','cs/cache.html','🗄️','CS基础');
+  initScenarios();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,480 @@
+<!DOCTYPE html><html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>JSON 处理 - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:72px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(0,173,216,.12);color:var(--accent);border:1px solid rgba(0,173,216,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.badge-high{background:rgba(251,146,60,.12);color:#fb923c;border:1px solid rgba(251,146,60,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(0,173,216,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.table-wrap{overflow-x:auto;margin:10px 0;}
+table{width:100%;border-collapse:collapse;font-size:.82rem;}
+th{background:rgba(0,173,216,.08);color:var(--accent);padding:8px 12px;text-align:left;border:1px solid var(--border2);font-size:.78rem;}
+td{padding:7px 12px;border:1px solid var(--border2);color:var(--dim);}
+tr:hover td{background:rgba(255,255,255,.02);}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">📦 JSON 处理</span>
+  <div class="nav-tags">
+    <span class="ntag">json</span>
+    <span class="ntag">encoding</span>
+    <span class="ntag">struct-tag</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <aside class="side-nav" id="sideNav">
+    <nav><ul>
+      <li><a href="#struct-tag">struct tag</a></li>
+      <li><a href="#custom">自定义编解码</a></li>
+      <li><a href="#streaming">流式处理</a></li>
+      <li><a href="#perf">常见操作与性能</a></li>
+      <li><a href="#interview">面试题</a></li>
+      <li><a href="#pitfalls">易错点</a></li>
+    </ul></nav>
+  </aside>
+  <main class="main-content">
+
+    <!-- ── Section 1: struct tag ── -->
+    <div class="section" id="struct-tag">
+      <div class="section-title"><div class="title-bar"></div><h2>struct tag 与编解码</h2></div>
+
+      <div class="card">
+        <div class="card-hd"><h3>json tag 核心选项</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>struct 字段的 <code>json:"..."</code> tag 控制序列化行为。常用选项：</p>
+          <ul>
+            <li><code>json:"name"</code> — 自定义 JSON 字段名（默认用字段名）</li>
+            <li><code>json:"name,omitempty"</code> — 零值时省略该字段（空字符串、0、false、nil 等）</li>
+            <li><code>json:"name,string"</code> — 数字类型序列化为 JSON 字符串（适合大整数传前端）</li>
+            <li><code>json:"-"</code> — 完全忽略该字段，不参与序列化/反序列化</li>
+            <li><code>json:"-,"</code> — 字段名为字面量 <code>-</code>（逗号前是名称）</li>
+          </ul>
+          <pre><span class="kw">type</span> <span class="id">User</span> <span class="kw">struct</span> {
+    <span class="id">ID</span>       <span class="kw">int64</span>  <span class="st">`json:"id,string"`</span>       <span class="cm">// 序列化为 "id":"123456789"</span>
+    <span class="id">Name</span>     <span class="kw">string</span> <span class="st">`json:"name"`</span>
+    <span class="id">Email</span>    <span class="kw">string</span> <span class="st">`json:"email,omitempty"`</span>  <span class="cm">// 为空时省略</span>
+    <span class="id">Password</span> <span class="kw">string</span> <span class="st">`json:"-"`</span>               <span class="cm">// 永远不序列化</span>
+    <span class="id">Score</span>    <span class="kw">int</span>    <span class="st">`json:"score,omitempty"`</span>  <span class="cm">// 0 时省略</span>
+}
+
+<span class="id">u</span> := <span class="id">User</span>{<span class="id">ID</span>: <span class="num">123456789</span>, <span class="id">Name</span>: <span class="st">"Alice"</span>, <span class="id">Password</span>: <span class="st">"secret"</span>}
+<span class="id">data</span>, _ := <span class="id">json</span>.<span class="fn">Marshal</span>(<span class="id">u</span>)
+<span class="cm">// {"id":"123456789","name":"Alice"}</span>
+<span class="cm">// Email 和 Score 是零值被省略，Password 被忽略</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h3>匿名字段嵌入与大小写匹配</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>匿名嵌入的 struct 字段会被"提升"——其字段直接出现在外层 JSON 对象中，无需嵌套层级。</p>
+          <pre><span class="kw">type</span> <span class="id">Base</span> <span class="kw">struct</span> {
+    <span class="id">CreatedAt</span> <span class="id">time</span>.<span class="id">Time</span> <span class="st">`json:"created_at"`</span>
+    <span class="id">UpdatedAt</span> <span class="id">time</span>.<span class="id">Time</span> <span class="st">`json:"updated_at"`</span>
+}
+
+<span class="kw">type</span> <span class="id">Article</span> <span class="kw">struct</span> {
+    <span class="id">Base</span>            <span class="cm">// 匿名嵌入，字段被提升</span>
+    <span class="id">Title</span> <span class="kw">string</span> <span class="st">`json:"title"`</span>
+}
+
+<span class="cm">// 输出：{"created_at":"...","updated_at":"...","title":"..."}</span>
+<span class="cm">// 而非：{"Base":{"created_at":"..."},"title":"..."}</span></pre>
+          <p>反序列化时字段名匹配是<strong>大小写不敏感</strong>的：JSON 中的 <code>"userid"</code>、<code>"UserID"</code>、<code>"userId"</code> 都能匹配 Go 字段 <code>UserID</code>。但若有精确匹配的 tag，优先使用 tag 匹配。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Section 2: Custom Marshal/Unmarshal ── -->
+    <div class="section" id="custom">
+      <div class="section-title"><div class="title-bar"></div><h2>自定义 Marshal/Unmarshal</h2></div>
+
+      <div class="card">
+        <div class="card-hd"><h3>实现 json.Marshaler / json.Unmarshaler</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-body">
+          <p>实现 <code>MarshalJSON() ([]byte, error)</code> 和 <code>UnmarshalJSON([]byte) error</code> 接口即可完全控制编解码逻辑。常见用途：特殊时间格式、枚举字符串化、敏感字段加密。</p>
+          <pre><span class="kw">type</span> <span class="id">MyTime</span> <span class="kw">struct</span> { <span class="id">time</span>.<span class="id">Time</span> }
+
+<span class="cm">// 自定义时间格式序列化</span>
+<span class="kw">func</span> (<span class="id">t</span> <span class="id">MyTime</span>) <span class="fn">MarshalJSON</span>() ([]<span class="kw">byte</span>, <span class="kw">error</span>) {
+    <span class="id">formatted</span> := <span class="id">t</span>.<span class="fn">Format</span>(<span class="st">`"2006-01-02 15:04:05"`</span>)
+    <span class="kw">return</span> []<span class="kw">byte</span>(<span class="id">formatted</span>), <span class="kw">nil</span>
+}
+
+<span class="cm">// 自定义反序列化</span>
+<span class="kw">func</span> (<span class="id">t</span> *<span class="id">MyTime</span>) <span class="fn">UnmarshalJSON</span>(<span class="id">data</span> []<span class="kw">byte</span>) <span class="kw">error</span> {
+    <span class="id">s</span> := <span class="pkg">strings</span>.<span class="fn">Trim</span>(<span class="pkg">string</span>(<span class="id">data</span>), <span class="st">`"`</span>)
+    <span class="id">parsed</span>, <span class="id">err</span> := <span class="id">time</span>.<span class="fn">Parse</span>(<span class="st">"2006-01-02 15:04:05"</span>, <span class="id">s</span>)
+    <span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> { <span class="kw">return</span> <span class="id">err</span> }
+    <span class="id">t</span>.<span class="id">Time</span> = <span class="id">parsed</span>
+    <span class="kw">return</span> <span class="kw">nil</span>
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h3>自定义枚举类型序列化</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-body">
+          <p>将整数枚举序列化为可读字符串，反序列化时再映射回整数，比直接暴露数字更友好。</p>
+          <pre><span class="kw">type</span> <span class="id">Status</span> <span class="kw">int</span>
+
+<span class="kw">const</span> (
+    <span class="id">StatusActive</span>   <span class="id">Status</span> = <span class="num">1</span>
+    <span class="id">StatusInactive</span> <span class="id">Status</span> = <span class="num">2</span>
+)
+
+<span class="kw">var</span> <span class="id">statusNames</span> = <span class="kw">map</span>[<span class="id">Status</span>]<span class="kw">string</span>{
+    <span class="id">StatusActive</span>:   <span class="st">"active"</span>,
+    <span class="id">StatusInactive</span>: <span class="st">"inactive"</span>,
+}
+
+<span class="kw">func</span> (<span class="id">s</span> <span class="id">Status</span>) <span class="fn">MarshalJSON</span>() ([]<span class="kw">byte</span>, <span class="kw">error</span>) {
+    <span class="id">name</span>, <span class="id">ok</span> := <span class="id">statusNames</span>[<span class="id">s</span>]
+    <span class="kw">if</span> !<span class="id">ok</span> { <span class="kw">return</span> <span class="kw">nil</span>, <span class="id">fmt</span>.<span class="fn">Errorf</span>(<span class="st">"unknown status: %d"</span>, <span class="id">s</span>) }
+    <span class="kw">return</span> <span class="id">json</span>.<span class="fn">Marshal</span>(<span class="id">name</span>)  <span class="cm">// 序列化为 "active"</span>
+}
+
+<span class="kw">func</span> (<span class="id">s</span> *<span class="id">Status</span>) <span class="fn">UnmarshalJSON</span>(<span class="id">data</span> []<span class="kw">byte</span>) <span class="kw">error</span> {
+    <span class="kw">var</span> <span class="id">name</span> <span class="kw">string</span>
+    <span class="kw">if</span> <span class="id">err</span> := <span class="id">json</span>.<span class="fn">Unmarshal</span>(<span class="id">data</span>, &amp;<span class="id">name</span>); <span class="id">err</span> != <span class="kw">nil</span> { <span class="kw">return</span> <span class="id">err</span> }
+    <span class="kw">for</span> <span class="id">k</span>, <span class="id">v</span> := <span class="kw">range</span> <span class="id">statusNames</span> {
+        <span class="kw">if</span> <span class="id">v</span> == <span class="id">name</span> { *<span class="id">s</span> = <span class="id">k</span>; <span class="kw">return</span> <span class="kw">nil</span> }
+    }
+    <span class="kw">return</span> <span class="id">fmt</span>.<span class="fn">Errorf</span>(<span class="st">"unknown status: %s"</span>, <span class="id">name</span>)
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Section 3: Streaming ── -->
+    <div class="section" id="streaming">
+      <div class="section-title"><div class="title-bar"></div><h2>流式 Decoder/Encoder</h2></div>
+
+      <div class="card">
+        <div class="card-hd"><h3>json.Decoder 处理大文件与 HTTP 响应</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p><code>json.Unmarshal</code> 需要先将整个 JSON 读入内存再解析；<code>json.NewDecoder</code> 可以边读边解析，适合 HTTP response body、大文件、NDJSON（每行一个 JSON）等场景。</p>
+          <pre><span class="cm">// 解析 HTTP 响应（推荐方式）</span>
+<span class="kw">func</span> <span class="fn">decodeResponse</span>(<span class="id">resp</span> *<span class="id">http</span>.<span class="id">Response</span>) (<span class="id">User</span>, <span class="kw">error</span>) {
+    <span class="kw">defer</span> <span class="id">resp</span>.<span class="id">Body</span>.<span class="fn">Close</span>()
+    <span class="kw">var</span> <span class="id">u</span> <span class="id">User</span>
+    <span class="id">dec</span> := <span class="id">json</span>.<span class="fn">NewDecoder</span>(<span class="id">resp</span>.<span class="id">Body</span>)
+    <span class="id">dec</span>.<span class="fn">DisallowUnknownFields</span>()  <span class="cm">// 严格模式：未知字段报错</span>
+    <span class="kw">if</span> <span class="id">err</span> := <span class="id">dec</span>.<span class="fn">Decode</span>(&amp;<span class="id">u</span>); <span class="id">err</span> != <span class="kw">nil</span> {
+        <span class="kw">return</span> <span class="id">User</span>{}, <span class="id">err</span>
+    }
+    <span class="kw">return</span> <span class="id">u</span>, <span class="kw">nil</span>
+}
+
+<span class="cm">// 逐行解析 NDJSON（newline-delimited JSON）</span>
+<span class="kw">func</span> <span class="fn">parseNDJSON</span>(<span class="id">r</span> <span class="id">io</span>.<span class="id">Reader</span>) {
+    <span class="id">dec</span> := <span class="id">json</span>.<span class="fn">NewDecoder</span>(<span class="id">r</span>)
+    <span class="kw">for</span> <span class="id">dec</span>.<span class="fn">More</span>() {  <span class="cm">// 是否还有更多 JSON 值</span>
+        <span class="kw">var</span> <span class="id">item</span> <span class="kw">map</span>[<span class="kw">string</span>]<span class="kw">interface</span>{}
+        <span class="kw">if</span> <span class="id">err</span> := <span class="id">dec</span>.<span class="fn">Decode</span>(&amp;<span class="id">item</span>); <span class="id">err</span> != <span class="kw">nil</span> { <span class="kw">break</span> }
+        <span class="cm">// 处理每条记录...</span>
+    }
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h3>UseNumber 避免 float64 精度损失</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-body">
+          <p>JSON 解码到 <code>interface{}</code> 时，数字默认被解析为 <code>float64</code>，大整数（超过 2^53）会丢失精度。<code>UseNumber()</code> 让数字保持为 <code>json.Number</code> 字符串类型，按需转换。</p>
+          <pre><span class="id">data</span> := []<span class="kw">byte</span>(<span class="st">`{"id": 9007199254740993}`</span>)  <span class="cm">// 超过 float64 精度</span>
+
+<span class="cm">// 默认方式：精度丢失</span>
+<span class="kw">var</span> <span class="id">m1</span> <span class="kw">map</span>[<span class="kw">string</span>]<span class="kw">interface</span>{}
+<span class="id">json</span>.<span class="fn">Unmarshal</span>(<span class="id">data</span>, &amp;<span class="id">m1</span>)
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">m1</span>[<span class="st">"id"</span>])  <span class="cm">// 9.007199254740992e+15（精度错误）</span>
+
+<span class="cm">// UseNumber：保留原始精度</span>
+<span class="kw">var</span> <span class="id">m2</span> <span class="kw">map</span>[<span class="kw">string</span>]<span class="kw">interface</span>{}
+<span class="id">dec</span> := <span class="id">json</span>.<span class="fn">NewDecoder</span>(<span class="id">bytes</span>.<span class="fn">NewReader</span>(<span class="id">data</span>))
+<span class="id">dec</span>.<span class="fn">UseNumber</span>()
+<span class="id">dec</span>.<span class="fn">Decode</span>(&amp;<span class="id">m2</span>)
+<span class="id">n</span> := <span class="id">m2</span>[<span class="st">"id"</span>].(<span class="id">json</span>.<span class="id">Number</span>)
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">n</span>.<span class="fn">String</span>())  <span class="cm">// "9007199254740993" ✓</span>
+<span class="id">i64</span>, _ := <span class="id">n</span>.<span class="fn">Int64</span>()     <span class="cm">// 转 int64</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Section 4: Perf ── -->
+    <div class="section" id="perf">
+      <div class="section-title"><div class="title-bar"></div><h2>常见操作与性能</h2></div>
+
+      <div class="card">
+        <div class="card-hd"><h3>json.RawMessage 延迟解析</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p><code>json.RawMessage</code> 是 <code>[]byte</code> 的别名，可以将 JSON 某个字段先原样保留，后续按需解析。适合字段类型未知、或需要转发原始 JSON 的场景。</p>
+          <pre><span class="kw">type</span> <span class="id">Response</span> <span class="kw">struct</span> {
+    <span class="id">Code</span> <span class="kw">int</span>              <span class="st">`json:"code"`</span>
+    <span class="id">Data</span> <span class="id">json</span>.<span class="id">RawMessage</span> <span class="st">`json:"data"`</span>  <span class="cm">// 暂不解析</span>
+}
+
+<span class="id">body</span> := []<span class="kw">byte</span>(<span class="st">`{"code":200,"data":{"user":"Alice","score":99}}`</span>)
+<span class="kw">var</span> <span class="id">resp</span> <span class="id">Response</span>
+<span class="id">json</span>.<span class="fn">Unmarshal</span>(<span class="id">body</span>, &amp;<span class="id">resp</span>)
+
+<span class="cm">// 根据 code 决定如何解析 data</span>
+<span class="kw">if</span> <span class="id">resp</span>.<span class="id">Code</span> == <span class="num">200</span> {
+    <span class="kw">var</span> <span class="id">user</span> <span class="kw">struct</span>{ <span class="id">User</span> <span class="kw">string</span>; <span class="id">Score</span> <span class="kw">int</span> }
+    <span class="id">json</span>.<span class="fn">Unmarshal</span>(<span class="id">resp</span>.<span class="id">Data</span>, &amp;<span class="id">user</span>)
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h3>高性能库对比</h3><span class="badge badge-high">性能</span></div>
+        <div class="card-body">
+          <p>标准库 <code>encoding/json</code> 使用反射，性能有限。高并发场景可考虑以下替代方案：</p>
+          <div class="table-wrap">
+            <table>
+              <tr><th>库</th><th>原理</th><th>性能（相对标准库）</th><th>兼容性</th></tr>
+              <tr><td><code>encoding/json</code></td><td>反射</td><td>基准（1x）</td><td>完全兼容</td></tr>
+              <tr><td><code>json-iterator/go</code></td><td>反射优化 + codegen</td><td>~3-4x</td><td>API 兼容</td></tr>
+              <tr><td><code>bytedance/sonic</code></td><td>JIT codegen (amd64)</td><td>~6-10x</td><td>API 兼容，仅 x86</td></tr>
+              <tr><td><code>go-json</code></td><td>预编译 + 无反射</td><td>~4-6x</td><td>API 兼容</td></tr>
+              <tr><td><code>tidwall/gjson</code></td><td>路径查询，不反序列化</td><td>极快（只读）</td><td>不同 API</td></tr>
+            </table>
+          </div>
+          <pre><span class="cm">// sonic：字节码替换标准库（仅需改 import）</span>
+<span class="kw">import</span> <span class="st">"github.com/bytedance/sonic"</span>
+
+<span class="id">data</span>, _ := <span class="id">sonic</span>.<span class="fn">Marshal</span>(<span class="id">obj</span>)
+<span class="id">sonic</span>.<span class="fn">Unmarshal</span>(<span class="id">data</span>, &amp;<span class="id">obj</span>)
+
+<span class="cm">// gjson：快速读取嵌套字段，无需定义 struct</span>
+<span class="kw">import</span> <span class="st">"github.com/tidwall/gjson"</span>
+
+<span class="id">name</span> := <span class="id">gjson</span>.<span class="fn">Get</span>(<span class="id">jsonStr</span>, <span class="st">"user.profile.name"</span>).<span class="fn">String</span>()
+<span class="id">age</span>  := <span class="id">gjson</span>.<span class="fn">Get</span>(<span class="id">jsonStr</span>, <span class="st">"user.age"</span>).<span class="fn">Int</span>()</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Section 5: Interview ── -->
+    <div class="section" id="interview">
+      <div class="section-title"><div class="title-bar"></div><h2>面试题</h2></div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">json.Marshal 处理 nil pointer 和 nil slice 有何不同？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">
+          <strong>nil pointer</strong>：序列化为 JSON 的 <code>null</code>。<br>
+          <strong>nil slice</strong>：同样序列化为 <code>null</code>，而 <strong>空 slice（<code>[]T{}</code>）</strong> 序列化为 <code>[]</code>。<br><br>
+          这一区别在 API 响应中很重要：前端收到 <code>null</code> 和 <code>[]</code> 行为不同。<br>
+          如果要确保空集合序列化为 <code>[]</code>，需要初始化为 <code>make([]T, 0)</code> 或 <code>[]T{}</code>，而不是声明后不赋值。<br><br>
+          <code>var s []int</code> → <code>null</code><br>
+          <code>s := []int{}</code> → <code>[]</code><br>
+          <code>s := make([]int, 0)</code> → <code>[]</code>
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">如何控制字段在序列化时的名称和行为？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">
+          通过 struct tag <code>json:"..."</code> 控制：<br>
+          • <code>json:"fieldName"</code>：自定义 JSON key<br>
+          • <code>json:"fieldName,omitempty"</code>：零值时省略（注意：空 struct 不算零值，omitempty 对 struct 类型无效）<br>
+          • <code>json:"fieldName,string"</code>：数字/bool 序列化为带引号的字符串<br>
+          • <code>json:"-"</code>：完全排除该字段<br><br>
+          若字段没有 json tag，Go 默认使用字段名（大驼峰），反序列化时大小写不敏感匹配。<br>
+          未导出字段（小写开头）不论有无 tag 都会被忽略，且不报错。
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">json.Decoder 和 json.Unmarshal 各自适合什么场景？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">
+          <strong>json.Unmarshal(data, &v)</strong>：适合已经将 JSON 完整加载到内存的场景（<code>[]byte</code> 已就绪）。简洁直接，一行完成。<br><br>
+          <strong>json.NewDecoder(r).Decode(&v)</strong>：适合从 <code>io.Reader</code> 流式读取，如：<br>
+          • HTTP request/response body（避免 ioutil.ReadAll 先读全部）<br>
+          • 读取大 JSON 文件（内存效率高）<br>
+          • 解析多个连续 JSON 对象（NDJSON），用 <code>More()</code> 循环读取<br><br>
+          此外 Decoder 支持 <code>DisallowUnknownFields()</code> 和 <code>UseNumber()</code> 等选项，Unmarshal 不直接支持（需要通过 Decoder 间接实现）。
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">如何解析一个 JSON 中字段类型未知的字段（动态 JSON）？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">
+          三种方案：<br><br>
+          1. <strong>解码到 <code>map[string]interface{}</code></strong>：灵活，但需要类型断言，数字默认为 float64（用 UseNumber() 改善）<br><br>
+          2. <strong><code>json.RawMessage</code></strong>：先保留原始字节，根据其他字段的值再决定如何解析。适合 discriminated union 模式（如根据 <code>"type"</code> 字段决定 <code>"data"</code> 的结构）<br><br>
+          3. <strong>gjson/jq 风格路径查询</strong>：只提取需要的字段，不完整反序列化整个结构。适合只读、字段稀疏的场景<br><br>
+          生产中最常见的是方案 2：先解析外层已知字段 + RawMessage，再对 RawMessage 二次解析。
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">为什么大数字通过 interface{} 反序列化会精度损失？如何解决？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">
+          JSON 规范不区分整数和浮点数，Go 标准库在解码到 <code>interface{}</code> 时统一使用 <code>float64</code> 存储数字。<br>
+          IEEE 754 double 只有 53 位尾数，能精确表示的最大整数为 2^53 = 9007199254740992。超过此范围的整数（如雪花ID、数据库 bigint）会丢失低位精度。<br><br>
+          <strong>解决方案：</strong><br>
+          1. <code>json.Decoder.UseNumber()</code>：数字保存为 <code>json.Number</code>（字符串），按需调用 <code>.Int64()</code> 或 <code>.Float64()</code><br>
+          2. 使用强类型 struct，将字段声明为 <code>int64</code>（而非 interface{}），标准库会正确解析<br>
+          3. 使用 <code>json:"id,string"</code> tag，让前端以字符串形式传递大整数，避免 JS 端也丢精度
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Section 6: Pitfalls ── -->
+    <div class="section" id="pitfalls">
+      <div class="section-title"><div class="title-bar"></div><h2>易错点</h2></div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 未导出字段（小写）被忽略，不会报错</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">type</span> <span class="id">Config</span> <span class="kw">struct</span> {
+    <span class="id">Host</span>    <span class="kw">string</span> <span class="st">`json:"host"`</span>
+    <span class="id">port</span>    <span class="kw">int</span>    <span class="st">`json:"port"`</span>  <span class="cm">// 小写！</span>
+    <span class="id">timeout</span> <span class="kw">int</span>    <span class="cm">// 小写且无 tag</span>
+}
+
+<span class="id">c</span> := <span class="id">Config</span>{<span class="id">Host</span>: <span class="st">"localhost"</span>, <span class="id">port</span>: <span class="num">8080</span>}
+<span class="id">data</span>, _ := <span class="id">json</span>.<span class="fn">Marshal</span>(<span class="id">c</span>)
+<span class="cm">// 输出：{"host":"localhost"}</span>
+<span class="cm">// port 和 timeout 消失，无任何错误！</span></pre>
+            <p>小写字段在 JSON 编解码中完全不可见，也不报错，极易导致数据静默丢失。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">type</span> <span class="id">Config</span> <span class="kw">struct</span> {
+    <span class="id">Host</span>    <span class="kw">string</span> <span class="st">`json:"host"`</span>
+    <span class="id">Port</span>    <span class="kw">int</span>    <span class="st">`json:"port"`</span>    <span class="cm">// 大写</span>
+    <span class="id">Timeout</span> <span class="kw">int</span>    <span class="st">`json:"timeout"`</span> <span class="cm">// 大写</span>
+}
+
+<span class="id">c</span> := <span class="id">Config</span>{<span class="id">Host</span>: <span class="st">"localhost"</span>, <span class="id">Port</span>: <span class="num">8080</span>}
+<span class="id">data</span>, _ := <span class="id">json</span>.<span class="fn">Marshal</span>(<span class="id">c</span>)
+<span class="cm">// {"host":"localhost","port":8080,"timeout":0}</span></pre>
+            <p>需要参与 JSON 编解码的字段必须大写（导出），用 tag 控制 JSON key 名称。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ omitempty 对结构体不起作用（零值 struct 不会省略）</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">type</span> <span class="id">Address</span> <span class="kw">struct</span> {
+    <span class="id">City</span>  <span class="kw">string</span> <span class="st">`json:"city"`</span>
+}
+<span class="kw">type</span> <span class="id">User</span> <span class="kw">struct</span> {
+    <span class="id">Name</span> <span class="kw">string</span>  <span class="st">`json:"name"`</span>
+    <span class="id">Addr</span> <span class="id">Address</span> <span class="st">`json:"addr,omitempty"`</span>
+}
+
+<span class="id">u</span> := <span class="id">User</span>{<span class="id">Name</span>: <span class="st">"Alice"</span>}
+<span class="id">data</span>, _ := <span class="id">json</span>.<span class="fn">Marshal</span>(<span class="id">u</span>)
+<span class="cm">// {"name":"Alice","addr":{"city":""}}</span>
+<span class="cm">// Addr 是零值 struct，但未被省略！</span></pre>
+            <p>omitempty 对 struct 类型的"零值"不生效，空 struct 依然会被序列化。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">type</span> <span class="id">User</span> <span class="kw">struct</span> {
+    <span class="id">Name</span> <span class="kw">string</span>   <span class="st">`json:"name"`</span>
+    <span class="id">Addr</span> *<span class="id">Address</span> <span class="st">`json:"addr,omitempty"`</span>
+}
+
+<span class="cm">// 使用指针：nil 指针会被 omitempty 省略</span>
+<span class="id">u</span> := <span class="id">User</span>{<span class="id">Name</span>: <span class="st">"Alice"</span>}  <span class="cm">// Addr 为 nil</span>
+<span class="id">data</span>, _ := <span class="id">json</span>.<span class="fn">Marshal</span>(<span class="id">u</span>)
+<span class="cm">// {"name":"Alice"}  ✓</span></pre>
+            <p>将 struct 字段改为指针类型，nil 指针会被 omitempty 正确省略。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 数字默认解码为 float64，大整数精度丢失</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="id">data</span> := []<span class="kw">byte</span>(<span class="st">`{"id":9007199254740993}`</span>)
+<span class="kw">var</span> <span class="id">m</span> <span class="kw">map</span>[<span class="kw">string</span>]<span class="kw">interface</span>{}
+<span class="id">json</span>.<span class="fn">Unmarshal</span>(<span class="id">data</span>, &amp;<span class="id">m</span>)
+<span class="cm">// m["id"] 类型是 float64</span>
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">m</span>[<span class="st">"id"</span>])
+<span class="cm">// 9.007199254740992e+15（末位精度错误）</span></pre>
+            <p>雪花ID、数据库 bigint 等大整数解码到 interface{} 时精度丢失，且无警告。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 方案1：UseNumber 保留原始字符串</span>
+<span class="id">dec</span> := <span class="id">json</span>.<span class="fn">NewDecoder</span>(<span class="id">bytes</span>.<span class="fn">NewReader</span>(<span class="id">data</span>))
+<span class="id">dec</span>.<span class="fn">UseNumber</span>()
+<span class="kw">var</span> <span class="id">m</span> <span class="kw">map</span>[<span class="kw">string</span>]<span class="kw">interface</span>{}
+<span class="id">dec</span>.<span class="fn">Decode</span>(&amp;<span class="id">m</span>)
+<span class="id">m</span>[<span class="st">"id"</span>].(<span class="id">json</span>.<span class="id">Number</span>).<span class="fn">Int64</span>() <span class="cm">// ✓</span>
+
+<span class="cm">// 方案2：强类型 struct</span>
+<span class="kw">var</span> <span class="id">s</span> <span class="kw">struct</span>{ <span class="id">ID</span> <span class="kw">int64</span> <span class="st">`json:"id"`</span> }
+<span class="id">json</span>.<span class="fn">Unmarshal</span>(<span class="id">data</span>, &amp;<span class="id">s</span>) <span class="cm">// 直接解码为 int64 ✓</span></pre>
+            <p>用 UseNumber() 或强类型 struct 避免 float64 精度问题。</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>
+function toggleQA(el){el.classList.toggle('open');}
+document.addEventListener('DOMContentLoaded',function(){
+  if(typeof NavTracker!=='undefined') NavTracker.track('JSON 处理','golang/json.html','📦','Golang');
+});
+</script>
+</body>
+</html>

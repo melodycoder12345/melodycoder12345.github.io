@@ -1,0 +1,506 @@
+<!DOCTYPE html><html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>database/sql - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:72px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(0,173,216,.12);color:var(--accent);border:1px solid rgba(0,173,216,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.badge-high{background:rgba(251,146,60,.12);color:#fb923c;border:1px solid rgba(251,146,60,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(0,173,216,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.table-wrap{overflow-x:auto;margin:10px 0;}
+table{width:100%;border-collapse:collapse;font-size:.82rem;}
+th{background:rgba(0,173,216,.08);color:var(--accent);padding:8px 12px;text-align:left;border:1px solid var(--border2);font-size:.78rem;}
+td{padding:7px 12px;border:1px solid var(--border2);color:var(--dim);}
+tr:hover td{background:rgba(255,255,255,.02);}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">🗄️ database/sql</span>
+  <div class="nav-tags">
+    <span class="ntag">sql</span>
+    <span class="ntag">connection-pool</span>
+    <span class="ntag">transaction</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <aside class="side-nav" id="sideNav">
+    <nav><ul>
+      <li><a href="#pool">连接池</a></li>
+      <li><a href="#query-scan">查询与 Scan</a></li>
+      <li><a href="#transaction">事务</a></li>
+      <li><a href="#prepared">Prepared Statement</a></li>
+      <li><a href="#interview">面试题</a></li>
+      <li><a href="#pitfalls">易错点</a></li>
+    </ul></nav>
+  </aside>
+  <main class="main-content">
+
+    <!-- ── Section 1: Connection Pool ── -->
+    <div class="section" id="pool">
+      <div class="section-title"><div class="title-bar"></div><h2>连接池</h2></div>
+
+      <div class="card">
+        <div class="card-hd"><h3>sql.DB 是连接池，不是单个连接</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p><code>sql.DB</code> 是一个连接池管理器，内部维护一组数据库连接，并发安全。每次执行查询时自动从池中借用连接，用完归还，不需要手动管理连接生命周期。</p>
+          <p><code>db.Ping()</code> 用于验证连接可用性（会从池中取一个连接发送 ping 命令）。<code>db.Stats()</code> 返回连接池当前状态统计。</p>
+          <pre><span class="kw">import</span> (
+    <span class="st">"database/sql"</span>
+    _ <span class="st">"github.com/go-sql-driver/mysql"</span>  <span class="cm">// 注册驱动（副作用导入）</span>
+)
+
+<span class="kw">func</span> <span class="fn">initDB</span>() *<span class="id">sql</span>.<span class="id">DB</span> {
+    <span class="id">db</span>, <span class="id">err</span> := <span class="id">sql</span>.<span class="fn">Open</span>(<span class="st">"mysql"</span>, <span class="st">"user:pass@tcp(127.0.0.1:3306)/dbname?parseTime=true"</span>)
+    <span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> { <span class="kw">panic</span>(<span class="id">err</span>) }
+
+    <span class="cm">// 连接池调优参数</span>
+    <span class="id">db</span>.<span class="fn">SetMaxOpenConns</span>(<span class="num">25</span>)                   <span class="cm">// 最大打开连接数（含使用中+空闲）</span>
+    <span class="id">db</span>.<span class="fn">SetMaxIdleConns</span>(<span class="num">10</span>)                   <span class="cm">// 最大空闲连接数</span>
+    <span class="id">db</span>.<span class="fn">SetConnMaxLifetime</span>(<span class="num">5</span> * <span class="id">time</span>.<span class="id">Minute</span>)  <span class="cm">// 连接最大存活时间（防止 MySQL 超时断开）</span>
+    <span class="id">db</span>.<span class="fn">SetConnMaxIdleTime</span>(<span class="num">2</span> * <span class="id">time</span>.<span class="id">Minute</span>)  <span class="cm">// 连接最大空闲时间（Go 1.15+）</span>
+
+    <span class="kw">if</span> <span class="id">err</span> = <span class="id">db</span>.<span class="fn">Ping</span>(); <span class="id">err</span> != <span class="kw">nil</span> { <span class="kw">panic</span>(<span class="id">err</span>) }
+    <span class="kw">return</span> <span class="id">db</span>
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h3>连接池参数调优策略</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <tr><th>参数</th><th>作用</th><th>推荐值</th></tr>
+              <tr><td><code>SetMaxOpenConns(n)</code></td><td>限制并发连接总数，防止数据库过载</td><td>数据库最大连接数 / 服务实例数</td></tr>
+              <tr><td><code>SetMaxIdleConns(n)</code></td><td>保持空闲连接避免频繁建立</td><td>MaxOpenConns 的 30~50%</td></tr>
+              <tr><td><code>SetConnMaxLifetime(d)</code></td><td>强制连接定期重建，防止 MySQL 8h 超时</td><td>小于 MySQL wait_timeout（默认 8h），建议 5min</td></tr>
+              <tr><td><code>SetConnMaxIdleTime(d)</code></td><td>空闲连接超时回收，释放数据库资源</td><td>1~5 分钟</td></tr>
+            </table>
+          </div>
+          <p>注意：<code>SetMaxIdleConns</code> 的值不应超过 <code>SetMaxOpenConns</code>，否则多余的空闲连接限制无效。若 MaxIdleConns=0，每次用完连接立即关闭，没有连接复用。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Section 2: Query & Scan ── -->
+    <div class="section" id="query-scan">
+      <div class="section-title"><div class="title-bar"></div><h2>查询与 Scan</h2></div>
+
+      <div class="card">
+        <div class="card-hd"><h3>db.Query vs db.QueryRow</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p><code>db.Query</code> 返回 <code>*sql.Rows</code>，用于多行结果；<code>db.QueryRow</code> 返回 <code>*sql.Row</code>，用于期望单行结果（找不到时 Scan 返回 <code>sql.ErrNoRows</code>）。</p>
+          <pre><span class="cm">// 多行查询 — 必须调用 rows.Close()</span>
+<span class="kw">func</span> <span class="fn">getUsers</span>(<span class="id">db</span> *<span class="id">sql</span>.<span class="id">DB</span>) ([]<span class="id">User</span>, <span class="kw">error</span>) {
+    <span class="id">rows</span>, <span class="id">err</span> := <span class="id">db</span>.<span class="fn">Query</span>(<span class="st">"SELECT id, name, email FROM users WHERE active = ?"</span>, <span class="kw">true</span>)
+    <span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> { <span class="kw">return</span> <span class="kw">nil</span>, <span class="id">err</span> }
+    <span class="kw">defer</span> <span class="id">rows</span>.<span class="fn">Close</span>()  <span class="cm">// 关键！不关闭则连接不归还连接池</span>
+
+    <span class="kw">var</span> <span class="id">users</span> []<span class="id">User</span>
+    <span class="kw">for</span> <span class="id">rows</span>.<span class="fn">Next</span>() {
+        <span class="kw">var</span> <span class="id">u</span> <span class="id">User</span>
+        <span class="cm">// Scan 参数顺序必须与 SELECT 列顺序一致</span>
+        <span class="kw">if</span> <span class="id">err</span> := <span class="id">rows</span>.<span class="fn">Scan</span>(&amp;<span class="id">u</span>.<span class="id">ID</span>, &amp;<span class="id">u</span>.<span class="id">Name</span>, &amp;<span class="id">u</span>.<span class="id">Email</span>); <span class="id">err</span> != <span class="kw">nil</span> {
+            <span class="kw">return</span> <span class="kw">nil</span>, <span class="id">err</span>
+        }
+        <span class="id">users</span> = <span class="fn">append</span>(<span class="id">users</span>, <span class="id">u</span>)
+    }
+    <span class="kw">return</span> <span class="id">users</span>, <span class="id">rows</span>.<span class="fn">Err</span>()  <span class="cm">// 检查迭代过程中的错误</span>
+}
+
+<span class="cm">// 单行查询</span>
+<span class="kw">func</span> <span class="fn">getUserByID</span>(<span class="id">db</span> *<span class="id">sql</span>.<span class="id">DB</span>, <span class="id">id</span> <span class="kw">int</span>) (<span class="id">User</span>, <span class="kw">error</span>) {
+    <span class="kw">var</span> <span class="id">u</span> <span class="id">User</span>
+    <span class="id">err</span> := <span class="id">db</span>.<span class="fn">QueryRow</span>(<span class="st">"SELECT id, name, email FROM users WHERE id = ?"</span>, <span class="id">id</span>).
+        <span class="fn">Scan</span>(&amp;<span class="id">u</span>.<span class="id">ID</span>, &amp;<span class="id">u</span>.<span class="id">Name</span>, &amp;<span class="id">u</span>.<span class="id">Email</span>)
+    <span class="kw">if</span> <span class="id">err</span> == <span class="id">sql</span>.<span class="id">ErrNoRows</span> { <span class="kw">return</span> <span class="id">User</span>{}, <span class="kw">nil</span> }
+    <span class="kw">return</span> <span class="id">u</span>, <span class="id">err</span>
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h3>sql.NullString 处理 NULL 值</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>数据库列可能为 NULL，直接 Scan 到 <code>string</code> 会报错。使用 <code>sql.NullString</code>、<code>sql.NullInt64</code>、<code>sql.NullTime</code> 等 Null 类型安全处理。</p>
+          <pre><span class="kw">type</span> <span class="id">Profile</span> <span class="kw">struct</span> {
+    <span class="id">ID</span>     <span class="kw">int</span>
+    <span class="id">Name</span>   <span class="kw">string</span>
+    <span class="id">Phone</span>  <span class="id">sql</span>.<span class="id">NullString</span>   <span class="cm">// 可为 NULL</span>
+    <span class="id">Score</span>  <span class="id">sql</span>.<span class="id">NullFloat64</span>  <span class="cm">// 可为 NULL</span>
+    <span class="id">BornAt</span> <span class="id">sql</span>.<span class="id">NullTime</span>     <span class="cm">// 可为 NULL（Go 1.15+）</span>
+}
+
+<span class="kw">var</span> <span class="id">p</span> <span class="id">Profile</span>
+<span class="id">rows</span>.<span class="fn">Scan</span>(&amp;<span class="id">p</span>.<span class="id">ID</span>, &amp;<span class="id">p</span>.<span class="id">Name</span>, &amp;<span class="id">p</span>.<span class="id">Phone</span>, &amp;<span class="id">p</span>.<span class="id">Score</span>, &amp;<span class="id">p</span>.<span class="id">BornAt</span>)
+
+<span class="cm">// 使用时需检查 Valid 字段</span>
+<span class="kw">if</span> <span class="id">p</span>.<span class="id">Phone</span>.<span class="id">Valid</span> {
+    <span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">p</span>.<span class="id">Phone</span>.<span class="id">String</span>)  <span class="cm">// 实际电话号码</span>
+} <span class="kw">else</span> {
+    <span class="id">fmt</span>.<span class="fn">Println</span>(<span class="st">"no phone"</span>)      <span class="cm">// 数据库为 NULL</span>
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Section 3: Transaction ── -->
+    <div class="section" id="transaction">
+      <div class="section-title"><div class="title-bar"></div><h2>事务</h2></div>
+
+      <div class="card">
+        <div class="card-hd"><h3>defer rollback 惯用法</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>事务的正确写法：先 <code>defer tx.Rollback()</code>，成功时再 <code>tx.Commit()</code>。Commit 成功后 Rollback 是空操作（error 被忽略），这样无论函数以何种方式退出都能保证回滚。</p>
+          <pre><span class="kw">func</span> <span class="fn">transfer</span>(<span class="id">db</span> *<span class="id">sql</span>.<span class="id">DB</span>, <span class="id">fromID</span>, <span class="id">toID</span>, <span class="id">amount</span> <span class="kw">int</span>) <span class="kw">error</span> {
+    <span class="id">tx</span>, <span class="id">err</span> := <span class="id">db</span>.<span class="fn">Begin</span>()
+    <span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> { <span class="kw">return</span> <span class="id">err</span> }
+    <span class="kw">defer</span> <span class="id">tx</span>.<span class="fn">Rollback</span>()  <span class="cm">// commit 后 rollback 是 no-op，安全</span>
+
+    <span class="cm">// 操作1：扣款</span>
+    _, <span class="id">err</span> = <span class="id">tx</span>.<span class="fn">Exec</span>(<span class="st">"UPDATE accounts SET balance = balance - ? WHERE id = ?"</span>, <span class="id">amount</span>, <span class="id">fromID</span>)
+    <span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> { <span class="kw">return</span> <span class="id">err</span> }  <span class="cm">// defer 触发 Rollback</span>
+
+    <span class="cm">// 操作2：入账</span>
+    _, <span class="id">err</span> = <span class="id">tx</span>.<span class="fn">Exec</span>(<span class="st">"UPDATE accounts SET balance = balance + ? WHERE id = ?"</span>, <span class="id">amount</span>, <span class="id">toID</span>)
+    <span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> { <span class="kw">return</span> <span class="id">err</span> }
+
+    <span class="cm">// 验证余额不为负</span>
+    <span class="kw">var</span> <span class="id">bal</span> <span class="kw">int</span>
+    <span class="id">tx</span>.<span class="fn">QueryRow</span>(<span class="st">"SELECT balance FROM accounts WHERE id = ?"</span>, <span class="id">fromID</span>).<span class="fn">Scan</span>(&amp;<span class="id">bal</span>)
+    <span class="kw">if</span> <span class="id">bal</span> &lt; <span class="num">0</span> { <span class="kw">return</span> <span class="id">errors</span>.<span class="fn">New</span>(<span class="st">"insufficient balance"</span>) }
+
+    <span class="kw">return</span> <span class="id">tx</span>.<span class="fn">Commit</span>()  <span class="cm">// 成功提交，defer Rollback 成为 no-op</span>
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h3>BeginTx 与事务隔离级别</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-body">
+          <p><code>db.BeginTx(ctx, opts)</code> 支持 Context 取消和自定义隔离级别。推荐在服务层传入 Context，使请求取消时事务能及时回滚。</p>
+          <pre><span class="kw">func</span> <span class="fn">transferWithCtx</span>(<span class="id">ctx</span> <span class="id">context</span>.<span class="id">Context</span>, <span class="id">db</span> *<span class="id">sql</span>.<span class="id">DB</span>) <span class="kw">error</span> {
+    <span class="id">tx</span>, <span class="id">err</span> := <span class="id">db</span>.<span class="fn">BeginTx</span>(<span class="id">ctx</span>, &amp;<span class="id">sql</span>.<span class="id">TxOptions</span>{
+        <span class="id">Isolation</span>: <span class="id">sql</span>.<span class="id">LevelSerializable</span>,  <span class="cm">// 最高隔离级别</span>
+        <span class="id">ReadOnly</span>:  <span class="kw">false</span>,
+    })
+    <span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> { <span class="kw">return</span> <span class="id">err</span> }
+    <span class="kw">defer</span> <span class="id">tx</span>.<span class="fn">Rollback</span>()
+    <span class="cm">// ... 执行事务操作 ...</span>
+    <span class="kw">return</span> <span class="id">tx</span>.<span class="fn">Commit</span>()
+}
+
+<span class="cm">// 隔离级别常量</span>
+<span class="cm">// sql.LevelDefault         — 驱动默认（通常是 Read Committed）</span>
+<span class="cm">// sql.LevelReadUncommitted — 读未提交（最低，有脏读）</span>
+<span class="cm">// sql.LevelReadCommitted   — 读已提交（避免脏读）</span>
+<span class="cm">// sql.LevelRepeatableRead  — 可重复读（MySQL 默认，避免不可重复读）</span>
+<span class="cm">// sql.LevelSerializable    — 串行化（最高，避免幻读，性能最低）</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Section 4: Prepared Statement ── -->
+    <div class="section" id="prepared">
+      <div class="section-title"><div class="title-bar"></div><h2>Prepared Statement</h2></div>
+
+      <div class="card">
+        <div class="card-hd"><h3>db.Prepare 与防 SQL 注入</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>Prepared Statement 将 SQL 模板预先发送到数据库编译，执行时只传参数。优势：防 SQL 注入（参数不参与 SQL 解析）、多次执行时减少解析开销。</p>
+          <p><strong>所有带用户输入的 SQL 都应使用占位符 <code>?</code>，而非字符串拼接！</strong></p>
+          <pre><span class="cm">// 错误：SQL 注入风险</span>
+<span class="id">query</span> := <span class="id">fmt</span>.<span class="fn">Sprintf</span>(<span class="st">"SELECT * FROM users WHERE name = '%s'"</span>, <span class="id">userInput</span>)
+<span class="cm">// 输入 "' OR '1'='1" 会返回全表数据！</span>
+
+<span class="cm">// 正确：使用占位符参数</span>
+<span class="id">rows</span>, <span class="id">err</span> := <span class="id">db</span>.<span class="fn">Query</span>(<span class="st">"SELECT * FROM users WHERE name = ?"</span>, <span class="id">userInput</span>)
+
+<span class="cm">// Prepare：批量执行同一 SQL 时更高效</span>
+<span class="kw">func</span> <span class="fn">batchInsert</span>(<span class="id">db</span> *<span class="id">sql</span>.<span class="id">DB</span>, <span class="id">users</span> []<span class="id">User</span>) <span class="kw">error</span> {
+    <span class="id">stmt</span>, <span class="id">err</span> := <span class="id">db</span>.<span class="fn">Prepare</span>(<span class="st">"INSERT INTO users(name, email) VALUES(?, ?)"</span>)
+    <span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> { <span class="kw">return</span> <span class="id">err</span> }
+    <span class="kw">defer</span> <span class="id">stmt</span>.<span class="fn">Close</span>()  <span class="cm">// 用完必须关闭，释放数据库端游标</span>
+
+    <span class="kw">for</span> _, <span class="id">u</span> := <span class="kw">range</span> <span class="id">users</span> {
+        <span class="kw">if</span> _, <span class="id">err</span> = <span class="id">stmt</span>.<span class="fn">Exec</span>(<span class="id">u</span>.<span class="id">Name</span>, <span class="id">u</span>.<span class="id">Email</span>); <span class="id">err</span> != <span class="kw">nil</span> {
+            <span class="kw">return</span> <span class="id">err</span>
+        }
+    }
+    <span class="kw">return</span> <span class="kw">nil</span>
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h3>Prepare 的代价与适用场景</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-body">
+          <p><code>db.Prepare</code> 实际上要额外发送一次网络请求（发送模板、获取 statement ID）。对于只执行一次的 SQL，<code>db.Exec/Query</code> 直接传参即可，驱动内部仍会处理参数转义，无注入风险，且少一次网络往返。</p>
+          <div class="table-wrap">
+            <table>
+              <tr><th>方式</th><th>网络往返</th><th>适用场景</th></tr>
+              <tr><td><code>db.Exec("... ?", args)</code></td><td>1次（直接执行）</td><td>单次执行，简洁首选</td></tr>
+              <tr><td><code>db.Prepare + stmt.Exec</code></td><td>2次（prepare + exec）</td><td>同一 SQL 循环执行多次</td></tr>
+              <tr><td><code>tx.Stmt(stmt)</code></td><td>0次额外（复用已有 stmt）</td><td>事务中复用连接级 stmt</td></tr>
+            </table>
+          </div>
+          <pre><span class="cm">// 事务中使用 Prepare：在 tx 上 Prepare，确保 stmt 使用同一连接</span>
+<span class="id">tx</span>, _ := <span class="id">db</span>.<span class="fn">Begin</span>()
+<span class="kw">defer</span> <span class="id">tx</span>.<span class="fn">Rollback</span>()
+
+<span class="id">stmt</span>, _ := <span class="id">tx</span>.<span class="fn">Prepare</span>(<span class="st">"UPDATE inventory SET qty = qty - ? WHERE sku = ?"</span>)
+<span class="kw">defer</span> <span class="id">stmt</span>.<span class="fn">Close</span>()
+
+<span class="kw">for</span> _, <span class="id">item</span> := <span class="kw">range</span> <span class="id">orderItems</span> {
+    <span class="id">stmt</span>.<span class="fn">Exec</span>(<span class="id">item</span>.<span class="id">Qty</span>, <span class="id">item</span>.<span class="id">SKU</span>)
+}
+<span class="id">tx</span>.<span class="fn">Commit</span>()</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Section 5: Interview ── -->
+    <div class="section" id="interview">
+      <div class="section-title"><div class="title-bar"></div><h2>面试题</h2></div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">sql.DB 是否是线程安全的？每次调用都会创建新连接吗？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">
+          <strong>线程安全</strong>：<code>sql.DB</code> 是并发安全的，可以被多个 goroutine 同时使用，不需要额外加锁。<br><br>
+          <strong>不是每次创建新连接</strong>：<code>sql.DB</code> 是连接池，内部维护一个空闲连接队列。执行查询时从池中取可用连接，用完后归还。只有当池中没有空闲连接且当前总连接数 &lt; MaxOpenConns 时，才会创建新连接。<br><br>
+          <code>sql.Open</code> 本身并不建立连接，只是初始化池结构。第一次实际查询时才建立连接。用 <code>db.Ping()</code> 可以提前触发连接建立并验证可用性。
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">如何正确处理查询结果集？rows.Close() 什么时候调用？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">
+          标准处理流程：<br>
+          1. <code>rows, err := db.Query(...)</code>，先检查 err<br>
+          2. 立即 <code>defer rows.Close()</code>（确保任何退出路径都会关闭）<br>
+          3. <code>for rows.Next()</code> 迭代，每次调用 <code>rows.Scan(...)</code><br>
+          4. 循环结束后检查 <code>rows.Err()</code>（迭代中途的错误）<br><br>
+          <strong>为什么必须 Close？</strong><br>
+          rows 持有一个数据库连接，不 Close 则连接不归还连接池，最终耗尽连接导致所有查询挂起。<br><br>
+          注意：<code>rows.Next()</code> 返回 false（遍历完毕）时会自动调用 Close，但如果中途 return/break，必须依赖 defer 来关闭。
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">如何用 defer 正确写事务的回滚逻辑？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">
+          标准惯用法：<br><br>
+          <code>tx, err := db.Begin()</code><br>
+          <code>if err != nil { return err }</code><br>
+          <code>defer tx.Rollback() // ← 关键，放在 Begin 后紧跟</code><br><br>
+          之后正常执行业务逻辑，最后调用 <code>tx.Commit()</code>。<br><br>
+          <strong>工作原理</strong>：Commit 成功后，事务已结束，随后 defer 触发的 Rollback 是一个空操作（返回 <code>sql.ErrTxDone</code>，但通常被忽略）。<br>
+          如果中途 return 了 error，或发生 panic，defer 的 Rollback 会回滚所有操作，保证数据一致性。<br><br>
+          注意不要写成 <code>defer func(){ if err != nil { tx.Rollback() }}</code> 这种形式——闭包捕获的 err 在 defer 执行时已被 Commit 改写，逻辑会出错。
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">Prepared Statement 的优势是什么？什么时候不值得用？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">
+          <strong>优势：</strong><br>
+          1. 防 SQL 注入：参数独立传输，不与 SQL 文本混合，数据库层面保证安全<br>
+          2. 减少解析开销：SQL 只编译一次，多次执行复用解析结果（批量操作时有明显收益）<br>
+          3. 类型安全：参数按类型传输，避免手动转义带来的错误<br><br>
+          <strong>不值得用的场景：</strong><br>
+          • 只执行一次的 SQL：Prepare 需要额外一次网络往返（发模板 + 获取 stmt ID），总共两次比直接执行多一次<br>
+          • 动态条件查询（如不同的 WHERE 子句组合）：每种组合都要 Prepare，管理复杂<br>
+          • 简单单次 Exec/Query：直接使用占位符参数同样安全，且更简洁
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">SetMaxOpenConns 和 SetMaxIdleConns 分别影响什么？如何调优？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">
+          <strong>SetMaxOpenConns(n)</strong>：限制连接池同时持有的最大连接数（使用中 + 空闲）。超过此限制的请求会阻塞等待连接释放。设置过小导致吞吐量受限，设置过大导致数据库连接数超限（MySQL 默认 max_connections=151）。<br><br>
+          <strong>SetMaxIdleConns(n)</strong>：池中保留的最大空闲连接数。空闲连接可被下次请求直接复用，避免频繁 TCP 握手。设置为 0 相当于禁用连接复用。<br><br>
+          <strong>调优建议：</strong><br>
+          • MaxOpenConns = 数据库 max_connections / 服务实例数 × 0.8（留余量）<br>
+          • MaxIdleConns = MaxOpenConns × 0.3~0.5（高并发服务适当调大）<br>
+          • MaxIdleConns 不应超过 MaxOpenConns，否则超出部分无效<br>
+          • ConnMaxLifetime 建议 &lt; MySQL wait_timeout（默认8h），通常设 5min，防止使用已被服务端关闭的连接
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Section 6: Pitfalls ── -->
+    <div class="section" id="pitfalls">
+      <div class="section-title"><div class="title-bar"></div><h2>易错点</h2></div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 忘记 rows.Close()，连接泄漏，最终耗尽连接池</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">getUsers</span>(<span class="id">db</span> *<span class="id">sql</span>.<span class="id">DB</span>) ([]<span class="id">User</span>, <span class="kw">error</span>) {
+    <span class="id">rows</span>, <span class="id">err</span> := <span class="id">db</span>.<span class="fn">Query</span>(<span class="st">"SELECT * FROM users"</span>)
+    <span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> { <span class="kw">return</span> <span class="kw">nil</span>, <span class="id">err</span> }
+    <span class="cm">// 忘记 defer rows.Close()!</span>
+
+    <span class="kw">var</span> <span class="id">users</span> []<span class="id">User</span>
+    <span class="kw">for</span> <span class="id">rows</span>.<span class="fn">Next</span>() {
+        <span class="kw">var</span> <span class="id">u</span> <span class="id">User</span>
+        <span class="kw">if</span> <span class="id">err</span> := <span class="id">rows</span>.<span class="fn">Scan</span>(&amp;<span class="id">u</span>); <span class="id">err</span> != <span class="kw">nil</span> {
+            <span class="kw">return</span> <span class="kw">nil</span>, <span class="id">err</span> <span class="cm">// 泄漏！连接未归还</span>
+        }
+        <span class="id">users</span> = <span class="fn">append</span>(<span class="id">users</span>, <span class="id">u</span>)
+    }
+    <span class="kw">return</span> <span class="id">users</span>, <span class="kw">nil</span>
+}</pre>
+            <p>中途 return 或 panic 时连接未归还，连接池耗尽后所有查询永久挂起。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">getUsers</span>(<span class="id">db</span> *<span class="id">sql</span>.<span class="id">DB</span>) ([]<span class="id">User</span>, <span class="kw">error</span>) {
+    <span class="id">rows</span>, <span class="id">err</span> := <span class="id">db</span>.<span class="fn">Query</span>(<span class="st">"SELECT id, name FROM users"</span>)
+    <span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> { <span class="kw">return</span> <span class="kw">nil</span>, <span class="id">err</span> }
+    <span class="kw">defer</span> <span class="id">rows</span>.<span class="fn">Close</span>()  <span class="cm">// ✓ 紧跟 Query 后</span>
+
+    <span class="kw">var</span> <span class="id">users</span> []<span class="id">User</span>
+    <span class="kw">for</span> <span class="id">rows</span>.<span class="fn">Next</span>() {
+        <span class="kw">var</span> <span class="id">u</span> <span class="id">User</span>
+        <span class="kw">if</span> <span class="id">err</span> := <span class="id">rows</span>.<span class="fn">Scan</span>(&amp;<span class="id">u</span>.<span class="id">ID</span>, &amp;<span class="id">u</span>.<span class="id">Name</span>); <span class="id">err</span> != <span class="kw">nil</span> {
+            <span class="kw">return</span> <span class="kw">nil</span>, <span class="id">err</span>  <span class="cm">// defer 确保关闭</span>
+        }
+        <span class="id">users</span> = <span class="fn">append</span>(<span class="id">users</span>, <span class="id">u</span>)
+    }
+    <span class="kw">return</span> <span class="id">users</span>, <span class="id">rows</span>.<span class="fn">Err</span>()
+}</pre>
+            <p>defer rows.Close() 紧跟 Query 调用，无论如何退出都能归还连接。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 在事务中使用 db.Query 而不是 tx.Query，操作不在事务内</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="id">tx</span>, _ := <span class="id">db</span>.<span class="fn">Begin</span>()
+<span class="kw">defer</span> <span class="id">tx</span>.<span class="fn">Rollback</span>()
+
+<span class="cm">// 扣款（在事务内）</span>
+<span class="id">tx</span>.<span class="fn">Exec</span>(<span class="st">"UPDATE accounts SET bal=bal-100 WHERE id=1"</span>)
+
+<span class="cm">// 错误：用 db.Query，不在事务内！</span>
+<span class="cm">// 它用了另一个连接，看不到事务中的变更</span>
+<span class="id">rows</span>, _ := <span class="id">db</span>.<span class="fn">Query</span>(<span class="st">"SELECT bal FROM accounts WHERE id=1"</span>)
+
+<span class="id">tx</span>.<span class="fn">Commit</span>()</pre>
+            <p>db.Query 获取的是连接池中的另一个连接，读不到当前事务的未提交变更。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="id">tx</span>, _ := <span class="id">db</span>.<span class="fn">Begin</span>()
+<span class="kw">defer</span> <span class="id">tx</span>.<span class="fn">Rollback</span>()
+
+<span class="cm">// 扣款（在事务内）</span>
+<span class="id">tx</span>.<span class="fn">Exec</span>(<span class="st">"UPDATE accounts SET bal=bal-100 WHERE id=1"</span>)
+
+<span class="cm">// 正确：用 tx.Query，与 Exec 使用同一连接</span>
+<span class="id">rows</span>, _ := <span class="id">tx</span>.<span class="fn">Query</span>(<span class="st">"SELECT bal FROM accounts WHERE id=1"</span>)  <span class="cm">// ✓</span>
+<span class="kw">defer</span> <span class="id">rows</span>.<span class="fn">Close</span>()
+
+<span class="id">tx</span>.<span class="fn">Commit</span>()</pre>
+            <p>事务内所有操作必须使用 tx（同一连接），确保读写在同一事务上下文中。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ Scan 参数与 SELECT 列顺序不一致导致数据错乱</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">type</span> <span class="id">User</span> <span class="kw">struct</span> {
+    <span class="id">ID</span>    <span class="kw">int</span>
+    <span class="id">Name</span>  <span class="kw">string</span>
+    <span class="id">Email</span> <span class="kw">string</span>
+}
+
+<span class="id">rows</span>, _ := <span class="id">db</span>.<span class="fn">Query</span>(
+    <span class="st">"SELECT name, id, email FROM users"</span>)
+<span class="cm">// SELECT 顺序：name, id, email</span>
+
+<span class="kw">var</span> <span class="id">u</span> <span class="id">User</span>
+<span class="id">rows</span>.<span class="fn">Scan</span>(&amp;<span class="id">u</span>.<span class="id">ID</span>, &amp;<span class="id">u</span>.<span class="id">Name</span>, &amp;<span class="id">u</span>.<span class="id">Email</span>)
+<span class="cm">// 错误！ID 接收了 name（字符串→int 失败或乱值）</span></pre>
+            <p>Scan 参数按 SELECT 列的返回顺序匹配，与 struct 字段定义顺序无关。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="id">rows</span>, _ := <span class="id">db</span>.<span class="fn">Query</span>(
+    <span class="st">"SELECT id, name, email FROM users"</span>)
+<span class="cm">// SELECT 顺序：id, name, email</span>
+
+<span class="kw">var</span> <span class="id">u</span> <span class="id">User</span>
+<span class="id">rows</span>.<span class="fn">Scan</span>(&amp;<span class="id">u</span>.<span class="id">ID</span>, &amp;<span class="id">u</span>.<span class="id">Name</span>, &amp;<span class="id">u</span>.<span class="id">Email</span>)  <span class="cm">// ✓</span>
+
+<span class="cm">// 最佳实践：使用 sqlx 库的 StructScan</span>
+<span class="cm">// 或按列名显式 Scan，避免顺序问题</span>
+<span class="cm">// var id int; var name, email string</span>
+<span class="cm">// rows.Scan(&amp;id, &amp;name, &amp;email)</span></pre>
+            <p>确保 SELECT 列顺序与 Scan 参数严格对应。推荐使用 sqlx 库的 StructScan 按列名映射。</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>
+function toggleQA(el){el.classList.toggle('open');}
+document.addEventListener('DOMContentLoaded',function(){
+  if(typeof NavTracker!=='undefined') NavTracker.track('database/sql','golang/sql.html','🗄️','Golang');
+});
+</script>
+</body>
+</html>

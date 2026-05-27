@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Context - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;--g:#38bdf8;--m:#fb923c;--p:#c084fc;--q:#4ade80;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;min-height:100vh;}
+.nav{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);flex-shrink:0;position:sticky;top:var(--snav-h,44px);z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.main-area{display:flex;flex:none;height:calc(100vh - var(--snav-h,44px) - 88px);min-height:300px;overflow:hidden;}
+.steps-panel{width:270px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid var(--border2);overflow:hidden;background:rgba(15,23,42,.6);}
+.scenarios{display:flex;gap:0;border-bottom:1px solid var(--border2);overflow-x:auto;}
+.sc-btn{flex:1;background:none;border:none;color:var(--dim);padding:9px 6px;cursor:pointer;font-size:.72rem;font-family:inherit;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;text-align:center;}
+.sc-btn:hover{color:var(--text);}.sc-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+.step-scroll{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
+.step-desc-card{border:1px solid var(--border2);border-radius:12px;background:rgba(255,255,255,.025);padding:14px;transition:border-color .3s,box-shadow .3s;}
+.step-desc-card.lit{border-color:var(--accent);box-shadow:0 0 20px rgba(0,173,216,.12);}
+.step-desc-card .step-num{font-size:.66rem;font-family:monospace;color:var(--accent);margin-bottom:6px;}
+.step-desc-card h3{font-size:.88rem;font-weight:700;margin-bottom:6px;}
+.step-desc-card p{font-size:.78rem;color:var(--dim);line-height:1.68;}
+.flow-nav{padding:10px 14px;border-top:1px solid var(--border2);display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.fn-dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--border2);background:rgba(255,255,255,.04);cursor:pointer;font-size:.68rem;font-family:monospace;color:var(--dim);display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;}
+.fn-dot:hover{border-color:var(--dim);color:var(--text);}
+.fn-dot.done{border-color:var(--accent);background:rgba(0,173,216,.15);color:var(--accent);}
+.fn-dot.cur{border-color:var(--accent);background:rgba(0,173,216,.25);color:var(--accent);transform:scale(1.12);}
+.step-ctr{margin-left:auto;font-size:.7rem;font-family:monospace;color:var(--dim2);}
+.diagram-panel{flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid var(--border2);overflow:hidden;}
+.diagram-inner{flex:1;overflow:auto;padding:20px;background:radial-gradient(ellipse 70% 50% at 30% 20%,rgba(0,173,216,.07),transparent 60%);}
+.diagram-svg{width:100%;max-width:620px;display:block;}
+.code-panel{width:44%;min-width:360px;flex-shrink:0;display:flex;flex-direction:column;background:var(--panel2);overflow:hidden;}
+.code-hd{padding:10px 16px;border-bottom:1px solid var(--border2);font-size:.8rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);}
+.code-body{flex:1;overflow-y:auto;padding:14px 0;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.78rem;line-height:1.7;}
+.cl{display:flex;border-left:2px solid transparent;transition:background .25s,border-color .25s;}
+.cl.hi{background:rgba(0,173,216,.1);border-left-color:var(--accent);}
+.ln{min-width:42px;padding:0 10px 0 12px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;}
+.lc{padding:0 14px 0 4px;white-space:pre-wrap;word-break:break-word;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.controls{display:flex;align-items:center;gap:10px;padding:11px 22px;border-top:1px solid var(--border2);background:var(--panel);flex-shrink:0;}
+.ctrl-btn{background:rgba(255,255,255,.07);border:1px solid var(--border2);color:var(--text);padding:7px 16px;border-radius:8px;cursor:pointer;font-size:.82rem;font-family:inherit;transition:all .15s;}
+.ctrl-btn:hover{background:rgba(255,255,255,.12);}
+.ctrl-btn:disabled{opacity:.35;cursor:not-allowed;}
+.ctrl-btn.primary{background:rgba(0,173,216,.16);border-color:rgba(0,173,216,.35);color:var(--accent);}
+.ctrl-btn.primary:hover{background:rgba(0,173,216,.25);}
+@keyframes glow-pulse{0%,100%{filter:drop-shadow(0 0 4px rgba(56,189,248,.6));}50%{filter:drop-shadow(0 0 12px rgba(56,189,248,.95));}}
+@keyframes particle-flow{0%{stroke-dashoffset:200;}100%{stroke-dashoffset:0;}}
+.flow-arrow{stroke-dasharray:8 5;animation:particle-flow 1.2s linear infinite;}
+.extras{padding:48px 40px;background:var(--bg);border-top:1px solid var(--border2);}
+.ext-section{margin-bottom:48px;}
+.ext-hd{display:flex;align-items:center;gap:12px;margin-bottom:22px;}
+.ext-hd-bar{width:4px;height:20px;border-radius:2px;background:var(--accent);}
+.ext-hd h2{font-size:1.25rem;font-weight:700;}
+.qa-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.qa-card{border:1px solid var(--border2);border-radius:12px;overflow:hidden;}
+.qa-q{padding:13px 16px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);font-size:.84rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .15s;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:13px 16px;font-size:.82rem;color:var(--dim);line-height:1.72;}
+.qa-card.open .qa-a{display:block;}
+.qa-a code{font-family:monospace;color:var(--accent);font-size:.78rem;}
+.pitfall-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.78rem;font-weight:700;border-bottom:1px solid var(--border2);}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;gap:0;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--dim);line-height:1.6;white-space:pre-wrap;}
+.pitfall-col p{font-size:.76rem;color:var(--dim);line-height:1.65;margin-top:6px;}
+.pitfall-col p strong{color:var(--text);}
+@media(max-width:900px){body{overflow-y:auto;height:auto;}.main-area{flex-direction:column;overflow:visible;height:auto;flex:none;}.steps-panel{width:100%;border-right:none;border-bottom:1px solid var(--border2);}.diagram-panel{border-right:none;min-height:340px;}.code-panel{width:100%;min-width:0;height:320px;flex:none;}.qa-grid,.pitfall-grid{grid-template-columns:1fr;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}.extras{padding:32px 20px;}}
+</style>
+</head>
+<body>
+<div class="nav">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">Context</span>
+  <div class="nav-tags">
+    <span class="ntag">context</span>
+    <span class="ntag">cancel</span>
+    <span class="ntag">timeout</span>
+    <span class="ntag">value</span>
+  </div>
+</div>
+<div class="main-area">
+  <div class="steps-panel">
+    <div class="scenarios" id="scenarios"></div>
+    <div class="step-scroll">
+      <div class="step-desc-card lit" id="stepCard">
+        <div class="step-num" id="stepNum">步骤 1</div>
+        <h3 id="stepTitle"></h3>
+        <p id="stepDesc"></p>
+      </div>
+    </div>
+    <div class="flow-nav" id="flowNav"></div>
+  </div>
+  <div class="diagram-panel">
+    <div class="diagram-inner">
+      <svg id="svg" class="diagram-svg" viewBox="0 0 620 380" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-hd"><div class="code-dot"></div><span id="codeTitle">context.go</span></div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="ctrl-btn" id="btnReset" onclick="reset()">⏮ 重置</button>
+  <button class="ctrl-btn primary" id="btnPrev" onclick="prev()">← 上一步</button>
+  <button class="ctrl-btn primary" id="btnNext" onclick="next()">下一步 →</button>
+</div>
+
+<div class="extras">
+  <div class="ext-section">
+    <div class="ext-hd"><div class="ext-hd-bar"></div><h2>面试题</h2></div>
+    <div class="qa-grid">
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">context.Background() 和 context.TODO() 的区别？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">两者在功能上完全相同（都是空 context，不可取消、无截止时间、无值），区别在于<strong>语义</strong>：<br><code>Background()</code>：程序入口点使用，作为整个 context 树的根<br><code>TODO()</code>：不知道该用哪个 context 时暂时使用，意味着"需要后续重构"<br>实践中：main、init、test 用 Background()，接口内部临时用 TODO()。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">context 的取消信号如何传播？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">取消信号<strong>单向向下</strong>传播：父 context 取消时，所有派生自它的子 context（及其子孙）都会被取消。子 context 取消不影响父 context。内部实现：每个 cancelCtx 维护一个 children map，取消时遍历所有子 context 调用 cancel()。时间复杂度 O(n)，n 为子孙数量。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">WithValue 在实际项目中应该存什么？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">只存<strong>请求作用域</strong>的横切关注点（cross-cutting concerns）：<br>✅ request-id、trace-id、user-id（来自中间件、需要传递给所有层）<br>✅ 认证信息（user 对象、权限）<br>❌ 不存可选参数（应该是函数参数）<br>❌ 不存数据库连接、logger（应该是依赖注入）<br>键要使用私有类型（非 string/int），防止不同包的 key 冲突。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">如何检查 context 是否已取消？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">方式1 — 非阻塞检查（适合循环中）：<code>select { case &lt;-ctx.Done(): return ctx.Err() default: }</code><br>方式2 — 阻塞等待取消：<code>&lt;-ctx.Done()</code><br>检查取消原因：<code>ctx.Err()</code> 返回 <code>context.Canceled</code>（主动取消）或 <code>context.DeadlineExceeded</code>（超时）。<br>标准库函数大多接受 ctx 并在循环中检查 ctx.Done()，推荐在 IO 密集型代码中也这样做。</div>
+      </div>
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">WithTimeout 和 WithDeadline 的关系？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a"><code>WithTimeout(ctx, d)</code> 是 <code>WithDeadline(ctx, time.Now().Add(d))</code> 的语法糖。两者功能相同，区别在于指定时间的方式（相对时间 vs 绝对时间）。<br>两者都返回 cancel 函数，必须 defer cancel() 确保资源释放，即使在超时发生后也需要调用（清理 timer）。Deadline() 方法可以查询截止时间及是否设置了截止时间。</div>
+      </div>
+    </div>
+  </div>
+  <div class="ext-section">
+    <div class="ext-hd"><div class="ext-hd-bar"></div><h2>易错点</h2></div>
+    <div class="pitfall-grid">
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 将 context 存储在结构体中</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col"><pre>type Server struct {
+    ctx context.Context  // 错误！
+    db  *sql.DB
+}
+
+func (s *Server) Handle(r *Request) {
+    // 使用 s.ctx，但此 ctx 可能
+    // 是程序启动时的 ctx，不是
+    // 当前请求的 ctx
+    s.db.QueryContext(s.ctx, ...)
+}</pre></div>
+          <div class="pitfall-col"><pre>type Server struct {
+    db *sql.DB  // 只存依赖，不存 ctx
+}
+
+func (s *Server) Handle(
+    ctx context.Context,  // 每次传入
+    r *Request) {
+    // ctx 是当前请求的 context
+    // 包含正确的超时和取消信号
+    s.db.QueryContext(ctx, ...)
+}</pre><p>context 应该作为函数的第一个参数显式传递，不要存储在结构体中（Go 官方准则）。</p></div>
+        </div>
+      </div>
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 用 string 作为 WithValue 的 key</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col"><pre>// 危险：任何包都能读取 "userID"
+ctx = context.WithValue(ctx,
+    "userID", user.ID)
+
+// 另一个包可能用相同字符串 key
+// 导致 key 冲突或意外读取
+v := ctx.Value("userID")</pre></div>
+          <div class="pitfall-col"><pre>// 使用包内私有类型作为 key
+type ctxKey int
+const userIDKey ctxKey = iota
+
+func WithUserID(ctx context.Context,
+    id int64) context.Context {
+    return context.WithValue(ctx, userIDKey, id)
+}
+func UserIDFromCtx(ctx context.Context) int64 {
+    v, _ := ctx.Value(userIDKey).(int64)
+    return v
+}</pre><p>自定义不可导出类型作为 key，确保类型安全且不与其他包冲突。</p></div>
+        </div>
+      </div>
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 传递 nil context</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col"><pre>func fetch(ctx context.Context) {
+    resp, err := http.Get(url)
+    // 忘记传 ctx，或传 nil
+}
+
+// 调用时传 nil
+fetch(nil) // panic: nil context</pre></div>
+          <div class="pitfall-col"><pre>// 永远不要传 nil context
+// 如果不确定用哪个，用 Background() 或 TODO()
+func fetch(ctx context.Context) {
+    req, _ := http.NewRequestWithContext(
+        ctx, "GET", url, nil)
+    http.DefaultClient.Do(req)
+}
+
+// 调用
+fetch(context.Background())</pre><p>不知道用什么 context 时，用 <code>context.TODO()</code> 作为占位符，而不是 nil。</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function defs(){return`<defs>
+<marker id="arr" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#475569"/></marker>
+<marker id="arrA" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#00add8"/></marker>
+<marker id="arrR" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto"><polygon points="0 0,7 3.5,0 7" fill="#f87171"/></marker>
+<filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>`;}
+function box(x,y,w,h,label,sub,color,active,rx=10){
+  const c=hexToRgb(color);
+  const fill=active?`rgba(${c},.18)`:'rgba(255,255,255,.03)';
+  const stroke=active?color:'#334155';
+  const filt=active?' filter="url(#glow)"':'';
+  const lc=active?color:'#94a3b8';
+  return`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${active?2:1}"${filt}/>
+<text x="${x+w/2}" y="${y+h/2-(sub?6:0)}" text-anchor="middle" fill="${lc}" font-size="11" font-weight="700" font-family="monospace">${label}</text>`+
+(sub?`<text x="${x+w/2}" y="${y+h/2+10}" text-anchor="middle" fill="${active?'#e2e8f0':'#64748b'}" font-size="9" font-family="monospace">${sub}</text>`:'');
+}
+function lbl(x,y,t,c,s){return`<text x="${x}" y="${y}" fill="${c||'#64748b'}" font-size="${s||9}" font-family="monospace">${t}</text>`;}
+function hexToRgb(hex){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return`${r},${g},${b}`;}
+
+let curScene=0,curStep=0;
+const SCENARIOS=[
+{
+  label:'WithCancel',
+  codeTitle:'cancel.go',
+  steps:[
+    {title:'创建可取消 context',desc:'context.WithCancel 从父 context 派生一个新 context，返回子 context 和 cancel 函数。必须 defer cancel() 防止资源泄漏。'},
+    {title:'传递 ctx 到 goroutine',desc:'将 ctx 传递给子 goroutine，子 goroutine 中通过 select 监听 ctx.Done()，随时可以被取消。'},
+    {title:'调用 cancel() 取消',desc:'调用 cancel() 关闭 Done channel。由于所有 goroutine 都在监听同一个 ctx，取消信号同时到达所有子 goroutine。'},
+    {title:'goroutine 收到取消，退出',desc:'所有子 goroutine 的 select 选中 ctx.Done() case，清理资源并 return。context.Err() 返回 Canceled。'},
+  ],
+  hl:[[1,2],[4,5],[7],[9,10]],
+  code:`package main
+
+ctx, cancel := context.WithCancel(parent)
+defer cancel() // 防止泄漏
+
+go func() {
+    select {
+    case work := <-jobs:
+        process(work)
+    case <-ctx.Done(): // 监听取消
+        return         // 优雅退出
+    }
+}()
+// ... 某时刻
+cancel() // 触发取消`,
+  render(step){
+    let s=defs();
+    // Parent ctx
+    s+=box(250,20,120,36,'parent ctx',null,'#00add8',step===0,8);
+    // cancel ctx
+    const cancelled=step>=2;
+    s+=box(250,90,120,36,'cancelCtx',null,cancelled?'#f87171':'#00add8',step>=0,8);
+    s+=`<line x1="310" y1="56" x2="310" y2="88" stroke="${step>=0?'#00add8':'#334155'}" stroke-width="1.5" marker-end="url(#arrA)"/>`;
+    // cancel fn
+    if(step>=0){
+      s+=box(430,90,80,36,'cancel()',null,'#fb923c',step===2,8);
+      s+=`<line x1="372" y1="108" x2="428" y2="108" stroke="#fb923c" stroke-width="1" stroke-dasharray="4 3"/>`;
+      if(step===2) s+=`<text x="395" y="125" fill="#fb923c" font-size="9" font-family="monospace">← 调用！</text>`;
+    }
+    // goroutines
+    const g1done=step>=3;const g2done=step>=3;
+    if(step>=1){
+      s+=box(150,180,120,44,'goroutine A',null,g1done?'#4ade80':'#38bdf8',true,8);
+      s+=box(350,180,120,44,'goroutine B',null,g2done?'#4ade80':'#38bdf8',true,8);
+      s+=`<line x1="280" y1="115" x2="210" y2="178" stroke="${cancelled?'#f87171':'#38bdf8'}" stroke-width="1.5" stroke-dasharray="${cancelled?'5 3':''}" marker-end="url(#arrA)"/>`;
+      s+=`<line x1="340" y1="115" x2="410" y2="178" stroke="${cancelled?'#f87171':'#38bdf8'}" stroke-width="1.5" stroke-dasharray="${cancelled?'5 3':''}" marker-end="url(#arrA)"/>`;
+    }
+    if(g1done){
+      s+=lbl(163,242,'ctx.Done() → exit','#4ade80',8);
+      s+=lbl(363,242,'ctx.Done() → exit','#4ade80',8);
+    }
+    const anns=['WithCancel 创建可取消 ctx，返回 cancel 函数','将 ctx 传递给子 goroutine，监听 Done()','调用 cancel()，Done channel 关闭','所有子 goroutine 收到取消信号，优雅退出 ✓'];
+    s+=`<text x="310" y="300" text-anchor="middle" fill="${step>=2?'#f87171':step===3?'#4ade80':'#64748b'}" font-size="10" font-family="monospace">${anns[step]}</text>`;
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+{
+  label:'WithTimeout',
+  codeTitle:'timeout.go',
+  steps:[
+    {title:'创建超时 context',desc:'WithTimeout(ctx, 3s) 创建一个 3 秒后自动取消的 context。内部创建 timerCtx，设置 timer。必须 defer cancel() 提前清理 timer。'},
+    {title:'子操作接收 ctx',desc:'HTTP 请求、DB 查询等子操作接收 ctx，可以感知超时。标准库的 Do/QueryContext 等函数都会检查 ctx.Done()。'},
+    {title:'操作在超时前完成',desc:'子操作在 3s 内完成并返回。调用 cancel()（或 defer 触发），timer 被清理，不会继续消耗资源。'},
+    {title:'超时触发，自动取消',desc:'3s 到期，timer 触发，自动关闭 Done channel。所有用此 ctx 的子操作收到超时信号。ctx.Err() 返回 DeadlineExceeded。'},
+  ],
+  hl:[[1,2],[4],[6],[8,9]],
+  code:`package main
+
+ctx, cancel := context.WithTimeout(
+    parent, 3*time.Second)
+defer cancel() // 必须调用
+
+// 子操作使用 ctx
+resp, err := client.Do(req.WithContext(ctx))
+
+// 超时时 err = context.DeadlineExceeded
+if errors.Is(err, context.DeadlineExceeded) {
+    // 处理超时
+}`,
+  render(step){
+    let s=defs();
+    // Timer
+    const timeout=step===3;
+    const pct=step===0?0:step===1?0.3:step===2?1:1;
+    s+=box(200,30,220,44,'timerCtx','timeout: 3s',timeout?'#f87171':'#00add8',true,10);
+    s+=`<rect x="210" y="82" width="200" height="10" rx="5" fill="rgba(255,255,255,.05)" stroke="#334155"/>`;
+    s+=`<rect x="210" y="82" width="${200*Math.min(pct,1)}" height="10" rx="5" fill="${timeout?'#f87171':'#fb923c'}"/>`;
+    s+=lbl(210,108,`${timeout?'3.0s → 超时！':step===2?'2.1s 完成':'进行中...'}`,timeout?'#f87171':'#fb923c',9);
+    // Sub operations
+    if(step>=1){
+      const done=step>=2;
+      s+=box(80,160,130,44,'HTTP client',null,done?'#4ade80':'#38bdf8',true,8);
+      s+=box(260,160,130,44,'DB query',null,done?'#4ade80':'#38bdf8',true,8);
+      s+=box(440,160,120,44,'grpc call',null,timeout&&step===3?'#f87171':'#38bdf8',step>=1,8);
+      [145,325,500].forEach(x=>{
+        s+=`<line x1="${x}" y1="76" x2="${x}" y2="158" stroke="${timeout?'#f87171':done?'#4ade80':'#38bdf8'}" stroke-width="1.5" stroke-dasharray="${timeout?'5 3':''}" marker-end="url(#arrA)"/>`;
+      });
+      if(done&&!timeout){
+        s+=lbl(90,222,'完成 ✓','#4ade80',9);
+        s+=lbl(270,222,'完成 ✓','#4ade80',9);
+      }
+      if(timeout){
+        s+=lbl(450,222,'DeadlineExceeded','#f87171',8);
+      }
+    }
+    const anns=['创建 timerCtx，3s 后自动触发 cancel','子操作接收 ctx，计时开始','子操作在 2.1s 完成，timer 被清理','3s 到期，自动取消，所有操作收到 DeadlineExceeded'];
+    s+=`<text x="310" y="290" text-anchor="middle" fill="${step===3?'#f87171':step===2?'#4ade80':'#64748b'}" font-size="10" font-family="monospace">${anns[step]}</text>`;
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+{
+  label:'WithValue',
+  codeTitle:'value.go',
+  steps:[
+    {title:'在 context 中存储值',desc:'WithValue 创建一个新 context，携带一个 key-value 对。通常用于在调用链中传递请求级元数据（如 request-id、user-id）。'},
+    {title:'ctx 值沿调用链传递',desc:'ctx 从 HTTP handler 传递到 service 层、repository 层。每层都能通过 ctx.Value(key) 读取请求元数据，无需修改函数签名。'},
+    {title:'ctx.Value 向上查找',desc:'Value 方法沿 context 链向上查找（从子到父），找到匹配 key 的最近值即返回。查找是线性的 O(n)，n 为 context 深度，不宜存储太多层级。'},
+    {title:'middleware 添加值',desc:'实际项目中，middleware 链通过 WithValue 逐层添加请求元数据，handler 通过专用 helper 函数读取，不直接访问 key。'},
+  ],
+  hl:[[2,3,4],[6],[8,9],[12,13]],
+  code:`package main
+
+// middleware 添加 request-id
+type reqIDKey struct{}
+ctx = context.WithValue(ctx,
+    reqIDKey{}, "req-abc-123")
+
+// 传递到 service 层
+doService(ctx, params)
+
+// service 层读取
+func doService(ctx context.Context, ...) {
+    id := ctx.Value(reqIDKey{}).(string)
+    log.Printf("req=%s", id)
+}`,
+  render(step){
+    let s=defs();
+    // Context chain (vertical stack)
+    const chain=[
+      {label:'Background',sub:null,color:'#475569',y:30},
+      {label:'cancelCtx',sub:'WithCancel',color:'#00add8',y:90},
+      {label:'timerCtx',sub:'WithTimeout 3s',color:'#fb923c',y:150},
+      {label:'valueCtx',sub:'reqID=abc-123',color:'#c084fc',y:210},
+    ];
+    chain.forEach((c,i)=>{
+      const active=step>=i;
+      s+=box(70,c.y,150,46,c.label,c.sub,c.color,active,8);
+      if(i<chain.length-1){
+        s+=`<line x1="145" y1="${c.y+46}" x2="145" y2="${chain[i+1].y}" stroke="${step>i?c.color:'#334155'}" stroke-width="1.5" marker-end="url(#arrA)"/>`;
+      }
+    });
+    // Lookup chain
+    if(step>=2){
+      s+=box(280,210,180,46,'ctx.Value(reqIDKey)',null,'#c084fc',true,8);
+      s+=`<line x1="222" y1="233" x2="278" y2="233" stroke="#c084fc" stroke-width="1.5" marker-end="url(#arrA)"/>`;
+      s+=`<path d="M 460,233 Q 500,180 460,150 Q 440,130 350,160 Q 310,165 310,208" stroke="#c084fc" stroke-width="1.2" fill="none" stroke-dasharray="4 3" marker-end="url(#arrA)"/>`;
+      s+=lbl(465,180,'向上查找','#c084fc',8);
+    }
+    // Middleware stack
+    if(step>=3){
+      const mw=['AuthMW','LogMW','TraceMW'];
+      mw.forEach((m,i)=>{
+        s+=box(390,30+i*55,140,40,m,null,'#38bdf8',true,6);
+        if(i>0) s+=`<line x1="460" y1="${30+(i-1)*55+40}" x2="460" y2="${30+i*55}" stroke="#38bdf8" stroke-width="1.2" marker-end="url(#arrA)"/>`;
+      });
+      s+=lbl(400,206,'逐层 WithValue 添加元数据','#38bdf8',8);
+    }
+    const anns=['WithValue 创建携带 key-value 的 context','ctx 随调用链传递：handler→service→repo','ctx.Value 沿链向上线性查找（O(n)）','middleware 逐层 WithValue，handler 通过 helper 读取'];
+    s+=`<text x="310" y="320" text-anchor="middle" fill="#64748b" font-size="10" font-family="monospace">${anns[step]}</text>`;
+    document.getElementById('svg').innerHTML=s;
+  }
+},
+];
+
+function goHL(code){
+  return code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/("(?:[^"\\]|\\.)*")/g,'<span class="st">$1</span>')
+    .replace(/(\/\/[^\n]*)/g,'<span class="cm">$1</span>')
+    .replace(/\b(package|import|func|var|const|type|struct|interface|map|chan|go|defer|return|if|else|for|range|switch|case|default|select|break|continue|make|new|nil|true|false)\b/g,'<span class="kw">$1</span>')
+    .replace(/\b(fmt|time|sync|context|os|io|http|errors|runtime)\b/g,'<span class="pkg">$1</span>')
+    .replace(/\b([0-9]+)\b/g,'<span class="num">$1</span>');
+}
+function renderCode(lines,highlights){
+  const arr=typeof lines==='string'?lines.split('\n'):lines;
+  const hiSet=new Set(highlights||[]);
+  document.getElementById('codeBody').innerHTML=arr.map((l,i)=>{
+    return`<div class="${hiSet.has(i)?'cl hi':'cl'}"><span class="ln">${i+1}</span><span class="lc">${goHL(l)}</span></div>`;
+  }).join('');
+}
+function initScenarios(){
+  const sc=SCENARIOS[curScene];
+  document.getElementById('scenarios').innerHTML=SCENARIOS.map((s,i)=>
+    `<button class="sc-btn${i===curScene?' active':''}" onclick="switchScene(${i})">${s.label}</button>`).join('');
+  document.getElementById('codeTitle').textContent=sc.codeTitle;
+  updateStep();
+}
+function updateStep(){
+  const sc=SCENARIOS[curScene];
+  const st=sc.steps[curStep];
+  document.getElementById('stepNum').textContent=`步骤 ${curStep+1}`;
+  document.getElementById('stepTitle').textContent=st.title;
+  document.getElementById('stepDesc').textContent=st.desc;
+  document.getElementById('flowNav').innerHTML=sc.steps.map((_,i)=>{
+    let cls='fn-dot';if(i<curStep)cls+=' done';else if(i===curStep)cls+=' cur';
+    return`<div class="${cls}" onclick="jumpStep(${i})">${i+1}</div>`;
+  }).join('')+`<span class="step-ctr">${curStep+1}/${sc.steps.length}</span>`;
+  renderCode(sc.code,sc.hl[curStep]);
+  const svgEl=document.getElementById('svg');
+  svgEl.style.opacity='0';svgEl.style.transition='opacity .2s';
+  setTimeout(()=>{sc.render(curStep);svgEl.style.opacity='1';},120);
+  document.getElementById('btnPrev').disabled=curStep===0;
+  document.getElementById('btnNext').disabled=curStep===sc.steps.length-1;
+}
+function switchScene(i){curScene=i;curStep=0;initScenarios();}
+function jumpStep(i){curStep=i;updateStep();}
+function next(){if(curStep<SCENARIOS[curScene].steps.length-1){curStep++;updateStep();}}
+function prev(){if(curStep>0){curStep--;updateStep();}}
+function reset(){curStep=0;updateStep();}
+function toggleQA(el){el.classList.toggle('open');}
+document.addEventListener('DOMContentLoaded',()=>{
+  if(typeof NavTracker!=='undefined') NavTracker.track('Context','golang/context.html','🌲','Golang');
+  initScenarios();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,380 @@
+<!DOCTYPE html><html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Slice 与 Map - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:72px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(0,173,216,.12);color:var(--accent);border:1px solid rgba(0,173,216,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(0,173,216,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.slice-diagram{display:flex;align-items:center;gap:16px;margin:14px 0;flex-wrap:wrap;}
+.slice-box{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;font-size:.74rem;font-family:monospace;}
+.slice-box .label{color:var(--accent);display:block;margin-bottom:6px;font-size:.7rem;}
+.slice-field{display:flex;justify-content:space-between;gap:16px;color:var(--dim);}
+.arrow{color:var(--dim2);font-size:1.2rem;}
+.array-box{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:10px 14px;font-size:.74rem;font-family:monospace;color:var(--dim);}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">📦 Slice 与 Map</span>
+  <div class="nav-tags">
+    <span class="ntag">slice</span>
+    <span class="ntag">map</span>
+    <span class="ntag">append</span>
+    <span class="ntag">bucket</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <aside class="side-nav" id="sideNav">
+    <nav><ul>
+      <li><a href="#slice-header">Slice 底层</a></li>
+      <li><a href="#slice-grow">Slice 扩容</a></li>
+      <li><a href="#map-internals">Map 底层</a></li>
+      <li><a href="#map-usage">Map 使用</a></li>
+      <li><a href="#interview">面试题</a></li>
+      <li><a href="#pitfalls">易错点</a></li>
+    </ul></nav>
+  </aside>
+  <main class="main-content">
+
+    <div class="section" id="slice-header">
+      <div class="section-title"><div class="title-bar"></div><h2>Slice 底层结构</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>SliceHeader 三字段</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>Slice 在运行时由 <code>reflect.SliceHeader</code> 表示，24 字节，包含三个字段：</p>
+          <div class="slice-diagram">
+            <div class="slice-box">
+              <span class="label">SliceHeader</span>
+              <div class="slice-field"><span>Data</span><span style="color:#c084fc">uintptr</span></div>
+              <div class="slice-field"><span>Len</span><span style="color:#79c0ff">int</span></div>
+              <div class="slice-field"><span>Cap</span><span style="color:#79c0ff">int</span></div>
+            </div>
+            <div class="arrow">→</div>
+            <div class="array-box">[0] [1] [2] [3] [4] [5] ...</div>
+          </div>
+          <ul>
+            <li><strong>Data</strong>：指向底层数组的指针</li>
+            <li><strong>Len</strong>：当前有效元素数量（<code>len(s)</code>）</li>
+            <li><strong>Cap</strong>：底层数组的总容量（<code>cap(s)</code>）</li>
+          </ul>
+          <pre><span class="id">s</span> := []<span class="pkg">int</span>{<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>, <span class="num">5</span>}
+<span class="id">t</span> := <span class="id">s</span>[<span class="num">1</span>:<span class="num">3</span>]  <span class="cm">// len=2, cap=4，共享底层数组</span>
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="fn">len</span>(<span class="id">t</span>), <span class="fn">cap</span>(<span class="id">t</span>))  <span class="cm">// 2 4</span>
+<span class="id">t</span>[<span class="num">0</span>] = <span class="num">99</span>
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">s</span>)  <span class="cm">// [1 99 3 4 5]：s[1] 也变了</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="slice-grow">
+      <div class="section-title"><div class="title-bar"></div><h2>Slice 扩容策略</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>append 触发扩容的规则</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <p>当 <code>append</code> 导致 len &gt; cap 时，Go 运行时会分配新的底层数组，将原数据拷贝过去，返回指向新数组的新 slice。</p>
+          <p><strong>Go 1.18 之前</strong>：容量 &lt; 1024 时翻倍，&gt;= 1024 时每次增加 25%。</p>
+          <p><strong>Go 1.18+</strong>：改为更平滑的增长策略，避免在 1024 处出现突变，综合考虑元素类型对齐等因素。</p>
+          <pre><span class="id">s</span> := <span class="fn">make</span>([]<span class="pkg">int</span>, <span class="num">0</span>, <span class="num">3</span>)  <span class="cm">// len=0, cap=3</span>
+<span class="id">s</span> = <span class="fn">append</span>(<span class="id">s</span>, <span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>)  <span class="cm">// len=3, cap=3，不扩容</span>
+<span class="id">s</span> = <span class="fn">append</span>(<span class="id">s</span>, <span class="num">4</span>)        <span class="cm">// len=4, cap=6，发生扩容！</span>
+<span class="cm">// 原底层数组被废弃，s 指向新数组</span>
+
+<span class="cm">// 扩容前保存的子切片不受影响（指向旧数组）</span>
+<span class="id">a</span> := []<span class="pkg">int</span>{<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>}
+<span class="id">b</span> := <span class="id">a</span>               <span class="cm">// b 和 a 共享底层数组</span>
+<span class="id">a</span> = <span class="fn">append</span>(<span class="id">a</span>, <span class="num">4</span>)   <span class="cm">// a 扩容，指向新数组</span>
+<span class="id">a</span>[<span class="num">0</span>] = <span class="num">99</span>
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">b</span>[<span class="num">0</span>])  <span class="cm">// 1，b 仍指向旧数组</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="map-internals">
+      <div class="section-title"><div class="title-bar"></div><h2>Map 底层结构</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>hmap + bmap bucket 结构</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-body">
+          <p>Go map 底层是哈希表，由 <code>hmap</code> 结构体管理，包含多个 bucket（<code>bmap</code>）。</p>
+          <ul>
+            <li><strong>hmap</strong>：count（元素数）、B（bucket 数量的对数，共 2^B 个 bucket）、buckets 指针、oldbuckets（扩容时的旧 bucket 指针）</li>
+            <li><strong>bmap</strong>：每个 bucket 存储 8 个 key-value 对，加上 8 字节的 tophash 数组（哈希值高8位，快速过滤），以及指向 overflow bucket 的指针</li>
+          </ul>
+          <pre><span class="cm">// 哈希碰撞处理：链地址法</span>
+<span class="cm">// 同一 bucket 最多 8 个 KV，超出则用 overflow bucket</span>
+
+<span class="cm">// 扩容触发条件：</span>
+<span class="cm">// 1. 负载因子 > 6.5（count/buckets &gt; 6.5）→ 翻倍扩容</span>
+<span class="cm">// 2. overflow bucket 过多 → 等量扩容（整理）</span>
+
+<span class="cm">// 扩容是渐进式的（incremental rehash）</span>
+<span class="cm">// 每次读写操作最多迁移 2 个 bucket，避免卡顿</span></pre>
+          <p><strong>注意</strong>：map 的迭代顺序是随机的（Go 1.0 起有意随机化，防止依赖顺序的代码）。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="map-usage">
+      <div class="section-title"><div class="title-bar"></div><h2>Map 使用</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>初始化、操作与并发安全</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <pre><span class="cm">// 创建：make 可以预分配容量，减少 rehash</span>
+<span class="id">m</span> := <span class="fn">make</span>(<span class="kw">map</span>[<span class="pkg">string</span>]<span class="pkg">int</span>, <span class="num">100</span>)  <span class="cm">// 预分配 100 个槽位</span>
+
+<span class="cm">// 读取（两值形式检查 key 是否存在）</span>
+<span class="id">v</span>, <span class="id">ok</span> := <span class="id">m</span>[<span class="st">"key"</span>]  <span class="cm">// ok=false 说明 key 不存在</span>
+<span class="id">v</span> = <span class="id">m</span>[<span class="st">"missing"</span>]  <span class="cm">// 不存在时返回零值，不 panic</span>
+
+<span class="cm">// 删除</span>
+<span class="fn">delete</span>(<span class="id">m</span>, <span class="st">"key"</span>)  <span class="cm">// key 不存在时是 no-op</span>
+
+<span class="cm">// 迭代（顺序随机）</span>
+<span class="kw">for</span> <span class="id">k</span>, <span class="id">v</span> := <span class="kw">range</span> <span class="id">m</span> { ... }
+
+<span class="cm">// 并发不安全！多 goroutine 读写需要保护</span>
+<span class="kw">var</span> <span class="id">mu</span> <span class="id">sync</span>.<span class="id">RWMutex</span>
+<span class="id">mu</span>.<span class="fn">Lock</span>()
+<span class="id">m</span>[<span class="st">"k"</span>] = <span class="num">1</span>
+<span class="id">mu</span>.<span class="fn">Unlock</span>()
+
+<span class="cm">// 或使用 sync.Map（读多写少场景）</span>
+<span class="kw">var</span> <span class="id">sm</span> <span class="id">sync</span>.<span class="id">Map</span>
+<span class="id">sm</span>.<span class="fn">Store</span>(<span class="st">"k"</span>, <span class="num">1</span>)
+<span class="id">v</span>, _ = <span class="id">sm</span>.<span class="fn">Load</span>(<span class="st">"k"</span>)</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="interview">
+      <div class="section-title"><div class="title-bar"></div><h2>面试题</h2></div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">append 后原 slice 元素还能访问吗？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">分两种情况：<br>
+        1. <strong>未发生扩容</strong>（len+n &lt;= cap）：append 直接在原底层数组写入，原 slice 变量的 len/cap 不变，但内存已修改。如果有子 slice 或引用，仍能访问到新写入的数据。<br><br>
+        2. <strong>发生了扩容</strong>（len+n &gt; cap）：Go 分配新数组，拷贝数据，原底层数组不再被新 slice 引用。此时原 slice 变量仍指向旧数组，可以读取原有数据，但新旧已经独立，修改互不影响。<br><br>
+        关键：append 总是返回新的 slice header，必须用返回值，不能忽略。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">map 的并发读写会发生什么？如何解决？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">Go 的 map 并发读写（同时有写操作）会触发运行时 panic：<code>concurrent map read and map write</code> 或 <code>concurrent map writes</code>。这是 Go 运行时在竞争检测中故意加的保护。<br><br>
+        解决方案：<br>
+        1. <code>sync.RWMutex</code>：读操作用 RLock，写操作用 Lock，适合读多写少<br>
+        2. <code>sync.Map</code>：适合读极多写少的场景，内部用两个 map（read/dirty）减少锁竞争<br>
+        3. 分片锁（sharding）：将 map 按 key hash 分成多个 segment，每个 segment 独立加锁<br>
+        4. channel 串行化：通过 channel 将 map 操作序列化到单个 goroutine</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">slice 和 array 的核心区别？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">主要区别：<br>
+        • <strong>长度</strong>：array 长度是类型的一部分（[3]int != [4]int），编译时固定；slice 长度动态可变<br>
+        • <strong>值/引用</strong>：array 是值类型，赋值拷贝整个数组；slice 是引用类型，赋值只拷贝 header<br>
+        • <strong>内存</strong>：array 可以在栈上分配；slice 底层数组通常在堆上<br>
+        • <strong>传参</strong>：array 传参是拷贝（大数组建议传指针）；slice 传参只拷贝 header（三个字段）<br>
+        • <strong>comparable</strong>：array 可以用 == 比较；slice 不能用 == 比较（只能与 nil 比较）</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">map 的 key 有什么限制？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">map 的 key 必须是<strong>可比较</strong>（comparable）类型，即支持 <code>==</code> 和 <code>!=</code> 操作的类型。<br><br>
+        可以作为 key 的类型：bool、整数、浮点、复数、string、pointer、channel、interface、array（元素类型需可比较）、struct（所有字段需可比较）。<br><br>
+        不能作为 key 的类型：slice、map、func（这些类型不支持 ==）。<br><br>
+        小技巧：如果需要用 slice 作为 key，可以先 fmt.Sprint 或 strings.Join 转为 string；如果需要用 struct 作为 key，确保所有字段都可比较。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">如何高效地从 slice 中删除某个元素？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">几种方法：<br>
+        1. <strong>保持顺序</strong>（O(n)）：<code>s = append(s[:i], s[i+1:]...)</code><br>
+        2. <strong>不保持顺序</strong>（O(1)）：<code>s[i] = s[len(s)-1]; s = s[:len(s)-1]</code>（用最后一个元素覆盖要删除的元素）<br>
+        3. <strong>Go 1.21 slices 包</strong>：<code>slices.Delete(s, i, i+1)</code><br><br>
+        注意：删除后原 slice 末尾可能仍持有旧元素的引用（对于引用类型元素），需要手动置 nil 防止内存泄漏：<code>s[len(s):len(s)+1][0] = nil</code> 或在删除后清零尾部。</div>
+      </div>
+    </div>
+
+    <div class="section" id="pitfalls">
+      <div class="section-title"><div class="title-bar"></div><h2>易错点</h2></div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 忽略 append 的返回值</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">addElem</span>(<span class="id">s</span> []<span class="pkg">int</span>) {
+    <span class="fn">append</span>(<span class="id">s</span>, <span class="num">1</span>)  <span class="cm">// ❌ 编译错误</span>
+    <span class="cm">// 即使不报错，s 也没有变化</span>
+}
+
+<span class="cm">// 调用者看到的 s 没有新元素</span>
+<span class="id">s</span> := []<span class="pkg">int</span>{<span class="num">1</span>, <span class="num">2</span>}
+<span class="fn">addElem</span>(<span class="id">s</span>)
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">s</span>)  <span class="cm">// [1 2]</span></pre>
+            <p>append 返回新的 slice header，不接收返回值则白做。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 正确：接收 append 的返回值</span>
+<span class="id">s</span> := []<span class="pkg">int</span>{<span class="num">1</span>, <span class="num">2</span>}
+<span class="id">s</span> = <span class="fn">append</span>(<span class="id">s</span>, <span class="num">3</span>)  <span class="cm">// ✓</span>
+
+<span class="cm">// 如果需要在函数内修改，传指针或返回新 slice</span>
+<span class="kw">func</span> <span class="fn">addElem</span>(<span class="id">s</span> []<span class="pkg">int</span>) []<span class="pkg">int</span> {
+    <span class="kw">return</span> <span class="fn">append</span>(<span class="id">s</span>, <span class="num">1</span>)
+}
+<span class="id">s</span> = <span class="fn">addElem</span>(<span class="id">s</span>)  <span class="cm">// ✓</span></pre>
+            <p>append 必须赋值给变量（通常是原变量），函数传参 slice 时要返回修改后的版本。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ sub-slice 共享底层数组，修改一个影响另一个</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="id">a</span> := []<span class="pkg">int</span>{<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>, <span class="num">5</span>}
+<span class="id">b</span> := <span class="id">a</span>[<span class="num">1</span>:<span class="num">3</span>]  <span class="cm">// [2 3]，共享底层数组</span>
+<span class="id">b</span>[<span class="num">0</span>] = <span class="num">99</span>
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">a</span>)  <span class="cm">// [1 99 3 4 5]！a 也变了</span>
+
+<span class="cm">// append 如果未超出 cap 也会影响原 slice</span>
+<span class="id">b</span> = <span class="fn">append</span>(<span class="id">b</span>, <span class="num">88</span>)
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">a</span>)  <span class="cm">// [1 99 3 88 5]！</span></pre>
+            <p>子切片与原切片共享内存，append 如未触发扩容仍会写入原数组。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="id">a</span> := []<span class="pkg">int</span>{<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>, <span class="num">5</span>}
+
+<span class="cm">// 用 copy 创建独立副本</span>
+<span class="id">b</span> := <span class="fn">make</span>([]<span class="pkg">int</span>, <span class="num">2</span>)
+<span class="fn">copy</span>(<span class="id">b</span>, <span class="id">a</span>[<span class="num">1</span>:<span class="num">3</span>])  <span class="cm">// b 独立</span>
+<span class="id">b</span>[<span class="num">0</span>] = <span class="num">99</span>
+<span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">a</span>)   <span class="cm">// [1 2 3 4 5]，a 不变 ✓</span>
+
+<span class="cm">// Go 1.21 slices.Clone</span>
+<span class="kw">import</span> <span class="st">"slices"</span>
+<span class="id">b</span> = <span class="id">slices</span>.<span class="fn">Clone</span>(<span class="id">a</span>[<span class="num">1</span>:<span class="num">3</span>])</pre>
+            <p>需要独立副本时用 copy 或 slices.Clone，不要直接切片赋值。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 未初始化的 map 写入 panic</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">var</span> <span class="id">m</span> <span class="kw">map</span>[<span class="pkg">string</span>]<span class="pkg">int</span>  <span class="cm">// nil map</span>
+
+<span class="cm">// 读可以（返回零值）</span>
+<span class="id">v</span> := <span class="id">m</span>[<span class="st">"key"</span>]  <span class="cm">// v = 0，不 panic</span>
+
+<span class="cm">// 写 panic！</span>
+<span class="id">m</span>[<span class="st">"key"</span>] = <span class="num">1</span>
+<span class="cm">// panic: assignment to entry in nil map</span></pre>
+            <p>声明但未用 make 初始化的 map 是 nil，写入操作会 panic。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 正确：用 make 初始化</span>
+<span class="id">m</span> := <span class="fn">make</span>(<span class="kw">map</span>[<span class="pkg">string</span>]<span class="pkg">int</span>)
+<span class="id">m</span>[<span class="st">"key"</span>] = <span class="num">1</span>  <span class="cm">// ✓</span>
+
+<span class="cm">// 或字面量初始化</span>
+<span class="id">m2</span> := <span class="kw">map</span>[<span class="pkg">string</span>]<span class="pkg">int</span>{
+    <span class="st">"a"</span>: <span class="num">1</span>,
+    <span class="st">"b"</span>: <span class="num">2</span>,
+}
+
+<span class="cm">// struct 中的 map 字段也需要初始化</span>
+<span class="kw">type</span> <span class="id">Foo</span> <span class="kw">struct</span>{ <span class="id">M</span> <span class="kw">map</span>[<span class="pkg">string</span>]<span class="pkg">int</span> }
+<span class="id">f</span> := <span class="id">Foo</span>{<span class="id">M</span>: <span class="fn">make</span>(<span class="kw">map</span>[<span class="pkg">string</span>]<span class="pkg">int</span>)}</pre>
+            <p>始终用 make 或字面量初始化 map，struct 中的 map 字段尤其容易忘记。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 大 slice 子切片导致内存泄漏</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// 读取大文件内容</span>
+<span class="id">big</span>, _ := <span class="id">os</span>.<span class="fn">ReadFile</span>(<span class="st">"huge.log"</span>)
+<span class="cm">// 只取前 10 字节，但持有整个 big 的引用</span>
+<span class="id">header</span> := <span class="id">big</span>[:<span class="num">10</span>]
+<span class="cm">// big（可能 1GB）无法被 GC 回收</span>
+<span class="cm">// 因为 header 还在引用底层数组</span></pre>
+            <p>小的子切片持有大的底层数组引用，导致大内存无法释放。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="id">big</span>, _ := <span class="id">os</span>.<span class="fn">ReadFile</span>(<span class="st">"huge.log"</span>)
+<span class="cm">// 用 copy 创建独立小切片</span>
+<span class="id">header</span> := <span class="fn">make</span>([]<span class="pkg">byte</span>, <span class="num">10</span>)
+<span class="fn">copy</span>(<span class="id">header</span>, <span class="id">big</span>)
+<span class="cm">// big 可以被 GC 回收了</span>
+<span class="id">big</span> = <span class="kw">nil</span>
+
+<span class="cm">// 或使用 bytes.Clone（Go 1.20+）</span>
+<span class="id">header</span> = <span class="id">bytes</span>.<span class="fn">Clone</span>(<span class="id">big</span>[:<span class="num">10</span>])</pre>
+            <p>长期持有的子切片要用 copy 复制出来，让原大切片能被 GC 释放。</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>
+function toggleQA(el){el.classList.toggle('open');}
+document.addEventListener('DOMContentLoaded',()=>{
+  if(typeof NavTracker!=='undefined') NavTracker.track('Slice 与 Map','golang/slice-map.html','📦','Golang');
+});
+</script>
+</body>
+</html>

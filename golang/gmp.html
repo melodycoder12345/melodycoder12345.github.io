@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GMP 调度器 - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{
+  --bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;
+  --text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;
+  --accent:#00add8;--g:#38bdf8;--m:#fb923c;--p:#c084fc;--q:#4ade80;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+  display:flex;flex-direction:column;min-height:100vh;
+}
+
+/* ── NAV ── */
+.nav{
+  display:flex;align-items:center;gap:14px;padding:10px 22px;
+  border-bottom:1px solid var(--border2);background:var(--panel);
+  flex-shrink:0;position:sticky;top:var(--snav-h,44px);z-index:10;
+}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;display:flex;align-items:center;gap:5px;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+
+/* ── 3-COL MAIN ── */
+.main-area{
+  display:flex;flex:none;height:calc(100vh - var(--snav-h,44px) - 88px);min-height:300px;overflow:hidden;
+}
+
+/* steps-panel */
+.steps-panel{
+  width:270px;flex-shrink:0;display:flex;flex-direction:column;
+  border-right:1px solid var(--border2);overflow:hidden;background:rgba(15,23,42,.6);
+}
+.scenarios{display:flex;gap:0;border-bottom:1px solid var(--border2);overflow-x:auto;}
+.sc-btn{
+  flex:1;background:none;border:none;color:var(--dim);padding:9px 6px;
+  cursor:pointer;font-size:.72rem;font-family:inherit;border-bottom:2px solid transparent;
+  transition:all .15s;white-space:nowrap;text-align:center;
+}
+.sc-btn:hover{color:var(--text);}
+.sc-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+.step-scroll{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
+.step-desc-card{
+  border:1px solid var(--border2);border-radius:12px;background:rgba(255,255,255,.025);padding:14px;
+  transition:border-color .3s,box-shadow .3s;
+}
+.step-desc-card.lit{border-color:var(--accent);box-shadow:0 0 20px rgba(0,173,216,.12);}
+.step-desc-card .step-num{font-size:.66rem;font-family:monospace;color:var(--accent);margin-bottom:6px;}
+.step-desc-card h3{font-size:.88rem;font-weight:700;margin-bottom:6px;}
+.step-desc-card p{font-size:.78rem;color:var(--dim);line-height:1.68;}
+
+.flow-nav{padding:10px 14px;border-top:1px solid var(--border2);display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.fn-dot{
+  width:26px;height:26px;border-radius:50%;border:2px solid var(--border2);
+  background:rgba(255,255,255,.04);cursor:pointer;font-size:.68rem;font-family:monospace;
+  color:var(--dim);display:flex;align-items:center;justify-content:center;
+  transition:all .15s;flex-shrink:0;
+}
+.fn-dot:hover{border-color:var(--dim);color:var(--text);}
+.fn-dot.done{border-color:var(--accent);background:rgba(0,173,216,.15);color:var(--accent);}
+.fn-dot.cur{border-color:var(--accent);background:rgba(0,173,216,.25);color:var(--accent);transform:scale(1.12);}
+.step-ctr{margin-left:auto;font-size:.7rem;font-family:monospace;color:var(--dim2);}
+
+/* diagram-panel */
+.diagram-panel{
+  flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid var(--border2);
+  overflow:hidden;
+}
+.diagram-inner{
+  flex:1;overflow:auto;padding:20px;
+  background:radial-gradient(ellipse 70% 50% at 30% 20%,rgba(0,173,216,.07),transparent 60%);
+}
+.diagram-svg{width:100%;max-width:620px;display:block;}
+
+/* code-panel */
+.code-panel{
+  width:44%;min-width:360px;flex-shrink:0;display:flex;flex-direction:column;
+  background:var(--panel2);overflow:hidden;
+}
+.code-hd{
+  padding:10px 16px;border-bottom:1px solid var(--border2);
+  font-size:.8rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;
+}
+.code-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);}
+.code-body{flex:1;overflow-y:auto;padding:14px 0;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.78rem;line-height:1.7;}
+.cl{display:flex;border-left:2px solid transparent;transition:background .25s,border-color .25s;}
+.cl.hi{background:rgba(0,173,216,.1);border-left-color:var(--accent);}
+.cl.hi2{background:rgba(192,132,252,.08);border-left-color:var(--p);}
+.ln{min-width:42px;padding:0 10px 0 12px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;}
+.lc{padding:0 14px 0 4px;white-space:pre-wrap;word-break:break-word;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+
+/* ── CONTROLS ── */
+.controls{
+  display:flex;align-items:center;gap:10px;padding:11px 22px;
+  border-top:1px solid var(--border2);background:var(--panel);flex-shrink:0;
+}
+.ctrl-btn{
+  background:rgba(255,255,255,.07);border:1px solid var(--border2);
+  color:var(--text);padding:7px 16px;border-radius:8px;cursor:pointer;
+  font-size:.82rem;font-family:inherit;transition:all .15s;
+}
+.ctrl-btn:hover{background:rgba(255,255,255,.12);}
+.ctrl-btn:disabled{opacity:.35;cursor:not-allowed;}
+.ctrl-btn.primary{background:rgba(0,173,216,.16);border-color:rgba(0,173,216,.35);color:var(--accent);}
+.ctrl-btn.primary:hover{background:rgba(0,173,216,.25);}
+
+/* ── SVG elements ── */
+.node-rect{transition:fill .35s cubic-bezier(.4,0,.2,1),stroke .35s,filter .35s;}
+.node-text{transition:fill .35s;}
+.edge{transition:stroke .35s,opacity .35s,stroke-dashoffset .6s ease-out;}
+.g-bubble{transition:transform .4s cubic-bezier(.4,0,.2,1),opacity .3s,fill .35s;}
+@keyframes glow-pulse{0%,100%{filter:drop-shadow(0 0 4px rgba(56,189,248,.6));}50%{filter:drop-shadow(0 0 10px rgba(56,189,248,.9));}}
+@keyframes particle-flow{0%{stroke-dashoffset:200;}100%{stroke-dashoffset:0;}}
+.flow-arrow{stroke-dasharray:8 5;animation:particle-flow 1.2s linear infinite;}
+.active-node{animation:glow-pulse 2s infinite;}
+
+/* ── EXTRAS (interview + pitfalls) ── */
+.extras{padding:48px 40px;background:var(--bg);border-top:1px solid var(--border2);}
+.ext-section{margin-bottom:48px;}
+.ext-hd{display:flex;align-items:center;gap:12px;margin-bottom:22px;}
+.ext-hd-bar{width:4px;height:20px;border-radius:2px;background:var(--accent);}
+.ext-hd h2{font-size:1.25rem;font-weight:700;}
+
+/* interview Q&A */
+.qa-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.qa-card{border:1px solid var(--border2);border-radius:12px;overflow:hidden;}
+.qa-q{
+  padding:13px 16px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);
+  font-size:.84rem;font-weight:600;color:var(--accent);cursor:pointer;
+  display:flex;justify-content:space-between;align-items:center;
+  transition:background .15s;user-select:none;
+}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:13px 16px;font-size:.82rem;color:var(--dim);line-height:1.72;}
+.qa-card.open .qa-a{display:block;}
+.qa-a code{font-family:monospace;color:var(--accent);font-size:.78rem;}
+
+/* pitfalls */
+.pitfall-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.78rem;font-weight:700;border-bottom:1px solid var(--border2);}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;gap:0;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--dim);line-height:1.6;white-space:pre-wrap;}
+.pitfall-col p{font-size:.76rem;color:var(--dim);line-height:1.65;margin-top:6px;}
+.pitfall-col p strong{color:var(--text);}
+
+@media(max-width:900px){
+  body{overflow-y:auto;height:auto;}
+  .main-area{flex-direction:column;overflow:visible;height:auto;flex:none;}
+  .steps-panel{width:100%;border-right:none;border-bottom:1px solid var(--border2);}
+  .diagram-panel{border-right:none;min-height:340px;}
+  .code-panel{width:100%;min-width:0;height:320px;flex:none;}
+  .qa-grid,.pitfall-grid{grid-template-columns:1fr;}
+  .pitfall-body{grid-template-columns:1fr;}
+  .pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}
+  .extras{padding:32px 20px;}
+}
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">GMP 调度器</span>
+  <div class="nav-tags">
+    <span class="ntag">goroutine</span>
+    <span class="ntag">scheduler</span>
+    <span class="ntag">work-stealing</span>
+    <span class="ntag">netpoll</span>
+  </div>
+</div>
+
+<div class="main-area">
+
+  <!-- LEFT: steps panel -->
+  <div class="steps-panel">
+    <div class="scenarios" id="scenarios"></div>
+    <div class="step-scroll">
+      <div class="step-desc-card lit" id="stepCard">
+        <div class="step-num" id="stepNum">步骤 1</div>
+        <h3 id="stepTitle"></h3>
+        <p id="stepDesc"></p>
+      </div>
+    </div>
+    <div class="flow-nav" id="flowNav"></div>
+  </div>
+
+  <!-- MID: diagram -->
+  <div class="diagram-panel">
+    <div class="diagram-inner">
+      <svg id="diagramSvg" class="diagram-svg" viewBox="0 0 620 360"></svg>
+    </div>
+  </div>
+
+  <!-- RIGHT: code -->
+  <div class="code-panel">
+    <div class="code-hd"><span class="code-dot"></span><span id="codeTitle">gmp.go</span></div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+
+</div>
+
+<!-- controls -->
+<div class="controls">
+  <button class="ctrl-btn" id="btnReset">⏮ 重置</button>
+  <button class="ctrl-btn" id="btnPrev">← 上一步</button>
+  <button class="ctrl-btn primary" id="btnNext">下一步 →</button>
+  <span style="margin-left:auto;font-size:.76rem;color:var(--dim2)" id="ctrlCtr"></span>
+</div>
+
+<!-- extras -->
+<div class="extras">
+
+  <!-- interview questions -->
+  <div class="ext-section">
+    <div class="ext-hd">
+      <div class="ext-hd-bar"></div>
+      <h2>面试题</h2>
+    </div>
+    <div class="qa-grid">
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this)">GMP 中 G、M、P 各自的职责是什么？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a"><strong style="color:var(--text)">G（Goroutine）</strong>：用户态执行单元，包含函数栈（初始 2KB）和调度状态。<br><strong style="color:var(--text)">M（Machine）</strong>：OS 线程，与内核直接交互，执行 G 的代码，数量上限默认 10000。<br><strong style="color:var(--text)">P（Processor）</strong>：逻辑处理器，持有本地 runq（最多 256 个 G）和内存缓存（mcache）。M 必须持有 P 才能执行 G。P 的数量默认等于 CPU 核数（<code>GOMAXPROCS</code>）。</div>
+      </div>
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this)">什么是 work-stealing？为什么需要它？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">当一个 P 的本地 runq 为空时，它会随机选择另一个 P，从其 runq 后半段偷走一半 G（最多 128 个）放入自己的 runq。<br><strong style="color:var(--text)">目的</strong>：平衡 CPU 负载，防止部分 CPU 空转而其他 CPU 积压。让整体吞吐接近最优，无需中央调度器协调。<br><strong style="color:var(--text)">代价</strong>：偷取时需要持有目标 P 的 runq 锁（短暂），多核下很少成为瓶颈。</div>
+      </div>
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this)">goroutine 阻塞在网络 I/O 时，M 会阻塞吗？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a"><strong style="color:var(--text)">不会</strong>。Go 使用 <strong style="color:var(--text)">netpoller</strong>（基于 epoll/kqueue/iocp）。当 goroutine 调用 <code>net.Read/Write</code> 时：<br>1. 运行时将其注册到 netpoller，G 进入等待状态<br>2. M 立即释放该 G，从 runq 取下一个 G 继续执行<br>3. I/O 就绪时，netpoller 把 G 重新放入 runq<br>这让 Go 用少量 OS 线程承载大量并发网络连接。</div>
+      </div>
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this)">blocking syscall 和网络 I/O 阻塞有什么区别？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">网络 I/O 走 netpoller，M 不阻塞。<strong style="color:var(--text)">Blocking syscall</strong>（如 <code>syscall.Read</code> 直接调用）无法被 netpoller 接管：<br>1. M 调用 syscall，陷入内核，P 与 M 解绑<br>2. P 被其他空闲 M（或新建 M）接管，继续执行其他 G<br>3. syscall 返回时，原 M 尝试取回 P；失败则 G 进入全局 runq，M 进入休眠<br><strong style="color:var(--text)">避免大量 blocking syscall</strong>：会创建大量 M，增加上下文切换开销。</div>
+      </div>
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this)">GOMAXPROCS 设为 1 时，Go 还有并发吗？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">有并发，但没有并行。<strong style="color:var(--text)">GOMAXPROCS=1</strong> 时只有一个 P，所有 G 串行执行（M 时间片轮流运行 G）。<br>协作式切换点：<code>channel</code> 操作、<code>syscall</code>、<code>runtime.Gosched()</code>、函数调用（抢占检查）。<br>Go 1.14+ 使用<strong style="color:var(--text)">异步抢占</strong>，即使没有切换点也能强制抢占长时间运行的 goroutine（通过信号 SIGURG）。</div>
+      </div>
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this)">全局 runq 和本地 runq 的区别？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a"><strong style="color:var(--text)">本地 runq（P.runq）</strong>：每个 P 独有，容量 256，无锁 FIFO 环形队列，入队出队都是原子操作，访问极快。<br><strong style="color:var(--text)">全局 runq（sched.runq）</strong>：有全局锁，访问较慢。溢出时（本地 runq 满）G 批量迁移到这里。<br>调度优先级：本地 runq → 全局 runq（每 61 次调度强制检查一次）→ work-stealing → netpoller。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- pitfalls -->
+  <div class="ext-section">
+    <div class="ext-hd">
+      <div class="ext-hd-bar" style="background:var(--m)"></div>
+      <h2>易错点</h2>
+    </div>
+    <div class="pitfall-grid">
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ goroutine 泄漏：没有退出路径</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">leak</span>() {
+    <span class="kw">go</span> <span class="kw">func</span>() {
+        <span class="kw">for</span> {
+            <span class="cm">// 永远不退出</span>
+            <span class="fn">doWork</span>()
+        }
+    }()
+}</pre>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">func</span> <span class="fn">safe</span>(ctx context.<span class="id">Context</span>) {
+    <span class="kw">go</span> <span class="kw">func</span>() {
+        <span class="kw">for</span> {
+            <span class="kw">select</span> {
+            <span class="kw">case</span> &lt;-ctx.<span class="fn">Done</span>():
+                <span class="kw">return</span> <span class="cm">// 有退出路径</span>
+            <span class="kw">default</span>:
+                <span class="fn">doWork</span>()
+            }
+        }
+    }()
+}</pre>
+            <p><strong>规则：</strong>每个 goroutine 启动时就要设计好退出条件。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ GOMAXPROCS 在容器中可能取错</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// 默认读宿主机 CPU 数</span>
+<span class="cm">// 容器限制 2 核，宿主 64 核</span>
+<span class="cm">// GOMAXPROCS = 64（错误！）</span>
+<span class="cm">// 导致过多 M 争抢 CPU</span>
+
+<span class="kw">import</span> <span class="st">"runtime"</span>
+runtime.<span class="fn">GOMAXPROCS</span>(runtime.<span class="fn">NumCPU</span>())</pre>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 用 automaxprocs 自动读取</span>
+<span class="cm">// cgroup 中的 CPU 配额</span>
+<span class="kw">import</span> (
+    _ <span class="st">"go.uber.org/automaxprocs"</span>
+)</pre>
+            <p><strong>原因：</strong><code>runtime.NumCPU()</code> 读宿主机 CPU 数，容器内不准确。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 在 init() 或全局变量中启动 goroutine</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="kw">var</span> bg = <span class="fn">startBackground</span>()
+
+<span class="kw">func</span> <span class="fn">startBackground</span>() chan <span class="kw">struct</span>{} {
+    ch := <span class="fn">make</span>(<span class="kw">chan</span> <span class="kw">struct</span>{})
+    <span class="kw">go</span> <span class="fn">worker</span>(ch) <span class="cm">// 无法取消！</span>
+    <span class="kw">return</span> ch
+}</pre>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="kw">type</span> <span class="id">Service</span> <span class="kw">struct</span>{ cancel <span class="kw">func</span>() }
+
+<span class="kw">func</span> <span class="fn">New</span>() *<span class="id">Service</span> { <span class="kw">return</span> &amp;<span class="id">Service</span>{} }
+
+<span class="kw">func</span> (s *<span class="id">Service</span>) <span class="fn">Start</span>(ctx context.<span class="id">Context</span>) {
+    ctx, s.cancel = context.<span class="fn">WithCancel</span>(ctx)
+    <span class="kw">go</span> <span class="fn">worker</span>(ctx)
+}
+<span class="kw">func</span> (s *<span class="id">Service</span>) <span class="fn">Stop</span>() { s.<span class="fn">cancel</span>() }</pre>
+            <p><strong>规则：</strong>goroutine 必须有明确的 owner，能通过 context 或 channel 控制停止。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 误解"P 的数量 = 并发数"</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// 常见误解：</span>
+<span class="cm">// GOMAXPROCS=4 表示</span>
+<span class="cm">// 最多同时运行 4 个 goroutine</span>
+
+<span class="cm">// 实际上：</span>
+<span class="cm">// 最多 4 个 G 并行执行</span>
+<span class="cm">// 但有成千上万个 G 并发存在</span></pre>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// P 控制的是"并行"（同时在 CPU 上）</span>
+<span class="cm">// 不影响"并发"（goroutine 总数）</span>
+
+<span class="cm">// 阻塞在 I/O 的 G 不占 P</span>
+<span class="cm">// 100万个网络连接可以只用少量 P</span>
+<span class="cm">// 因为大多数 G 在等待 I/O</span></pre>
+            <p><strong>关键：</strong>P 数量只影响 CPU 密集任务的并行度，I/O 密集任务不受限。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Syntax highlighter ──
+function goHL(code) {
+  return code
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/`[^`]*`|"(?:[^"\\]|\\.)*"/g, m=>`<span class="st">${m}</span>`)
+    .replace(/\/\/.*/g, m=>`<span class="cm">${m}</span>`)
+    .replace(/\b(package|import|func|return|for|if|else|var|const|type|struct|interface|map|chan|go|defer|select|case|break|continue|range|make|new|len|cap|append|close|nil|true|false|int|int64|string|bool|byte|error|any)\b/g,'<span class="kw">$1</span>')
+    .replace(/\b(fmt|sync|atomic|runtime|context|net|os|syscall|time)\b/g,'<span class="pkg">$1</span>')
+    .replace(/\b([A-Z][a-zA-Z0-9]*)\b/g,'<span class="id">$1</span>')
+    .replace(/\b(\d+)\b/g,'<span class="num">$1</span>')
+    .replace(/\b([a-z][a-zA-Z0-9_]*)(?=\s*\()/g,'<span class="fn">$1</span>');
+}
+
+function renderCode(lines, highlights) {
+  const body = document.getElementById('codeBody');
+  body.innerHTML = lines.map((l,i)=>{
+    const cls = highlights && highlights.includes(i) ? 'cl hi' : 'cl';
+    return `<div class="${cls}"><span class="ln">${i+1}</span><span class="lc">${goHL(l)}</span></div>`;
+  }).join('');
+  if (highlights && highlights.length) {
+    const first = body.querySelectorAll('.hi')[0];
+    if (first) first.scrollIntoView({block:'nearest',behavior:'smooth'});
+  }
+}
+
+// ── SVG helpers ──
+function defs() {
+  return `<defs>
+    <marker id="arr" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto">
+      <polygon points="0 0,7 3.5,0 7" fill="#475569"/>
+    </marker>
+    <marker id="arrA" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto">
+      <polygon points="0 0,7 3.5,0 7" fill="#00add8"/>
+    </marker>
+    <marker id="arrG" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto">
+      <polygon points="0 0,7 3.5,0 7" fill="#38bdf8"/>
+    </marker>
+    <marker id="arrM" markerWidth="7" markerHeight="7" refX="7" refY="3.5" orient="auto">
+      <polygon points="0 0,7 3.5,0 7" fill="#fb923c"/>
+    </marker>
+    <filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>`;
+}
+
+function rect(x,y,w,h,label,sub,color,active,rx) {
+  rx = rx||12;
+  const fill = active ? `rgba(${hexToRgb(color)},.18)` : 'rgba(255,255,255,.04)';
+  const stroke = active ? color : '#334155';
+  const sw = active ? 2 : 1.4;
+  const filt = active ? ' filter="url(#glow)"' : '';
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"${filt}/>
+<text x="${x+w/2}" y="${y+h/2-(sub?8:2)}" text-anchor="middle" fill="${active?color:'#e2e8f0'}" font-size="12" font-weight="700" font-family="Segoe UI,system-ui,sans-serif">${label}</text>
+${sub?`<text x="${x+w/2}" y="${y+h/2+12}" text-anchor="middle" fill="#64748b" font-size="9" font-family="Segoe UI,system-ui,sans-serif">${sub}</text>`:''}`;
+}
+
+function gbubble(x,y,label,color,active) {
+  const fill = active ? color : '#334155';
+  const filt = active ? ' filter="url(#glow)"' : '';
+  return `<circle cx="${x}" cy="${y}" r="13" fill="${fill}" stroke="${active?color:'#475569'}" stroke-width="${active?2:1}"${filt}/>
+<text x="${x}" y="${y+4}" text-anchor="middle" fill="${active?'#0f172a':'#94a3b8'}" font-size="10" font-weight="700" font-family="monospace">${label}</text>`;
+}
+
+function arrow(x1,y1,x2,y2,color,dashed,anim) {
+  const style = `stroke:${color};stroke-width:1.8;fill:none;marker-end:url(#${color==='#00add8'?'arrA':color==='#38bdf8'?'arrG':color==='#fb923c'?'arrM':'arr'})`;
+  const da = dashed ? ' stroke-dasharray="5 3"' : '';
+  const cls = anim ? ' class="flow-arrow"' : '';
+  return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" style="${style}"${da}${cls}/>`;
+}
+
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `${r},${g},${b}`;
+}
+
+function label(x,y,text,color,size) {
+  return `<text x="${x}" y="${y}" fill="${color||'#94a3b8'}" font-size="${size||9}" font-family="monospace">${text}</text>`;
+}
+
+// ── SCENARIOS ──
+const SCENARIOS = [
+  {
+    id:'normal', name:'正常调度',
+    steps:[
+      {title:'创建 Goroutine',desc:'执行 go func(){}() 时，runtime 创建一个新 G 结构体，优先放入当前 P 的本地 runq（无锁操作）。若本地 runq 已满（256个），则批量移入全局队列。'},
+      {title:'M 从 runq 取 G',desc:'M 进入调度循环，先检查本地 runq：取队首的 G。每 61 次循环会强制从全局队列取一次，防止全局队列的 G 饥饿。'},
+      {title:'M 绑定 G 执行',desc:'M 将 G 与自身绑定，在当前 P 的上下文（内存缓存等）下执行 G 的函数。此时 G 状态从 runnable → running。'},
+      {title:'G 执行完成',desc:'G 的函数返回后，M 解绑 G，G 状态变为 dead（可被复用）。M 立即回到调度循环，取下一个 G 继续执行，不回归 OS 线程池。'}
+    ],
+    code:[
+      '// 正常 goroutine 调度流程',
+      'package main',
+      '',
+      '// 1. 创建 goroutine：放入 P 的本地 runq',
+      'func main() {',
+      '    go task()  // G 入 P1.runq[tail]',
+      '    go task()  // G 入 P1.runq[tail]',
+      '    // ...',
+      '}',
+      '',
+      '// 2. M 的调度循环（简化）',
+      'func schedule(p *P) {',
+      '    // 每 61 次从全局队列取（防饥饿）',
+      '    if p.schedtick%61 == 0 {',
+      '        if g := globalRunq.pop(); g != nil {',
+      '            execute(p, g); return',
+      '        }',
+      '    }',
+      '    // 优先本地队列（无锁）',
+      '    if g := p.runq.pop(); g != nil {',
+      '        execute(p, g); return',
+      '    }',
+      '}',
+      '',
+      '// 3. 执行并回收',
+      'func execute(p *P, g *G) {',
+      '    g.status = _Grunning',
+      '    goexit0(g)  // 执行完后回调度循环',
+      '}'
+    ],
+    hl:[[5,6],[13,14,15,16,19,20],[25,26],[26,27]],
+    render(s){
+      const svg = document.getElementById('diagramSvg');
+      const a = s>=1, b = s>=2, c = s>=3, d = s>=4;
+      svg.innerHTML = defs() + `
+<!-- Global Queue -->
+${rect(430,20,175,50,'Global Queue','全局 runq（有锁）','#4ade80',false,10)}
+${gbubble(452,45,'G5',a?'#64748b':'#334155',false)}
+${gbubble(472,45,'G6',false,false)}
+${gbubble(492,45,'G7',false,false)}
+
+<!-- P1 -->
+${rect(30,100,240,110,'P1','Processor · 本地 runq','#c084fc',true)}
+${label(44,125,'runq [0..255]','#c084fc',9)}
+${gbubble(70,150,'G1',a?'#38bdf8':'#334155',a&&!b)}
+${gbubble(100,150,'G2',a?'#38bdf8':'#334155',a&&!b)}
+${gbubble(130,150,'G3',a?'#38bdf8':'#334155',a&&!b)}
+${gbubble(160,150,'G4',b?'#fb923c':'#334155',b)}
+${label(44,190,'← 队首 (下次执行)','#64748b',9)}
+
+<!-- M -->
+${rect(30,260,140,70,'M (OS thread)',b?'持有 G4 执行中':'等待 G','#fb923c',b||c)}
+${b||c ? gbubble(180,295,'G4','#fb923c',true) : ''}
+${b||c ? arrow(170,295,185,295,'#fb923c',false,c) : ''}
+
+<!-- 完成状态 -->
+${d ? rect(330,260,120,70,'G4 → dead','函数已返回','#4ade80',true) : ''}
+
+<!-- arrows -->
+${a ? arrow(280,45,430,45,'#4ade80',true,false) : ''}
+${b ? arrow(240,150,220,150,'#00add8',false,true) : ''}
+${b ? arrow(30,295,180,295,'#fb923c',false,false) : ''}
+${d ? arrow(170,295,330,295,'#4ade80',false,true) : ''}
+
+<!-- labels -->
+${label(30,345,'G=#38bdf8  M=#fb923c  P=#c084fc','#475569',9)}
+      `;
+    }
+  },
+  {
+    id:'steal', name:'Work Stealing',
+    steps:[
+      {title:'P1 本地队列为空',desc:'P1 绑定的 M 完成了所有本地 G，本地 runq 清空。M 先检查全局队列，也为空（或有锁竞争）。'},
+      {title:'P1 扫描其他 P',desc:'M 触发 work-stealing：随机选一个受害者 P（这里是 P2）。检查 P2 的本地 runq 大小，发现有 4 个 G 可偷。'},
+      {title:'偷取 P2 一半的 G',desc:'P1 从 P2 的 runq 尾部偷走一半（2个）G，放入自己的本地 runq 头部。整个偷取操作在 P2 的 runq 锁下完成，时间极短。'},
+      {title:'P1 开始执行偷来的 G',desc:'P1 本地 runq 现在有 2 个 G，M 取 G5 开始执行。P2 继续执行自己剩下的 G3、G4，两个 P 并行推进，CPU 利用率恢复满载。'}
+    ],
+    code:[
+      '// Work-stealing 核心逻辑（简化）',
+      '',
+      'func stealWork(thisp *P) *G {',
+      '    // 随机选受害者 P（打乱顺序防止争抢）',
+      '    order := randomOrder(allp)',
+      '    for _, p := range order {',
+      '        if p == thisp { continue }',
+      '        n := len(p.runq)',
+      '        if n == 0 { continue }',
+      '        // 偷走一半（最多 128 个）',
+      '        batch := n / 2',
+      '        if batch == 0 { batch = 1 }',
+      '        // 从 p.runq 尾部取 batch 个',
+      '        stolen := p.runq.popTail(batch)',
+      '        // 放入 thisp.runq 头部',
+      '        thisp.runq.pushHead(stolen...)',
+      '        return thisp.runq.pop() // 立即取一个执行',
+      '    }',
+      '    return nil',
+      '}'
+    ],
+    hl:[[],[6,7,8,9],[10,11,12,13,14,15],[16,17]],
+    render(s){
+      const svg = document.getElementById('diagramSvg');
+      const a = s>=1, b = s>=2, c = s>=3, d = s>=4;
+      svg.innerHTML = defs() + `
+<!-- P1 (empty → filling) -->
+${rect(30,60,200,140,'P1 (this)','本地 runq','#c084fc',true)}
+${label(44,85,'runq','#c084fc',9)}
+${c||d ? gbubble(70,120,'G5','#38bdf8',d) : label(60,125,'(empty)','#64748b',10)}
+${c||d ? gbubble(100,120,'G6','#38bdf8',false) : ''}
+${d ? gbubble(140,120,'','#334155',false) : ''}
+<!-- M1 -->
+${rect(30,240,200,70,'M1 (OS thread)',d?'执行 G5':'等待...','#fb923c',d)}
+
+<!-- P2 (victim) -->
+${rect(360,60,230,140,'P2 (victim)','本地 runq','#c084fc',b)}
+${label(375,85,'runq','#c084fc',9)}
+${gbubble(400,115,'G3','#38bdf8',false)}
+${gbubble(430,115,'G4','#38bdf8',false)}
+${gbubble(460,115,'G5',c?'#64748b':'#38bdf8',!c&&!d)}
+${gbubble(490,115,'G6',c?'#64748b':'#38bdf8',!c&&!d)}
+<!-- M2 -->
+${rect(360,240,230,70,'M2 (OS thread)','继续执行 G3/G4','#fb923c',true)}
+
+<!-- steal arrow -->
+${b||c||d ? `<path d="M 250 120 C 310 100 310 140 360 120" stroke="${c?'#00add8':'#475569'}" stroke-width="2" fill="none" marker-end="url(#${c?'arrA':'arr'})" ${c?'class="flow-arrow"':''}/>` : ''}
+${b ? label(270,98,'偷 50%','#00add8',10) : ''}
+${c ? `<path d="M 460 130 C 350 160 200 155 150 130" stroke="#00add8" stroke-width="1.8" fill="none" marker-end="url(#arrA)" class="flow-arrow"/>` : ''}
+
+${label(30,335,'Step: P 本地 runq 空 → 随机选受害者 → 偷后半 → 执行','#475569',9)}
+      `;
+    }
+  },
+  {
+    id:'netpoll', name:'Netpoll I/O',
+    steps:[
+      {title:'G 调用 net.Read()',desc:'goroutine G1 调用 conn.Read()，底层触发非阻塞 syscall（设置 O_NONBLOCK）。若数据未就绪（EAGAIN），走 netpoller 路径而非阻塞 M。'},
+      {title:'G 注册到 netpoller',desc:'runtime 将 fd 和 G1 注册到 netpoller（Linux 上是 epoll_ctl ADD）。G1 状态变为 waiting，从 P 的 runq 中移出。M 完全不阻塞。'},
+      {title:'M 继续执行其他 G',desc:'M 立即从 P 的本地 runq 取出 G2 继续执行。一个 M 可以承载成千上万个并发网络连接，因为大多数 G 都在等待 I/O。'},
+      {title:'I/O 就绪，G 恢复',desc:'网络数据到达，内核通知 epoll。Go runtime 的 netpoll 线程（sysmon 或 findrunnable）读取 epoll 事件，将 G1 重新放回 runq，G1 从 conn.Read() 返回数据。'}
+    ],
+    code:[
+      '// net.Read 底层不阻塞 M',
+      '',
+      '// 1. G 调用网络读取',
+      'func read(conn net.Conn, buf []byte) {',
+      '    n, err := conn.Read(buf)',
+      '    // 底层触发 netpoll 注册，G 挂起',
+      '    // M 继续执行其他 G',
+      '    // I/O 就绪后，G 在此行恢复',
+      '    _ = n',
+      '}',
+      '',
+      '// 2. runtime 内部（简化）',
+      'func netpollblock(pd *pollDesc) {',
+      '    // 将当前 G 挂到 pollDesc',
+      '    g := getg()',
+      '    pd.rg.Store(g)',
+      '    // 让出 M（gopark）',
+      '    gopark(netpollblockcommit, pd)',
+      '    // ← G 在这里被唤醒继续执行',
+      '}',
+      '',
+      '// 3. sysmon 线程轮询 epoll',
+      'func netpoll(delay int64) gList {',
+      '    events := epollwait(epfd, ...)',
+      '    for _, e := range events {',
+      '        g := pd.rg.Load()  // 取出等待的 G',
+      '        toRun.push(g)      // 放回 runq',
+      '    }',
+      '    return toRun',
+      '}'
+    ],
+    hl:[[4,5,6,7],[12,13,14,15,16,17],[],[22,23,24,25,26,27]],
+    render(s){
+      const svg = document.getElementById('diagramSvg');
+      const a = s>=1, b = s>=2, c = s>=3, d = s>=4;
+      svg.innerHTML = defs() + `
+<!-- G1 position -->
+${rect(30,50,130,70,'G1',a?'调用 net.Read()':b?'waiting (I/O)':d?'恢复执行':'goroutine','#38bdf8',true)}
+
+<!-- Netpoller / epoll -->
+${rect(360,50,240,70,'netpoller (epoll)',b?'G1 已注册 fd':'等待事件','#fbbf24',b||d)}
+${b ? label(375,135,'G1 → fd #7 → EPOLLIN','#fbbf24',9) : ''}
+
+<!-- M + P -->
+${rect(30,200,280,110,'P1 · M (OS thread)',c?'执行 G2（G1 不占 M）':'持有 P','#fb923c',c)}
+${c||d ? gbubble(80,255,'G2','#38bdf8',c) : ''}
+${c ? label(110,255,'执行中','#fb923c',9) : ''}
+
+<!-- arrows -->
+${a ? arrow(160,85,360,85,'#38bdf8',false,true) : ''}
+${a ? label(220,78,'O_NONBLOCK read→EAGAIN','#64748b',9) : ''}
+${b ? `<path d="M 95 120 L 95 200" stroke="#c084fc" stroke-width="1.8" fill="none" marker-end="url(#arr)" stroke-dasharray="4 3"/>` : ''}
+${b ? label(100,165,'gopark → 让出 M','#c084fc',9) : ''}
+${d ? `<path d="M 360 85 C 300 85 200 85 160 85" stroke="#fbbf24" stroke-width="2" fill="none" marker-end="url(#arrM)" class="flow-arrow"/>` : ''}
+${d ? label(220,75,'epoll 事件 → G1 入 runq','#fbbf24',9) : ''}
+
+${label(30,340,'netpoller 让 M 不阻塞，用少量线程承载海量并发连接','#475569',9)}
+      `;
+    }
+  },
+  {
+    id:'syscall', name:'Blocking Syscall',
+    steps:[
+      {title:'G 调用 blocking syscall',desc:'G1 调用一个真正阻塞的系统调用（如 syscall.Read 直接调用，或 CGO）。这种调用无法被 netpoller 接管，M 必须阻塞在内核态。'},
+      {title:'P 与 M1 解绑',desc:'sysmon 检测到 M1 在 syscall 中超时（约 20μs），触发 handoff：P 与 M1 解绑。P 进入 idle P 列表，等待被其他 M 接管。'},
+      {title:'新 M 接管 P',desc:'空闲 M2（或新创建的 M）从 idle P 列表取走 P，继续执行 P 上的其他 G。整个过程中 P 的 runq 里的 G 不受影响，CPU 利用率恢复。'},
+      {title:'M1 从 syscall 返回',desc:'系统调用返回，M1 尝试重新绑定 P。若没有空闲 P，则把 G1 放入全局 runq，M1 进入 m.park 休眠，等待下次被唤醒。G1 最终被某个 P 的 M 执行。'}
+    ],
+    code:[
+      '// Blocking syscall 触发 P 解绑',
+      '',
+      '// 1. 进入 syscall 前通知 runtime',
+      'func entersyscall() {',
+      '    g := getg()',
+      '    g.status = _Gsyscall',
+      '    // 记录进入时间供 sysmon 检测',
+      '    g.sysStartTime = nanotime()',
+      '    // P 与 M 暂时解绑（软解绑）',
+      '    pp := g.m.p.ptr()',
+      '    pp.status = _Psyscall',
+      '}',
+      '',
+      '// 2. sysmon 检测并执行 handoff',
+      'func retake(now int64) {',
+      '    for _, p := range allp {',
+      '        if p.status == _Psyscall {',
+      '            // 超过 20μs 强制 handoff',
+      '            if now-p.syscallTick > 20000 {',
+      '                handoffp(p) // P 交给其他 M',
+      '            }',
+      '        }',
+      '    }',
+      '}',
+      '',
+      '// 3. syscall 返回后抢 P',
+      'func exitsyscall() {',
+      '    if p := acquirep(); p != nil {',
+      '        // 抢到 P，继续执行',
+      '        return',
+      '    }',
+      '    // 没有空闲 P：G 进全局 runq，M 休眠',
+      '    globRunqPut(g)',
+      '    stopm() // M 休眠等待',
+      '}'
+    ],
+    hl:[[4,5,6,7,8,9,10,11],[15,16,17,18,19,20],[],[27,28,29,30,31,32,33]],
+    render(s){
+      const svg = document.getElementById('diagramSvg');
+      const a = s>=1, b = s>=2, c = s>=3, d = s>=4;
+      svg.innerHTML = defs() + `
+<!-- G1 in syscall -->
+${rect(30,50,155,80,'G1',a?'blocking syscall':'goroutine','#38bdf8',a&&!d)}
+${a ? label(44,143,'syscall.Read (阻塞中)','#38bdf8',9) : ''}
+
+<!-- M1 -->
+${rect(30,200,155,80,'M1 (OS thread)',b?'阻塞在内核态':a?'进入 syscall':'空闲','#fb923c',a)}
+${b ? `<text x="107" y="256" text-anchor="middle" fill="#f87171" font-size="10" font-family="monospace">⛔ blocked in kernel</text>` : ''}
+
+<!-- P -->
+${rect(240,50,160,80,'P',b?'idle（已解绑）':c?'被 M2 接管':'绑定 M1','#c084fc',!b||c)}
+
+<!-- M2 -->
+${c||d ? rect(240,200,160,80,'M2 (OS thread)',c?'接管 P，执行 G2/G3':'','#fb923c',c) : ''}
+
+<!-- Global runq -->
+${d ? rect(450,200,155,80,'Global runq',d?'G1 在此等待':'','#4ade80',d) : ''}
+
+<!-- arrows -->
+${a ? arrow(185,90,240,90,'#38bdf8',false,true) : ''}
+${a ? label(195,82,'hold P','#64748b',9) : ''}
+${b ? `<path d="M 320 130 L 320 200" stroke="#c084fc" stroke-width="2" fill="none" marker-end="url(#arr)" stroke-dasharray="5 3"/>` : ''}
+${b ? label(326,170,'handoff','#c084fc',9) : ''}
+${c ? arrow(240,240,240,240,'#fb923c',false,false) : ''}
+${d ? arrow(185,250,450,250,'#38bdf8',false,true) : ''}
+${d ? label(270,244,'G1 → global runq','#64748b',9) : ''}
+
+${label(30,340,'P 解绑让 CPU 不因 syscall 空转；M 数量上限防止过度创建线程','#475569',9)}
+      `;
+    }
+  }
+];
+
+// ── State ──
+let curScene = 0;
+let curStep = 0;
+
+function getSteps() { return SCENARIOS[curScene].steps; }
+function totalSteps() { return getSteps().length; }
+
+function render() {
+  const sc = SCENARIOS[curScene];
+  const steps = sc.steps;
+  const step = steps[curStep];
+
+  // step card
+  document.getElementById('stepNum').textContent = `步骤 ${curStep+1} / ${totalSteps()}`;
+  document.getElementById('stepTitle').textContent = step.title;
+  document.getElementById('stepDesc').textContent = step.desc;
+
+  // flow nav dots
+  const fn = document.getElementById('flowNav');
+  fn.innerHTML = '';
+  steps.forEach((_,i)=>{
+    const d = document.createElement('button');
+    d.className = 'fn-dot ' + (i < curStep ? 'done' : i === curStep ? 'cur' : '');
+    d.textContent = i+1;
+    d.addEventListener('click', ()=>{ curStep=i; render(); });
+    fn.appendChild(d);
+  });
+  const ctr = document.createElement('span');
+  ctr.className = 'step-ctr';
+  ctr.textContent = `${curStep+1}/${totalSteps()}`;
+  fn.appendChild(ctr);
+
+  // diagram
+  sc.render(curStep+1);
+
+  // code
+  const hl = sc.hl[curStep] || [];
+  renderCode(sc.code, hl);
+
+  // controls
+  document.getElementById('btnPrev').disabled = curStep === 0;
+  document.getElementById('btnNext').disabled = curStep === totalSteps()-1;
+  document.getElementById('ctrlCtr').textContent = `场景 ${curScene+1}/4  步骤 ${curStep+1}/${totalSteps()}`;
+}
+
+function initScenarios() {
+  const container = document.getElementById('scenarios');
+  SCENARIOS.forEach((sc,i)=>{
+    const btn = document.createElement('button');
+    btn.className = 'sc-btn' + (i===0?' active':'');
+    btn.textContent = sc.name;
+    btn.addEventListener('click', ()=>{
+      curScene = i;
+      curStep = 0;
+      document.querySelectorAll('.sc-btn').forEach((b,j)=>b.classList.toggle('active',j===i));
+      render();
+    });
+    container.appendChild(btn);
+  });
+}
+
+document.getElementById('btnReset').addEventListener('click',()=>{ curStep=0; render(); });
+document.getElementById('btnPrev').addEventListener('click',()=>{ if(curStep>0){curStep--;render();} });
+document.getElementById('btnNext').addEventListener('click',()=>{ if(curStep<totalSteps()-1){curStep++;render();} });
+
+function toggleQA(el) {
+  el.closest('.qa-card').classList.toggle('open');
+}
+
+initScenarios();
+render();
+
+if(window.NavTracker) NavTracker.track('GMP 调度器','golang/gmp.html','⚙️','Golang');
+</script>
+<script src="../footer.js"></script>
+</body>
+</html>
