@@ -4,496 +4,365 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Redis 内存淘汰策略 - 可视化学习</title>
-<style>
-:root{
-  --bg:#0f172a; --panel:#1e293b; --panel2:#0d1117;
-  --border:#334155; --text:#e2e8f0; --dim:#94a3b8; --dim2:#64748b;
-  --blue:#38bdf8; --yellow:#fbbf24; --orange:#fb923c;
-  --green:#4ade80; --purple:#c084fc; --red:#f87171; --teal:#2dd4bf;
-  --redis:#dc382c;
-}
-*{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
-nav{display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;flex-wrap:wrap;}
-.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;transition:color 0.15s;}.back-btn:hover{color:var(--text);}
-nav h1{font-size:1.15rem;font-weight:600;}
-.badges{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;}
-.badge{font-size:0.72rem;padding:3px 10px;border-radius:100px;font-family:monospace;font-weight:500;}
-.main{display:flex;flex:1;overflow:hidden;}
-.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
-.viz-area{flex:1;overflow-y:auto;padding:20px 24px;}
-.desc-box{padding:10px 20px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:48px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
-.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
-.code-panel{width:46%;min-width:360px;display:flex;flex-direction:column;overflow:hidden;}
-.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
-.code-dot{width:10px;height:10px;border-radius:50%;}
-.code-body{flex:1;overflow-y:auto;padding:10px 0;background:var(--panel2);}
-.code-body::-webkit-scrollbar{width:5px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
-.code-line{display:flex;align-items:stretch;padding:0;cursor:pointer;transition:background 0.12s;font-family:'JetBrains Mono',monospace;font-size:0.8rem;line-height:1.65;}
-.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
-.ln{min-width:44px;padding:0 10px 0 14px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.76rem;}
-.lc{padding:0 14px 0 4px;flex:1;}
-.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;}.id{color:#e6edf3;}
-.controls{display:flex;align-items:center;gap:8px;padding:10px 20px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
-.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:6px 14px;border-radius:7px;cursor:pointer;font-size:0.83rem;transition:all 0.15s;}
-.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(220,56,44,0.15);border-color:rgba(220,56,44,0.4);color:var(--redis);}
-.btn:disabled{opacity:0.38;cursor:not-allowed;}
-.speed-wrap{display:flex;align-items:center;gap:6px;margin-left:auto;font-size:0.78rem;color:var(--dim);}
-input[type=range]{-webkit-appearance:none;width:80px;height:3px;background:var(--border);border-radius:2px;outline:none;}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--redis);cursor:pointer;}
-
-/* Viz */
-.mem-bar-wrap{margin-bottom:16px;}
-.mem-bar{height:28px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:6px;overflow:hidden;position:relative;}
-.mem-fill{height:100%;transition:width 0.5s ease;border-radius:4px;display:flex;align-items:center;padding-left:10px;font-size:0.78rem;font-weight:600;}
-.mem-label{font-size:0.8rem;color:var(--dim);margin-bottom:6px;display:flex;justify-content:space-between;}
-.key-pool{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
-.key-item{padding:6px 12px;border-radius:6px;font-family:monospace;font-size:0.8rem;border:1px solid;transition:all 0.4s;position:relative;}
-.key-item.evict{background:rgba(248,113,113,0.15)!important;border-color:rgba(248,113,113,0.5)!important;color:var(--red)!important;text-decoration:line-through;transform:scale(0.95);}
-.key-item.sample{box-shadow:0 0 8px var(--yellow);border-color:var(--yellow)!important;}
-.policy-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:1px solid;margin-bottom:10px;font-size:0.83rem;}
-.policy-name{font-family:monospace;font-weight:600;min-width:140px;}
-.policy-desc{color:var(--dim);flex:1;}
-.policy-tag{font-size:0.7rem;padding:2px 8px;border-radius:10px;font-family:monospace;}
-.lru-clock{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
-.clock-item{padding:4px 10px;border-radius:5px;font-family:monospace;font-size:0.78rem;background:rgba(255,255,255,0.05);border:1px solid var(--border);transition:all 0.4s;}
-.clock-item .clock-label{color:var(--dim2);font-size:0.68rem;}
-.clock-item.hot{border-color:rgba(56,189,248,0.4);background:rgba(56,189,248,0.08);color:var(--blue);}
-.clock-item.cold{border-color:rgba(248,113,113,0.4);background:rgba(248,113,113,0.08);color:var(--red);}
-.freq-bar{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
-.freq-key{font-family:monospace;font-size:0.8rem;min-width:80px;color:var(--text);}
-.freq-track{flex:1;height:12px;background:rgba(255,255,255,0.05);border-radius:3px;overflow:hidden;}
-.freq-fill{height:100%;border-radius:3px;transition:width 0.5s;}
-.freq-val{font-size:0.75rem;color:var(--dim);min-width:35px;text-align:right;font-family:monospace;}
-
-@media(max-width:768px){
-  body{height:auto!important;min-height:100vh;overflow-y:auto!important;}
-  nav{flex-wrap:wrap;padding:8px 14px;gap:6px;}
-  nav h1{font-size:0.95rem;}
-  .badges{margin-left:0!important;width:100%;order:3;}
-  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
-  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:340px!important;min-height:340px!important;flex:none!important;}
-  .code-panel{width:100%!important;min-width:unset!important;height:320px!important;flex:none!important;}
-  .controls{flex-wrap:wrap!important;gap:5px!important;height:auto!important;}
-  .speed-wrap{margin-left:0!important;width:100%;justify-content:flex-end;}
-}
-</style>
 <script src="../nav.js"></script>
 <script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#f87171;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 18%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}a{color:inherit}.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:16px;align-items:stretch;margin-bottom:20px}.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:440px;display:flex;flex-direction:column;padding:18px}.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:radial-gradient(circle at 50% 20%,rgba(255,255,255,.05),transparent 50%),rgba(15,23,42,.64);overflow:hidden;display:flex;align-items:center;justify-content:center;}
+.evict-svg{width:100%;max-width:500px;height:auto;}
+/* SVG key node states */
+.knode{transition:all .3s;}
+.knode circle{fill:rgba(255,255,255,.055);stroke:rgba(255,255,255,.12);stroke-width:1.5;transition:all .3s;}
+.knode text{fill:#94a3b8;font-size:9px;transition:fill .3s;}
+.knode.hot circle{fill:rgba(74,222,128,.12);stroke:#4ade80;stroke-width:2;}
+.knode.hot text{fill:#4ade80;}
+.knode.warm circle{fill:rgba(251,191,36,.12);stroke:#fbbf24;stroke-width:2;}
+.knode.warm text{fill:#fbbf24;}
+.knode.cold circle{fill:rgba(56,189,248,.12);stroke:#38bdf8;stroke-width:2;}
+.knode.cold text{fill:#38bdf8;}
+.knode.evicted circle{fill:rgba(248,113,113,.15);stroke:#f87171;stroke-width:2.5;}
+.knode.evicted text{fill:#f87171;}
+.knode.sampled circle{stroke:var(--warn);stroke-width:2.5;stroke-dasharray:4 2;}
+.knode.protected circle{fill:rgba(74,222,128,.08);stroke:#4ade80;stroke-width:1.5;stroke-dasharray:none;}
+/* Memory container */
+.mem-container{fill:none;stroke:rgba(255,255,255,.15);stroke-width:1.5;rx:8;}
+.mem-fill-bar{transition:width .4s,fill .3s;}
+.sample-frame{fill:none;stroke:var(--warn);stroke-width:1.5;stroke-dasharray:5 3;rx:6;opacity:0;transition:opacity .3s;}
+.sample-frame.visible{opacity:1;}
+/* Eviction arrow */
+.evict-arrow{stroke:var(--bad);stroke-width:2;fill:none;opacity:0;transition:opacity .3s;}
+.evict-arrow.visible{opacity:1;}
+@keyframes evict-pulse{0%,100%{opacity:.6}50%{opacity:1}}
+.evict-arrow.visible{animation:evict-pulse 1s infinite;}
+
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}.status p{color:var(--dim);font-size:.9rem;line-height:1.75}.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}.badge.failure{border-color:var(--bad);color:var(--bad)}.badge.recovery{border-color:var(--ok);color:var(--ok)}.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit}.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}.deep code{background:rgba(248,113,113,.1);color:var(--accent);padding:2px 6px;border-radius:4px;font-size:.82rem}.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}.btn:hover{color:var(--text);border-color:var(--accent)}@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"maxmemory","body":"当 Redis 内存使用达到 maxmemory 上限时，新写入会触发淘汰策略。未设置则内存无上限，可能导致 OOM。生产必须配置。","tag":"配置"},
+  {"title":"采样淘汰","body":"Redis 不维护完整 LRU/LFU 链表，而是随机采样 N 个 key（默认5），从中选出最应淘汰的。牺牲精确度换取 O(1) 内存开销。","tag":"核心机制"},
+  {"title":"Morris Counter","body":"LFU 用 8bit 对数计数器（Morris Counter），每次访问以概率 1/(counter*factor+1) 递增，最大255。结合时间衰减实现频率近似。","tag":"LFU"},
+  {"title":"TTL","body":"volatile-* 策略只对设置了过期时间的 key 生效。纯缓存场景推荐 allkeys-*，混合场景用 volatile-* 保护永久 key。","tag":"策略"}
+];</script>
 </head>
 <body>
-<nav>
-  <a href="index.html" class="back-btn">← 返回</a>
-  <h1>Redis 内存淘汰策略</h1>
-  <div class="badges">
-    <span class="badge" style="background:rgba(220,56,44,0.15);color:#dc382c">LRU</span>
-    <span class="badge" style="background:rgba(56,189,248,0.15);color:#38bdf8">LFU</span>
-    <span class="badge" style="background:rgba(74,222,128,0.15);color:#4ade80">淘汰策略</span>
-  </div>
-</nav>
-<div class="main">
-  <div class="viz-panel">
-    <div class="viz-area" id="vizArea">
-      <div style="color:var(--dim);font-size:0.9rem;padding:20px 0;">点击"下一步"开始演示</div>
-    </div>
-    <div class="desc-box">
-      <span id="descText">当 Redis 内存达到 maxmemory 限制时，根据淘汰策略选择要驱逐的 key。</span>
-      <span class="step-counter" id="stepCounter">0 / 10</span>
-    </div>
-  </div>
-  <div class="code-panel">
-    <div class="code-panel-header">
-      <div class="code-dot" style="background:#ff5f57"></div>
-      <div class="code-dot" style="background:#febc2e"></div>
-      <div class="code-dot" style="background:#28c840"></div>
-      <span style="margin-left:4px" data-base="eviction">eviction.go</span>
-    </div>
-    <div class="code-body" id="codeBody"></div>
-  </div>
-</div>
-<div class="controls">
-  <button class="btn" id="btnReset">⏮ 重置</button>
-  <button class="btn" id="btnPrev">◀ 上一步</button>
-  <button class="btn primary" id="btnPlay">▶ 播放</button>
-  <button class="btn" id="btnNext">下一步 ▶</button>
-  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
-</div>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card"><div class="eyebrow">Redis / 内存管理 / C 类型</div><h1>Redis 内存淘汰策略</h1><p class="summary">当 Redis 使用内存达到 maxmemory 限制时，需要通过淘汰策略（eviction policy）选择并驱逐部分 key 以释放空间。支持 noeviction、LRU、LFU、volatile-ttl 等 8 种策略，各有适用场景。</p><div class="tags"><span>maxmemory</span><span>LRU</span><span>LFU</span><span>volatile</span><span>allkeys</span></div></div>
+    <div class="card"><div class="eyebrow">核心术语</div><ul class="concept-list"><li><strong>maxmemory</strong><span>内存上限配置，达到后触发淘汰或拒绝写入。</span></li><li><strong>采样淘汰</strong><span>随机取 N 个 key 选最差的淘汰，避免全局扫描。</span></li><li><strong>Morris Counter</strong><span>8bit 对数计数器，LFU 核心数据结构。</span></li><li><strong>TTL</strong><span>过期时间，volatile 策略的筛选条件。</span></li></ul></div>
+  </section>
+  <section class="lab">
+    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <svg class="evict-svg" viewBox="0 0 500 380" id="evictSvg">
+          <defs>
+            <marker id="arrEvict" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#f87171"/>
+            </marker>
+          </defs>
+          <!-- Memory container -->
+          <rect class="mem-container" x="30" y="20" width="440" height="50" rx="8"/>
+          <text x="35" y="14" font-size="10" fill="#64748b">Memory Usage</text>
+          <rect id="memFill" class="mem-fill-bar" x="31" y="21" width="220" height="48" rx="7" fill="rgba(74,222,128,.25)"/>
+          <text id="memLabel" x="250" y="50" text-anchor="middle" font-size="11" fill="#94a3b8">50% / maxmemory</text>
+
+          <!-- Sampling frame (hidden by default) -->
+          <rect id="sampleFrame" class="sample-frame" x="80" y="100" width="340" height="130"/>
+
+          <!-- Key nodes -->
+          <g id="k0" class="knode hot">
+            <circle cx="100" cy="140" r="22"/>
+            <text x="100" y="137" text-anchor="middle" font-weight="700">hot:key</text>
+            <text x="100" y="150" text-anchor="middle" font-size="8" fill="#64748b">freq:100</text>
+          </g>
+          <g id="k1" class="knode warm">
+            <circle cx="180" cy="140" r="22"/>
+            <text x="180" y="137" text-anchor="middle" font-weight="700">cache:home</text>
+            <text x="180" y="150" text-anchor="middle" font-size="8" fill="#64748b">freq:15</text>
+          </g>
+          <g id="k2" class="knode cold">
+            <circle cx="260" cy="140" r="22"/>
+            <text x="260" y="137" text-anchor="middle" font-weight="700">user:1</text>
+            <text x="260" y="150" text-anchor="middle" font-size="8" fill="#64748b">TTL:30m</text>
+          </g>
+          <g id="k3" class="knode cold">
+            <circle cx="340" cy="140" r="22"/>
+            <text x="340" y="137" text-anchor="middle" font-weight="700">session:abc</text>
+            <text x="340" y="150" text-anchor="middle" font-size="8" fill="#64748b">TTL:5m</text>
+          </g>
+          <g id="k4" class="knode warm">
+            <circle cx="420" cy="140" r="22"/>
+            <text x="420" y="137" text-anchor="middle" font-weight="700">counter</text>
+            <text x="420" y="150" text-anchor="middle" font-size="8" fill="#64748b">freq:8</text>
+          </g>
+          <g id="k5" class="knode cold">
+            <circle cx="140" cy="210" r="22"/>
+            <text x="140" y="207" text-anchor="middle" font-weight="700">config:theme</text>
+            <text x="140" y="220" text-anchor="middle" font-size="8" fill="#64748b">freq:1</text>
+          </g>
+          <g id="k6" class="knode cold">
+            <circle cx="250" cy="210" r="22"/>
+            <text x="250" y="207" text-anchor="middle" font-weight="700">tmp:report</text>
+            <text x="250" y="220" text-anchor="middle" font-size="8" fill="#64748b">TTL:2m</text>
+          </g>
+          <g id="k7" class="knode warm">
+            <circle cx="360" cy="210" r="22"/>
+            <text x="360" y="207" text-anchor="middle" font-weight="700">product:99</text>
+            <text x="360" y="220" text-anchor="middle" font-size="8" fill="#64748b">freq:50</text>
+          </g>
+
+          <!-- Eviction arrow (hidden by default) -->
+          <line id="evictArrow" class="evict-arrow" x1="250" y1="260" x2="250" y2="310" marker-end="url(#arrEvict)"/>
+
+          <!-- Eviction zone -->
+          <rect x="180" y="310" width="140" height="36" rx="8" fill="rgba(248,113,113,.08)" stroke="rgba(248,113,113,.3)" stroke-width="1"/>
+          <text x="250" y="333" text-anchor="middle" font-size="10" fill="#f87171">Evicted / Freed</text>
+
+          <!-- Policy label -->
+          <text id="policyLabel" x="250" y="370" text-anchor="middle" font-size="11" fill="#64748b">policy: —</text>
+        </svg>
+      </div>
+      <div class="controls"><button class="ctrl" id="btnReset">重置</button><button class="ctrl" id="btnPrev">上一步</button><button class="ctrl primary" id="btnPlay">播放</button><button class="ctrl" id="btnNext">下一步</button></div>
+    </section>
+    <aside class="panel"><div class="panel-hd">当前状态</div><div class="status"><span class="badge" id="stateBadge">normal</span><h2 id="stepTitle"></h2><p id="stepDesc"></p><p id="stepDetail" style="margin-top:8px;font-size:.82rem;"></p></div></aside>
+  </section>
+  <section class="deep">
+    <section><h2>背景与机制</h2><p>Redis 是内存数据库，物理内存有限。当数据量增长超过 maxmemory 后，必须在"拒绝写入"与"淘汰旧数据"之间选择。近似 LRU/LFU 用 O(1) 额外空间（每个 key 仅多 24bit）实现了接近理想算法的效果，是空间换精度的工程权衡。</p></section>
+    <section><h2>常见误区</h2><ul><li>认为 Redis LRU 是精确的双向链表实现。实际是随机采样近似，<code>maxmemory-samples</code> 控制精度。</li><li>volatile-* 策略在没有带 TTL 的 key 时等同于 noeviction，会直接报错。</li><li>LFU counter 最大 255，不是真实访问次数，是对数近似值。</li></ul></section>
+    <section><h2>工程场景</h2><ul><li>纯缓存：<code>maxmemory-policy allkeys-lru</code> 或 <code>allkeys-lfu</code></li><li>会话存储：<code>volatile-lru</code> 保护无 TTL 的配置 key</li><li>采样精度：<code>maxmemory-samples 10</code>（默认5，越大越精确）</li><li>LFU 调参：<code>lfu-log-factor 10</code>（增长速度）、<code>lfu-decay-time 1</code>（衰减分钟）</li><li>监控：<code>INFO memory</code> 关注 used_memory / maxmemory / evicted_keys</li></ul></section>
+    <section><h2>边界与恢复</h2><p>动画覆盖：内存增长 → 触发淘汰 → noeviction 拒绝 → allkeys-lru 采样 → volatile-lru 筛选 → LFU 频率淘汰 → LFU 衰减 → volatile-ttl → 释放恢复。关注采样框高亮与节点颜色变化理解淘汰流程。</p></section>
+  </section>
+  <div class="back-row"><a class="btn" href="index.html">返回 Redis 模块</a><a class="btn" href="../graph.html?q=Redis+Eviction">在知识星图中查看</a></div>
+</main>
 <script>
 if (window.NavTracker) NavTracker.track('Redis 内存淘汰', 'redis/eviction.html', '🗑️', 'Redis');
 
-window.PAGE_CONCEPTS = [
-  { title: 'maxmemory 配置', body: `当 Redis 内存使用达到 maxmemory 上限时，新写入会触发淘汰策略。未设置则内存无上限，可能导致 OOM。生产必须配置。` },
-  { title: 'noeviction', body: `默认策略：内存满时拒绝新写入，返回 OOM 错误。适合不允许丢数据的场景（如消息队列），需配合监控报警。` },
-  { title: 'LRU 算法', body: `Least Recently Used：淘汰最近最少使用的 key。Redis 用近似 LRU（随机采样 N 个 key），避免维护完整 LRU 链表的开销。`, tag: '近似实现' },
-  { title: 'LFU 算法', body: `Least Frequently Used（Redis 4.0+）：淘汰访问频率最低的 key。用 Morris Counter 近似计数（8 bit），结合访问时间衰减，比 LRU 更适合热点数据保留。`, tag: 'Redis 4.0+' },
-  { title: 'volatile vs allkeys', body: `volatile-* 只淘汰设置了 TTL 的 key，保护无过期时间的 key。allkeys-* 面向所有 key，内存压力大时更激进淘汰。纯缓存场景推荐 allkeys-lru/lfu。` }
-];
-
-const CODE_LINES = [
-  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
-  {html:``},
-  {html:`<span class="kw">import</span> (`},
-  {html:`&nbsp;&nbsp;<span class="st">"context"</span>`},
-  {html:`&nbsp;&nbsp;<span class="st">"fmt"</span>`},
-  {html:`&nbsp;&nbsp;<span class="st">"time"</span>`},
-  {html:`&nbsp;&nbsp;<span class="st">"github.com/redis/go-redis/v9"</span>`},
-  {html:`)`},
-  {html:``},
-  {html:`<span class="kw">var</span> <span class="id">ctx</span> = <span class="pkg">context</span>.<span class="fn">Background</span>()`},
-  {html:``},
-  {html:`<span class="kw">func</span> <span class="fn">demonstrateLRU</span>(<span class="id">rdb</span> *<span class="id">redis</span>.<span class="fn">Client</span>) {`},
-  {html:`&nbsp;&nbsp;<span class="cm">// 设置 maxmemory 和淘汰策略</span>`},
-  {html:`&nbsp;&nbsp;<span class="id">rdb</span>.<span class="fn">ConfigSet</span>(<span class="id">ctx</span>, <span class="st">"maxmemory"</span>, <span class="st">"100mb"</span>)`},
-  {html:`&nbsp;&nbsp;<span class="id">rdb</span>.<span class="fn">ConfigSet</span>(<span class="id">ctx</span>, <span class="st">"maxmemory-policy"</span>, <span class="st">"allkeys-lru"</span>)`},
-  {html:``},
-  {html:`&nbsp;&nbsp;<span class="cm">// 带 TTL 的 key (volatile 策略下优先淘汰)</span>`},
-  {html:`&nbsp;&nbsp;<span class="id">rdb</span>.<span class="fn">Set</span>(<span class="id">ctx</span>, <span class="st">"session:1"</span>, <span class="st">"user-data"</span>, <span class="num">30</span>*<span class="id">time</span>.<span class="fn">Minute</span>)`},
-  {html:`&nbsp;&nbsp;<span class="id">rdb</span>.<span class="fn">Set</span>(<span class="id">ctx</span>, <span class="st">"session:2"</span>, <span class="st">"user-data"</span>, <span class="num">5</span>*<span class="id">time</span>.<span class="fn">Minute</span>)`},
-  {html:``},
-  {html:`&nbsp;&nbsp;<span class="cm">// 无 TTL 的 key</span>`},
-  {html:`&nbsp;&nbsp;<span class="id">rdb</span>.<span class="fn">Set</span>(<span class="id">ctx</span>, <span class="st">"config:theme"</span>, <span class="st">"dark"</span>, <span class="num">0</span>)`},
-  {html:``},
-  {html:`&nbsp;&nbsp;<span class="cm">// 查看内存使用</span>`},
-  {html:`&nbsp;&nbsp;<span class="id">info</span>, _ := <span class="id">rdb</span>.<span class="fn">Info</span>(<span class="id">ctx</span>, <span class="st">"memory"</span>).<span class="fn">Result</span>()`},
-  {html:`&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">info</span>)`},
-  {html:`}`},
-  {html:``},
-  {html:`<span class="kw">func</span> <span class="fn">demonstrateLFU</span>(<span class="id">rdb</span> *<span class="id">redis</span>.<span class="fn">Client</span>) {`},
-  {html:`&nbsp;&nbsp;<span class="id">rdb</span>.<span class="fn">ConfigSet</span>(<span class="id">ctx</span>, <span class="st">"maxmemory-policy"</span>, <span class="st">"allkeys-lfu"</span>)`},
-  {html:``},
-  {html:`&nbsp;&nbsp;<span class="cm">// 频繁访问的 key 不会被淘汰</span>`},
-  {html:`&nbsp;&nbsp;<span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="num">100</span>; <span class="id">i</span>++ {`},
-  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">rdb</span>.<span class="fn">Get</span>(<span class="id">ctx</span>, <span class="st">"hot:key"</span>)`},
-  {html:`&nbsp;&nbsp;}`},
-  {html:``},
-  {html:`&nbsp;&nbsp;<span class="cm">// 很少访问的 key 更容易被淘汰</span>`},
-  {html:`&nbsp;&nbsp;<span class="id">rdb</span>.<span class="fn">Get</span>(<span class="id">ctx</span>, <span class="st">"cold:key"</span>) <span class="cm">// 只访问一次</span>`},
-  {html:`}`},
-];
-
-
-const KEYS = [
-  {name:'user:1', color:'var(--blue)', ttl:'30m', access: 5},
-  {name:'cache:home', color:'var(--green)', ttl:'10m', access: 15},
-  {name:'session:abc', color:'var(--purple)', ttl:'5m', access: 2},
-  {name:'config:theme', color:'var(--teal)', ttl:'∞', access: 1},
-  {name:'hot:key', color:'var(--yellow)', ttl:'∞', access: 100},
-  {name:'counter', color:'var(--orange)', ttl:'∞', access: 8},
-];
-
+/* ---- Step Data ---- */
 const STEPS = [
   {
-    highlightLines:[12,13,14,15],
-    hlJs:[5,6], hlPy:[5,6],
-    description:"内存达到 maxmemory 限制：Redis 开始根据配置的淘汰策略选择要驱逐的 key",
-    render: () => renderMemFull()
+    title: "正常写入",
+    desc: "内存使用量逐步增长，尚未达到 maxmemory 限制。",
+    kind: "normal",
+    detail: "所有写操作正常执行，无淘汰发生。8 个 key 按热度分布在内存中。",
+    memPct: 50,
+    memColor: "rgba(74,222,128,.25)",
+    policy: "—",
+    nodes: {k0:"hot",k1:"warm",k2:"cold",k3:"cold",k4:"warm",k5:"cold",k6:"cold",k7:"warm"},
+    sampled: [],
+    evicted: [],
+    showSample: false,
+    showArrow: false
   },
   {
-    highlightLines:[12,13,14,15],
-    hlJs:[5,6], hlPy:[5,6],
-    description:"策略 1: noeviction — 内存满时直接返回 OOM 错误，不淘汰任何 key（适合不能丢数据的场景）",
-    render: () => renderNoEviction()
+    title: "内存达到 maxmemory",
+    desc: "内存使用率达到 100%，触发淘汰机制。新写入将根据 maxmemory-policy 决定处理方式。",
+    kind: "normal",
+    detail: "Redis 在每次执行写命令前检查内存，超限则进入淘汰流程。",
+    memPct: 98,
+    memColor: "rgba(248,113,113,.35)",
+    policy: "触发淘汰",
+    nodes: {k0:"hot",k1:"warm",k2:"cold",k3:"cold",k4:"warm",k5:"cold",k6:"cold",k7:"warm"},
+    sampled: [],
+    evicted: [],
+    showSample: false,
+    showArrow: false
   },
   {
-    highlightLines:[13,14,15],
-    hlJs:[6,7,8], hlPy:[6,7],
-    description:"策略 2: allkeys-lru — 从所有 key 中淘汰最近最少使用的 key（访问时间最老的）",
-    render: () => renderLruOverview()
+    title: "noeviction: 拒绝写入",
+    desc: "默认策略 noeviction 不淘汰任何 key，直接返回 OOM 错误给客户端。",
+    kind: "failure",
+    detail: "ERR OOM command not allowed when used memory > 'maxmemory'。适合数据不可丢失的主库。",
+    memPct: 100,
+    memColor: "rgba(248,113,113,.45)",
+    policy: "noeviction",
+    nodes: {k0:"hot",k1:"warm",k2:"cold",k3:"cold",k4:"warm",k5:"cold",k6:"cold",k7:"warm"},
+    sampled: [],
+    evicted: [],
+    showSample: false,
+    showArrow: false
   },
   {
-    highlightLines:[17,18,19,20,21,22],
-    hlJs:[10,11,12,13], hlPy:[9,10,11,12,13],
-    description:"LRU 时钟: Redis 用 24bit 记录每个 key 的最近访问时间（秒级精度），内存占用小",
-    render: () => renderLruClock()
+    title: "allkeys-lru: 采样淘汰",
+    desc: "从所有 key 中随机采样 5 个，淘汰其中最近最少使用的（idle time 最大的）。",
+    kind: "normal",
+    detail: "采样 key: config:theme, session:abc, user:1, tmp:report, counter。config:theme idle 最大 → 淘汰。",
+    memPct: 92,
+    memColor: "rgba(251,191,36,.3)",
+    policy: "allkeys-lru",
+    nodes: {k0:"hot",k1:"warm",k2:"cold",k3:"cold",k4:"warm",k5:"evicted",k6:"cold",k7:"warm"},
+    sampled: ["k2","k3","k4","k5","k6"],
+    evicted: ["k5"],
+    showSample: true,
+    showArrow: true
   },
   {
-    highlightLines:[13,14,15],
-    hlJs:[6,7], hlPy:[6,7],
-    description:"近似 LRU: 随机采样 N 个 key（默认 5 个），找出其中访问时间最老的进行淘汰，避免维护链表",
-    render: () => renderLruSample()
+    title: "volatile-lru: 仅淘汰有 TTL 的 key",
+    desc: "只在设置了过期时间的 key 中进行 LRU 采样淘汰，保护永久 key。",
+    kind: "normal",
+    detail: "有 TTL 的 key: user:1(30m), session:abc(5m), tmp:report(2m)。tmp:report 最久未访问 → 淘汰。",
+    memPct: 85,
+    memColor: "rgba(251,191,36,.3)",
+    policy: "volatile-lru",
+    nodes: {k0:"hot",k1:"warm",k2:"cold",k3:"cold",k4:"protected",k5:"protected",k6:"evicted",k7:"protected"},
+    sampled: ["k2","k3","k6"],
+    evicted: ["k6"],
+    showSample: true,
+    showArrow: true
   },
   {
-    highlightLines:[29,30],
-    hlJs:[20,21], hlPy:[20,21],
-    description:"策略 3: allkeys-lfu — 淘汰访问频率最低的 key（Morris Counter 对数衰减计数）",
-    render: () => renderLfuOverview()
+    title: "allkeys-lfu: 频率淘汰",
+    desc: "从所有 key 中采样，淘汰访问频率（LFU counter）最低的 key。",
+    kind: "normal",
+    detail: "config:theme freq=1 最低。LFU 比 LRU 更适合有明显热点的场景，不会因批量扫描误淘汰热 key。",
+    memPct: 88,
+    memColor: "rgba(251,191,36,.3)",
+    policy: "allkeys-lfu",
+    nodes: {k0:"hot",k1:"warm",k2:"cold",k3:"cold",k4:"warm",k5:"evicted",k6:"cold",k7:"hot"},
+    sampled: ["k2","k3","k5","k6","k4"],
+    evicted: ["k5"],
+    showSample: true,
+    showArrow: true
   },
   {
-    highlightLines:[31,32,33,34,35,36,37],
-    hlJs:[21,22,23,24,25,26], hlPy:[21,22,23,24],
-    description:"LFU 计数器: 8bit 衰减计数，最近访问少频率高的 key 不易被淘汰，对数增长避免溢出",
-    render: () => renderLfuCounter()
+    title: "LFU 计数器衰减",
+    desc: "每隔 lfu-decay-time 分钟，LFU counter 减 1。长时间未访问的 key 频率逐步降低，更容易被淘汰。",
+    kind: "normal",
+    detail: "counter 用对数概率增长（Morris Counter），最大 255。衰减确保冷却的 key 不会永远被保护。",
+    memPct: 88,
+    memColor: "rgba(251,191,36,.3)",
+    policy: "allkeys-lfu (decay)",
+    nodes: {k0:"hot",k1:"cold",k2:"cold",k3:"cold",k4:"cold",k5:"cold",k6:"cold",k7:"warm"},
+    sampled: [],
+    evicted: [],
+    showSample: false,
+    showArrow: false
   },
   {
-    highlightLines:[14,15,17,18,19],
-    hlJs:[6,7,10,11], hlPy:[6,7,9,10],
-    description:"策略 4: volatile-lru — 只在设置了过期时间(TTL)的 key 中进行 LRU 淘汰",
-    render: () => renderVolatileLru()
+    title: "volatile-ttl: 淘汰最快过期的",
+    desc: "在有 TTL 的 key 中，优先淘汰剩余存活时间（TTL）最短的 key。",
+    kind: "normal",
+    detail: "tmp:report TTL=2m 最短 → 优先淘汰。适合会话管理场景，快到期的数据价值低。",
+    memPct: 82,
+    memColor: "rgba(251,191,36,.3)",
+    policy: "volatile-ttl",
+    nodes: {k0:"hot",k1:"warm",k2:"cold",k3:"cold",k4:"warm",k5:"protected",k6:"evicted",k7:"protected"},
+    sampled: ["k2","k3","k6"],
+    evicted: ["k6"],
+    showSample: true,
+    showArrow: true
   },
   {
-    highlightLines:[13,14,15],
-    hlJs:[5,6], hlPy:[5,6],
-    description:"策略 5: allkeys-random — 从所有 key 中随机淘汰（最简单，不考虑使用频率）",
-    render: () => renderRandom()
-  },
-  {
-    highlightLines:[12,13,14,15,29,30],
-    hlJs:[5,6,20,21], hlPy:[5,6,20,21],
-    description:"最佳实践：缓存场景用 allkeys-lru，纯会话存储用 volatile-lru，严格不丢数据用 noeviction",
-    render: () => renderBestPractice()
-  },
+    title: "内存释放，写入恢复",
+    desc: "淘汰完成后内存降至安全水位，新的写入命令可以正常执行。",
+    kind: "recovery",
+    detail: "持续监控 evicted_keys 指标。如果淘汰频繁，应考虑扩容或优化数据结构。",
+    memPct: 60,
+    memColor: "rgba(74,222,128,.25)",
+    policy: "正常运行",
+    nodes: {k0:"hot",k1:"warm",k2:"cold",k3:"cold",k4:"warm",k5:"cold",k6:"cold",k7:"warm"},
+    sampled: [],
+    evicted: [],
+    showSample: false,
+    showArrow: false
+  }
 ];
 
+/* ---- Engine ---- */
 let step = 0, playing = false, timer = null;
-const SPEED = [900,550,320,180,80];
+const $ = id => document.getElementById(id);
 
-function memBar(usedPct, color) {
-  return `<div class="mem-bar-wrap">
-    <div class="mem-label"><span>内存使用</span><span style="color:${usedPct>80?'var(--red)':'var(--text)'}">${usedPct}% / 100MB</span></div>
-    <div class="mem-bar">
-      <div class="mem-fill" style="width:${usedPct}%;background:${color || (usedPct>80?'var(--red)':'var(--green)')}">${usedPct > 20 ? usedPct + '%' : ''}</div>
-    </div>
-  </div>`;
-}
-
-function keyPool(evictIdx, sampleIdxs) {
-  return `<div class="key-pool">${KEYS.map((k,i) =>
-    `<div class="key-item${i===evictIdx?' evict':''}${(sampleIdxs||[]).includes(i)?' sample':''}"
-      style="background:rgba(255,255,255,0.04);border-color:var(--border);color:${k.color};">
-      ${k.name}<br>
-      <span style="font-size:0.65rem;color:var(--dim2);">TTL:${k.ttl}</span>
-    </div>`
-  ).join('')}</div>`;
-}
-
-function renderMemFull() {
-  document.getElementById('vizArea').innerHTML = `
-    ${memBar(95, 'var(--red)')}
-    <div style="padding:12px 16px;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.3);border-radius:8px;font-family:monospace;font-size:0.83rem;margin-bottom:14px;color:var(--red);">
-      OOM: maxmemory 100mb exceeded
-    </div>
-    <div style="font-size:0.83rem;color:var(--dim);margin-bottom:12px;">当前 key 池：</div>
-    ${keyPool(-1, [])}`;
-}
-
-function renderNoEviction() {
-  document.getElementById('vizArea').innerHTML = `
-    ${memBar(95, 'var(--red)')}
-    <div class="policy-row" style="border-color:rgba(248,113,113,0.4);background:rgba(248,113,113,0.06);">
-      <div class="policy-name" style="color:var(--red)">noeviction</div>
-      <div class="policy-desc">内存满时返回错误，不淘汰任何 key</div>
-      <div class="policy-tag" style="background:rgba(248,113,113,0.1);color:var(--red)">适合主库</div>
-    </div>
-    <div style="padding:12px 16px;background:var(--panel2);border-radius:8px;font-family:monospace;font-size:0.8rem;color:var(--red);margin-top:10px;">
-      ERR: command not allowed when used memory &gt; 'maxmemory'
-    </div>
-    <div style="margin-top:12px;font-size:0.82rem;color:var(--dim);">
-      适合场景：数据不能丢失的主数据库。需要监控内存并及时扩容。
-    </div>`;
-}
-
-function renderLruOverview() {
-  document.getElementById('vizArea').innerHTML = `
-    ${memBar(92, 'var(--orange)')}
-    <div class="policy-row" style="border-color:rgba(56,189,248,0.4);background:rgba(56,189,248,0.06);">
-      <div class="policy-name" style="color:var(--blue)">allkeys-lru</div>
-      <div class="policy-desc">淘汰所有 key 中最近最少使用的</div>
-      <div class="policy-tag" style="background:rgba(56,189,248,0.1);color:var(--blue)">推荐缓存</div>
-    </div>
-    <div style="font-size:0.82rem;color:var(--dim);margin:10px 0 8px;">最近访问时间（越旧越容易被淘汰）：</div>
-    ${keyPool(3, [])}
-    <div style="margin-top:8px;padding:10px 14px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.8rem;color:var(--dim);">
-      config:theme 最久未访问 → 被淘汰
-    </div>`;
-}
-
-function renderLruClock() {
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.88rem;font-weight:600;color:var(--blue);margin-bottom:12px;">LRU Clock — 24bit 时间戳</div>
-    <div class="lru-clock">
-      ${KEYS.map((k, i) => {
-        const age = [3, 1, 5, 10, 0, 2][i]; // minutes since last access
-        const hot = age <= 2;
-        return `<div class="clock-item ${hot?'hot':'cold'}">
-          <div>${k.name}</div>
-          <div class="clock-label">${age === 0 ? '刚访问' : age + '分钟前'}</div>
-        </div>`;
-      }).join('')}
-    </div>
-    <div style="margin-top:14px;padding:12px 16px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.82rem;color:var(--dim);line-height:1.8;">
-      <div><strong style="color:var(--text)">实现：</strong>每个 redisObject 有 24bit lru 字段，存储最近访问的 LRU Clock 值</div>
-      <div style="margin-top:4px;"><strong style="color:var(--text)">精度：</strong>1秒（LRU_CLOCK_RESOLUTION = 1000ms），2^24 秒 ≈ 194天循环一次</div>
-    </div>`;
-}
-
-function renderLruSample() {
-  const sampleIdx = [0, 2, 3, 4, 5];
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.88rem;font-weight:600;color:var(--yellow);margin-bottom:12px;">近似 LRU — 随机采样</div>
-    <div style="font-size:0.8rem;color:var(--dim);margin-bottom:10px;">从所有 key 中随机采样 5 个（高亮），找出最久未访问的淘汰：</div>
-    ${keyPool(3, sampleIdx)}
-    <div style="margin-top:10px;padding:12px 16px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.82rem;color:var(--dim);line-height:1.8;">
-      <strong style="color:var(--text)">为什么不用标准 LRU？</strong>标准 LRU 需维护双向链表，内存开销大（每个 key 需要指针）。
-      近似 LRU 通过随机采样 N 个 key 取最老的，效果接近真实 LRU，内存节省 90%+。
-      <br>配置：<code style="color:var(--blue)">maxmemory-samples 5</code>（值越大越精确，开销越大）
-    </div>`;
-}
-
-function renderLfuOverview() {
-  document.getElementById('vizArea').innerHTML = `
-    ${memBar(90, 'var(--orange)')}
-    <div class="policy-row" style="border-color:rgba(196,132,252,0.4);background:rgba(196,132,252,0.06);">
-      <div class="policy-name" style="color:var(--purple)">allkeys-lfu</div>
-      <div class="policy-desc">淘汰访问频率最低的 key（Redis 4.0+）</div>
-      <div class="policy-tag" style="background:rgba(196,132,252,0.1);color:var(--purple)">热点友好</div>
-    </div>
-    <div style="font-size:0.82rem;color:var(--dim);margin:10px 0 8px;">访问频率（频率低的易被淘汰）：</div>
-    ${[
-      {name:'hot:key', freq:100, pct:100, color:'var(--green)'},
-      {name:'cache:home', freq:15, pct:15, color:'var(--blue)'},
-      {name:'counter', freq:8, pct:8, color:'var(--yellow)'},
-      {name:'user:1', freq:5, pct:5, color:'var(--orange)'},
-      {name:'session:abc', freq:2, pct:2, color:'var(--red)'},
-      {name:'config:theme', freq:1, pct:1, color:'var(--red)'},
-    ].map(({name,freq,pct,color}) => `
-    <div class="freq-bar">
-      <div class="freq-key">${name}</div>
-      <div class="freq-track"><div class="freq-fill" style="width:${pct}%;background:${color}"></div></div>
-      <div class="freq-val">${freq}</div>
-    </div>`).join('')}`;
-}
-
-function renderLfuCounter() {
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.88rem;font-weight:600;color:var(--purple);margin-bottom:12px;">LFU Morris Counter — 对数衰减</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
-      <div style="padding:12px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid var(--border);">
-        <div style="font-size:0.82rem;font-weight:600;color:var(--purple);margin-bottom:8px;">计数增加（对数概率）</div>
-        <div style="font-size:0.78rem;color:var(--dim);line-height:1.8;">
-          p = 1 / (counter * lfu_log_factor + 1)<br>
-          counter 越大，增加概率越低<br>
-          最大值 255，不会溢出
-        </div>
-      </div>
-      <div style="padding:12px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid var(--border);">
-        <div style="font-size:0.82rem;font-weight:600;color:var(--orange);margin-bottom:8px;">计数衰减（时间衰减）</div>
-        <div style="font-size:0.78rem;color:var(--dim);line-height:1.8;">
-          每隔 lfu_decay_time 分钟<br>
-          counter 减少 1<br>
-          近期冷却的 key 更容易被淘汰
-        </div>
-      </div>
-    </div>
-    <div style="padding:12px 16px;background:rgba(196,132,252,0.06);border-radius:8px;border-left:3px solid var(--purple);font-size:0.82rem;color:var(--dim);line-height:1.8;">
-      <strong style="color:var(--text)">LFU vs LRU：</strong>
-      LFU 适合有明显热点的场景（如热门商品），不会因为偶发的批量扫描而淘汰真正的热点 key。
-      配置：<code style="color:var(--blue)">lfu-log-factor 10</code>（默认）<code style="color:var(--blue)">lfu-decay-time 1</code>
-    </div>`;
-}
-
-function renderVolatileLru() {
-  const volatileKeys = KEYS.filter(k => k.ttl !== '∞');
-  document.getElementById('vizArea').innerHTML = `
-    ${memBar(88, 'var(--orange)')}
-    <div class="policy-row" style="border-color:rgba(74,222,128,0.4);background:rgba(74,222,128,0.06);">
-      <div class="policy-name" style="color:var(--green)">volatile-lru</div>
-      <div class="policy-desc">仅在有过期时间的 key 中做 LRU 淘汰</div>
-      <div class="policy-tag" style="background:rgba(74,222,128,0.1);color:var(--green)">保留永久key</div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
-      <div>
-        <div style="font-size:0.78rem;color:var(--green);margin-bottom:8px;">有 TTL 的 key（可被淘汰）</div>
-        <div class="key-pool" style="flex-direction:column;gap:6px;">
-          <div class="key-item" style="background:rgba(255,255,255,0.04);border-color:rgba(248,113,113,0.4);color:var(--red);">
-            session:abc<br><span style="font-size:0.65rem;">TTL:5m（最旧）→ 淘汰</span>
-          </div>
-          <div class="key-item" style="background:rgba(255,255,255,0.04);border-color:var(--border);color:var(--text);">
-            user:1<br><span style="font-size:0.65rem;color:var(--dim2);">TTL:30m</span>
-          </div>
-        </div>
-      </div>
-      <div>
-        <div style="font-size:0.78rem;color:var(--dim);margin-bottom:8px;">无 TTL 的 key（永久保留）</div>
-        <div class="key-pool" style="flex-direction:column;gap:6px;">
-          ${KEYS.filter(k=>k.ttl==='∞').map(k=>`
-          <div class="key-item" style="background:rgba(255,255,255,0.04);border-color:var(--border);color:${k.color};opacity:0.6;">
-            ${k.name}<br><span style="font-size:0.65rem;color:var(--dim2);">TTL:∞ 不淘汰</span>
-          </div>`).join('')}
-        </div>
-      </div>
-    </div>`;
-}
-
-function renderRandom() {
-  const randomEvict = 2; // session:abc
-  document.getElementById('vizArea').innerHTML = `
-    ${memBar(87, 'var(--orange)')}
-    <div class="policy-row" style="border-color:rgba(251,191,36,0.4);background:rgba(251,191,36,0.06);">
-      <div class="policy-name" style="color:var(--yellow)">allkeys-random</div>
-      <div class="policy-desc">从所有 key 中随机选一个淘汰</div>
-      <div class="policy-tag" style="background:rgba(251,191,36,0.1);color:var(--yellow)">最简单</div>
-    </div>
-    <div style="font-size:0.82rem;color:var(--dim);margin:10px 0 8px;">随机选中 session:abc 淘汰：</div>
-    ${keyPool(randomEvict, [])}
-    <div style="margin-top:10px;padding:10px 14px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.8rem;color:var(--dim);">
-      不考虑访问频率和时间，纯随机。实际很少使用，除非数据分布非常均匀。
-    </div>`;
-}
-
-function renderBestPractice() {
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.88rem;font-weight:600;color:var(--teal);margin-bottom:14px;">最佳实践选择指南</div>
-    ${[
-      ['allkeys-lru','var(--blue)','✓ 推荐','纯缓存场景，所有 key 都可淘汰，热点数据不会被驱逐'],
-      ['allkeys-lfu','var(--purple)','✓ 推荐','有明显热点的缓存，比 LRU 更精准保留热点 key'],
-      ['volatile-lru','var(--green)','○ 适中','缓存+持久化混合，永久 key 不会被淘汰'],
-      ['volatile-ttl','var(--yellow)','○ 特定','优先淘汰快到期的 key，会话管理场景'],
-      ['noeviction','var(--red)','× 谨慎','数据不能丢的主库，需要配合内存监控告警'],
-    ].map(([policy, c, tag, desc]) => `
-    <div class="policy-row" style="border-color:${c.replace('var(--','rgba(').replace(')',',.3)')};background:${c.replace('var(--','rgba(').replace(')',',.04)')};">
-      <div class="policy-name" style="color:${c};font-size:0.78rem;">${policy}</div>
-      <div class="policy-desc" style="font-size:0.78rem;">${desc}</div>
-      <div class="policy-tag" style="background:${c.replace('var(--','rgba(').replace(')',',.1)')};color:${c}">${tag}</div>
-    </div>`).join('')}`;
+function buildTimeline() {
+  const list = $('stepList');
+  list.innerHTML = STEPS.map((s, i) => `<button class="step-btn" data-i="${i}"><b>Step ${i+1}</b>${s.title}</button>`).join('');
+  list.querySelectorAll('.step-btn').forEach(btn => {
+    btn.addEventListener('click', () => { pause(); step = +btn.dataset.i; render(); });
+  });
 }
 
 function render() {
-  STEPS[step].render();
-  renderCode();
-  document.getElementById('descText').textContent = STEPS[step].description;
-  document.getElementById('stepCounter').textContent = `${step + 1} / ${STEPS.length}`;
-  document.getElementById('btnPrev').disabled = step === 0;
-  document.getElementById('btnNext').disabled = step === STEPS.length - 1;
+  const s = STEPS[step];
+  // Timeline highlight
+  document.querySelectorAll('.step-btn').forEach((btn, i) => btn.classList.toggle('active', i === step));
+  // Status panel
+  const badge = $('stateBadge');
+  badge.textContent = s.kind;
+  badge.className = 'badge' + (s.kind === 'failure' ? ' failure' : s.kind === 'recovery' ? ' recovery' : '');
+  $('stepTitle').textContent = s.title;
+  $('stepDesc').textContent = s.desc;
+  $('stepDetail').textContent = s.detail;
+  // SVG updates
+  // Memory bar
+  const maxW = 438;
+  const fillW = Math.round(maxW * s.memPct / 100);
+  $('memFill').setAttribute('width', fillW);
+  $('memFill').setAttribute('fill', s.memColor);
+  $('memLabel').textContent = s.memPct + '% / maxmemory';
+  // Policy label
+  $('policyLabel').textContent = 'policy: ' + s.policy;
+  // Key node states
+  for (let i = 0; i < 8; i++) {
+    const el = $('k' + i);
+    const state = s.nodes['k' + i] || 'cold';
+    el.className.baseVal = 'knode ' + state;
+    // Add sampled class
+    if (s.sampled.includes('k' + i)) {
+      el.className.baseVal += ' sampled';
+    }
+  }
+  // Sample frame
+  const sf = $('sampleFrame');
+  sf.className.baseVal = 'sample-frame' + (s.showSample ? ' visible' : '');
+  // Eviction arrow
+  const ea = $('evictArrow');
+  ea.className.baseVal = 'evict-arrow' + (s.showArrow ? ' visible' : '');
+  // Position arrow to point at first evicted key
+  if (s.evicted.length > 0) {
+    const evKey = s.evicted[0];
+    const idx = parseInt(evKey.replace('k', ''));
+    const circle = $('k' + idx).querySelector('circle');
+    const cx = parseFloat(circle.getAttribute('cx'));
+    const cy = parseFloat(circle.getAttribute('cy'));
+    ea.setAttribute('x1', cx);
+    ea.setAttribute('y1', cy + 24);
+    ea.setAttribute('x2', cx);
+    ea.setAttribute('y2', 308);
+  }
+  // Controls
+  $('btnPrev').disabled = step === 0;
+  $('btnNext').disabled = step === STEPS.length - 1;
 }
 
-function renderCode() {
-  const lines = CODE_LINES;
-  const hl = (STEPS[step]||{}).highlightLines || [];
-  const body = document.getElementById('codeBody');
-  body.innerHTML = lines.map((l, i) =>
-    `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
-      <span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
-  ).join('');
-  const el = body.querySelector('.code-line.active');
-  if (el) el.scrollIntoView({block:'nearest'});
+function play() {
+  if (step >= STEPS.length - 1) step = 0;
+  playing = true;
+  $('btnPlay').textContent = '暂停';
+  tick();
 }
-
-function jumpToLine(lineNum) {
-  for (let i = STEPS.length-1; i >= 0; i--) {
-    const hl = (STEPS[i]||{}).highlightLines || [];
-    if (hl.includes(lineNum)) { step = i; render(); return; }
+function pause() {
+  playing = false;
+  clearTimeout(timer);
+  $('btnPlay').textContent = '播放';
+}
+function tick() {
+  if (!playing) return;
+  if (step < STEPS.length - 1) {
+    step++;
+    render();
+    timer = setTimeout(tick, 1800);
+  } else {
+    pause();
   }
 }
 
-function play() { if (step >= STEPS.length-1) step = 0; playing = true; document.getElementById('btnPlay').innerHTML = '⏸ 暂停'; tick(); }
-function pause() { playing = false; clearTimeout(timer); document.getElementById('btnPlay').innerHTML = '▶ 播放'; }
-function tick() { if (!playing) return; if (step < STEPS.length-1) { step++; render(); timer = setTimeout(tick, SPEED[parseInt(document.getElementById('speedRange').value)-1]); } else pause(); }
+$('btnPlay').addEventListener('click', () => playing ? pause() : play());
+$('btnPrev').addEventListener('click', () => { pause(); if (step > 0) { step--; render(); } });
+$('btnNext').addEventListener('click', () => { pause(); if (step < STEPS.length - 1) { step++; render(); } });
+$('btnReset').addEventListener('click', () => { pause(); step = 0; render(); });
 
-document.getElementById('btnPlay').addEventListener('click', () => playing ? pause() : play());
-document.getElementById('btnPrev').addEventListener('click', () => { pause(); if(step>0){step--;render();} });
-document.getElementById('btnNext').addEventListener('click', () => { pause(); if(step<STEPS.length-1){step++;render();} });
-document.getElementById('btnReset').addEventListener('click', () => { pause(); step=0; render(); });
-
+buildTimeline();
 render();
 </script>
 </body>

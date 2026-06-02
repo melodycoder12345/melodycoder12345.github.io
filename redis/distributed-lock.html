@@ -4,288 +4,397 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Redis 分布式锁 - 可视化学习</title>
-<style>
-:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;--teal:#2dd4bf;}
-*{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
-nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
-.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
-nav h1{font-size:1.2rem;font-weight:600;}.tags{margin-left:auto;display:flex;gap:8px;}
-.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
-.main{display:flex;flex:1;overflow:hidden;}
-.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
-.viz-area{flex:1;overflow:hidden;background:var(--panel2);}
-.desc-box{padding:12px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:44px;display:flex;align-items:center;}
-.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
-.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
-.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
-.code-dot{width:10px;height:10px;border-radius:50%;}
-.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
-.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
-.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background .15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
-.code-line:hover{background:rgba(255,255,255,.04);}.code-line.active{background:rgba(251,191,36,.12);}.code-line.active .ln{color:var(--yellow);}
-.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
-.lc{padding:0 16px 0 4px;flex:1;}
-.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;font-style:italic;}
-.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
-.btn{background:rgba(255,255,255,.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:.85rem;transition:all .15s;}
-.btn:hover{background:rgba(255,255,255,.12);}.btn.primary{background:rgba(56,189,248,.15);border-color:rgba(56,189,248,.3);color:var(--blue);}
-.btn:disabled{opacity:.4;cursor:not-allowed;}
-.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:.8rem;color:var(--dim);}
-input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
-@media(max-width:768px){
-  body{height:auto!important;min-height:100vh;overflow-y:auto!important;}
-  nav{flex-wrap:wrap;padding:10px 16px;gap:6px;height:auto!important;}
-  nav h1{font-size:1rem;flex:1;}.tags{margin-left:0!important;width:100%;order:3;margin-top:4px;}
-  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
-  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:320px!important;flex:none!important;}
-  .code-panel{width:100%!important;min-width:unset!important;height:340px!important;flex:none!important;}
-  .code-line{font-size:.76rem!important;}.ln{min-width:36px!important;padding:0 8px!important;}
-  .controls{flex-wrap:wrap!important;padding:10px 14px!important;gap:6px!important;height:auto!important;}
-  .btn{padding:6px 10px!important;font-size:.8rem!important;}.speed-wrap{margin-left:0!important;width:100%;}
-  .desc-box{padding:8px 14px!important;font-size:.8rem!important;}
-}
-</style>
 <script src="../nav.js"></script>
 <script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#dc382c;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;--blue:#38bdf8;--purple:#c084fc;}
+*{box-sizing:border-box;margin:0;padding:0}body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 18%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}a{color:inherit}.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:16px;align-items:stretch;margin-bottom:20px}.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:440px;display:flex;flex-direction:column;padding:18px}.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:radial-gradient(circle at 50% 20%,rgba(255,255,255,.05),transparent 50%),rgba(15,23,42,.64);overflow:hidden;display:flex;align-items:center;justify-content:center;}
+.lock-svg{width:100%;max-width:520px;height:auto;}
+/* SVG node states */
+.rnode{transition:all .3s;}
+.rnode rect{fill:rgba(255,255,255,.055);stroke:rgba(255,255,255,.12);stroke-width:1.5;rx:12;transition:all .3s;}
+.rnode text{fill:#94a3b8;transition:fill .3s;}
+.rnode.active rect{fill:color-mix(in srgb,var(--accent) 16%,transparent);stroke:var(--accent);stroke-width:2;}
+.rnode.active text{fill:#f8fafc;}
+.rnode.fail rect{fill:rgba(248,113,113,.1);stroke:#f87171;stroke-width:2;}
+.rnode.fail text{fill:#f87171;}
+.rnode.recover rect{fill:rgba(74,222,128,.1);stroke:#4ade80;stroke-width:2;}
+.rnode.recover text{fill:#4ade80;}
+.rnode.locked rect{fill:color-mix(in srgb,var(--ok) 16%,transparent);stroke:var(--ok);stroke-width:2.5;}
+.rnode.locked text{fill:#f8fafc;}
+.rnode.waiting rect{fill:color-mix(in srgb,var(--purple) 12%,transparent);stroke:var(--purple);stroke-width:2;}
+.rnode.waiting text{fill:var(--purple);}
+.redge{stroke:rgba(255,255,255,.15);stroke-width:1.5;fill:none;transition:all .3s;}
+.redge.active{stroke:var(--accent);stroke-width:2.5;filter:drop-shadow(0 0 4px color-mix(in srgb,var(--accent) 60%,transparent));}
+.redge.ok{stroke:var(--ok);stroke-width:2.5;filter:drop-shadow(0 0 4px color-mix(in srgb,var(--ok) 60%,transparent));}
+.redge.fail{stroke:#f87171;stroke-width:2;}
+.redge.purple{stroke:var(--purple);stroke-width:2;}
+@keyframes lock-glow{0%,100%{filter:drop-shadow(0 0 4px color-mix(in srgb,var(--ok) 50%,transparent));}50%{filter:drop-shadow(0 0 10px color-mix(in srgb,var(--ok) 80%,transparent));}}
+.locked rect{animation:lock-glow 2s infinite;}
+
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}.status p{color:var(--dim);font-size:.9rem;line-height:1.75}.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}.badge.failure{border-color:var(--bad);color:var(--bad)}.badge.recovery{border-color:var(--ok);color:var(--ok)}.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit}.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}.deep code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.82rem;color:var(--warn)}.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}.btn:hover{color:var(--text);border-color:var(--accent)}@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"SETNX 原子加锁","body":"SET key value NX PX ttl：原子性\"不存在则设置\"，同时设置过期时间。NX 保证只有一个客户端能成功加锁，PX 防止客户端崩溃后锁永不释放。","tag":"NX"},
+  {"title":"唯一 Token","body":"锁的 value 必须是客户端唯一标识（UUID）。释放时先校验 value 是否匹配，防止误删其他客户端的锁（锁过期后被他人持有的场景）。","tag":"UUID"},
+  {"title":"Lua 原子释放","body":"GET + DEL 两步操作不是原子的。用 Lua 脚本将\"比较+删除\"合为一个原子操作，Redis 单线程保证脚本不被打断。","tag":"Lua"},
+  {"title":"Redlock 算法","body":"向 N（通常 5）个独立 Redis 节点申请锁，超过半数成功且总耗时 < TTL 才算加锁成功。降低单节点故障风险，但在时钟漂移和网络分区下仍有争议。","tag":"多数派"}
+];</script>
 </head>
 <body>
-<nav>
-  <a href="index.html" class="back-btn">← 返回</a>
-  <h1>Redis 分布式锁</h1>
-  <div class="tags">
-    <span class="badge" style="background:rgba(220,56,44,.15);color:#dc382c">SETNX</span>
-    <span class="badge" style="background:rgba(192,132,252,.15);color:#c084fc">Redlock</span>
-    <span class="badge" style="background:rgba(74,222,128,.15);color:#4ade80">原子性</span>
-  </div>
-</nav>
-<div class="main">
-  <div class="viz-panel">
-    <div class="viz-area">
-      <svg width="100%" height="100%" viewBox="0 0 760 360" preserveAspectRatio="xMidYMid meet">
-        <defs>
-          <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#94a3b8"/></marker>
-          <marker id="arrG" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#4ade80"/></marker>
-          <marker id="arrR" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#f87171"/></marker>
-        </defs>
-        <!-- Client A -->
-        <rect x="30" y="80" width="140" height="180" rx="10" fill="rgba(56,189,248,.04)" stroke="#334155" stroke-width="1.5" id="rCA"/>
-        <text x="100" y="110" text-anchor="middle" font-size="12" fill="#38bdf8" font-weight="600" font-family="'Segoe UI',sans-serif">Client A</text>
-        <rect x="50" y="125" width="100" height="28" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1" id="rACmd"/>
-        <text x="100" y="144" text-anchor="middle" font-size="9" fill="#fbbf24" font-family="monospace" id="tACmd">SET lock uuid-A NX PX 30000</text>
-        <rect x="50" y="162" width="100" height="24" rx="5" fill="rgba(74,222,128,.08)" stroke="rgba(74,222,128,.3)" stroke-width="1" id="rAStatus"/>
-        <text x="100" y="178" text-anchor="middle" font-size="10" fill="#4ade80" font-family="monospace" id="tAStatus">等待...</text>
-        <rect x="50" y="195" width="100" height="24" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1"/>
-        <text x="100" y="210" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="monospace" id="tABiz">业务逻辑</text>
-        <rect x="50" y="228" width="100" height="20" rx="4" fill="rgba(248,113,113,.08)" stroke="rgba(248,113,113,.3)" stroke-width="1" id="rARelease"/>
-        <text x="100" y="242" text-anchor="middle" font-size="9" fill="#f87171" font-family="monospace" id="tARelease">释放锁 (Lua)</text>
-
-        <!-- Client B -->
-        <rect x="590" y="80" width="140" height="180" rx="10" fill="rgba(192,132,252,.04)" stroke="#334155" stroke-width="1.5" id="rCB"/>
-        <text x="660" y="110" text-anchor="middle" font-size="12" fill="#c084fc" font-weight="600" font-family="'Segoe UI',sans-serif">Client B</text>
-        <rect x="610" y="125" width="100" height="28" rx="5" fill="#1e293b" stroke="#334155" stroke-width="1" id="rBCmd"/>
-        <text x="660" y="144" text-anchor="middle" font-size="9" fill="#fbbf24" font-family="monospace" id="tBCmd">SET lock uuid-B NX PX 30000</text>
-        <rect x="610" y="162" width="100" height="24" rx="5" fill="rgba(248,113,113,.08)" stroke="rgba(248,113,113,.3)" stroke-width="1" id="rBStatus"/>
-        <text x="660" y="178" text-anchor="middle" font-size="10" fill="#f87171" font-family="monospace" id="tBStatus">等待...</text>
-        <text x="660" y="210" text-anchor="middle" font-size="9" fill="#64748b" font-family="monospace" id="tBWait">重试中...</text>
-
-        <!-- Redis -->
-        <rect x="270" y="60" width="220" height="230" rx="12" fill="rgba(220,56,44,.04)" stroke="#334155" stroke-width="1.5" id="rRedis"/>
-        <text x="380" y="88" text-anchor="middle" font-size="13" fill="#dc382c" font-weight="700" font-family="'Segoe UI',sans-serif">Redis</text>
-        <!-- Lock key display -->
-        <rect x="290" y="100" width="180" height="50" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1" id="rLockKey"/>
-        <text x="380" y="122" text-anchor="middle" font-size="10" fill="#94a3b8" font-family="monospace">lock:order:123</text>
-        <text x="380" y="140" text-anchor="middle" font-size="11" fill="#64748b" font-family="monospace" id="tLockVal">（未设置）</text>
-        <!-- TTL bar -->
-        <rect x="290" y="160" width="180" height="16" rx="3" fill="rgba(255,255,255,.03)" stroke="#334155" stroke-width="1"/>
-        <rect id="rTTL" x="290" y="160" width="0" height="16" rx="3" fill="rgba(251,191,36,.3)"/>
-        <text x="380" y="172" text-anchor="middle" font-size="8" fill="#94a3b8" font-family="monospace" id="tTTL">TTL: --</text>
-        <!-- Lua script box -->
-        <rect x="290" y="185" width="180" height="50" rx="6" fill="rgba(192,132,252,.06)" stroke="rgba(192,132,252,.3)" stroke-width="1" id="rLua" opacity="0"/>
-        <text x="380" y="205" text-anchor="middle" font-size="9" fill="#c084fc" font-family="monospace" id="tLua1" opacity="0">if GET(key)==token then</text>
-        <text x="380" y="220" text-anchor="middle" font-size="9" fill="#c084fc" font-family="monospace" id="tLua2" opacity="0">&nbsp;&nbsp;DEL(key)</text>
-        <text x="380" y="235" text-anchor="middle" font-size="9" fill="#c084fc" font-family="monospace" id="tLua3" opacity="0">end</text>
-
-        <!-- Arrows -->
-        <line id="aA2R" x1="170" y1="138" x2="270" y2="120" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr)" opacity="0"/>
-        <line id="aB2R" x1="610" y1="138" x2="490" y2="120" stroke="#c084fc" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr)" opacity="0"/>
-        <line id="aRel" x1="270" y1="240" x2="170" y2="242" stroke="#f87171" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrR)" opacity="0"/>
-
-        <text id="tStatus" x="380" y="320" text-anchor="middle" font-size="11" fill="#94a3b8" font-family="'Segoe UI',sans-serif">点击播放，观察分布式锁竞争过程</text>
-      </svg>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">Redis / distributed-lock / C 类型</div>
+      <h1>Redis 分布式锁</h1>
+      <p class="summary">使用 SET NX PX 原子命令实现互斥加锁，配合 Lua 脚本原子释放和 Redlock 多数派算法，在分布式环境下保证临界区安全执行。</p>
+      <div class="tags"><span>SETNX</span><span>Redlock</span><span>原子性</span><span>TTL</span></div>
     </div>
-    <div class="desc-box">
-      <span id="descText">Redis 分布式锁：SET key token NX PX ttl — NX 保证互斥，PX 设置过期防止死锁</span>
-      <span class="step-counter" id="stepCounter">0 / 0</span>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>NX (Not eXists)</strong><span>仅当 key 不存在时才设置成功，Redis 原子操作保证互斥。</span></li>
+        <li><strong>TTL (Time To Live)</strong><span>锁的过期时间，防止持有者崩溃后死锁；但也引入过期竞态风险。</span></li>
+        <li><strong>Fencing Token</strong><span>单调递增的令牌，帮助下游资源拒绝持有过期锁的客户端请求。</span></li>
+      </ul>
     </div>
+  </section>
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">步骤时间线</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <svg class="lock-svg" viewBox="0 0 520 380" id="lockSvg">
+          <defs>
+            <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="rgba(255,255,255,.25)"/>
+            </marker>
+            <marker id="arrOk" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#4ade80"/>
+            </marker>
+            <marker id="arrFail" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#f87171"/>
+            </marker>
+            <marker id="arrPurple" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#c084fc"/>
+            </marker>
+          </defs>
+          <!-- Edges -->
+          <!-- e0: Client A → Redis -->
+          <line id="e0" class="redge" x1="130" y1="95" x2="220" y2="175" marker-end="url(#arr)"/>
+          <!-- e1: Redis → Client A (response) -->
+          <line id="e1" class="redge" x1="220" y1="190" x2="130" y2="108" marker-end="url(#arr)" style="opacity:0"/>
+          <!-- e2: Client B → Redis -->
+          <line id="e2" class="redge" x1="390" y1="95" x2="300" y2="175" marker-end="url(#arr)"/>
+          <!-- e3: Redis → Client B (response) -->
+          <line id="e3" class="redge" x1="300" y1="190" x2="390" y2="108" marker-end="url(#arr)" style="opacity:0"/>
+          <!-- e4: Redis Node 1 → Node 2 (Redlock) -->
+          <line id="e4" class="redge" x1="235" y1="260" x2="165" y2="310" marker-end="url(#arr)" style="opacity:0"/>
+          <!-- e5: Redis Node 1 → Node 3 (Redlock) -->
+          <line id="e5" class="redge" x1="285" y1="260" x2="355" y2="310" marker-end="url(#arr)" style="opacity:0"/>
+
+          <!-- Node: Client A -->
+          <g id="n0" class="rnode">
+            <rect x="40" y="50" width="130" height="56" rx="10"/>
+            <text x="105" y="72" text-anchor="middle" font-size="11" font-weight="700">Client A</text>
+            <text x="105" y="90" text-anchor="middle" font-size="9" id="n0sub">uuid-A</text>
+          </g>
+          <!-- Node: Client B -->
+          <g id="n1" class="rnode">
+            <rect x="350" y="50" width="130" height="56" rx="10"/>
+            <text x="415" y="72" text-anchor="middle" font-size="11" font-weight="700">Client B</text>
+            <text x="415" y="90" text-anchor="middle" font-size="9" id="n1sub">uuid-B</text>
+          </g>
+          <!-- Node: Redis (main) -->
+          <g id="n2" class="rnode">
+            <rect x="185" y="155" width="150" height="110" rx="10"/>
+            <text x="260" y="178" text-anchor="middle" font-size="12" font-weight="700">Redis</text>
+            <text x="260" y="198" text-anchor="middle" font-size="9" id="n2key">lock:order:123</text>
+            <text x="260" y="216" text-anchor="middle" font-size="10" id="n2val" fill="#64748b">(nil)</text>
+            <!-- TTL bar -->
+            <rect x="205" y="228" width="110" height="10" rx="3" fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.08)" stroke-width="1"/>
+            <rect id="ttlBar" x="205" y="228" width="0" height="10" rx="3" fill="rgba(251,191,36,.4)"/>
+            <text x="260" y="252" text-anchor="middle" font-size="8" fill="#64748b" id="ttlText">TTL: --</text>
+          </g>
+          <!-- Node: Redis Node 2 (Redlock) -->
+          <g id="n3" class="rnode" style="opacity:0">
+            <rect x="100" y="305" width="100" height="44" rx="10"/>
+            <text x="150" y="322" text-anchor="middle" font-size="10" font-weight="700">Redis #2</text>
+            <text x="150" y="338" text-anchor="middle" font-size="8" id="n3sub">—</text>
+          </g>
+          <!-- Node: Redis Node 3 (Redlock) -->
+          <g id="n4" class="rnode" style="opacity:0">
+            <rect x="320" y="305" width="100" height="44" rx="10"/>
+            <text x="370" y="322" text-anchor="middle" font-size="10" font-weight="700">Redis #3</text>
+            <text x="370" y="338" text-anchor="middle" font-size="8" id="n4sub">—</text>
+          </g>
+          <!-- Status label -->
+          <text id="statusLabel" x="260" y="370" text-anchor="middle" font-size="10" fill="#64748b">—</text>
+        </svg>
+      </div>
+      <div class="controls">
+        <button class="ctrl" onclick="reset()">⏮ 重置</button>
+        <button class="ctrl" onclick="prev()">← 上一步</button>
+        <button class="ctrl primary" id="play" onclick="toggle()">播放</button>
+        <button class="ctrl" onclick="next()">下一步 →</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-hd">当前状态</div>
+      <div class="status">
+        <span class="badge" id="stepKind">normal</span>
+        <h2 id="stepTitle"></h2>
+        <p id="stepDesc"></p>
+        <p id="stepDetail" style="margin-top:8px;font-size:.82rem;"></p>
+      </div>
+    </aside>
+  </section>
+  <section class="deep">
+    <section>
+      <h2>背景与机制</h2>
+      <p>单机锁（mutex）无法跨进程协调。Redis 分布式锁利用 <code>SET key token NX PX ttl</code> 在共享 Redis 实例中实现互斥。NX 保证只有一个客户端成功写入（加锁），PX 设置过期时间防止崩溃死锁。释放锁时必须通过 Lua 脚本原子比较 token 后才删除 key，避免误删他人锁。</p>
+    </section>
+    <section>
+      <h2>常见误区</h2>
+      <ul>
+        <li>只用 <code>DEL key</code> 释放锁而不校验 token — 可能删掉其他客户端刚获取的锁。</li>
+        <li>认为加锁成功后永远持有 — TTL 到期锁自动释放，业务未完成时另一个客户端可能趁隙加锁。</li>
+        <li>把单 Redis 实例锁等同于强一致锁 — 主从切换期间锁可能丢失（脑裂写入）。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>工程场景</h2>
+      <ul>
+        <li>Go SDK 加锁: <code>rdb.SetNX(ctx, key, token, 30*time.Second)</code></li>
+        <li>Lua 释放: <code>if redis.call("get",KEYS[1])==ARGV[1] then redis.call("del",KEYS[1]) end</code></li>
+        <li>Redisson/Watchdog 模式: 每 TTL/3 自动续期，业务完成前锁不过期。</li>
+        <li>Redlock: 向 5 个独立 Redis 发 SET NX，>= 3 个成功且总耗时 < TTL 才算加锁成功。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>边界与恢复</h2>
+      <ul>
+        <li>网络分区: 客户端可能以为加锁成功，但实际 Redis 已将锁让给他人 — 需 fencing token 保护下游。</li>
+        <li>时钟漂移: Redlock 依赖节点时钟近似同步，NTP 跳变可能导致多客户端同时持锁。</li>
+        <li>强一致场景: 若业务不能容忍极端情况下双写，应使用 ZooKeeper/etcd 等 CP 系统。</li>
+      </ul>
+    </section>
+  </section>
+  <div class="back-row">
+    <a class="btn" href="index.html">返回 Redis 模块</a>
+    <a class="btn" href="../graph.html">知识星图</a>
   </div>
-  <div class="code-panel">
-    <div class="code-panel-header">
-      <div class="code-dot" style="background:#dc382c"></div>
-      <span data-base="redis_lock">redis_lock.go</span>
-    </div>
-    <div class="code-body" id="codeBody"></div>
-  </div>
-</div>
-<div class="controls">
-  <button class="btn" onclick="reset()">⏮ 重置</button>
-  <button class="btn" id="btnPrev" onclick="prev()">◀ 上一步</button>
-  <button class="btn primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
-  <button class="btn" id="btnNext" onclick="next()">下一步 ▶</button>
-  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedSlider" min="1" max="5" value="3"><span>🐇</span></div>
-</div>
+</main>
 <script>
-window.PAGE_CONCEPTS = [
-  { title: 'SETNX 加锁', body: `SET key value NX PX ttl：原子性"不存在则设置"，同时设置过期时间。NX 保证只有一个客户端能成功加锁，PX 防止客户端崩溃后锁永不释放。` },
-  { title: '唯一 Value', body: `锁的 value 必须是客户端唯一标识（UUID）。释放时先校验 value 是否匹配，防止误删其他客户端的锁（锁过期后被他人持有的场景）。` },
-  { title: 'Lua 脚本原子释放', body: `GET + DEL 两步操作不是原子的。用 Lua 脚本将"比较+删除"合为一个原子操作，Broker 端保证脚本不被打断。` },
-  { title: '锁续期 (Watchdog)', body: `Redisson 等客户端内置 Watchdog：每隔 TTL/3 时间检查锁是否仍被持有，自动续期。业务未完成时锁不会过期。`, tag: '自动续期' },
-  { title: 'Redlock 算法', body: `向 N（奇数，通常 5）个独立 Redis 节点申请锁，超过半数成功且总耗时 < TTL 才算加锁成功。它能降低单节点故障风险，但在时钟漂移、网络分区和强一致需求下仍有争议；强一致场景应优先考虑 ZooKeeper/etcd 等共识系统。`, tag: '多数派' }
+/* ---- Step Data ---- */
+const STEPS = [
+  {
+    title: "初始状态",
+    desc: "Client A 和 Client B 准备竞争同一把锁 lock:order:123，Redis 中尚无该 key。",
+    detail: "两个客户端各自持有唯一 token (uuid-A / uuid-B)，准备执行 SET NX。",
+    kind: "normal",
+    nodes: { n0: "", n1: "", n2: "", n3: "hide", n4: "hide" },
+    edges: [],
+    lock: { val: "(nil)", ttl: 0, ttlText: "TTL: --" },
+    redlock: false,
+    label: "等待加锁"
+  },
+  {
+    title: "Client A 发起加锁",
+    desc: "Client A 执行 SET lock:order:123 uuid-A NX PX 30000，请求发往 Redis。",
+    detail: "NX 表示仅当 key 不存在时才设置；PX 30000 设置 30 秒过期时间。",
+    kind: "normal",
+    nodes: { n0: "active", n1: "", n2: "active", n3: "hide", n4: "hide" },
+    edges: [{ id: "e0", cls: "active" }],
+    lock: { val: "(nil)", ttl: 0, ttlText: "TTL: --" },
+    redlock: false,
+    label: "SET NX 请求中..."
+  },
+  {
+    title: "Client A 获得锁",
+    desc: "Redis 返回 OK — key 之前不存在，Client A 成功加锁，锁值 = uuid-A，TTL = 30s。",
+    detail: "从这一刻起，Client A 进入安全临界区，其他客户端无法获取同一把锁。",
+    kind: "normal",
+    nodes: { n0: "locked", n1: "", n2: "locked", n3: "hide", n4: "hide" },
+    edges: [{ id: "e1", cls: "ok" }],
+    lock: { val: "uuid-A", ttl: 100, ttlText: "TTL: 30s" },
+    redlock: false,
+    label: "Client A 持有锁"
+  },
+  {
+    title: "Client B 尝试加锁 — 失败",
+    desc: "Client B 执行 SET lock:order:123 uuid-B NX PX 30000 — 但 key 已存在，Redis 返回 nil。",
+    detail: "NX 条件不满足，Client B 获取锁失败，进入自旋/退避重试。",
+    kind: "failure",
+    nodes: { n0: "locked", n1: "fail", n2: "locked", n3: "hide", n4: "hide" },
+    edges: [{ id: "e2", cls: "fail" }, { id: "e3", cls: "fail" }],
+    lock: { val: "uuid-A", ttl: 80, ttlText: "TTL: 25s" },
+    redlock: false,
+    label: "Client B 被拒绝"
+  },
+  {
+    title: "Client A 执行业务逻辑",
+    desc: "Client A 在临界区内安全处理 order-123，TTL 持续倒计时。",
+    detail: "若业务耗时可能超过 TTL，应使用 Watchdog 机制定时续期（如 Redisson 每 10s 续期一次）。",
+    kind: "normal",
+    nodes: { n0: "locked", n1: "waiting", n2: "locked", n3: "hide", n4: "hide" },
+    edges: [],
+    lock: { val: "uuid-A", ttl: 55, ttlText: "TTL: 18s ↓" },
+    redlock: false,
+    label: "业务处理中..."
+  },
+  {
+    title: "TTL 过期竞态 — 锁自动释放",
+    desc: "假设 Client A 业务超时，TTL 到期，Redis 自动删除锁 key。此时 Client A 仍认为自己持有锁！",
+    detail: "这是分布式锁最危险的竞态：Client A 尚在临界区，锁已不存在。下一步 Client B 将趁隙加锁。",
+    kind: "failure",
+    nodes: { n0: "fail", n1: "waiting", n2: "", n3: "hide", n4: "hide" },
+    edges: [],
+    lock: { val: "(expired)", ttl: 0, ttlText: "TTL: 0 !!!" },
+    redlock: false,
+    label: "锁过期！竞态窗口"
+  },
+  {
+    title: "Client B 趁隙获得锁",
+    desc: "Client B 重试 SET NX 成功 — 锁值变为 uuid-B。此刻 Client A 和 B 都在执行业务！",
+    detail: "解决方案：(1) Watchdog 续期 (2) Fencing token 让下游拒绝旧持有者的写入。",
+    kind: "failure",
+    nodes: { n0: "fail", n1: "locked", n2: "locked", n3: "hide", n4: "hide" },
+    edges: [{ id: "e2", cls: "ok" }, { id: "e3", cls: "ok" }],
+    lock: { val: "uuid-B", ttl: 100, ttlText: "TTL: 30s (B)" },
+    redlock: false,
+    label: "双写风险！"
+  },
+  {
+    title: "Client A 安全释放 — Lua 脚本",
+    desc: "Client A 完成业务后执行 Lua 释放：GET key == uuid-A ? DEL : 忽略。因为当前值是 uuid-B，DEL 不会执行。",
+    detail: "Lua 脚本保证 GET+DEL 原子性，避免误删 Client B 的锁。这就是为什么 token 必须唯一。",
+    kind: "recovery",
+    nodes: { n0: "recover", n1: "locked", n2: "locked", n3: "hide", n4: "hide" },
+    edges: [{ id: "e0", cls: "active" }],
+    lock: { val: "uuid-B", ttl: 85, ttlText: "TTL: 26s (B)" },
+    redlock: false,
+    label: "Lua: token 不匹配，跳过 DEL"
+  },
+  {
+    title: "Client B 正常释放锁",
+    desc: "Client B 业务完成，执行 Lua 脚本：GET == uuid-B → DEL 成功，锁释放。",
+    detail: "正常流程：加锁 → 业务 → Lua 原子释放。整个过程无竞态。",
+    kind: "normal",
+    nodes: { n0: "", n1: "recover", n2: "", n3: "hide", n4: "hide" },
+    edges: [{ id: "e2", cls: "ok" }],
+    lock: { val: "(nil)", ttl: 0, ttlText: "TTL: --" },
+    redlock: false,
+    label: "锁已释放"
+  },
+  {
+    title: "Redlock — 多节点加锁",
+    desc: "向 3 个独立 Redis 节点同时发起 SET NX。需 >= 2 个节点成功，且总耗时 < TTL，才算加锁成功。",
+    detail: "Redlock 容忍单节点故障，但依赖节点时钟近似同步。Martin Kleppmann 指出其在异步模型下不安全。",
+    kind: "normal",
+    nodes: { n0: "active", n1: "", n2: "locked", n3: "locked", n4: "fail" },
+    edges: [{ id: "e0", cls: "ok" }, { id: "e4", cls: "ok" }, { id: "e5", cls: "fail" }],
+    lock: { val: "uuid-A (2/3)", ttl: 90, ttlText: "TTL: 28s" },
+    redlock: true,
+    label: "Redlock: 多数派成功"
+  }
 ];
 
-const CODE_LINES=[
-  {html:'<span class="kw">package</span> main'},
-  {html:'<span class="kw">import</span> (<span class="st">"context"</span>;<span class="st">"crypto/rand"</span>;<span class="st">"encoding/hex"</span>;<span class="st">"time"</span>;<span class="st">"github.com/redis/go-redis/v9"</span>)'},
-  {html:'<span class="kw">var</span> ctx = <span class="fn">context.Background</span>()'},
-  {html:''},
-  {html:'<span class="kw">func</span> <span class="fn">generateToken</span>() <span class="kw">string</span> {'},
-  {html:'&nbsp;&nbsp;b := <span class="kw">make</span>([]<span class="kw">byte</span>, <span class="num">16</span>); rand.<span class="fn">Read</span>(b)'},
-  {html:'&nbsp;&nbsp;<span class="kw">return</span> hex.<span class="fn">EncodeToString</span>(b)'},
-  {html:'}'},
-  {html:''},
-  {html:'<span class="kw">func</span> <span class="fn">acquireLock</span>(rdb *<span class="fn">redis.Client</span>, key <span class="kw">string</span>, ttl <span class="fn">time.Duration</span>) (<span class="kw">string</span>, <span class="kw">bool</span>) {'},
-  {html:'&nbsp;&nbsp;token := <span class="fn">generateToken</span>()'},
-  {html:'&nbsp;&nbsp;<span class="cm">// SET key token NX PX ttl_ms — 原子操作，NX=不存在才设置</span>'},
-  {html:'&nbsp;&nbsp;ok, _ := rdb.<span class="fn">SetNX</span>(ctx, key, token, ttl).<span class="fn">Result</span>()'},
-  {html:'&nbsp;&nbsp;<span class="kw">if</span> !ok { <span class="kw">return</span> <span class="st">""</span>, <span class="kw">false</span> }'},
-  {html:'&nbsp;&nbsp;<span class="kw">return</span> token, <span class="kw">true</span>'},
-  {html:'}'},
-  {html:''},
-  {html:'<span class="kw">func</span> <span class="fn">releaseLock</span>(rdb *<span class="fn">redis.Client</span>, key, token <span class="kw">string</span>) <span class="kw">bool</span> {'},
-  {html:'&nbsp;&nbsp;<span class="cm">// Lua 脚本保证 GET+DEL 的原子性</span>'},
-  {html:'&nbsp;&nbsp;script := redis.<span class="fn">NewScript</span>(`'},
-  {html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> redis.call("get",KEYS[1])==ARGV[1] <span class="kw">then</span>'},
-  {html:'&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> redis.call("del",KEYS[1])'},
-  {html:'&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">else</span> <span class="kw">return</span> 0 <span class="kw">end</span>'},
-  {html:'&nbsp;&nbsp;`)'},
-  {html:'&nbsp;&nbsp;res, _ := script.<span class="fn">Run</span>(ctx, rdb, []<span class="kw">string</span>{key}, token).<span class="fn">Int</span>()'},
-  {html:'&nbsp;&nbsp;<span class="kw">return</span> res == <span class="num">1</span>'},
-  {html:'}'},
-  {html:''},
-  {html:'<span class="kw">func</span> <span class="fn">processOrder</span>(rdb *<span class="fn">redis.Client</span>, orderID <span class="kw">string</span>) {'},
-  {html:'&nbsp;&nbsp;lockKey := <span class="st">"lock:order:"</span> + orderID'},
-  {html:'&nbsp;&nbsp;token, ok := <span class="fn">acquireLock</span>(rdb, lockKey, <span class="num">30</span>*time.<span class="fn">Second</span>)'},
-  {html:'&nbsp;&nbsp;<span class="kw">if</span> !ok { <span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="st">"获取锁失败"</span>); <span class="kw">return</span> }'},
-  {html:'&nbsp;&nbsp;<span class="kw">defer</span> <span class="fn">releaseLock</span>(rdb, lockKey, token)'},
-  {html:'&nbsp;&nbsp;<span class="cm">// 安全处理订单</span>'},
-  {html:'}'},
-];
+/* ---- Render Engine ---- */
+const NODE_IDS = ['n0','n1','n2','n3','n4'];
+const EDGE_IDS = ['e0','e1','e2','e3','e4','e5'];
 
+let idx = 0, timer = null;
+const list = document.getElementById('stepList');
+const titleEl = document.getElementById('stepTitle');
+const descEl = document.getElementById('stepDesc');
+const detailEl = document.getElementById('stepDetail');
+const badgeEl = document.getElementById('stepKind');
+const playBtn = document.getElementById('play');
 
-const STEPS=[
-  {highlightLines:[27,28,29],hlJs:[18,19,20],hlPy:[20,21,22,23,24],description:'场景：两个服务实例同时处理 order-123，需要分布式锁防止并发冲突'},
-  {highlightLines:[10,11,12,13],hlJs:[3,4,5,6],hlPy:[13,14,15],description:'Client A 执行 SET lock:order:123 uuid-A NX PX 30000 — NX 表示 key 不存在时才设置'},
-  {highlightLines:[13,14,15],hlJs:[6,7],hlPy:[15,16],description:'Redis 返回 OK — Client A 成功获取锁，锁值=uuid-A，TTL=30秒'},
-  {highlightLines:[10,11,12,13],hlJs:[3,4,5,6],hlPy:[13,14,15],description:'Client B 同时执行 SET lock:order:123 uuid-B NX PX 30000 — 但 key 已存在'},
-  {highlightLines:[13,14],hlJs:[6,7],hlPy:[15,16],description:'Redis 返回 nil — NX 条件不满足，Client B 获取锁失败，进入重试等待'},
-  {highlightLines:[30,31,32,33],hlJs:[20,21,22,23],hlPy:[25,26,27,28],description:'Client A 执行业务逻辑（安全临界区）— TTL 计时器倒数，防止宕机死锁'},
-  {highlightLines:[18,19,20,21,22,23,24],hlJs:[10,11,12,13,14,15,16],hlPy:[30,31,32,33,34,35],description:'Client A 完成后执行 Lua 脚本：GET key — 验证 value==uuid-A（防止误删他人的锁）'},
-  {highlightLines:[21,22,23],hlJs:[12,13,14],hlPy:[31,32],description:'Lua 脚本：GET==own_token → 执行 DEL — GET+DEL 原子操作，不会被其他 Client 打断'},
-  {highlightLines:[13,14,15],hlJs:[6,7],hlPy:[15,16],description:'Client B 重试成功 — SET lock:order:123 uuid-B NX PX 30000 返回 OK，获得锁'},
-  {highlightLines:[30,31,32,33],hlJs:[20,21,22,23],hlPy:[25,26,27,28],description:'Client B 安全执行业务逻辑 — 与 Client A 的操作不会重叠，数据一致性保证'},
-];
+function render() {
+  const s = STEPS[idx];
+  titleEl.textContent = s.title;
+  descEl.textContent = s.desc;
+  detailEl.textContent = s.detail;
+  badgeEl.textContent = s.kind;
+  badgeEl.className = 'badge ' + s.kind;
 
-let step=0,playing=false,timer=null;
-function getSpeed(){return 1600-(parseInt(document.getElementById('speedSlider').value)-1)*300;}
+  // Step list highlight
+  document.querySelectorAll('.step-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
 
-function so(id,v){const e=document.getElementById(id);if(e)e.setAttribute('opacity',v);}
-function sf(id,t){const e=document.getElementById(id);if(e)e.textContent=t;}
-function ss(id,c){const e=document.getElementById(id);if(e)e.style.stroke=c;}
+  // Node states
+  NODE_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('active','fail','recover','locked','waiting');
+    const state = s.nodes[id] || "";
+    if (state === "hide") { el.style.opacity = '0'; return; }
+    el.style.opacity = '1';
+    if (state) el.classList.add(state);
+  });
 
-function renderViz(){
-  // Reset
-  ss('rCA','#334155'); ss('rCB','#334155'); ss('rRedis','#334155'); ss('rLockKey','#334155');
-  so('aA2R','0'); so('aB2R','0'); so('aRel','0');
-  so('rLua','0'); so('tLua1','0'); so('tLua2','0'); so('tLua3','0');
-  sf('tLockVal','（未设置）'); sf('tAStatus','等待...'); sf('tBStatus','等待...'); sf('tBWait','重试中...');
-  sf('tTTL','TTL: --'); document.getElementById('rTTL').setAttribute('width','0');
-  document.getElementById('tAStatus').style.fill='#94a3b8';
-  document.getElementById('tBStatus').style.fill='#f87171';
+  // Redlock nodes visibility
+  document.getElementById('n3').style.opacity = s.redlock ? '1' : '0';
+  document.getElementById('n4').style.opacity = s.redlock ? '1' : '0';
+  document.getElementById('e4').style.opacity = s.redlock ? '1' : '0';
+  document.getElementById('e5').style.opacity = s.redlock ? '1' : '0';
 
-  if(step>=0){ss('rCA','#38bdf8'); so('aA2R','1');}
-  if(step>=1){ss('rRedis','#38bdf8');}
-  if(step>=2){
-    sf('tLockVal','uuid-A → TTL:30s');
-    document.getElementById('tLockVal').style.fill='#4ade80';
-    document.getElementById('rTTL').setAttribute('width','180');
-    sf('tTTL','TTL: 30s');
-    sf('tAStatus','✓ 已获得锁'); document.getElementById('tAStatus').style.fill='#4ade80';
-    ss('rAStatus','#4ade80');
+  // Edges
+  EDGE_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('active','ok','fail','purple');
+    const edgeState = s.edges.find(e => e.id === id);
+    if (edgeState) {
+      el.style.opacity = '1';
+      el.classList.add(edgeState.cls);
+      if (edgeState.cls === 'ok') el.setAttribute('marker-end','url(#arrOk)');
+      else if (edgeState.cls === 'fail') el.setAttribute('marker-end','url(#arrFail)');
+      else if (edgeState.cls === 'purple') el.setAttribute('marker-end','url(#arrPurple)');
+      else el.setAttribute('marker-end','url(#arr)');
+    } else {
+      // e1, e3, e4, e5 are hidden by default
+      if (['e1','e3'].includes(id)) el.style.opacity = '0';
+      if (['e4','e5'].includes(id) && !s.redlock) el.style.opacity = '0';
+      el.setAttribute('marker-end','url(#arr)');
+    }
+  });
+
+  // Lock state
+  document.getElementById('n2val').textContent = s.lock.val;
+  document.getElementById('n2val').setAttribute('fill', s.lock.val === '(nil)' || s.lock.val === '(expired)' ? '#64748b' : '#4ade80');
+  document.getElementById('ttlBar').setAttribute('width', String(s.lock.ttl * 1.1));
+  document.getElementById('ttlText').textContent = s.lock.ttlText;
+  document.getElementById('statusLabel').textContent = s.label;
+
+  // Redlock sub labels
+  if (s.redlock) {
+    document.getElementById('n3sub').textContent = s.nodes.n3 === 'locked' ? 'OK' : '—';
+    document.getElementById('n4sub').textContent = s.nodes.n4 === 'fail' ? 'FAIL' : '—';
   }
-  if(step>=3){ss('rCB','#c084fc'); so('aB2R','1');}
-  if(step>=4){
-    sf('tBStatus','✗ 获取失败'); document.getElementById('tBStatus').style.fill='#f87171';
-    ss('rBStatus','#f87171');
-  }
-  if(step>=5){
-    sf('tABiz','处理 order-123 中...');
-    document.getElementById('rTTL').setAttribute('width','120');
-    sf('tTTL','TTL: 20s ↓');
-  }
-  if(step>=6){so('rLua','1'); so('tLua1','1'); so('tLua2','0'); so('tLua3','1');}
-  if(step>=7){
-    so('tLua2','1'); so('aRel','1');
-    sf('tLockVal','DEL → nil');
-    document.getElementById('tLockVal').style.fill='#f87171';
-    document.getElementById('rTTL').setAttribute('width','0');
-    sf('tTTL','TTL: --');
-    sf('tAStatus','锁已释放 ✓');
-  }
-  if(step>=8){
-    ss('rCB','#4ade80');
-    sf('tLockVal','uuid-B → TTL:30s');
-    document.getElementById('tLockVal').style.fill='#4ade80';
-    document.getElementById('rTTL').setAttribute('width','180');
-    sf('tTTL','TTL: 30s');
-    sf('tBStatus','✓ 已获得锁'); document.getElementById('tBStatus').style.fill='#4ade80';
-    sf('tBWait','');
-  }
-  if(step>=9){sf('tBWait','处理 order-123 中...');}
 }
 
-function renderCode(){
-  const lines=CODE_LINES;
-  const hl=step<STEPS.length?(STEPS[step].highlightLines||[]):[];
-  document.getElementById('codeBody').innerHTML=lines.map((l,i)=>
-    `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
-      <span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
+function drawList() {
+  list.innerHTML = STEPS.map((s, i) =>
+    `<button class="step-btn" data-i="${i}"><b>Step ${i+1}</b>${s.title}</button>`
   ).join('');
-  const a=document.querySelector('.code-line.active');if(a)a.scrollIntoView({block:'nearest'});
+  list.querySelectorAll('button').forEach(b => b.onclick = () => { idx = Number(b.dataset.i); pause(); render(); });
 }
 
-function render(){
-  renderViz();renderCode();
-  document.getElementById('descText').textContent=step<STEPS.length?STEPS[step].description:'演示完成';
-  document.getElementById('stepCounter').textContent=`${Math.min(step+1,STEPS.length)} / ${STEPS.length}`;
-  document.getElementById('btnPrev').disabled=step===0;
-  document.getElementById('btnNext').disabled=step>=STEPS.length-1;
-}
+function next() { idx = Math.min(STEPS.length - 1, idx + 1); render(); if (idx === STEPS.length - 1) pause(); }
+function prev() { idx = Math.max(0, idx - 1); render(); }
+function reset() { idx = 0; pause(); render(); }
+function pause() { if (timer) clearInterval(timer); timer = null; playBtn.textContent = '播放'; }
+function toggle() { if (timer) { pause(); return; } playBtn.textContent = '暂停'; timer = setInterval(next, 2000); }
 
-function jumpToLine(ln){for(let i=STEPS.length-1;i>=0;i--){if((STEPS[i].highlightLines||[]).includes(ln)){step=i;render();return;}}}
-function next(){if(step<STEPS.length-1){step++;render();}}
-function prev(){if(step>0){step--;render();}}
-function reset(){step=0;render();if(playing){playing=false;clearInterval(timer);document.getElementById('btnPlay').textContent='▶ 播放';}}
-function togglePlay(){
-  if(!playing && step>=STEPS.length-1){step=0;render();}
-  playing=!playing;
-  document.getElementById('btnPlay').textContent=playing?'⏸ 暂停':'▶ 播放';
-  if(playing){timer=setInterval(()=>{if(step>=STEPS.length-1){playing=false;clearInterval(timer);document.getElementById('btnPlay').textContent='▶ 播放';return;}step++;render();},getSpeed());}
-  else clearInterval(timer);
-}
-
+drawList();
 render();
-if(window.NavTracker)NavTracker.track('Redis分布式锁','redis/distributed-lock.html','🔴','Redis');
 </script>
 </body>
 </html>

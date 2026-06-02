@@ -66,6 +66,16 @@ pre{font-size:0.78rem;color:#a5f3fc;overflow-x:auto;line-height:1.6;}
 .ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
 .lc{padding:0 16px 0 4px;flex:1;}
 
+.playback-controls{background:var(--panel);border:1px solid var(--border);border-radius:0.75rem;padding:0.65rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;}
+.ctrl-btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.85rem;border-radius:0.45rem;font-size:0.85rem;cursor:pointer;transition:all 0.15s;}
+.ctrl-btn:hover{background:rgba(255,255,255,0.12);}
+.ctrl-btn.primary{background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.3);color:var(--yellow);}
+.ctrl-btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-group{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+.speed-group input[type=range]{-webkit-appearance:none;width:80px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+.speed-group input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--yellow);cursor:pointer;}
+.step-info{font-size:0.78rem;color:var(--dim);font-family:monospace;margin-left:0.5rem;}
+
 /* MOBILE_INJECTED */
 @media(max-width:768px){
   body{height:auto!important;min-height:100vh;overflow-y:auto!important;overflow-x:hidden;}
@@ -157,6 +167,18 @@ pre{font-size:0.78rem;color:#a5f3fc;overflow-x:auto;line-height:1.6;}
 <div class="sets-section">
   <h3>集合状态 &nbsp;<span id="setCount" style="color:var(--blue)"></span></h3>
   <div class="sets-row" id="setsRow"></div>
+</div>
+
+<div class="playback-controls">
+  <button class="ctrl-btn" id="btnStepReset" onclick="stepReset()">⏮ 重置</button>
+  <button class="ctrl-btn" id="btnPrev" onclick="stepPrev()">◀ 上一步</button>
+  <button class="ctrl-btn primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+  <button class="ctrl-btn" id="btnNext" onclick="stepNext()">下一步 ▶</button>
+  <span class="step-info" id="stepInfo"></span>
+  <span class="speed-group">
+    <label>速度</label>
+    <input type="range" id="speedSlider" min="1" max="5" value="3">
+  </span>
 </div>
 
 <div class="log-section">
@@ -291,6 +313,13 @@ let rank = new Array(N).fill(0);
 let count = N;
 let highlighted = [];
 let isAnimating = false;
+
+// Step-by-step playback state
+let STEPS = [];
+let stepIdx = -1;
+let playing = false;
+let playTimer = null;
+const SPEED = [1000, 650, 400, 220, 100];
 
 const SVG_W = 700, SVG_H = 320;
 const ROW1_Y = 90, ROW2_Y = 230;
@@ -493,98 +522,255 @@ function setButtons(disabled) {
 
 async function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
 
-async function doFind() {
+function doFind() {
   if (isAnimating) return;
-  isAnimating = true;
-  setButtons(true);
+  pausePlay();
   const x = parseInt(document.getElementById('fx').value);
   addLog(`<span class="tag">Find(${x})</span> 开始路径追溯...`);
 
-  // Find path to root
-  const path = findPath(x);
+  // Record steps using simulation on copies
+  STEPS = [];
+  let simParent = [...parent];
+  let simRank = [...rank];
+
+  function snap(par, rnk, hlPath, hlRoot, desc, logMsg) {
+    STEPS.push({
+      parent: [...par],
+      rank: [...rnk],
+      hlPath: [...hlPath],
+      hlRoot: hlRoot,
+      description: desc,
+      logMsg: logMsg || null
+    });
+  }
+
+  // Find path to root on simulated state
+  function simFindPath(p, x) {
+    let path = [x];
+    while (p[x] !== x) { x = p[x]; path.push(x); }
+    return path;
+  }
+
+  const path = simFindPath(simParent, x);
   const root = path[path.length-1];
 
-  // Animate path highlight
-  for (let i = 0; i < path.length; i++) {
-    render(path.slice(0,i+1), root);
-    await sleep(350);
-  }
-  addLog(`<span class="tag-orange">路径：${path.join(' → ')}</span>，根节点 = ${root}`);
+  // Step: initial
+  snap(simParent, simRank, [], -1, `Find(${x}) 开始路径追溯`, null);
 
-  await sleep(400);
+  // Animate path highlight step by step
+  for (let i = 0; i < path.length; i++) {
+    snap(simParent, simRank, path.slice(0, i+1), root,
+      `追溯：访问节点 ${path[i]}${path[i]===root?' (根节点)':''}`, null);
+  }
+
+  // Show full path
+  snap(simParent, simRank, path, root,
+    `路径：${path.join(' → ')}，根节点 = ${root}`,
+    `<span class="tag-orange">路径：${path.join(' → ')}</span>，根节点 = ${root}`);
 
   // Path compression
-  const before = path.slice();
-  for (const node of path) { if (node !== root) parent[node] = root; }
-  addLog(`<span class="tag-green">路径压缩：${before.filter(n=>n!==root).join(', ')} → 直接指向 ${root}</span>`);
+  for (const node of path) { if (node !== root) simParent[node] = root; }
+  snap(simParent, simRank, [], root,
+    `路径压缩：${path.filter(n=>n!==root).join(', ')} → 直接指向 ${root}`,
+    `<span class="tag-green">路径压缩：${path.filter(n=>n!==root).join(', ')} → 直接指向 ${root}</span>`);
 
-  render([], root);
-  await sleep(200);
-  render();
-  isAnimating = false;
-  setButtons(false);
+  // Final clean state
+  snap(simParent, simRank, [], -1, `Find(${x}) 完成，根节点 = ${root}`, null);
+
+  stepIdx = 0;
+  applyStep();
+  updatePlaybackUI();
 }
 
-async function doUnion() {
+function doUnion() {
   if (isAnimating) return;
-  isAnimating = true;
-  setButtons(true);
+  pausePlay();
   const a = parseInt(document.getElementById('ua').value);
   const b = parseInt(document.getElementById('ub').value);
   addLog(`<span class="tag">Union(${a},${b})</span> 开始...`);
 
-  // Find roots with path animation
-  const pathA = findPath(a);
+  STEPS = [];
+  let simParent = [...parent];
+  let simRank = [...rank];
+
+  function snap(par, rnk, hlPath, hlRoot, desc, logMsg) {
+    STEPS.push({
+      parent: [...par],
+      rank: [...rnk],
+      hlPath: [...hlPath],
+      hlRoot: hlRoot,
+      description: desc,
+      logMsg: logMsg || null
+    });
+  }
+
+  function simFindPath(p, x) {
+    let path = [x];
+    while (p[x] !== x) { x = p[x]; path.push(x); }
+    return path;
+  }
+
+  // Initial
+  snap(simParent, simRank, [], -1, `Union(${a},${b}) 开始`, null);
+
+  // Find root of a
+  const pathA = simFindPath(simParent, a);
   const rootA = pathA[pathA.length-1];
   for (let i = 0; i < pathA.length; i++) {
-    render(pathA.slice(0,i+1));
-    await sleep(280);
+    snap(simParent, simRank, pathA.slice(0, i+1), -1,
+      `Find(${a})：访问节点 ${pathA[i]}`, null);
   }
-  addLog(`Find(${a}) → 路径 ${pathA.join('→')} → 根 ${rootA}`);
-  for (const node of pathA) { if (node !== rootA) parent[node] = rootA; }
+  snap(simParent, simRank, pathA, rootA,
+    `Find(${a}) → 路径 ${pathA.join('→')} → 根 ${rootA}`,
+    `Find(${a}) → 路径 ${pathA.join('→')} → 根 ${rootA}`);
 
-  await sleep(350);
+  // Path compression for a
+  for (const node of pathA) { if (node !== rootA) simParent[node] = rootA; }
+  snap(simParent, simRank, [], -1, `Find(${a}) 路径压缩完成`, null);
 
-  const pathB = findPath(b);
+  // Find root of b
+  const pathB = simFindPath(simParent, b);
   const rootB = pathB[pathB.length-1];
   for (let i = 0; i < pathB.length; i++) {
-    render(pathB.slice(0,i+1));
-    await sleep(280);
+    snap(simParent, simRank, pathB.slice(0, i+1), -1,
+      `Find(${b})：访问节点 ${pathB[i]}`, null);
   }
-  addLog(`Find(${b}) → 路径 ${pathB.join('→')} → 根 ${rootB}`);
-  for (const node of pathB) { if (node !== rootB) parent[node] = rootB; }
+  snap(simParent, simRank, pathB, rootB,
+    `Find(${b}) → 路径 ${pathB.join('→')} → 根 ${rootB}`,
+    `Find(${b}) → 路径 ${pathB.join('→')} → 根 ${rootB}`);
 
-  render();
-  await sleep(350);
+  // Path compression for b
+  for (const node of pathB) { if (node !== rootB) simParent[node] = rootB; }
+  snap(simParent, simRank, [], -1, `Find(${b}) 路径压缩完成`, null);
 
   if (rootA === rootB) {
-    addLog(`<span class="tag-orange">${a} 和 ${b} 已在同一集合，无需合并</span>`);
+    snap(simParent, simRank, [], -1,
+      `${a} 和 ${b} 已在同一集合，无需合并`,
+      `<span class="tag-orange">${a} 和 ${b} 已在同一集合，无需合并</span>`);
   } else {
     let rx = rootA, ry = rootB;
-    if (rank[rx] < rank[ry]) [rx,ry] = [ry,rx];
-    parent[ry] = rx;
-    if (rank[rx] === rank[ry]) rank[rx]++;
-    count--;
-    addLog(`<span class="tag-green">按秩合并：rank[${rx}]=${rank[rx]} ≥ rank[${ry}]，parent[${ry}]=${rx}</span>`);
-    render([], rx);
-    await sleep(400);
-    render();
+    if (simRank[rx] < simRank[ry]) [rx, ry] = [ry, rx];
+    simParent[ry] = rx;
+    if (simRank[rx] === simRank[ry]) simRank[rx]++;
+    snap(simParent, simRank, [], rx,
+      `按秩合并：parent[${ry}] = ${rx}`,
+      `<span class="tag-green">按秩合并：rank[${rx}]=${simRank[rx]} ≥ rank[${ry}]，parent[${ry}]=${rx}</span>`);
+
+    // Final clean
+    snap(simParent, simRank, [], -1, `Union(${a},${b}) 完成`, null);
   }
 
-  isAnimating = false;
-  setButtons(false);
+  stepIdx = 0;
+  applyStep();
+  updatePlaybackUI();
+}
+
+// --- Step-by-step playback controls ---
+function applyStep() {
+  if (STEPS.length === 0 || stepIdx < 0 || stepIdx >= STEPS.length) return;
+  const s = STEPS[stepIdx];
+
+  // Apply state
+  parent = [...s.parent];
+  rank = [...s.rank];
+
+  // Render with highlights
+  render(s.hlPath || [], s.hlRoot !== undefined ? s.hlRoot : -1);
+
+  // Add log if present
+  if (s.logMsg) addLog(s.logMsg);
+
+  updatePlaybackUI();
+}
+
+function updatePlaybackUI() {
+  const info = document.getElementById('stepInfo');
+  const btnPrevEl = document.getElementById('btnPrev');
+  const btnNextEl = document.getElementById('btnNext');
+  if (STEPS.length === 0) {
+    info.textContent = '';
+    btnPrevEl.disabled = true;
+    btnNextEl.disabled = true;
+  } else {
+    info.textContent = `${stepIdx + 1} / ${STEPS.length}`;
+    btnPrevEl.disabled = stepIdx <= 0;
+    btnNextEl.disabled = stepIdx >= STEPS.length - 1;
+  }
+}
+
+function stepNext() {
+  if (STEPS.length === 0 || stepIdx >= STEPS.length - 1) return;
+  stepIdx++;
+  applyStep();
+}
+
+function stepPrev() {
+  if (STEPS.length === 0 || stepIdx <= 0) return;
+  stepIdx--;
+  const s = STEPS[stepIdx];
+  parent = [...s.parent];
+  rank = [...s.rank];
+  render(s.hlPath || [], s.hlRoot !== undefined ? s.hlRoot : -1);
+  updatePlaybackUI();
+}
+
+function togglePlay() {
+  if (playing) {
+    pausePlay();
+  } else {
+    startPlay();
+  }
+}
+
+function startPlay() {
+  if (STEPS.length === 0) return;
+  if (stepIdx >= STEPS.length - 1) stepIdx = 0;
+  playing = true;
+  document.getElementById('btnPlay').textContent = '⏸ 暂停';
+  playTick();
+}
+
+function pausePlay() {
+  playing = false;
+  if (playTimer) { clearTimeout(playTimer); playTimer = null; }
+  document.getElementById('btnPlay').textContent = '▶ 播放';
+}
+
+function playTick() {
+  if (!playing) return;
+  if (stepIdx < STEPS.length - 1) {
+    stepIdx++;
+    applyStep();
+    const speed = SPEED[parseInt(document.getElementById('speedSlider').value) - 1];
+    playTimer = setTimeout(playTick, speed);
+  } else {
+    pausePlay();
+  }
+}
+
+function stepReset() {
+  pausePlay();
+  STEPS = [];
+  stepIdx = -1;
+  render();
+  updatePlaybackUI();
 }
 
 function doReset() {
+  pausePlay();
+  STEPS = [];
+  stepIdx = -1;
   parent = Array.from({length:N},(_,i)=>i);
   rank = new Array(N).fill(0);
   count = N;
   document.getElementById('logContainer').innerHTML = '';
   render();
+  updatePlaybackUI();
   addLog('<span class="tag">重置</span> 所有节点恢复为独立集合');
 }
 
 render();
+updatePlaybackUI();
 addLog('<span class="tag">初始化</span> 10 个独立节点，每个节点为独立集合');
 LangSwitcher.init(renderCode);
 renderCode();

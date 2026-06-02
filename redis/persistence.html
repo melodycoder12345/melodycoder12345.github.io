@@ -3,552 +3,350 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Redis 持久化机制 - 可视化学习</title>
-<style>
-:root{
-  --bg:#0f172a; --panel:#1e293b; --panel2:#0d1117;
-  --border:#334155; --text:#e2e8f0; --dim:#94a3b8; --dim2:#64748b;
-  --blue:#38bdf8; --yellow:#fbbf24; --orange:#fb923c;
-  --green:#4ade80; --purple:#c084fc; --red:#f87171; --teal:#2dd4bf;
-  --redis:#dc382c;
-}
-*{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
-nav{display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;flex-wrap:wrap;}
-.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;transition:color 0.15s;}.back-btn:hover{color:var(--text);}
-nav h1{font-size:1.15rem;font-weight:600;}
-.badges{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;}
-.badge{font-size:0.72rem;padding:3px 10px;border-radius:100px;font-family:monospace;font-weight:500;}
-.main{display:flex;flex:1;overflow:hidden;}
-.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
-.viz-area{flex:1;overflow-y:auto;padding:20px 24px;}
-.desc-box{padding:10px 20px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:48px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
-.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
-.code-panel{width:46%;min-width:360px;display:flex;flex-direction:column;overflow:hidden;}
-.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
-.code-dot{width:10px;height:10px;border-radius:50%;}
-.code-body{flex:1;overflow-y:auto;padding:10px 0;background:var(--panel2);}
-.code-body::-webkit-scrollbar{width:5px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
-.code-line{display:flex;align-items:stretch;padding:0;cursor:pointer;transition:background 0.12s;font-family:'JetBrains Mono',monospace;font-size:0.8rem;line-height:1.65;}
-.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
-.ln{min-width:44px;padding:0 10px 0 14px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.76rem;}
-.lc{padding:0 14px 0 4px;flex:1;}
-.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;}.id{color:#e6edf3;}
-.controls{display:flex;align-items:center;gap:8px;padding:10px 20px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
-.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:6px 14px;border-radius:7px;cursor:pointer;font-size:0.83rem;transition:all 0.15s;}
-.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(220,56,44,0.15);border-color:rgba(220,56,44,0.4);color:var(--redis);}
-.btn:disabled{opacity:0.38;cursor:not-allowed;}
-.speed-wrap{display:flex;align-items:center;gap:6px;margin-left:auto;font-size:0.78rem;color:var(--dim);}
-input[type=range]{-webkit-appearance:none;width:80px;height:3px;background:var(--border);border-radius:2px;outline:none;}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--redis);cursor:pointer;}
-
-/* Viz */
-.flow-row{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
-.flow-box{border-radius:8px;padding:10px 16px;font-size:0.83rem;font-family:monospace;border:1px solid;transition:all 0.4s;text-align:center;min-width:100px;}
-.flow-box.active{box-shadow:0 0 14px currentColor;opacity:1;}.flow-box.dim{opacity:0.4;}
-.flow-arrow{color:var(--dim);font-size:1.2rem;flex-shrink:0;}
-.timeline{position:relative;padding-left:28px;margin-bottom:14px;}
-.timeline::before{content:'';position:absolute;left:9px;top:4px;bottom:4px;width:2px;background:var(--border);border-radius:2px;}
-.tl-item{position:relative;margin-bottom:12px;}
-.tl-dot{position:absolute;left:-22px;top:4px;width:12px;height:12px;border-radius:50%;border:2px solid;transition:all 0.4s;}
-.tl-text{font-size:0.82rem;color:var(--dim);line-height:1.6;}
-.tl-text strong{color:var(--text);}
-.process-box{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:12px;}
-.process-title{font-size:0.88rem;font-weight:600;margin-bottom:10px;}
-.vs-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
-.vs-card{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
-.vs-card h3{font-size:0.9rem;font-weight:600;margin-bottom:10px;}
-.vs-row-item{display:flex;justify-content:space-between;font-size:0.8rem;color:var(--dim);padding:4px 0;border-bottom:1px solid rgba(51,65,85,0.3);}
-.vs-row-item:last-child{border-bottom:none;}
-.vs-row-item span:last-child{color:var(--text);font-weight:500;}
-.file-box{background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;font-family:monospace;font-size:0.78rem;color:var(--dim2);margin-top:8px;}
-.file-box .filename{color:var(--blue);font-weight:600;margin-bottom:4px;}
-.pulse{animation:pulse 1.2s ease-in-out infinite;}
-@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.5;}}
-
-@media(max-width:768px){
-  body{height:auto!important;min-height:100vh;overflow-y:auto!important;}
-  nav{flex-wrap:wrap;padding:8px 14px;gap:6px;}
-  nav h1{font-size:0.95rem;}
-  .badges{margin-left:0!important;width:100%;order:3;}
-  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
-  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:340px!important;min-height:340px!important;flex:none!important;}
-  .code-panel{width:100%!important;min-width:unset!important;height:320px!important;flex:none!important;}
-  .controls{flex-wrap:wrap!important;gap:5px!important;height:auto!important;}
-  .speed-wrap{margin-left:0!important;width:100%;justify-content:flex-end;}
-  .vs-grid{grid-template-columns:1fr!important;}
-}
-</style>
+<title>Redis 持久化机制 - RDB / AOF</title>
 <script src="../nav.js"></script>
 <script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#4ade80;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 18%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}a{color:inherit}.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:16px;align-items:stretch;margin-bottom:20px}.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:440px;display:flex;flex-direction:column;padding:18px}.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:radial-gradient(circle at 50% 30%,rgba(74,222,128,.06),transparent 55%),rgba(15,23,42,.64);overflow:hidden;display:flex;align-items:center;justify-content:center;}
+.esvg{width:100%;max-width:480px;height:auto;}
+.enode rect{fill:rgba(255,255,255,.055);stroke:rgba(255,255,255,.12);stroke-width:1.5;transition:all .3s;}
+.enode text{fill:#94a3b8;transition:fill .3s;}
+.enode.active rect{fill:color-mix(in srgb,var(--accent) 16%,transparent);stroke:var(--accent);stroke-width:2;}
+.enode.active text{fill:#f8fafc;}
+.enode.fail rect{fill:rgba(248,113,113,.1);stroke:#f87171;stroke-width:2;}
+.enode.fail text{fill:#f87171;}
+.enode.recover rect{fill:rgba(74,222,128,.1);stroke:#4ade80;stroke-width:2;}
+.enode.recover text{fill:#4ade80;}
+.eedge{stroke:rgba(255,255,255,.15);stroke-width:1.5;fill:none;transition:all .3s;}
+.eedge.active{stroke:var(--accent);stroke-width:2.5;filter:drop-shadow(0 0 4px color-mix(in srgb,var(--accent) 50%,transparent));}
+.eedge.fail{stroke:#f87171;stroke-width:2;stroke-dasharray:5 3;}
+.eedge.cow{stroke:#fbbf24;stroke-width:2;stroke-dasharray:4 3;}
+
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}.status p{color:var(--dim);font-size:.9rem;line-height:1.75}.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}.badge.failure{border-color:var(--bad);color:var(--bad)}.badge.recovery{border-color:var(--ok);color:var(--ok)}.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit}.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}.deep code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.82rem;color:var(--text)}.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}.btn:hover{color:var(--text);border-color:var(--accent)}@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"RDB Snapshot","body":"定期对整个数据集做全量二进制快照，fork 子进程执行 BGSAVE，主进程不阻塞。恢复速度快，适合备份，但可能丢失最后一次快照后的数据。","tag":"term"},
+  {"title":"AOF Append","body":"每条写命令追加到 AOF 文件。三种 fsync 策略：always（每条都刷盘）、everysec（每秒一次，推荐）、no（由 OS 决定）。数据安全性高但文件体积大。","tag":"term"},
+  {"title":"Copy-on-Write","body":"fork() 后父子进程共享内存页。父进程修改数据时，OS 才复制对应页面，子进程看到的是 fork 时刻的一致性快照。","tag":"term"},
+  {"title":"AOF Rewrite","body":"AOF 文件过大时，BGREWRITEAOF 启动子进程基于当前内存状态生成等价的最小命令集，压缩文件体积。重写期间新命令同时写入旧 AOF 和重写缓冲区。","tag":"term"}
+];</script>
 </head>
 <body>
-<nav>
-  <a href="index.html" class="back-btn">← 返回</a>
-  <h1>Redis 持久化机制 RDB vs AOF</h1>
-  <div class="badges">
-    <span class="badge" style="background:rgba(56,189,248,0.15);color:#38bdf8">RDB</span>
-    <span class="badge" style="background:rgba(74,222,128,0.15);color:#4ade80">AOF</span>
-    <span class="badge" style="background:rgba(220,56,44,0.15);color:#dc382c">持久化</span>
-  </div>
-</nav>
-<div class="main">
-  <div class="viz-panel">
-    <div class="viz-area" id="vizArea">
-      <div style="color:var(--dim);font-size:0.9rem;padding:20px 0;">点击"下一步"开始演示</div>
-    </div>
-    <div class="desc-box">
-      <span id="descText">Redis 持久化：RDB 快照和 AOF 日志两种策略，权衡恢复速度与数据安全。</span>
-      <span class="step-counter" id="stepCounter">0 / 10</span>
-    </div>
-  </div>
-  <div class="code-panel">
-    <div class="code-panel-header">
-      <div class="code-dot" style="background:#ff5f57"></div>
-      <div class="code-dot" style="background:#febc2e"></div>
-      <div class="code-dot" style="background:#28c840"></div>
-      <span style="margin-left:4px" data-base="persistence">persistence.go</span>
-    </div>
-    <div class="code-body" id="codeBody"></div>
-  </div>
-</div>
-<div class="controls">
-  <button class="btn" id="btnReset">⏮ 重置</button>
-  <button class="btn" id="btnPrev">◀ 上一步</button>
-  <button class="btn primary" id="btnPlay">▶ 播放</button>
-  <button class="btn" id="btnNext">下一步 ▶</button>
-  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
-</div>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card"><div class="eyebrow">Redis / persistence / C 类型</div><h1>Redis 持久化机制</h1><p class="summary">Redis 通过 RDB 快照和 AOF 日志两种持久化策略确保内存数据在进程重启后可恢复。RDB 适合全量备份与快速恢复，AOF 保证写操作级别的数据安全，二者可结合使用（混合持久化）实现速度与完整性的最佳平衡。</p><div class="tags"><span>RDB</span><span>AOF</span><span>fork</span><span>COW</span><span>混合持久化</span></div></div>
+    <div class="card"><div class="eyebrow">核心术语</div><ul class="concept-list"><li><strong>RDB Snapshot</strong><span>全量二进制快照，fork 子进程写盘，恢复速度快。</span></li><li><strong>AOF Append</strong><span>写命令追加日志，fsync 策略控制刷盘频率。</span></li><li><strong>Copy-on-Write</strong><span>fork 后共享内存页，写时才复制，减少内存开销。</span></li><li><strong>AOF Rewrite</strong><span>子进程重写 AOF，将内存状态序列化为最小命令集。</span></li></ul></div>
+  </section>
+  <section class="lab">
+    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <section class="panel viz">
+      <div class="stage">
+        <!--
+          SVG 布局 (480x360):
+          Row 1: Redis Main Process (中央)
+          Row 2: Child Process (fork出来的)
+          底部: RDB File / AOF Buffer / AOF File
+          连接: Main→Child(fork), Child→RDB(write), Main→AOFBuf(append), AOFBuf→AOFFile(fsync)
+        -->
+        <svg class="esvg" viewBox="0 0 480 360" id="perSvg">
+          <defs>
+            <marker id="parrN" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L7,3 z" fill="rgba(255,255,255,.2)"/>
+            </marker>
+            <marker id="parrA" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L7,3 z" fill="#4ade80"/>
+            </marker>
+            <marker id="parrF" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L7,3 z" fill="#f87171"/>
+            </marker>
+            <marker id="parrW" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L7,3 z" fill="#fbbf24"/>
+            </marker>
+            <marker id="parrG" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L7,3 z" fill="#4ade80"/>
+            </marker>
+          </defs>
+
+          <!-- Row separators -->
+          <line x1="20" y1="140" x2="460" y2="140" stroke="rgba(255,255,255,.04)" stroke-width="1" stroke-dasharray="4 8"/>
+          <text x="22" y="152" font-size="8" fill="#334155">子进程层</text>
+          <line x1="20" y1="250" x2="460" y2="250" stroke="rgba(255,255,255,.04)" stroke-width="1" stroke-dasharray="4 8"/>
+          <text x="22" y="262" font-size="8" fill="#334155">磁盘层</text>
+
+          <!-- === Edges === -->
+          <!-- e0: Main → Child (fork) -->
+          <line id="pe0" class="eedge" x1="200" y1="108" x2="160" y2="170" marker-end="url(#parrN)"/>
+          <!-- e1: Child → RDB File (write snapshot) -->
+          <line id="pe1" class="eedge" x1="140" y1="214" x2="100" y2="276" marker-end="url(#parrN)"/>
+          <!-- e2: Main → AOF Buffer (append command) -->
+          <line id="pe2" class="eedge" x1="280" y1="108" x2="310" y2="170" marker-end="url(#parrN)"/>
+          <!-- e3: AOF Buffer → AOF File (fsync) -->
+          <line id="pe3" class="eedge" x1="330" y1="214" x2="350" y2="276" marker-end="url(#parrN)"/>
+          <!-- e4: Main COW arrow (write triggers copy) -->
+          <line id="pe4" class="eedge" x1="220" y1="108" x2="180" y2="170" marker-end="url(#parrN)"/>
+          <!-- e5: Child → AOF Rewrite (rewrite) -->
+          <line id="pe5" class="eedge" x1="170" y1="214" x2="350" y2="276" marker-end="url(#parrN)"/>
+          <!-- e6: RDB File → Main (recovery load) -->
+          <line id="pe6" class="eedge" x1="100" y1="276" x2="200" y2="108" marker-end="url(#parrN)"/>
+          <!-- e7: AOF File → Main (recovery replay) -->
+          <line id="pe7" class="eedge" x1="370" y1="276" x2="270" y2="108" marker-end="url(#parrN)"/>
+
+          <!-- === Nodes === -->
+          <!-- n0: Redis Main Process -->
+          <g id="pn0" class="enode">
+            <rect x="150" y="50" width="180" height="58" rx="10"/>
+            <text x="240" y="73" text-anchor="middle" font-size="11" font-weight="700">Redis Main Process</text>
+            <text x="240" y="90" text-anchor="middle" font-size="8.5" fill="#64748b" id="mainState">运行中 | 内存数据</text>
+            <text x="240" y="102" text-anchor="middle" font-size="8" fill="#64748b" id="mainDetail"></text>
+          </g>
+          <!-- n1: Child Process -->
+          <g id="pn1" class="enode">
+            <rect x="80" y="166" width="140" height="48" rx="10"/>
+            <text x="150" y="186" text-anchor="middle" font-size="10" font-weight="700">Child Process</text>
+            <text x="150" y="202" text-anchor="middle" font-size="8" fill="#64748b" id="childState">未创建</text>
+          </g>
+          <!-- n2: AOF Buffer -->
+          <g id="pn2" class="enode">
+            <rect x="260" y="166" width="140" height="48" rx="10"/>
+            <text x="330" y="186" text-anchor="middle" font-size="10" font-weight="700">AOF Buffer</text>
+            <text x="330" y="202" text-anchor="middle" font-size="8" fill="#64748b" id="bufState">空</text>
+          </g>
+          <!-- n3: RDB File -->
+          <g id="pn3" class="enode">
+            <rect x="40" y="272" width="120" height="48" rx="10"/>
+            <text x="100" y="292" text-anchor="middle" font-size="10" font-weight="700">dump.rdb</text>
+            <text x="100" y="308" text-anchor="middle" font-size="8" fill="#64748b" id="rdbState">不存在</text>
+          </g>
+          <!-- n4: AOF File -->
+          <g id="pn4" class="enode">
+            <rect x="290" y="272" width="140" height="48" rx="10"/>
+            <text x="360" y="292" text-anchor="middle" font-size="10" font-weight="700">appendonly.aof</text>
+            <text x="360" y="308" text-anchor="middle" font-size="8" fill="#64748b" id="aofState">不存在</text>
+          </g>
+
+          <!-- info line -->
+          <text id="perInfo" x="240" y="348" text-anchor="middle" font-size="9" fill="#334155"></text>
+        </svg>
+      </div>
+      <div class="controls"><button class="ctrl" id="btnReset">重置</button><button class="ctrl" id="btnPrev">上一步</button><button class="ctrl primary" id="btnPlay">播放</button><button class="ctrl" id="btnNext">下一步</button></div>
+    </section>
+    <aside class="panel"><div class="panel-hd">当前状态</div><div class="status"><span class="badge" id="stateBadge">normal</span><h2 id="stepTitle"></h2><p id="stepDesc"></p><p id="stepDetail" style="margin-top:8px;font-size:.82rem;"></p></div></aside>
+  </section>
+  <section class="deep">
+    <section><h2>背景</h2><p>Redis 作为内存数据库，一旦进程退出数据即丢失。持久化机制将内存状态落盘，使数据可在重启后恢复。RDB 提供时间点快照能力，AOF 提供命令级日志回放能力，两者配合实现高可用数据保障。</p></section>
+    <section><h2>常见误区</h2><ul><li>RDB 与 AOF 并非二选一，生产环境推荐同时开启（混合持久化）。</li><li>AOF everysec 并非严格"最多丢 1 秒"，极端情况下可能丢 2 秒（上一次 fsync 延迟时）。</li><li>fork 不会立即占用双倍内存，COW 只在写时才复制对应页面。</li></ul></section>
+    <section><h2>工程实践</h2><ul><li>混合持久化配置：<code>aof-use-rdb-preamble yes</code>，AOF 重写时先写 RDB 头再追加增量命令。</li><li>RDB 触发规则：<code>save 900 1</code> / <code>save 300 10</code> / <code>save 60 10000</code>，可根据写入频率调整。</li><li>AOF 推荐：<code>appendfsync everysec</code>，兼顾性能与安全。</li><li>Go SDK 触发：<code>rdb.BgSave(ctx)</code> / <code>rdb.BgRewriteAOF(ctx)</code>。</li></ul></section>
+    <section><h2>边界与代价</h2><ul><li>fork 内存开销：大实例 fork 时 COW 可能导致短暂内存翻倍（写入密集场景）。</li><li>fsync 延迟：always 策略每次写命令都 fsync，吞吐量下降明显。</li><li>AOF 重写期间双缓冲区内存消耗和 CPU 开销。</li><li>恢复时间：纯 AOF 重放大文件可能需要数分钟，混合持久化可将此降至秒级。</li></ul></section>
+  </section>
+  <div class="back-row"><a class="btn" href="index.html">返回 Redis 模块</a><a class="btn" href="../graph.html?q=Redis%20持久化">在知识星图中查看</a></div>
+</main>
 <script>
 if (window.NavTracker) NavTracker.track('Redis 持久化', 'redis/persistence.html', '💾', 'Redis');
 
-window.PAGE_CONCEPTS = [
-  { title: 'RDB 快照', body: `定期对整个数据集做全量快照，fork 子进程执行 BGSAVE，主进程不阻塞。恢复速度快，适合备份，但可能丢失最后一次快照后的数据。` },
-  { title: 'AOF 日志', body: `每条写命令追加到 AOF 文件。三种 fsync 策略：always（每条都刷盘，最安全）、everysec（每秒一次，推荐）、no（由 OS 决定）。` },
-  { title: 'AOF Rewrite', body: `AOF 文件随时间膨胀，BGREWRITEAOF 启动子进程重写，将内存数据序列化为等效的最小命令集，压缩文件大小。`, tag: 'BGREWRITEAOF' },
-  { title: '混合持久化', body: `Redis 4.0+ 推荐方案：AOF 文件头部嵌入 RDB 快照，后半段是增量 AOF 命令。重启时先加载 RDB 再重放 AOF，兼顾速度与完整性。`, tag: '推荐' },
-  { title: '持久化选型', body: `纯缓存（可丢）：关闭两者。数据不可丢：AOF everysec + 定期 RDB 备份。高频快照：RDB（注意 fork 开销）。生产推荐：混合持久化。` }
-];
-
-const CODE_LINES = [
-  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
-  {html:``},
-  {html:`<span class="kw">import</span> (`},
-  {html:`&nbsp;&nbsp;<span class="st">"context"</span>`},
-  {html:`&nbsp;&nbsp;<span class="st">"fmt"</span>`},
-  {html:`&nbsp;&nbsp;<span class="st">"github.com/redis/go-redis/v9"</span>`},
-  {html:`)`},
-  {html:``},
-  {html:`<span class="kw">var</span> <span class="id">ctx</span> = <span class="pkg">context</span>.<span class="fn">Background</span>()`},
-  {html:``},
-  {html:`<span class="kw">func</span> <span class="fn">main</span>() {`},
-  {html:`&nbsp;&nbsp;<span class="id">rdb</span> := <span class="id">redis</span>.<span class="fn">NewClient</span>(&amp;<span class="id">redis</span>.<span class="fn">Options</span>{`},
-  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">Addr</span>: <span class="st">"localhost:6379"</span>,`},
-  {html:`&nbsp;&nbsp;})`},
-  {html:``},
-  {html:`&nbsp;&nbsp;<span class="cm">// 触发后台 RDB 快照</span>`},
-  {html:`&nbsp;&nbsp;<span class="id">result</span>, <span class="id">err</span> := <span class="id">rdb</span>.<span class="fn">BgSave</span>(<span class="id">ctx</span>).<span class="fn">Result</span>()`},
-  {html:`&nbsp;&nbsp;<span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> {`},
-  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">panic</span>(<span class="id">err</span>)`},
-  {html:`&nbsp;&nbsp;}`},
-  {html:`&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="st">"BGSAVE:"</span>, <span class="id">result</span>)`},
-  {html:``},
-  {html:`&nbsp;&nbsp;<span class="cm">// 触发 AOF 重写</span>`},
-  {html:`&nbsp;&nbsp;<span class="id">result2</span>, <span class="id">err</span> := <span class="id">rdb</span>.<span class="fn">BgRewriteAOF</span>(<span class="id">ctx</span>).<span class="fn">Result</span>()`},
-  {html:`&nbsp;&nbsp;<span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> {`},
-  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">panic</span>(<span class="id">err</span>)`},
-  {html:`&nbsp;&nbsp;}`},
-  {html:`&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="st">"BGREWRITEAOF:"</span>, <span class="id">result2</span>)`},
-  {html:``},
-  {html:`&nbsp;&nbsp;<span class="cm">// 查看持久化状态</span>`},
-  {html:`&nbsp;&nbsp;<span class="id">info</span>, _ := <span class="id">rdb</span>.<span class="fn">Info</span>(<span class="id">ctx</span>, <span class="st">"persistence"</span>).<span class="fn">Result</span>()`},
-  {html:`&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">info</span>)`},
-  {html:`}`},
-  {html:``},
-  {html:`<span class="cm">// Redis 配置 (redis.conf):</span>`},
-  {html:`<span class="cm">// save 900 1      # 900s 内 1 次写入</span>`},
-  {html:`<span class="cm">// save 300 10     # 300s 内 10 次写入</span>`},
-  {html:`<span class="cm">// save 60 10000   # 60s 内 10000 次写入</span>`},
-  {html:`<span class="cm">// appendonly yes</span>`},
-  {html:`<span class="cm">// appendfsync everysec  # 每秒同步</span>`},
-];
-
-
+/*
+  nodes: pn0=Redis Main, pn1=Child Process, pn2=AOF Buffer, pn3=RDB File, pn4=AOF File
+  edges: pe0=Main→Child(fork), pe1=Child→RDB(write), pe2=Main→AOFBuf(append),
+         pe3=AOFBuf→AOFFile(fsync), pe4=Main→Child(COW), pe5=Child→AOFFile(rewrite),
+         pe6=RDB→Main(recovery), pe7=AOF→Main(recovery)
+*/
 const STEPS = [
   {
-    highlightLines:[1,2,3,4,5,6,7,8,9,10,11],
-    hlJs:[1], hlPy:[1],
-    description:"Redis 持久化概览：RDB（快照）和 AOF（日志追加）两种策略，可同时开启",
-    render: () => renderOverview()
+    title: "Redis 运行，数据仅在内存",
+    desc: "Redis 启动后所有数据存储在内存中，此时无任何持久化文件，进程退出即丢失全部数据。",
+    kind: "normal",
+    detail: "这是默认状态。需要配置 RDB 或 AOF 才能开启持久化保障。",
+    active: [0], fail: [], recover: [],
+    edges: [],
+    edgeStyle: {},
+    mainState:'运行中 | 仅内存', mainDetail:'无持久化',
+    childState:'未创建', bufState:'未启用', rdbState:'不存在', aofState:'不存在',
+    info: '数据仅在内存，重启即丢失'
   },
   {
-    highlightLines:[35,36,37,38],
-    hlJs:[18,19], hlPy:[16,17],
-    description:"RDB: 配置 save 900 1 — 900秒内有至少1次写入则触发自动快照，可配置多条规则",
-    render: () => renderRdbConfig()
+    title: "BGSAVE 触发，fork() 创建子进程",
+    desc: "手动执行 BGSAVE 或满足 save 规则时，Redis 调用 fork() 创建子进程，子进程继承父进程完整内存映射。",
+    kind: "normal",
+    detail: "fork 瞬间父子共享内存页（COW 机制），fork 本身耗时与内存页表大小正相关。",
+    active: [0,1], fail: [], recover: [],
+    edges: ['pe0'],
+    edgeStyle: {pe0:'active'},
+    mainState:'fork() 中', mainDetail:'创建子进程快照',
+    childState:'已创建 (COW)', bufState:'未启用', rdbState:'不存在', aofState:'不存在',
+    info: 'fork() → 子进程继承内存映射'
   },
   {
-    highlightLines:[15,16,17,18,19,20,21],
-    hlJs:[5,6,7], hlPy:[5,6],
-    description:"RDB: BGSAVE 命令触发后台快照，非阻塞，返回 'Background saving started'",
-    render: () => renderBgsave()
+    title: "子进程写 RDB，父进程继续服务",
+    desc: "子进程遍历内存数据生成二进制 RDB 文件写入磁盘，父进程正常接收客户端请求不阻塞。",
+    kind: "normal",
+    detail: "RDB 文件格式紧凑，包含魔数、版本、DB 选择器、键值编码和 CRC64 校验。",
+    active: [0,1,3], fail: [], recover: [],
+    edges: ['pe0','pe1'],
+    edgeStyle: {pe0:'active',pe1:'active'},
+    mainState:'正常服务中', mainDetail:'接收客户端请求',
+    childState:'写入 dump.rdb', bufState:'未启用', rdbState:'写入中...', aofState:'不存在',
+    info: '子进程序列化内存 → dump.rdb'
   },
   {
-    highlightLines:[15,16,17,18,19,20,21],
-    hlJs:[5,6,7], hlPy:[5,6],
-    description:"RDB: Redis 调用 fork() 创建子进程，子进程继承父进程内存映射（Copy-On-Write）",
-    render: () => renderFork()
+    title: "COW：父进程写操作触发页面复制",
+    desc: "父进程收到写命令修改数据时，OS 将被修改的内存页复制一份给父进程，子进程仍持有 fork 时刻的原始页。",
+    kind: "normal",
+    detail: "COW 确保子进程看到的是一致性快照。写入越频繁，复制的页面越多，额外内存开销越大。",
+    active: [0,1,3], fail: [], recover: [],
+    edges: ['pe4','pe1'],
+    edgeStyle: {pe4:'cow',pe1:'active'},
+    mainState:'写入触发 COW', mainDetail:'修改页面被复制',
+    childState:'持有原始快照页', bufState:'未启用', rdbState:'写入中...', aofState:'不存在',
+    info: 'COW: 写时复制保证快照一致性'
   },
   {
-    highlightLines:[15,16,17,18,19,20,21],
-    hlJs:[5,6,7], hlPy:[5,6],
-    description:"RDB: 子进程遍历内存中所有数据，生成二进制 RDB 文件（全量快照），期间父进程正常服务",
-    render: () => renderRdbFile()
+    title: "AOF 启用：写命令追加到缓冲区",
+    desc: "配置 appendonly yes 后，每条写命令执行完毕都会以 RESP 格式追加到 AOF 缓冲区。",
+    kind: "normal",
+    detail: "AOF 记录的是写命令本身（如 SET key value），而非数据快照。",
+    active: [0,2], fail: [], recover: [],
+    edges: ['pe2'],
+    edgeStyle: {pe2:'active'},
+    mainState:'执行写命令', mainDetail:'SET / HSET / LPUSH ...',
+    childState:'未创建', bufState:'追加命令中', rdbState:'dump.rdb (已完成)', aofState:'待刷盘',
+    info: '每条写命令 → AOF Buffer (RESP 格式)'
   },
   {
-    highlightLines:[39,40],
-    hlJs:[20,21], hlPy:[18,19],
-    description:"AOF: appendonly yes 开启 AOF，每次写命令都追加到 appendonly.aof 文件",
-    render: () => renderAofEnable()
+    title: "AOF fsync 策略刷盘",
+    desc: "AOF 缓冲区的数据根据 fsync 策略写入磁盘：always（每条立即刷）、everysec（每秒一次）、no（交给 OS）。",
+    kind: "normal",
+    detail: "everysec 是推荐策略，最多丢失约 1 秒数据，吞吐量接近 no 策略。",
+    active: [0,2,4], fail: [], recover: [],
+    edges: ['pe2','pe3'],
+    edgeStyle: {pe2:'active',pe3:'active'},
+    mainState:'正常服务中', mainDetail:'appendfsync everysec',
+    childState:'未创建', bufState:'每秒刷盘', rdbState:'dump.rdb', aofState:'持续追加',
+    info: 'fsync 策略: always | everysec | no'
   },
   {
-    highlightLines:[39,40,41],
-    hlJs:[20,21], hlPy:[18,19],
-    description:"AOF: 每次写命令（SET/HSET/LPUSH等）追加到 AOF 文件，三种刷盘策略：always/everysec/no",
-    render: () => renderAofWrite()
+    title: "AOF 过大，触发 BGREWRITEAOF",
+    desc: "当 AOF 文件增长超过阈值（默认 64MB 且比上次重写增长 100%），自动触发 BGREWRITEAOF，fork 子进程基于内存状态重写。",
+    kind: "normal",
+    detail: "重写期间新命令同时写入旧 AOF 和重写缓冲区，完成后原子替换旧文件。如 100 次 INCR 合并为一条 SET。",
+    active: [0,1,2,4], fail: [], recover: [],
+    edges: ['pe0','pe5','pe2'],
+    edgeStyle: {pe0:'active',pe5:'active',pe2:'active'},
+    mainState:'正常服务 + 双写', mainDetail:'旧AOF + 重写缓冲区',
+    childState:'重写 AOF 中', bufState:'双缓冲', rdbState:'dump.rdb', aofState:'重写 → 更紧凑',
+    info: 'BGREWRITEAOF: 合并冗余命令，压缩文件'
   },
   {
-    highlightLines:[22,23,24,25,26,27,28],
-    hlJs:[10,11,12], hlPy:[9,10],
-    description:"AOF 重写: BGREWRITEAOF 触发，子进程生成等价但更紧凑的新 AOF 文件",
-    render: () => renderAofRewrite()
+    title: "崩溃场景：数据丢失窗口",
+    desc: "进程崩溃时，最后一次 RDB 快照之后和最后一次 AOF fsync 之后的数据将丢失。",
+    kind: "failure",
+    detail: "纯 RDB 模式可能丢失数分钟数据；AOF everysec 最多丢失约 1-2 秒；always 理论上不丢但性能差。",
+    active: [3,4], fail: [0,1,2], recover: [],
+    edges: [],
+    edgeStyle: {},
+    mainState:'CRASHED', mainDetail:'进程异常退出',
+    childState:'随父进程终止', bufState:'缓冲区丢失', rdbState:'最后一次快照', aofState:'最后一次 fsync',
+    info: '数据丢失窗口 = 最后持久化点 → 崩溃时刻'
   },
   {
-    highlightLines:[22,23,24,25,26,27,28],
-    hlJs:[10,11,12], hlPy:[9,10],
-    description:"AOF 重写: 将内存中的数据状态转换为最小命令集（如多次 INCR 合并为一条 SET）",
-    render: () => renderAofCompact()
-  },
-  {
-    highlightLines:[29,30,31,32,33],
-    hlJs:[14,15,16,17], hlPy:[12,13,14,15],
-    description:"混合持久化: Redis 4.0+ 支持 RDB+AOF 结合，重写时先写 RDB 内容再追加新 AOF 命令，恢复更快",
-    render: () => renderMixed()
-  },
+    title: "恢复：加载 RDB 然后重放 AOF",
+    desc: "Redis 重启时优先加载 AOF（如果存在），否则加载 RDB。混合模式下先加载 AOF 头部的 RDB 数据再重放尾部增量命令。",
+    kind: "recovery",
+    detail: "混合持久化恢复最快：RDB 部分直接内存映射加载（毫秒级），再重放少量增量 AOF 命令。",
+    active: [0], fail: [], recover: [0,3,4],
+    edges: ['pe6','pe7'],
+    edgeStyle: {pe6:'active',pe7:'active'},
+    mainState:'恢复中...', mainDetail:'加载持久化文件',
+    childState:'未创建', bufState:'空', rdbState:'加载 RDB 快照', aofState:'重放 AOF 命令',
+    info: '恢复顺序: RDB 快照 → AOF 增量重放'
+  }
 ];
 
-let step = 0, playing = false, timer = null;
-const SPEED = [900,550,320,180,80];
+const NODE_IDS = ['pn0','pn1','pn2','pn3','pn4'];
+const EDGE_IDS = ['pe0','pe1','pe2','pe3','pe4','pe5','pe6','pe7'];
 
-function renderOverview() {
-  document.getElementById('vizArea').innerHTML = `
-    <div class="vs-grid">
-      <div class="vs-card" style="border-color:rgba(56,189,248,0.3)">
-        <h3 style="color:var(--blue)">💾 RDB（快照）</h3>
-        <div class="vs-row-item"><span>机制</span><span>全量二进制快照</span></div>
-        <div class="vs-row-item"><span>触发</span><span>BGSAVE / 定时 save</span></div>
-        <div class="vs-row-item"><span>文件</span><span>dump.rdb</span></div>
-        <div class="vs-row-item"><span>恢复速度</span><span style="color:var(--green)">快（直接加载）</span></div>
-        <div class="vs-row-item"><span>数据丢失</span><span style="color:var(--red)">最多丢失几分钟</span></div>
-        <div class="vs-row-item"><span>性能影响</span><span>fork() 可能卡顿</span></div>
-      </div>
-      <div class="vs-card" style="border-color:rgba(74,222,128,0.3)">
-        <h3 style="color:var(--green)">📝 AOF（日志）</h3>
-        <div class="vs-row-item"><span>机制</span><span>追加写命令日志</span></div>
-        <div class="vs-row-item"><span>触发</span><span>每次写命令</span></div>
-        <div class="vs-row-item"><span>文件</span><span>appendonly.aof</span></div>
-        <div class="vs-row-item"><span>恢复速度</span><span style="color:var(--yellow)">较慢（重放命令）</span></div>
-        <div class="vs-row-item"><span>数据丢失</span><span style="color:var(--green)">最多丢失1秒</span></div>
-        <div class="vs-row-item"><span>性能影响</span><span>磁盘 I/O 开销</span></div>
-      </div>
-    </div>
-    <div style="margin-top:14px;padding:12px 16px;background:rgba(220,56,44,0.06);border-radius:8px;border-left:3px solid var(--redis);font-size:0.83rem;color:var(--dim);line-height:1.7;">
-      <strong style="color:var(--text)">推荐：</strong>同时开启 RDB + AOF（Redis 4.0+ 支持混合持久化），充分利用两者优势。
-    </div>`;
-}
+let idx = 0, timer = null;
+const list     = document.getElementById('stepList');
+const titleEl  = document.getElementById('stepTitle');
+const descEl   = document.getElementById('stepDesc');
+const detailEl = document.getElementById('stepDetail');
+const badge    = document.getElementById('stateBadge');
+const play     = document.getElementById('btnPlay');
 
-function renderRdbConfig() {
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.9rem;font-weight:600;color:var(--blue);margin-bottom:14px;">RDB 触发配置（redis.conf）</div>
-    <div style="background:var(--panel2);border-radius:8px;padding:16px;font-family:monospace;font-size:0.82rem;line-height:2;margin-bottom:14px;">
-      <div><span style="color:var(--cm,#8b949e)"># 满足任一条件即触发快照</span></div>
-      <div><span style="color:#ff7b72">save</span> <span style="color:#79c0ff">900</span> &nbsp;<span style="color:#79c0ff">1</span> &nbsp;&nbsp;&nbsp;<span style="color:#8b949e"># 900秒内 ≥1 次写入</span></div>
-      <div><span style="color:#ff7b72">save</span> <span style="color:#79c0ff">300</span> &nbsp;<span style="color:#79c0ff">10</span> &nbsp;&nbsp;<span style="color:#8b949e"># 300秒内 ≥10 次写入</span></div>
-      <div><span style="color:#ff7b72">save</span> <span style="color:#79c0ff">60</span> &nbsp;&nbsp;<span style="color:#79c0ff">10000</span> <span style="color:#8b949e"># 60秒内 ≥10000 次写入</span></div>
-      <div>&nbsp;</div>
-      <div><span style="color:#ff7b72">dbfilename</span> dump.rdb</div>
-      <div><span style="color:#ff7b72">dir</span> /var/lib/redis</div>
-    </div>
-    <div class="timeline">
-      <div class="tl-item">
-        <div class="tl-dot" style="border-color:var(--blue);background:var(--blue)"></div>
-        <div class="tl-text"><strong>写入操作累计</strong>：Redis 记录自上次快照以来的修改次数</div>
-      </div>
-      <div class="tl-item">
-        <div class="tl-dot" style="border-color:var(--yellow);background:var(--yellow)"></div>
-        <div class="tl-text"><strong>满足 save 条件</strong>：定时检查（Hz=10，每100ms）是否满足任一触发规则</div>
-      </div>
-      <div class="tl-item">
-        <div class="tl-dot" style="border-color:var(--green);background:var(--green)"></div>
-        <div class="tl-text"><strong>自动触发 BGSAVE</strong>：在后台生成快照</div>
-      </div>
-    </div>`;
-}
-
-function renderBgsave() {
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.9rem;font-weight:600;color:var(--blue);margin-bottom:16px;">BGSAVE 触发流程</div>
-    <div class="flow-row">
-      <div class="flow-box active" style="color:var(--redis);border-color:rgba(220,56,44,0.4);background:rgba(220,56,44,0.08);">
-        客户端<br><small>BGSAVE</small>
-      </div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-box active" style="color:var(--blue);border-color:rgba(56,189,248,0.4);background:rgba(56,189,248,0.08);">
-        Redis 主进程<br><small>接收命令</small>
-      </div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-box active pulse" style="color:var(--yellow);border-color:rgba(251,191,36,0.4);background:rgba(251,191,36,0.08);">
-        fork()<br><small>创建子进程</small>
-      </div>
-    </div>
-    <div style="padding:12px 16px;background:rgba(56,189,248,0.06);border-radius:8px;border-left:3px solid var(--blue);font-size:0.83rem;color:var(--dim);line-height:1.7;margin-top:8px;">
-      <strong style="color:var(--text)">非阻塞模式：</strong>
-      BGSAVE 立即返回 "Background saving started"，主进程继续处理客户端请求，子进程负责写盘。
-    </div>`;
-}
-
-function renderFork() {
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.9rem;font-weight:600;color:var(--yellow);margin-bottom:16px;">fork() — Copy-On-Write</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px;">
-      <div class="process-box" style="border-color:rgba(56,189,248,0.3)">
-        <div class="process-title" style="color:var(--blue)">父进程（Redis 主线程）</div>
-        <div style="font-size:0.8rem;color:var(--dim);line-height:1.8;">
-          ✓ 继续接收客户端请求<br>
-          ✓ 写操作触发 COW 复制<br>
-          ✓ 新写入的页面创建副本<br>
-          → 不影响正常服务
-        </div>
-      </div>
-      <div class="process-box" style="border-color:rgba(74,222,128,0.3)">
-        <div class="process-title" style="color:var(--green)">子进程（快照进程）</div>
-        <div style="font-size:0.8rem;color:var(--dim);line-height:1.8;">
-          ✓ 拥有完整内存快照视图<br>
-          ✓ 遍历所有数据写入 RDB<br>
-          ✓ 写完后替换旧 dump.rdb<br>
-          → 退出，通知父进程完成
-        </div>
-      </div>
-    </div>
-    <div style="padding:12px 16px;background:rgba(251,191,36,0.06);border-radius:8px;border-left:3px solid var(--yellow);font-size:0.83rem;color:var(--dim);">
-      <strong style="color:var(--text)">COW（写时复制）：</strong>fork 后父子进程共享内存页。父进程修改数据时才复制对应页，子进程看到的是 fork 时刻的快照。
-    </div>`;
-}
-
-function renderRdbFile() {
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.9rem;font-weight:600;color:var(--green);margin-bottom:16px;">RDB 文件结构</div>
-    <div class="flow-row" style="margin-bottom:16px;">
-      <div class="flow-box active" style="color:var(--green);border-color:rgba(74,222,128,0.4);background:rgba(74,222,128,0.08);">
-        Redis 内存<br><small>全量数据</small>
-      </div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-box active" style="color:var(--yellow);border-color:rgba(251,191,36,0.4);background:rgba(251,191,36,0.08);">
-        子进程遍历<br><small>序列化</small>
-      </div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-box active" style="color:var(--blue);border-color:rgba(56,189,248,0.4);background:rgba(56,189,248,0.08);">
-        dump.rdb<br><small>二进制文件</small>
-      </div>
-    </div>
-    <div class="file-box">
-      <div class="filename">dump.rdb 文件格式</div>
-      <div>REDIS0011 &nbsp;<span style="color:#8b949e">// 魔数 + 版本</span></div>
-      <div>FA 09 ... &nbsp;&nbsp;<span style="color:#8b949e">// 辅助信息（redis-ver, os等）</span></div>
-      <div>FE 00 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#8b949e">// 数据库选择（DB 0）</span></div>
-      <div>FB 03 02 &nbsp;&nbsp;<span style="color:#8b949e">// 键数量: 3个，过期键: 2个</span></div>
-      <div>00 08 ... &nbsp;&nbsp;<span style="color:#8b949e">// 类型+键+值 编码</span></div>
-      <div>FF &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#8b949e">// EOF 结束标记</span></div>
-      <div>CRC64 checksum</div>
-    </div>`;
-}
-
-function renderAofEnable() {
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.9rem;font-weight:600;color:var(--green);margin-bottom:14px;">AOF 开启配置</div>
-    <div style="background:var(--panel2);border-radius:8px;padding:16px;font-family:monospace;font-size:0.82rem;line-height:2;margin-bottom:14px;">
-      <div><span style="color:#ff7b72">appendonly</span> yes</div>
-      <div><span style="color:#ff7b72">appendfilename</span> <span style="color:#a5d6ff">"appendonly.aof"</span></div>
-      <div>&nbsp;</div>
-      <div><span style="color:#8b949e"># 刷盘策略（三选一）</span></div>
-      <div><span style="color:#ff7b72">appendfsync</span> always &nbsp;&nbsp;&nbsp;<span style="color:#8b949e"># 每次写命令立即 fsync</span></div>
-      <div><span style="color:#ff7b72">appendfsync</span> everysec <span style="color:#8b949e"># 每秒 fsync（推荐）</span></div>
-      <div><span style="color:#ff7b72">appendfsync</span> no &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#8b949e"># 交给 OS 决定</span></div>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
-      ${[
-        ['always','var(--red)','最安全，最慢','每个写命令都 fsync'],
-        ['everysec','var(--green)','推荐，平衡','最多丢失1秒数据'],
-        ['no','var(--yellow)','最快，不安全','依赖 OS 刷盘'],
-      ].map(([name,c,label,desc]) => `
-        <div style="padding:10px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid var(--border);">
-          <div style="font-family:monospace;font-size:0.8rem;color:${c};font-weight:600;">${name}</div>
-          <div style="font-size:0.72rem;color:var(--dim);margin-top:4px;">${label}</div>
-          <div style="font-size:0.7rem;color:var(--dim2);margin-top:2px;">${desc}</div>
-        </div>`).join('')}
-    </div>`;
-}
-
-function renderAofWrite() {
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.9rem;font-weight:600;color:var(--green);margin-bottom:14px;">AOF 写命令追加</div>
-    <div class="flow-row" style="margin-bottom:16px;">
-      <div class="flow-box active" style="color:var(--redis);border-color:rgba(220,56,44,0.4);background:rgba(220,56,44,0.08);">
-        写命令<br><small>SET/HSET/...</small>
-      </div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-box active" style="color:var(--blue);border-color:rgba(56,189,248,0.4);background:rgba(56,189,248,0.08);">
-        执行命令<br><small>更新内存</small>
-      </div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-box active" style="color:var(--green);border-color:rgba(74,222,128,0.4);background:rgba(74,222,128,0.08);">
-        追加 AOF<br><small>RESP 格式</small>
-      </div>
-    </div>
-    <div class="file-box">
-      <div class="filename">appendonly.aof 内容（RESP 格式）</div>
-      <div>*3\r\n<span style="color:#8b949e">        // 3个参数</span></div>
-      <div>$3\r\nSET\r\n<span style="color:#8b949e"> // "SET"</span></div>
-      <div>$4\r\nname\r\n</div>
-      <div>$5\r\nAlice\r\n</div>
-      <div>&nbsp;</div>
-      <div>*3\r\n</div>
-      <div>$6\r\nINCRBY\r\n</div>
-      <div>$5\r\nviews\r\n</div>
-      <div>$1\r\n1\r\n</div>
-    </div>`;
-}
-
-function renderAofRewrite() {
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.9rem;font-weight:600;color:var(--purple);margin-bottom:16px;">AOF 重写 — BGREWRITEAOF</div>
-    <div class="flow-row" style="margin-bottom:14px;">
-      <div class="flow-box active" style="color:var(--yellow);border-color:rgba(251,191,36,0.4);background:rgba(251,191,36,0.08);">
-        旧 AOF<br><small>几GB，有冗余</small>
-      </div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-box active pulse" style="color:var(--purple);border-color:rgba(196,132,252,0.4);background:rgba(196,132,252,0.08);">
-        子进程重写<br><small>基于当前内存</small>
-      </div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-box active" style="color:var(--green);border-color:rgba(74,222,128,0.4);background:rgba(74,222,128,0.08);">
-        新 AOF<br><small>紧凑，更小</small>
-      </div>
-    </div>
-    <div style="padding:12px 16px;background:rgba(196,132,252,0.06);border-radius:8px;border-left:3px solid var(--purple);font-size:0.83rem;color:var(--dim);line-height:1.7;">
-      <strong style="color:var(--text)">触发条件：</strong>
-      auto-aof-rewrite-min-size 64mb（AOF 文件 ≥ 64MB）且
-      auto-aof-rewrite-percentage 100（比上次重写增长 100%）
-    </div>`;
-}
-
-function renderAofCompact() {
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.9rem;font-weight:600;color:var(--purple);margin-bottom:14px;">AOF 重写 — 命令合并示例</div>
-    <div style="display:grid;grid-template-columns:1fr 40px 1fr;gap:12px;align-items:start;">
-      <div>
-        <div style="font-size:0.78rem;color:var(--dim);margin-bottom:8px;text-align:center;">重写前（冗余命令）</div>
-        <div style="background:var(--panel2);border-radius:6px;padding:12px;font-family:monospace;font-size:0.75rem;color:var(--dim2);line-height:1.8;">
-          SET views 0<br>
-          INCR views<br>
-          INCR views<br>
-          INCR views<br>
-          ...(100次)<br>
-          INCR views
-        </div>
-      </div>
-      <div style="display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:1.4rem;padding-top:30px;">→</div>
-      <div>
-        <div style="font-size:0.78rem;color:var(--green);margin-bottom:8px;text-align:center;">重写后（等价命令）</div>
-        <div style="background:var(--panel2);border-radius:6px;padding:12px;font-family:monospace;font-size:0.75rem;color:var(--green);line-height:1.8;border:1px solid rgba(74,222,128,0.2);">
-          SET views 100
-        </div>
-      </div>
-    </div>
-    <div style="margin-top:14px;padding:10px 14px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.82rem;color:var(--dim);">
-      重写期间：主进程将新增的写命令同时写入旧 AOF 和 AOF 重写缓冲区，确保不丢数据。
-    </div>`;
-}
-
-function renderMixed() {
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.9rem;font-weight:600;color:var(--teal);margin-bottom:16px;">混合持久化（Redis 4.0+）</div>
-    <div class="file-box" style="margin-bottom:14px;">
-      <div class="filename">appendonly.aof（混合格式）</div>
-      <div style="color:var(--blue)">[ RDB 二进制数据 ]</div>
-      <div style="color:#8b949e">  全量快照（重写时刻的内存状态）</div>
-      <div style="color:#8b949e">  启动时快速加载（毫秒级）</div>
-      <div>&nbsp;</div>
-      <div style="color:var(--green)">*3\r\nSET key1 val1\r\n</div>
-      <div style="color:var(--green)">*3\r\nHSET user:1 name Alice\r\n</div>
-      <div style="color:#8b949e">  增量 AOF（重写后的新命令）</div>
-    </div>
-    <div class="vs-grid">
-      <div style="padding:12px;background:rgba(56,189,248,0.06);border-radius:8px;border:1px solid rgba(56,189,248,0.2);">
-        <div style="font-size:0.82rem;font-weight:600;color:var(--blue);margin-bottom:6px;">优势</div>
-        <div style="font-size:0.78rem;color:var(--dim);line-height:1.8;">
-          ✓ 恢复速度快（RDB 加载）<br>
-          ✓ 数据完整性高（AOF 补充）<br>
-          ✓ 文件大小合理
-        </div>
-      </div>
-      <div style="padding:12px;background:rgba(74,222,128,0.06);border-radius:8px;border:1px solid rgba(74,222,128,0.2);">
-        <div style="font-size:0.82rem;font-weight:600;color:var(--green);margin-bottom:6px;">开启方式</div>
-        <div style="font-family:monospace;font-size:0.78rem;color:var(--dim);line-height:1.8;">
-          appendonly yes<br>
-          aof-use-rdb-preamble yes
-        </div>
-      </div>
-    </div>`;
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
 }
 
 function render() {
-  STEPS[step].render();
-  renderCode();
-  document.getElementById('descText').textContent = STEPS[step].description;
-  document.getElementById('stepCounter').textContent = `${step + 1} / ${STEPS.length}`;
-  document.getElementById('btnPrev').disabled = step === 0;
-  document.getElementById('btnNext').disabled = step === STEPS.length - 1;
+  const s = STEPS[idx];
+  titleEl.textContent = s.title;
+  descEl.textContent  = s.desc;
+  detailEl.textContent = s.detail;
+  badge.textContent = s.kind;
+  badge.className   = 'badge ' + s.kind;
+
+  document.querySelectorAll('.step-btn').forEach((b,i) => b.classList.toggle('active', i === idx));
+
+  NODE_IDS.forEach((id, i) => {
+    const el = document.getElementById(id);
+    el.classList.remove('active','fail','recover');
+    if (s.fail.includes(i))    { el.classList.add('fail'); return; }
+    if (s.recover.includes(i)) { el.classList.add('recover'); return; }
+    if (s.active.includes(i))  { el.classList.add('active'); }
+  });
+
+  // inline labels
+  setText('mainState',   s.mainState);
+  setText('mainDetail',  s.mainDetail);
+  setText('childState',  s.childState);
+  setText('bufState',    s.bufState);
+  setText('rdbState',    s.rdbState);
+  setText('aofState',    s.aofState);
+  setText('perInfo',     s.info);
+
+  // edges
+  EDGE_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('active','fail','cow');
+    el.style.opacity = '0';
+    el.setAttribute('marker-end','url(#parrN)');
+  });
+  (s.edges || []).forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.opacity = '1';
+    const style = (s.edgeStyle || {})[id] || 'active';
+    el.classList.add(style);
+    const markerMap = {active:'url(#parrA)', fail:'url(#parrF)', cow:'url(#parrW)'};
+    el.setAttribute('marker-end', markerMap[style] || 'url(#parrA)');
+  });
+
+  document.getElementById('btnPrev').disabled = idx === 0;
+  document.getElementById('btnNext').disabled = idx === STEPS.length - 1;
 }
 
-function renderCode() {
-  const lines = CODE_LINES;
-  const hl = (STEPS[step]||{}).highlightLines || [];
-  const body = document.getElementById('codeBody');
-  body.innerHTML = lines.map((l, i) =>
-    `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
-      <span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
+function drawList() {
+  list.innerHTML = STEPS.map((s,i) =>
+    `<button class="step-btn" data-i="${i}"><b>Step ${i+1}</b>${s.title}</button>`
   ).join('');
-  const el = body.querySelector('.code-line.active');
-  if (el) el.scrollIntoView({block:'nearest'});
+  list.querySelectorAll('button').forEach(b => b.onclick = () => { idx = Number(b.dataset.i); pause(); render(); });
 }
 
-function jumpToLine(lineNum) {
-  for (let i = STEPS.length-1; i >= 0; i--) {
-    const hl = (STEPS[i]||{}).highlightLines || [];
-    if (hl.includes(lineNum)) { step = i; render(); return; }
-  }
-}
+function next()  { idx = Math.min(STEPS.length-1, idx+1); render(); if (idx === STEPS.length-1) pause(); }
+function prev()  { idx = Math.max(0, idx-1); render(); }
+function reset() { idx = 0; pause(); render(); }
+function pause() { if (timer) clearInterval(timer); timer = null; play.textContent = '播放'; }
+function toggle(){ if (timer) { pause(); return; } play.textContent = '暂停'; timer = setInterval(next, 1800); }
 
-function play() { if (step >= STEPS.length-1) step = 0; playing = true; document.getElementById('btnPlay').innerHTML = '⏸ 暂停'; tick(); }
-function pause() { playing = false; clearTimeout(timer); document.getElementById('btnPlay').innerHTML = '▶ 播放'; }
-function tick() { if (!playing) return; if (step < STEPS.length-1) { step++; render(); timer = setTimeout(tick, SPEED[parseInt(document.getElementById('speedRange').value)-1]); } else pause(); }
-
-document.getElementById('btnPlay').addEventListener('click', () => playing ? pause() : play());
-document.getElementById('btnPrev').addEventListener('click', () => { pause(); if(step>0){step--;render();} });
-document.getElementById('btnNext').addEventListener('click', () => { pause(); if(step<STEPS.length-1){step++;render();} });
-document.getElementById('btnReset').addEventListener('click', () => { pause(); step=0; render(); });
-
+document.getElementById('btnNext').onclick  = next;
+document.getElementById('btnPrev').onclick  = prev;
+document.getElementById('btnReset').onclick = reset;
+play.onclick = toggle;
+drawList();
 render();
 </script>
 </body>

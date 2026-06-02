@@ -3,36 +3,307 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>顺序写 / Page Cache - Linux</title>
+<title>顺序 IO / Page Cache - Linux</title>
 <script src="../nav.js"></script>
 <script src="../concept.js"></script>
 <style>
 :root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#6ee7b7;}
-*{box-sizing:border-box;margin:0;padding:0}body{background:radial-gradient(circle at 20% 0%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}a{color:inherit}.content{max-width:1160px;margin:0 auto;padding:44px clamp(20px,4vw,58px) 76px}.hero{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr);gap:22px;align-items:stretch;margin-bottom:22px}.card,.section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.72);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.28)}.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}h1{font-size:clamp(2rem,4vw,4.1rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}.summary{font-size:1rem;color:var(--dim);line-height:1.85}.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}.map{display:grid;grid-template-columns:1fr;gap:10px}.term{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}.term strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}.term span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.section h2{font-size:.9rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:13px}.section p,.section li{color:var(--dim);font-size:.92rem;line-height:1.85}.section ul{padding-left:18px;display:flex;flex-direction:column;gap:9px}.callout{margin-top:18px;border-left:3px solid var(--accent);padding:13px 15px;background:color-mix(in srgb,var(--accent) 10%,transparent);border-radius:0 12px 12px 0;color:var(--dim);line-height:1.75}.back-row{margin-top:24px;display:flex;gap:12px;flex-wrap:wrap}.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}.btn:hover{color:var(--text);border-color:var(--accent)}@media(max-width:900px){.hero,.grid{grid-template-columns:1fr}.content{padding:30px 16px 58px}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 20% 0%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1160px;margin:0 auto;padding:44px clamp(20px,4vw,58px) 76px}
+.hero{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr);gap:22px;align-items:stretch;margin-bottom:22px}
+.card,.section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.72);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.28)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.1rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.map{display:grid;grid-template-columns:1fr;gap:10px}
+.term{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.term strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.term span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.section h2{font-size:.9rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:13px}
+.section p,.section li{color:var(--dim);font-size:.92rem;line-height:1.85}
+.section ul{padding-left:18px;display:flex;flex-direction:column;gap:9px}
+.callout{margin-top:18px;border-left:3px solid var(--accent);padding:13px 15px;background:color-mix(in srgb,var(--accent) 10%,transparent);border-radius:0 12px 12px 0;color:var(--dim);line-height:1.75}
+.back-row{margin-top:24px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+pre{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.78rem;line-height:1.7;margin:12px 0}
+code{font-family:'JetBrains Mono','Fira Code',monospace;font-size:.82em;color:var(--accent)}
+.qa-card{border:1px solid rgba(255,255,255,.08);border-radius:14px;margin-bottom:10px;overflow:hidden}
+.qa-q{padding:13px 16px;background:rgba(110,231,183,.06);font-size:.88rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none}
+.qa-q:hover{background:rgba(110,231,183,.10)}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s}
+.qa-card.open .qa-arrow{transform:rotate(90deg)}
+.qa-a{display:none;padding:14px 16px;font-size:.86rem;color:var(--dim);line-height:1.78;border-top:1px solid var(--border)}
+.qa-card.open .qa-a{display:block}
+.pitfall{border:1px solid rgba(255,255,255,.08);border-radius:14px;margin-bottom:14px;overflow:hidden}
+.pitfall-hd{padding:10px 14px;font-size:.82rem;font-weight:700}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr}
+.pitfall-col{padding:12px 14px}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border)}
+.pitfall-col pre{font-size:.74rem}
+.pitfall-col p{font-size:.8rem;color:var(--dim);line-height:1.6;margin-top:6px}
+@media(max-width:900px){.hero,.grid{grid-template-columns:1fr}.content{padding:30px 16px 58px}.pitfall-body{grid-template-columns:1fr}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border)}}
 </style>
 <script>window.PAGE_CONCEPTS=[
   {
     "title": "Page Cache",
-    "body": "内核维护的文件页缓存。",
+    "body": "内核用空闲物理内存缓存文件数据页，加速读写。",
     "tag": "term"
   },
   {
     "title": "Dirty Page",
-    "body": "已修改但尚未落盘的缓存页。",
+    "body": "已被 write() 修改但尚未刷到磁盘的缓存页。",
     "tag": "term"
   },
   {
     "title": "fsync",
-    "body": "要求内核把数据和必要元数据刷到稳定存储。",
+    "body": "强制将文件数据和元数据从 Page Cache 刷到持久存储。",
     "tag": "term"
   }
 ];</script>
 </head>
 <body>
 <main class="content" data-page-type="B">
-<section class="hero"><div class="card"><div class="eyebrow">Linux / sequential-io / B 类型</div><h1>顺序写 / Page Cache</h1><p class="summary">顺序写和 Page Cache 让 WAL、Kafka 日志和 LSM 文件获得高吞吐。</p><div class="tags"><span>Page Cache</span><span>fsync</span><span>WAL</span></div><div class="callout">B 类型页面重点是把背景、术语、机制、误区和工程场景讲清楚；本页不强行加入动画。</div></div><div class="card map"><div class="eyebrow">核心术语</div><div class="term"><strong>Page Cache</strong><span>内核维护的文件页缓存。</span></div><div class="term"><strong>Dirty Page</strong><span>已修改但尚未落盘的缓存页。</span></div><div class="term"><strong>fsync</strong><span>要求内核把数据和必要元数据刷到稳定存储。</span></div></div></section>
-<section class="grid"><article class="section"><h2>背景</h2><p>随机 I/O 需要频繁寻址和元数据更新。顺序追加把写入变成连续日志，Page Cache 则吸收短时间内的读写波动。</p></article><article class="section"><h2>运行机制</h2><ul><li>应用 write 先进入 Page Cache，系统异步回写。</li><li>顺序追加让磁盘和 SSD 更容易合并请求。</li><li>fsync 或刷盘策略决定崩溃窗口。</li></ul></article><article class="section"><h2>常见误区</h2><ul><li>写入返回不等于已经持久化。</li><li>Page Cache 命中高不代表应用内存小，容器内还要关注 cgroup 统计。</li></ul></article><article class="section"><h2>工程场景</h2><ul><li>Kafka segment、数据库 WAL、LSM SSTable 和日志系统都依赖顺序 I/O。</li></ul></article><article class="section"><h2>边界判断</h2><p>判断这个概念是否适用时，先看它解决的核心约束，再看代价是否落在业务可接受范围内。不要只记名字，要能说清楚它牺牲了什么、保留了什么。</p></article><article class="section"><h2>学习路径</h2><p>建议先理解本页术语，再回到相关模块页面观察它如何连接缓存、存储、网络或运行时。遇到具体系统时，用“输入、状态、输出、失败条件”四个问题复盘。</p></article></section>
-<div class="back-row"><a class="btn" href="index.html">返回Linux模块</a><a class="btn" href="../graph.html?q=%E9%A1%BA%E5%BA%8F%E5%86%99%20%2F%20Page%20Cache">在知识星图中查看</a></div>
+
+<section class="hero">
+  <div class="card">
+    <div class="eyebrow">Linux / sequential-io / B 类型</div>
+    <h1>顺序 IO / Page Cache</h1>
+    <p class="summary">顺序写和 Page Cache 让 WAL、Kafka 日志和 LSM 文件获得高吞吐。</p>
+    <div class="tags"><span>Page Cache</span><span>fsync</span><span>WAL</span></div>
+    <div class="callout">顺序 IO + Page Cache 是 Kafka/RocksDB 高吞吐的底层根因，也是理解"写入返回不等于持久化"的关键。</div>
+  </div>
+  <div class="card map">
+    <div class="eyebrow">核心术语</div>
+    <div class="term"><strong>Page Cache</strong><span>内核用空闲物理内存缓存文件数据页，读命中时零磁盘 IO。</span></div>
+    <div class="term"><strong>Dirty Page</strong><span>write() 修改后尚未刷盘的页面，断电丢失。</span></div>
+    <div class="term"><strong>fsync</strong><span>阻塞直到文件数据+元数据写入磁盘，保证持久性。</span></div>
+  </div>
+</section>
+
+<section class="grid">
+
+<article class="section">
+  <h2>背景</h2>
+  <p>存储设备的顺序和随机性能差异巨大，Page Cache 在应用和磁盘之间充当缓冲层：</p>
+  <ul>
+    <li><strong>HDD</strong>：顺序 100-200 MB/s，随机 IOPS 仅 100-200（寻道 ~8ms）。顺序/随机性能比 ~150x</li>
+    <li><strong>SSD</strong>：顺序 500-7000 MB/s，随机 IOPS 10K-1M。顺序/随机性能比 ~4-10x（NVMe 更小但仍显著）</li>
+    <li><strong>Page Cache 作用</strong>：write() 写入 Page Cache 后立即返回（内存速度），后台异步刷盘；read() 命中 Cache 时直接从内存拷贝（无磁盘 IO）</li>
+    <li><strong>预读加速</strong>：顺序读时内核自动倍增预读窗口（128KB→256KB→...→2MB），下一次 read 命中已预读的页面</li>
+    <li>Kafka 和 RocksDB 的高吞吐核心：顺序追加写 + 热数据在 Page Cache → 消费者几乎零磁盘 IO</li>
+  </ul>
+</article>
+
+<article class="section">
+  <h2>运行机制</h2>
+  <ul>
+    <li><strong>读路径</strong>：read(fd) → 检查 Page Cache → 命中：直接 memcpy 到用户缓冲区 → 未命中：阻塞，发起磁盘 IO + readahead 预读</li>
+    <li><strong>Readahead</strong>：初始窗口 128KB，顺序模式下倍增至 vm.max_readahead_kb（默认 2MB）。可用 <code>fadvise(FADV_SEQUENTIAL)</code> 提示或 <code>FADV_RANDOM</code> 禁用</li>
+    <li><strong>写路径</strong>：write(fd) → 数据写入 Page Cache（标记 dirty）→ 函数返回 → pdflush/writeback 线程异步刷盘</li>
+    <li><strong>Dirty Page 回写触发</strong>：dirty_background_ratio（默认 10%，后台开始写回）、dirty_ratio（默认 20%，进程同步阻塞等待）、dirty_expire_centisecs（默认 3000 = 30s，页面最大脏龄）</li>
+    <li><strong>fsync/fdatasync</strong>：fsync = 数据 + 全部元数据刷盘；fdatasync = 数据 + 必要元数据（不含 atime/mtime）。WAL 每批写入后需 fsync 保证 crash 后不丢</li>
+    <li><strong>O_DIRECT</strong>：绕过 Page Cache 直接写磁盘，应用自行管理缓冲和对齐（4KB 对齐）。数据库 Buffer Pool 用此避免双层缓存</li>
+    <li><strong>sync_file_range</strong>：精细控制刷特定范围的脏页，允许后台刷盘不阻塞当前写入</li>
+  </ul>
+</article>
+
+<article class="section">
+  <h2>代码示例</h2>
+  <p>Go 代码：buffered write + fsync vs O_DIRECT vs batch sync：</p>
+  <pre><code>package main
+
+import (
+    "os"
+    "syscall"
+    "unsafe"
+)
+
+// 方式 1：标准 buffered write + fsync
+// 数据先进 Page Cache，fsync 保证落盘
+func bufferedAppend(f *os.File, data []byte) error {
+    // write: 数据写入 Page Cache (内存速度, ~ns 级)
+    if _, err := f.Write(data); err != nil {
+        return err
+    }
+    // 不 fsync: 异步刷盘，断电丢最近 ~30s 数据
+    // fsync: 阻塞直到数据落盘 (SSD ~0.1-1ms, HDD ~5-10ms)
+    return f.Sync()
+}
+
+// 方式 2：WAL 常见模式 - Group Commit
+// 多条写入共享一次 fsync，提升吞吐
+func walGroupCommit(f *os.File, batch [][]byte) error {
+    for _, entry := range batch {
+        f.Write(entry) // N 条写入 Page Cache
+    }
+    return f.Sync() // 1 次 fsync 刷全部 dirty pages
+    // 批量越大，fsync 均摊成本越低
+    // MySQL: innodb_flush_log_at_trx_commit=2 (每秒 fsync)
+    // Kafka: log.flush.interval.messages=10000
+}
+
+// 方式 3：O_DIRECT (绕过 Page Cache)
+func directWrite(path string, data []byte) error {
+    f, err := os.OpenFile(path,
+        os.O_CREATE|os.O_WRONLY|os.O_APPEND|syscall.O_DIRECT, 0644)
+    if err != nil {
+        return err
+    }
+    defer f.Close()
+
+    // O_DIRECT 要求：
+    // 1. 内存地址按 512B/4KB 对齐
+    // 2. 写入大小按扇区对齐
+    // 3. 文件偏移量对齐
+    aligned := alignedAlloc(len(data), 4096)
+    copy(aligned, data)
+    _, err = f.Write(aligned)
+    return err
+}
+
+// 方式 4：顺序写 + fadvise 提示
+func sequentialWrite(path string, chunks [][]byte) error {
+    f, _ := os.Create(path)
+    defer f.Close()
+
+    // 提示内核：本文件是顺序访问模式
+    syscall.Fadvise(int(f.Fd()), 0, 0, syscall.FADV_SEQUENTIAL)
+
+    for _, chunk := range chunks {
+        f.Write(chunk)
+    }
+    // 写完后提示：这些页面不再需要（释放 Page Cache）
+    fi, _ := f.Stat()
+    syscall.Fadvise(int(f.Fd()), 0, fi.Size(), syscall.FADV_DONTNEED)
+    return f.Sync()
+}
+
+func alignedAlloc(size, align int) []byte {
+    buf := make([]byte, size+align)
+    offset := align - int(uintptr(unsafe.Pointer(&amp;buf[0])))%align
+    return buf[offset : offset+size]
+}</code></pre>
+</article>
+
+<article class="section">
+  <h2>面试问答</h2>
+  <div class="qa-card" onclick="toggleQA(this)">
+    <div class="qa-q">write() 返回成功就意味着数据持久化了吗？<span class="qa-arrow">&#9654;</span></div>
+    <div class="qa-a">不是。write() 只保证数据进入了 Page Cache（内核内存），返回后数据仍在 RAM 中。断电或 kernel panic 时这些 dirty page 丢失。持久化需要：1) 显式 fsync/fdatasync；2) 或等待内核 writeback（dirty_expire_centisecs 默认 30s）。这就是 WAL 需要 fsync 的原因。MySQL 的 innodb_flush_log_at_trx_commit: 0=每秒刷（可丢1秒）；1=每提交刷（不丢）；2=每提交写 Page Cache 每秒 fsync（可丢 1 秒但 crash-safe 于应用崩溃）。</div>
+  </div>
+  <div class="qa-card" onclick="toggleQA(this)">
+    <div class="qa-q">Kafka 为什么不用 O_DIRECT 而是依赖 Page Cache？<span class="qa-arrow">&#9654;</span></div>
+    <div class="qa-a">Kafka 的模式完美匹配 Page Cache：1) 顺序追加写→内核可合并 dirty page 批量刷盘；2) 消费者消费最近消息→热数据全在 Page Cache，读取零磁盘 IO（tail-read 场景命中率接近 100%）；3) sendfile 零拷贝直接从 Page Cache DMA 到网卡；4) JVM 堆外共享（producer 写入 Page Cache 后 consumer 立即可见）。O_DIRECT 会失去以上所有优势且需自行实现缓冲管理、预读和多进程共享。</div>
+  </div>
+  <div class="qa-card" onclick="toggleQA(this)">
+    <div class="qa-q">什么时候 O_DIRECT 比 Page Cache 更好？<span class="qa-arrow">&#9654;</span></div>
+    <div class="qa-a">1) 数据库 Buffer Pool（MySQL InnoDB）：自行实现 LRU 缓存管理，不需要内核再缓存一份（避免双层缓存浪费 50% 内存）；2) 大文件一次性扫描不再访问（备份/ETL）：fadvise(DONTNEED) 也行但不如 O_DIRECT 确定；3) 应用比内核更了解访问模式。代价：需要内存对齐（4KB）、失去 readahead、小 IO 性能差、实现复杂。Rule：除非自行管理缓存，否则用 Page Cache。</div>
+  </div>
+  <div class="qa-card" onclick="toggleQA(this)">
+    <div class="qa-q">大量顺序写入时可能遇到什么问题？<span class="qa-arrow">&#9654;</span></div>
+    <div class="qa-a">Dirty page 快速积累的三个风险：1) 超过 dirty_background_ratio(10%) 时后台 writeback 启动，与前台写竞争 IO 带宽→P99 升高；2) 超过 dirty_ratio(20%) 时前台 write() 被阻塞等待刷盘→write stall；3) 容器中 cgroup memory limit 包含 dirty page，大量写入可能触发 OOM。优化：调低 dirty_background_ratio 让刷盘更早启动；对一次性大文件用 sync_file_range 分段刷+fadvise(DONTNEED) 释放已写页；XFS 的 allocsize 预分配减少碎片。</div>
+  </div>
+</article>
+
+<article class="section">
+  <h2>常见陷阱</h2>
+
+  <div class="pitfall">
+    <div class="pitfall-hd bad">误解：Page Cache 命中高说明应用内存小</div>
+    <div class="pitfall-body">
+      <div class="pitfall-col">
+        <pre># 容器 memory limit: 2GB
+# 应用堆: 500MB
+# Page Cache: 1.4GB
+# memory.current: 1.9GB -> 接近 OOM!
+
+# 运维看到 free 命令 "available" 很低
+# 结论："内存快用完了"
+
+# 实际上 Page Cache 属于可回收内存
+# 但 cgroup 的 OOM killer
+# 不区分"值得保留的 cache"
+# 和"可以回收的 cache"</pre>
+        <p><strong>问题</strong>：cgroup memory.current 包含 Page Cache，误判内存状态或触发不必要的 OOM。</p>
+      </div>
+      <div class="pitfall-col">
+        <pre># 正确判断方式
+cat /sys/fs/cgroup/memory.stat
+# anon 500MB       <- 不可回收（堆+栈）
+# file 1400MB      <- Page Cache（压力大时可回收）
+# inactive_file    <- 长时间未访问的可优先回收
+
+# 用 PSI 看真实压力：
+cat /proc/pressure/memory
+# some avg10=0.00  <- 无压力
+# some avg10=5.00  <- 有进程因内存等待
+
+# 正确配置策略：
+# memory.high = limit * 80% (提前回收)
+# 应用堆 = limit * 60-70%
+# 预留 20-30% 给 Page Cache + kernel
+
+# 告警基于 memory.events 中的 oom_kill
+# 而非 memory.current / limit 比例</pre>
+        <p><strong>正确</strong>：区分 anon（不可回收）和 file cache（可回收），用 PSI 判断真实压力，留足余量。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pitfall">
+    <div class="pitfall-hd bad">误解：O_DIRECT 一定比 buffered IO 更快</div>
+    <div class="pitfall-body">
+      <div class="pitfall-col">
+        <pre>// 小文件高频写入用 O_DIRECT
+for i := 0; i &lt; 10000; i++ {
+    f.Write(record) // 每条 100 bytes
+    // O_DIRECT: 每次 write = 一次磁盘 IO
+    // 但必须 4KB 对齐 -> 100B 也写 4KB
+    // 写放大: 4096/100 = 40x
+    // 无法合并多次小写入
+}
+// SSD: 10000 * 0.05ms = 500ms
+// 比 buffered 慢 100x+</pre>
+        <p><strong>问题</strong>：小写入用 O_DIRECT 无法合并请求，对齐要求导致严重写放大，性能远差于 buffered。</p>
+      </div>
+      <div class="pitfall-col">
+        <pre>// 同场景用 buffered + batch fsync
+for i := 0; i &lt; 10000; i++ {
+    f.Write(record) // 写 Page Cache (ns 级)
+}
+f.Sync() // 一次刷盘，内核合并为少量大 IO
+// 耗时: ~1ms 写入 + ~0.5ms fsync = ~1.5ms
+
+// O_DIRECT 正确使用场景：
+// 1. 大块写入 (>= 256KB per write)
+// 2. 应用自行 buffer 到对齐大小
+// 3. 需要精确控制刷盘时机
+// 4. 避免 Page Cache 污染（ETL/备份）
+// 5. 数据库 Buffer Pool (自管理缓存)
+
+// 经验法则：
+// 如果不确定，就用 buffered IO + fsync
+// 让内核处理 IO 调度和合并</pre>
+        <p><strong>正确</strong>：小写入场景 buffered IO + batch fsync 性能远超 O_DIRECT；后者只适合大块自管理缓冲的数据库场景。</p>
+      </div>
+    </div>
+  </div>
+</article>
+
+</section>
+
+<div class="back-row">
+  <a class="btn" href="index.html">返回Linux模块</a>
+  <a class="btn" href="../graph.html?q=%E9%A1%BA%E5%BA%8F%E5%86%99%20%2F%20Page%20Cache">在知识星图中查看</a>
+</div>
 </main>
+<script>function toggleQA(el){el.classList.toggle('open')}</script>
 </body>
 </html>

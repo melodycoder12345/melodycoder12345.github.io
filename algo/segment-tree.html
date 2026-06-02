@@ -64,6 +64,16 @@ pre{font-size:0.78rem;color:#a5f3fc;overflow-x:auto;line-height:1.65;}
 .cm{color:var(--dim);}
 .nm{color:var(--orange);}
 
+.playback-controls{background:var(--panel);border:1px solid var(--border);border-radius:0.75rem;padding:0.65rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;}
+.ctrl-btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.85rem;border-radius:0.45rem;font-size:0.85rem;cursor:pointer;transition:all 0.15s;}
+.ctrl-btn:hover{background:rgba(255,255,255,0.12);}
+.ctrl-btn.primary{background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.3);color:var(--yellow);}
+.ctrl-btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-group{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+.speed-group input[type=range]{-webkit-appearance:none;width:80px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+.speed-group input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--yellow);cursor:pointer;}
+.step-info{font-size:0.78rem;color:var(--dim);font-family:monospace;margin-left:0.5rem;}
+
 .st-node{font-family:monospace;font-size:0.8rem;transition:all 0.2s;}
 .code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
 .code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}
@@ -151,6 +161,18 @@ pre{font-size:0.78rem;color:#a5f3fc;overflow-x:auto;line-height:1.65;}
   <span class="result-label">查询结果：</span>
   <span class="result-val" id="resultVal">—</span>
   <span class="result-steps" id="resultSteps"></span>
+</div>
+
+<div class="playback-controls">
+  <button class="ctrl-btn" id="btnStepReset" onclick="stepReset()">⏮ 重置</button>
+  <button class="ctrl-btn" id="btnPrev" onclick="stepPrev()">◀ 上一步</button>
+  <button class="ctrl-btn primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+  <button class="ctrl-btn" id="btnNext" onclick="stepNext()">下一步 ▶</button>
+  <span class="step-info" id="stepInfo"></span>
+  <span class="speed-group">
+    <label>速度</label>
+    <input type="range" id="speedSlider" min="1" max="5" value="3">
+  </span>
 </div>
 
 <div class="log-section">
@@ -321,6 +343,13 @@ let tree = new Array(4*N).fill(0);
 let nodeStates = {}; // node index -> 'default'|'yellow'|'green'|'orange'|'gray'
 let isAnimating = false;
 let editingIdx = -1;
+
+// Step-by-step playback state
+let STEPS = [];
+let stepIdx = -1;
+let playing = false;
+let playTimer = null;
+const SPEED = [1000, 650, 400, 220, 100];
 
 // Build tree
 function buildTree() {
@@ -538,131 +567,258 @@ async function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 function setNodeState(nd, state) { nodeStates[nd]=state; }
 function clearNodeStates() { nodeStates={}; }
 
-async function doQuery() {
+function doQuery() {
   if (isAnimating) return;
-  isAnimating = true;
-  setButtons(true);
-  clearNodeStates();
+  pausePlay();
   const ql = parseInt(document.getElementById('ql').value);
   const qr = parseInt(document.getElementById('qr').value);
 
   if (isNaN(ql)||isNaN(qr)||ql<0||qr>=N||ql>qr) {
     addLog(`<span class="tag-orange">无效范围，请输入 0-${N-1} 之间且 l ≤ r</span>`);
-    isAnimating=false; setButtons(false); return;
+    return;
   }
 
+  addLog(`<span class="tag">Query [${ql}, ${qr}]</span> 开始查询...`);
   document.getElementById('resultVal').textContent = '...';
   document.getElementById('resultSteps').textContent = '';
-  addLog(`<span class="tag">Query [${ql}, ${qr}]</span> 开始查询...`);
 
+  // Record steps
+  STEPS = [];
+  let simStates = {};
   let totalSum = 0;
-  let steps = [];
 
-  async function query(nd, l, r) {
-    setNodeState(nd,'yellow');
-    renderSVG();
-    await sleep(280);
+  function snap(states, desc, logMsg, resultText) {
+    STEPS.push({
+      nodeStates: JSON.parse(JSON.stringify(states)),
+      description: desc,
+      logMsg: logMsg || null,
+      resultText: resultText || null,
+      hlIdx: -1, hlType: 'default'
+    });
+  }
+
+  // Initial state
+  snap({}, `Query [${ql}, ${qr}] 开始`, null, null);
+
+  function queryRec(nd, l, r) {
+    simStates[nd] = 'yellow';
+    snap(simStates, `访问节点 [${l},${r}]`, null, null);
 
     if (ql<=l && r<=qr) {
-      setNodeState(nd,'green');
-      renderSVG();
-      steps.push(`节点[${l},${r}]完全覆盖→+${tree[nd]}`);
-      addLog(`<span class="tag-green">[${l},${r}] 完全覆盖，返回 ${tree[nd]}</span>`);
-      await sleep(220);
+      simStates[nd] = 'green';
+      snap(simStates, `[${l},${r}] 完全覆盖，返回 ${tree[nd]}`,
+        `<span class="tag-green">[${l},${r}] 完全覆盖，返回 ${tree[nd]}</span>`, null);
       return tree[nd];
     }
     if (qr<l || r<ql) {
-      setNodeState(nd,'gray');
-      renderSVG();
-      addLog(`<span class="tag" style="color:var(--dim)">[${l},${r}] 不相交，跳过</span>`);
-      await sleep(160);
+      simStates[nd] = 'gray';
+      snap(simStates, `[${l},${r}] 不相交，跳过`,
+        `<span class="tag" style="color:var(--dim)">[${l},${r}] 不相交，跳过</span>`, null);
       return 0;
     }
-    setNodeState(nd,'orange');
-    renderSVG();
-    addLog(`<span class="tag-orange">[${l},${r}] 部分覆盖，拆分...</span>`);
-    await sleep(200);
+    simStates[nd] = 'orange';
+    snap(simStates, `[${l},${r}] 部分覆盖，拆分...`,
+      `<span class="tag-orange">[${l},${r}] 部分覆盖，拆分...</span>`, null);
     const mid=(l+r)>>1;
-    const lv = await query(2*nd,l,mid);
-    const rv = await query(2*nd+1,mid+1,r);
+    const lv = queryRec(2*nd, l, mid);
+    const rv = queryRec(2*nd+1, mid+1, r);
     return lv+rv;
   }
 
-  totalSum = await query(1,0,N-1);
-  document.getElementById('resultVal').textContent = totalSum;
-  document.getElementById('resultSteps').textContent = `Query[${ql},${qr}] = ${totalSum}`;
-  addLog(`<span class="tag-green">查询结果：Sum[${ql},${qr}] = ${totalSum}</span>`);
+  totalSum = queryRec(1, 0, N-1);
 
-  // Highlight query range in arr
-  renderArr(-1,'default');
+  // Final step
+  snap({}, `查询完成：Sum[${ql},${qr}] = ${totalSum}`,
+    `<span class="tag-green">查询结果：Sum[${ql},${qr}] = ${totalSum}</span>`,
+    `${totalSum}`);
 
-  await sleep(600);
-  clearNodeStates();
-  renderSVG();
-  isAnimating=false;
-  setButtons(false);
+  stepIdx = 0;
+  applyStep();
+  updatePlaybackUI();
 }
 
-async function doUpdate() {
+function doUpdate() {
   if (isAnimating) return;
-  isAnimating = true;
-  setButtons(true);
-  clearNodeStates();
+  pausePlay();
   const idx = parseInt(document.getElementById('uidx').value);
   const val = parseInt(document.getElementById('uval').value);
 
   if (isNaN(idx)||isNaN(val)||idx<0||idx>=N) {
     addLog(`<span class="tag-orange">无效索引，请输入 0-${N-1}</span>`);
-    isAnimating=false; setButtons(false); return;
+    return;
   }
 
   addLog(`<span class="tag">Update(${idx}, ${val})</span> 开始更新 arr[${idx}] = ${val}...`);
   document.getElementById('resultVal').textContent = '—';
   document.getElementById('resultSteps').textContent = '';
 
-  arr[idx] = val;
+  // Record steps using a simulation on a copy of tree
+  STEPS = [];
+  let simTree = [...tree];
+  let simArr = [...arr];
+  simArr[idx] = val;
+  let simStates = {};
 
-  const pathNodes = [];
-  async function update(nd, l, r) {
-    setNodeState(nd,'yellow');
-    pathNodes.push(nd);
-    renderSVG();
-    await sleep(270);
+  function snap(states, treeSnap, arrSnap, desc, logMsg, hlIdx, hlType) {
+    STEPS.push({
+      nodeStates: JSON.parse(JSON.stringify(states)),
+      treeSnapshot: [...treeSnap],
+      arrSnapshot: [...arrSnap],
+      description: desc,
+      logMsg: logMsg || null,
+      resultText: null,
+      hlIdx: hlIdx !== undefined ? hlIdx : -1,
+      hlType: hlType || 'default'
+    });
+  }
+
+  // Initial state
+  snap({}, tree, arr, `Update(${idx}, ${val}) 开始`, null, -1, 'default');
+
+  function updateRec(nd, l, r) {
+    simStates[nd] = 'yellow';
+    snap(simStates, simTree, simArr, `访问节点 [${l},${r}]`, null, -1, 'default');
 
     if (l===r) {
-      tree[nd] = val;
-      setNodeState(nd,'orange');
-      renderSVG();
-      addLog(`<span class="tag-orange">叶节点 [${l}] 更新为 ${val}</span>`);
-      await sleep(280);
+      simTree[nd] = val;
+      simStates[nd] = 'orange';
+      snap(simStates, simTree, simArr, `叶节点 [${l}] 更新为 ${val}`,
+        `<span class="tag-orange">叶节点 [${l}] 更新为 ${val}</span>`, idx, 'update');
       return;
     }
     const mid=(l+r)>>1;
-    if (idx<=mid) await update(2*nd,l,mid);
-    else await update(2*nd+1,mid+1,r);
+    if (idx<=mid) updateRec(2*nd, l, mid);
+    else updateRec(2*nd+1, mid+1, r);
 
-    tree[nd] = tree[2*nd]+tree[2*nd+1];
-    setNodeState(nd,'green');
-    renderSVG();
-    addLog(`<span class="tag-green">节点 [${l},${r}] 重新计算 sum = ${tree[nd]}</span>`);
-    await sleep(250);
+    simTree[nd] = simTree[2*nd] + simTree[2*nd+1];
+    simStates[nd] = 'green';
+    snap(simStates, simTree, simArr, `节点 [${l},${r}] 重新计算 sum = ${simTree[nd]}`,
+      `<span class="tag-green">节点 [${l},${r}] 重新计算 sum = ${simTree[nd]}</span>`, idx, 'update');
   }
 
-  await update(1,0,N-1);
-  renderArr(idx,'update');
-  addLog(`<span class="tag-green">更新完成，arr[${idx}] = ${val}，根节点 sum = ${tree[1]}</span>`);
-  document.getElementById('resultSteps').textContent = `arr[${idx}] 更新为 ${val}，总和 = ${tree[1]}`;
+  updateRec(1, 0, N-1);
 
-  await sleep(700);
+  // Final step - apply changes
+  snap({}, simTree, simArr, `更新完成，arr[${idx}] = ${val}，根节点 sum = ${simTree[1]}`,
+    `<span class="tag-green">更新完成，arr[${idx}] = ${val}，根节点 sum = ${simTree[1]}</span>`, idx, 'update');
+
+  stepIdx = 0;
+  applyStep();
+  updatePlaybackUI();
+}
+
+// --- Step-by-step playback controls ---
+function applyStep() {
+  if (STEPS.length === 0 || stepIdx < 0 || stepIdx >= STEPS.length) return;
+  const s = STEPS[stepIdx];
+
+  // Apply node states
+  nodeStates = s.nodeStates ? JSON.parse(JSON.stringify(s.nodeStates)) : {};
+
+  // Apply tree/arr snapshot if present (for update operations)
+  if (s.treeSnapshot) tree = [...s.treeSnapshot];
+  if (s.arrSnapshot) arr = [...s.arrSnapshot];
+
+  renderSVG();
+  renderArr(s.hlIdx !== undefined ? s.hlIdx : -1, s.hlType || 'default');
+
+  // Show result
+  if (s.resultText) {
+    document.getElementById('resultVal').textContent = s.resultText;
+  }
+  // Show step description
+  document.getElementById('resultSteps').textContent = s.description || '';
+
+  // Add log if present
+  if (s.logMsg) addLog(s.logMsg);
+
+  updatePlaybackUI();
+}
+
+function updatePlaybackUI() {
+  const info = document.getElementById('stepInfo');
+  const btnPrevEl = document.getElementById('btnPrev');
+  const btnNextEl = document.getElementById('btnNext');
+  if (STEPS.length === 0) {
+    info.textContent = '';
+    btnPrevEl.disabled = true;
+    btnNextEl.disabled = true;
+  } else {
+    info.textContent = `${stepIdx + 1} / ${STEPS.length}`;
+    btnPrevEl.disabled = stepIdx <= 0;
+    btnNextEl.disabled = stepIdx >= STEPS.length - 1;
+  }
+}
+
+function stepNext() {
+  if (STEPS.length === 0 || stepIdx >= STEPS.length - 1) return;
+  stepIdx++;
+  applyStep();
+}
+
+function stepPrev() {
+  if (STEPS.length === 0 || stepIdx <= 0) return;
+  stepIdx--;
+  // For prev, we need to replay from start to rebuild log correctly
+  // Simpler: just apply the state snapshot
+  const s = STEPS[stepIdx];
+  nodeStates = s.nodeStates ? JSON.parse(JSON.stringify(s.nodeStates)) : {};
+  if (s.treeSnapshot) tree = [...s.treeSnapshot];
+  if (s.arrSnapshot) arr = [...s.arrSnapshot];
+  renderSVG();
+  renderArr(s.hlIdx !== undefined ? s.hlIdx : -1, s.hlType || 'default');
+  if (s.resultText) document.getElementById('resultVal').textContent = s.resultText;
+  document.getElementById('resultSteps').textContent = s.description || '';
+  updatePlaybackUI();
+}
+
+function togglePlay() {
+  if (playing) {
+    pausePlay();
+  } else {
+    startPlay();
+  }
+}
+
+function startPlay() {
+  if (STEPS.length === 0) return;
+  if (stepIdx >= STEPS.length - 1) stepIdx = 0;
+  playing = true;
+  document.getElementById('btnPlay').textContent = '⏸ 暂停';
+  playTick();
+}
+
+function pausePlay() {
+  playing = false;
+  if (playTimer) { clearTimeout(playTimer); playTimer = null; }
+  document.getElementById('btnPlay').textContent = '▶ 播放';
+}
+
+function playTick() {
+  if (!playing) return;
+  if (stepIdx < STEPS.length - 1) {
+    stepIdx++;
+    applyStep();
+    const speed = SPEED[parseInt(document.getElementById('speedSlider').value) - 1];
+    playTimer = setTimeout(playTick, speed);
+  } else {
+    pausePlay();
+  }
+}
+
+function stepReset() {
+  pausePlay();
+  STEPS = [];
+  stepIdx = -1;
   clearNodeStates();
   render();
-  isAnimating=false;
-  setButtons(false);
+  updatePlaybackUI();
+  document.getElementById('resultVal').textContent = '—';
+  document.getElementById('resultSteps').textContent = '';
 }
 
 async function doBuildAnim() {
   clearNodeStates();
-  // Show build bottom-up
   const order = [];
   function collectPostOrder(nd,l,r) {
     if(l===r){order.push({nd,l,r}); return;}
@@ -683,6 +839,9 @@ async function doBuildAnim() {
 }
 
 function doReset() {
+  pausePlay();
+  STEPS = [];
+  stepIdx = -1;
   arr = [...INIT_ARR];
   buildTree();
   clearNodeStates();
@@ -691,6 +850,7 @@ function doReset() {
   document.getElementById('resultVal').textContent='—';
   document.getElementById('resultSteps').textContent='';
   render();
+  updatePlaybackUI();
   addLog('<span class="tag">重置</span> 数组恢复为 [1,3,5,7,9,11]');
 }
 
@@ -698,6 +858,7 @@ function doReset() {
 buildTree();
 nodePositions = getNodeLayout();
 render();
+updatePlaybackUI();
 addLog('<span class="tag">初始化</span> 数组 [1,3,5,7,9,11]，线段树构建完成，根节点 sum = 36');
 LangSwitcher.init(renderCode);
 renderCode();

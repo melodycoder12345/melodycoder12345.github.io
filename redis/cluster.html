@@ -4,479 +4,447 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Redis 集群原理 - 可视化学习</title>
-<style>
-:root{
-  --bg:#0f172a; --panel:#1e293b; --panel2:#0d1117;
-  --border:#334155; --text:#e2e8f0; --dim:#94a3b8; --dim2:#64748b;
-  --blue:#38bdf8; --yellow:#fbbf24; --orange:#fb923c;
-  --green:#4ade80; --purple:#c084fc; --red:#f87171; --teal:#2dd4bf;
-  --redis:#dc382c;
-}
-*{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
-nav{display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;flex-wrap:wrap;}
-.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;transition:color 0.15s;}.back-btn:hover{color:var(--text);}
-nav h1{font-size:1.15rem;font-weight:600;}
-.badges{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;}
-.badge{font-size:0.72rem;padding:3px 10px;border-radius:100px;font-family:monospace;font-weight:500;}
-.main{display:flex;flex:1;overflow:hidden;}
-.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
-.viz-area{flex:1;overflow-y:auto;padding:20px 24px;}
-.desc-box{padding:10px 20px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:48px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
-.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
-.code-panel{width:46%;min-width:360px;display:flex;flex-direction:column;overflow:hidden;}
-.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
-.code-dot{width:10px;height:10px;border-radius:50%;}
-.code-body{flex:1;overflow-y:auto;padding:10px 0;background:var(--panel2);}
-.code-body::-webkit-scrollbar{width:5px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
-.code-line{display:flex;align-items:stretch;padding:0;cursor:pointer;transition:background 0.12s;font-family:'JetBrains Mono',monospace;font-size:0.8rem;line-height:1.65;}
-.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
-.ln{min-width:44px;padding:0 10px 0 14px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.76rem;}
-.lc{padding:0 14px 0 4px;flex:1;}
-.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;}.id{color:#e6edf3;}
-.controls{display:flex;align-items:center;gap:8px;padding:10px 20px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
-.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:6px 14px;border-radius:7px;cursor:pointer;font-size:0.83rem;transition:all 0.15s;}
-.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(220,56,44,0.15);border-color:rgba(220,56,44,0.4);color:var(--redis);}
-.btn:disabled{opacity:0.38;cursor:not-allowed;}
-.speed-wrap{display:flex;align-items:center;gap:6px;margin-left:auto;font-size:0.78rem;color:var(--dim);}
-input[type=range]{-webkit-appearance:none;width:80px;height:3px;background:var(--border);border-radius:2px;outline:none;}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--redis);cursor:pointer;}
-
-/* Cluster visualization */
-.cluster-grid{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;margin:10px 0 16px;}
-.node-pair{display:flex;flex-direction:column;align-items:center;gap:8px;}
-.node{width:110px;height:70px;border-radius:10px;border:2px solid;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.8rem;font-weight:600;transition:all 0.4s;cursor:default;text-align:center;padding:4px;}
-.node .node-name{font-size:0.85rem;font-weight:700;}
-.node .node-slots{font-size:0.68rem;opacity:0.8;font-family:monospace;margin-top:2px;}
-.node .node-port{font-size:0.65rem;color:var(--dim2);}
-.replica-line{width:2px;height:16px;background:var(--border);border-radius:1px;}
-.node.master{background:rgba(56,189,248,0.08);border-color:rgba(56,189,248,0.4);color:var(--blue);}
-.node.slave{background:rgba(255,255,255,0.03);border-color:rgba(255,255,255,0.12);color:var(--dim);}
-.node.active{box-shadow:0 0 16px currentColor;transform:scale(1.05);}
-.node.failed{background:rgba(248,113,113,0.1);border-color:rgba(248,113,113,0.4);color:var(--red);opacity:0.7;}
-.node.promoted{background:rgba(74,222,128,0.1);border-color:rgba(74,222,128,0.5);color:var(--green);box-shadow:0 0 14px rgba(74,222,128,0.4);}
-.slot-bar{display:flex;height:18px;border-radius:4px;overflow:hidden;margin-bottom:12px;}
-.slot-seg{display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:600;transition:all 0.4s;}
-.slot-seg.active{box-shadow:inset 0 0 0 2px rgba(255,255,255,0.5);}
-.info-row{display:flex;gap:16px;margin-bottom:14px;flex-wrap:wrap;}
-.info-box{padding:10px 14px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;font-size:0.8rem;flex:1;min-width:140px;}
-.info-box strong{color:var(--text);display:block;margin-bottom:4px;}
-.gossip-row{display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:7px;margin-bottom:8px;font-size:0.8rem;}
-.gossip-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
-.pulse{animation:pulse 1s ease-in-out infinite;}
-@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.3;}}
-.moved-box{padding:10px 14px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.3);border-radius:8px;font-family:monospace;font-size:0.8rem;color:var(--yellow);margin-bottom:12px;}
-
-@media(max-width:768px){
-  body{height:auto!important;min-height:100vh;overflow-y:auto!important;}
-  nav{flex-wrap:wrap;padding:8px 14px;gap:6px;}
-  nav h1{font-size:0.95rem;}
-  .badges{margin-left:0!important;width:100%;order:3;}
-  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
-  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:360px!important;min-height:360px!important;flex:none!important;}
-  .code-panel{width:100%!important;min-width:unset!important;height:320px!important;flex:none!important;}
-  .controls{flex-wrap:wrap!important;gap:5px!important;height:auto!important;}
-  .speed-wrap{margin-left:0!important;width:100%;justify-content:flex-end;}
-  .cluster-grid{gap:12px!important;}
-  .node{width:90px!important;height:60px!important;}
-}
-</style>
 <script src="../nav.js"></script>
 <script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#dc382c;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;--blue:#38bdf8;--green:#4ade80;--purple:#c084fc;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0}body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 18%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}a{color:inherit}.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:16px;align-items:stretch;margin-bottom:20px}.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:440px;display:flex;flex-direction:column;padding:18px}.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:radial-gradient(circle at 50% 50%,rgba(220,56,44,.06),transparent 60%),rgba(15,23,42,.64);overflow:hidden;display:flex;align-items:center;justify-content:center;}
+.cluster-svg{width:100%;max-width:480px;height:auto;}
+/* SVG node states */
+.cnode{transition:all .3s;}
+.cnode rect{fill:rgba(255,255,255,.055);stroke:rgba(255,255,255,.12);stroke-width:1.5;rx:10;transition:all .3s;}
+.cnode text{fill:#94a3b8;transition:fill .3s;}
+.cnode.master rect{fill:color-mix(in srgb,var(--blue) 12%,transparent);stroke:var(--blue);stroke-width:2;}
+.cnode.master text{fill:#f8fafc;}
+.cnode.active rect{fill:color-mix(in srgb,var(--accent) 16%,transparent);stroke:var(--accent);stroke-width:2.5;}
+.cnode.active text{fill:#f8fafc;}
+.cnode.fail rect{fill:rgba(248,113,113,.1);stroke:#f87171;stroke-width:2;}
+.cnode.fail text{fill:#f87171;}
+.cnode.promoted rect{fill:rgba(74,222,128,.12);stroke:#4ade80;stroke-width:2.5;}
+.cnode.promoted text{fill:#4ade80;}
+.cedge{stroke:rgba(255,255,255,.1);stroke-width:1;fill:none;stroke-dasharray:4 3;transition:all .3s;}
+.cedge.active{stroke:var(--teal);stroke-width:2;stroke-dasharray:none;filter:drop-shadow(0 0 3px rgba(45,212,191,.5));}
+.cedge.fail{stroke:#f87171;stroke-width:2;stroke-dasharray:6 3;}
+@keyframes cluster-pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+.pulse-node rect{animation:cluster-pulse 1.5s infinite;}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}.status p{color:var(--dim);font-size:.9rem;line-height:1.75}.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}.badge.failure{border-color:var(--bad);color:var(--bad)}.badge.recovery{border-color:var(--ok);color:var(--ok)}.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit}.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}.deep code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.82rem;color:var(--text)}.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}.btn:hover{color:var(--text);border-color:var(--accent)}@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Hash Slot","body":"Redis 集群将 key 空间划分为 16384 个 slot，用 CRC16(key) % 16384 计算归属。Slot 均匀分配到各节点，增减节点只需迁移部分 slot。","tag":"16384"},
+  {"title":"MOVED 重定向","body":"客户端请求了错误节点时，节点返回 MOVED <slot> <ip:port>，客户端需重新连接正确节点。Smart Client 会缓存 slot 映射，减少重定向次数。","tag":"redirect"},
+  {"title":"Gossip 协议","body":"节点间通过 Gossip 消息定期交换集群状态（节点列表、Slot 分配、Failover 信息）。每个节点都维护完整的集群视图，无单点协调器。","tag":"P2P"},
+  {"title":"PFAIL / FAIL","body":"PFAIL 是单节点视角的疑似下线（超时未响应），FAIL 是多数主节点共识后的已确认下线，触发故障转移。","tag":"detection"},
+  {"title":"Failover","body":"从节点发起选举请求，获得多数主节点投票后晋升为新主节点，接管原主的 slot 范围，集群恢复服务。","tag":"election"}
+];</script>
 </head>
 <body>
-<nav>
-  <a href="index.html" class="back-btn">← 返回</a>
-  <h1>Redis 集群原理</h1>
-  <div class="badges">
-    <span class="badge" style="background:rgba(220,56,44,0.15);color:#dc382c">Cluster</span>
-    <span class="badge" style="background:rgba(56,189,248,0.15);color:#38bdf8">哈希槽</span>
-    <span class="badge" style="background:rgba(74,222,128,0.15);color:#4ade80">故障转移</span>
-  </div>
-</nav>
-<div class="main">
-  <div class="viz-panel">
-    <div class="viz-area" id="vizArea">
-      <div style="color:var(--dim);font-size:0.9rem;padding:20px 0;">点击"下一步"开始演示</div>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">Redis / cluster / C 类型</div>
+      <h1>Redis 集群原理</h1>
+      <p class="summary">Redis Cluster 通过 16384 个哈希槽将数据分片到多个主节点，配合 Gossip 协议感知集群拓扑变化，主从自动故障转移保证高可用，实现水平扩展的分布式缓存方案。</p>
+      <div class="tags"><span>Hash Slot</span><span>Gossip</span><span>MOVED</span><span>Failover</span><span>CRC16</span></div>
     </div>
-    <div class="desc-box">
-      <span id="descText">Redis Cluster 通过哈希槽分片实现水平扩展，3 主 3 从提供高可用。</span>
-      <span class="step-counter" id="stepCounter">0 / 10</span>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>Hash Slot (16384)</strong><span>CRC16(key) % 16384 决定 key 归属哪个槽，槽分配给主节点。</span></li>
+        <li><strong>MOVED / ASK</strong><span>MOVED 永久重定向到正确节点；ASK 在迁移中临时指引客户端。</span></li>
+        <li><strong>Gossip (PING/PONG)</strong><span>节点间每秒随机交换心跳和集群状态，去中心化传播拓扑。</span></li>
+        <li><strong>PFAIL -> FAIL</strong><span>超时疑似下线(PFAIL)经多数主节点确认后升级为已下线(FAIL)。</span></li>
+      </ul>
     </div>
+  </section>
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">步骤时间线</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+    <section class="panel viz">
+      <div class="stage">
+        <svg class="cluster-svg" viewBox="0 0 480 360" id="clusterSvg">
+          <!-- rendered by JS -->
+        </svg>
+      </div>
+      <div class="controls">
+        <button class="ctrl" onclick="reset()">重置</button>
+        <button class="ctrl" onclick="prev()">上一步</button>
+        <button class="ctrl primary" id="play" onclick="toggle()">播放</button>
+        <button class="ctrl" onclick="next()">下一步</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-hd">当前状态</div>
+      <div class="status">
+        <span class="badge" id="stepKind">normal</span>
+        <h2 id="stepTitle"></h2>
+        <p id="stepDesc"></p>
+        <p id="stepDetail" style="margin-top:8px;font-size:.82rem;"></p>
+      </div>
+    </aside>
+  </section>
+  <section class="deep">
+    <section>
+      <h2>背景与机制</h2>
+      <p>Redis Sentinel 提供高可用但无法水平扩展数据容量。Cluster 模式将 16384 个 slot 分布到 N 个主节点，每个节点只存部分数据，通过 Gossip 去中心化同步拓扑。</p>
+      <ul>
+        <li>slot 数量固定 16384：心跳包用 2KB 位图表示，带宽友好；理论上限 1000 节点。</li>
+        <li>客户端缓存 slot-to-node 映射表，直连目标节点，避免中心代理瓶颈。</li>
+        <li>集群要求所有 16384 slot 被覆盖才对外提供服务（可配 cluster-require-full-coverage no 放宽）。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>常见误区</h2>
+      <ul>
+        <li><strong>Slot 不等于分区</strong>：slot 是逻辑概念，不是物理隔离；同节点的多个 slot 共享内存和线程。</li>
+        <li><strong>MOVED 是正常行为</strong>：首次连接或 slot 迁移后收到 MOVED 是预期内的，Smart Client 只需更新路由表。</li>
+        <li><strong>不保证强一致</strong>：主从异步复制，极端情况下故障转移会丢失最后几笔写入（可开 WAIT 命令等待 N 个副本确认）。</li>
+        <li><strong>多 key 操作必须同 slot</strong>：MGET/MSET/Pipeline 跨 slot 会报错，需用 hash tag <code>{}</code> 约束。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>工程场景</h2>
+      <ul>
+        <li><strong>Hash Tag</strong>：<code>{user:1}.name</code> 和 <code>{user:1}.age</code> 用相同 hash tag 保证落在同一 slot，支持事务和 Lua 脚本。</li>
+        <li><strong>Pipeline 陷阱</strong>：Pipeline 命令会被按 slot 拆分到不同节点并行执行，客户端需聚合结果；跨 slot 的原子性无法保证。</li>
+        <li><strong>扩缩容</strong>：使用 <code>redis-cli --cluster reshard</code> 在线迁移 slot，迁移期间 ASK 重定向保证请求不丢。</li>
+        <li><strong>SDK 示例</strong>：go-redis NewClusterClient 自动路由；设置 RouteByLatency 读取就近副本，MaxRedirects 控制重定向次数。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>边界与恢复</h2>
+      <ul>
+        <li><strong>最大节点数</strong>：官方建议不超过 1000 节点，Gossip 消息量随节点数平方增长。</li>
+        <li><strong>跨 slot 限制</strong>：不支持跨 slot 的 MULTI/EXEC 事务；Lua 脚本所有 key 必须属于同一 slot。</li>
+        <li><strong>脑裂保护</strong>：少数派分区的主节点在 cluster-node-timeout 后拒绝写入（变为 FAIL 状态）。</li>
+        <li><strong>手动故障转移</strong>：<code>CLUSTER FAILOVER</code> 支持运维场景下的平滑主从切换，不丢数据。</li>
+      </ul>
+    </section>
+  </section>
+  <div class="back-row">
+    <a class="btn" href="index.html">返回 Redis 模块</a>
+    <a class="btn" href="../graph.html?q=Redis%20%E9%9B%86%E7%BE%A4">在知识星图中查看</a>
   </div>
-  <div class="code-panel">
-    <div class="code-panel-header">
-      <div class="code-dot" style="background:#ff5f57"></div>
-      <div class="code-dot" style="background:#febc2e"></div>
-      <div class="code-dot" style="background:#28c840"></div>
-      <span style="margin-left:4px" data-base="cluster">cluster.go</span>
-    </div>
-    <div class="code-body" id="codeBody"></div>
-  </div>
-</div>
-<div class="controls">
-  <button class="btn" id="btnReset">⏮ 重置</button>
-  <button class="btn" id="btnPrev">◀ 上一步</button>
-  <button class="btn primary" id="btnPlay">▶ 播放</button>
-  <button class="btn" id="btnNext">下一步 ▶</button>
-  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
-</div>
+</main>
 <script>
-if (window.NavTracker) NavTracker.track('Redis 集群', 'redis/cluster.html', '🌐', 'Redis');
+/* ---- Config ---- */
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const svg = document.getElementById('clusterSvg');
 
-window.PAGE_CONCEPTS = [
-  { title: 'Hash Slot', body: `Redis 集群将 key 空间划分为 16384 个 slot，用 CRC16(key) % 16384 计算归属。Slot 均匀分配到各节点，增减节点只需迁移部分 slot，不影响整体。`, tag: '16384' },
-  { title: 'MOVED 重定向', body: `客户端请求了错误节点时，节点返回 MOVED <slot> <ip:port>，客户端需重新连接正确节点。Smart Client 会缓存 slot 映射，减少重定向次数。` },
-  { title: 'ASK 重定向', body: `Slot 正在迁移（MIGRATING）时使用。与 MOVED 不同，ASK 是临时指向，客户端只对本次请求跟随，不更新 slot 缓存。`, tag: '迁移中' },
-  { title: '主从复制 & Failover', body: `每个主节点有 N 个从节点。主节点故障时，从节点通过 Gossip 投票选出新主，自动完成 Failover（约 15 秒内）。` },
-  { title: 'Gossip 协议', body: `节点间通过 Gossip 消息定期交换集群状态（节点列表、Slot 分配、Failover 信息）。每个节点都维护完整的集群视图，无单点协调器。`, tag: 'P2P' }
+/* Node positions: 3 masters on top row, 3 slaves on bottom row */
+const NODES = {
+  M1: {x:80,  y:70,  label:'M1', slots:'0-5460',     color:'#38bdf8'},
+  M2: {x:240, y:70,  label:'M2', slots:'5461-10922',  color:'#4ade80'},
+  M3: {x:400, y:70,  label:'M3', slots:'10923-16383', color:'#c084fc'},
+  S1: {x:80,  y:220, label:'S1', slots:'replica M1',  color:'#38bdf8'},
+  S2: {x:240, y:220, label:'S2', slots:'replica M2',  color:'#4ade80'},
+  S3: {x:400, y:220, label:'S3', slots:'replica M3',  color:'#c084fc'},
+};
+
+/* Gossip edges between masters */
+const EDGES = [
+  {from:'M1', to:'M2'}, {from:'M2', to:'M3'}, {from:'M1', to:'M3'},
+];
+/* Replication edges (master->slave) */
+const REP_EDGES = [
+  {from:'M1', to:'S1'}, {from:'M2', to:'S2'}, {from:'M3', to:'S3'},
 ];
 
-const CODE_LINES = [
-  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},
-  {html:``},
-  {html:`<span class="kw">import</span> (`},
-  {html:`&nbsp;&nbsp;<span class="st">"context"</span>`},
-  {html:`&nbsp;&nbsp;<span class="st">"fmt"</span>`},
-  {html:`&nbsp;&nbsp;<span class="st">"github.com/redis/go-redis/v9"</span>`},
-  {html:`)`},
-  {html:``},
-  {html:`<span class="kw">var</span> <span class="id">ctx</span> = <span class="pkg">context</span>.<span class="fn">Background</span>()`},
-  {html:``},
-  {html:`<span class="kw">func</span> <span class="fn">main</span>() {`},
-  {html:`&nbsp;&nbsp;<span class="cm">// 创建集群客户端</span>`},
-  {html:`&nbsp;&nbsp;<span class="id">rdb</span> := <span class="id">redis</span>.<span class="fn">NewClusterClient</span>(&amp;<span class="id">redis</span>.<span class="fn">ClusterOptions</span>{`},
-  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">Addrs</span>: []<span class="kw">string</span>{`},
-  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"localhost:7000"</span>,`},
-  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"localhost:7001"</span>,`},
-  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"localhost:7002"</span>,`},
-  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"localhost:7003"</span>,`},
-  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"localhost:7004"</span>,`},
-  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="st">"localhost:7005"</span>,`},
-  {html:`&nbsp;&nbsp;&nbsp;&nbsp;},`},
-  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 自动重定向 MOVED 响应</span>`},
-  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">RouteByLatency</span>: <span class="kw">true</span>,`},
-  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="id">RouteRandomly</span>: <span class="kw">false</span>,`},
-  {html:`&nbsp;&nbsp;})`},
-  {html:`&nbsp;&nbsp;<span class="kw">defer</span> <span class="id">rdb</span>.<span class="fn">Close</span>()`},
-  {html:``},
-  {html:`&nbsp;&nbsp;<span class="cm">// 集群自动路由 key 到正确节点</span>`},
-  {html:`&nbsp;&nbsp;<span class="id">err</span> := <span class="id">rdb</span>.<span class="fn">Set</span>(<span class="id">ctx</span>, <span class="st">"user:1"</span>, <span class="st">"Alice"</span>, <span class="num">0</span>).<span class="fn">Err</span>()`},
-  {html:`&nbsp;&nbsp;<span class="kw">if</span> <span class="id">err</span> != <span class="kw">nil</span> {`},
-  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">panic</span>(<span class="id">err</span>)`},
-  {html:`&nbsp;&nbsp;}`},
-  {html:``},
-  {html:`&nbsp;&nbsp;<span class="cm">// {} 标签保证同一 slot</span>`},
-  {html:`&nbsp;&nbsp;<span class="id">rdb</span>.<span class="fn">Set</span>(<span class="id">ctx</span>, <span class="st">"{user:1}.name"</span>, <span class="st">"Alice"</span>, <span class="num">0</span>)`},
-  {html:`&nbsp;&nbsp;<span class="id">rdb</span>.<span class="fn">Set</span>(<span class="id">ctx</span>, <span class="st">"{user:1}.age"</span>, <span class="st">"25"</span>, <span class="num">0</span>)`},
-  {html:``},
-  {html:`&nbsp;&nbsp;<span class="cm">// 查看 key 所在槽</span>`},
-  {html:`&nbsp;&nbsp;<span class="id">slot</span> := <span class="id">redis</span>.<span class="fn">SlotForKey</span>(<span class="st">"user:1"</span>)`},
-  {html:`&nbsp;&nbsp;<span class="pkg">fmt</span>.<span class="fn">Printf</span>(<span class="st">"user:1 在槽 %d\\n"</span>, <span class="id">slot</span>)`},
-  {html:`}`},
-];
-
-
-function clusterNodes(activeM, activeSlave, failedM, promotedSlave) {
-  const masters = [
-    {name:'Node 1', port:'7000', slots:'0-5460', color:'var(--blue)'},
-    {name:'Node 2', port:'7001', slots:'5461-10922', color:'var(--green)'},
-    {name:'Node 3', port:'7002', slots:'10923-16383', color:'var(--purple)'},
-  ];
-  const slaves = [
-    {name:'Slave 1', port:'7003', of:'Node 1'},
-    {name:'Slave 2', port:'7004', of:'Node 2'},
-    {name:'Slave 3', port:'7005', of:'Node 3'},
-  ];
-  return `<div class="cluster-grid">
-    ${masters.map((m, i) => {
-      const mClass = i === failedM ? 'failed' : i === activeM ? 'master active' : 'master';
-      const sClass = i === promotedSlave ? 'node promoted' : 'node slave';
-      return `<div class="node-pair">
-        <div class="node ${mClass}" style="${i===failedM?'':'color:'+m.color+';border-color:'+m.color.replace('var(--','rgba(').replace(')',',0.4)'+';background:'+m.color.replace('var(--','rgba(').replace(')',',0.06)'))}">
-          <div class="node-name">${i===failedM?'✗ '+m.name:m.name}</div>
-          <div class="node-slots">${m.slots}</div>
-          <div class="node-port">:${m.port}</div>
-        </div>
-        <div class="replica-line"></div>
-        <div class="${sClass}">
-          <div class="node-name">${i===promotedSlave?'✓ New Master':slaves[i].name}</div>
-          <div class="node-slots">${i===promotedSlave?masters[i].slots:'replica of '+m.name}</div>
-          <div class="node-port">:${slaves[i].port}</div>
-        </div>
-      </div>`;
-    }).join('')}
-  </div>`;
-}
-
+/* ---- Step Data ---- */
 const STEPS = [
   {
-    highlightLines:[11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26],
-    hlJs:[1,2,3,4,5,6,7,8,9,10,11,12,13], hlPy:[1,2,3,4,5,6,7,8],
-    description:"Redis Cluster: 3 主节点 + 3 从节点，主节点负责读写，从节点提供高可用备份",
-    render: () => renderOverview()
+    title: "集群初始化",
+    desc: "3 主 3 从节点启动，16384 个 slot 平均分配给 M1/M2/M3，从节点分别挂载。",
+    detail: "M1: slot 0-5460, M2: slot 5461-10922, M3: slot 10923-16383。每个主节点有一个从节点提供冗余。",
+    kind: "normal",
+    nodeStates: {M1:'master',M2:'master',M3:'master',S1:'slave',S2:'slave',S3:'slave'},
+    edgeStates: {gossip:'normal', rep:'normal'},
+    highlight: null,
+    client: null
   },
   {
-    highlightLines:[27,28,29,30,31,32],
-    hlJs:[18,19], hlPy:[11,12],
-    description:"哈希槽分配: 16384 个槽平均分配给 3 个主节点，每个节点负责约 5461 个槽",
-    render: () => renderSlots()
+    title: "Slot 分配可视化",
+    desc: "16384 个 slot 均匀分配，每个节点约负责 5461 个 slot，slot 映射存储在各节点的 cluster state 中。",
+    detail: "CRC16(key) % 16384 计算 key 归属。客户端缓存 slot->node 映射表，首次连接通过 CLUSTER SLOTS 命令获取。",
+    kind: "normal",
+    nodeStates: {M1:'active',M2:'active',M3:'active',S1:'slave',S2:'slave',S3:'slave'},
+    edgeStates: {gossip:'normal', rep:'normal'},
+    highlight: 'slots',
+    client: null
   },
   {
-    highlightLines:[38,39,40],
-    hlJs:[18,19], hlPy:[11,12],
-    description:"Node 1: 槽 0-5460；Node 2: 5461-10922；Node 3: 10923-16383，槽映射存储在 cluster.conf",
-    render: () => renderSlotAssign()
+    title: "Client SET 路由",
+    desc: "客户端执行 SET user:1 Alice，CRC16('user:1') % 16384 = 5474，路由到 M2。",
+    detail: "Smart Client 直接连接 M2 发送命令，无需经过代理。M2 处理写入后异步复制到 S2。",
+    kind: "normal",
+    nodeStates: {M1:'master',M2:'active',M3:'master',S1:'slave',S2:'slave',S3:'slave'},
+    edgeStates: {gossip:'normal', rep:'normal'},
+    highlight: 'route_m2',
+    client: {target:'M2', cmd:'SET user:1 Alice', slot:5474}
   },
   {
-    highlightLines:[27,28,29,30,31,32,38,39,40],
-    hlJs:[18,19,20,21,22], hlPy:[11,12,13,14,15],
-    description:"写入 key 'user:1': CRC16('user:1') % 16384 = 5474 → 路由到 Node 2（槽 5461-10922）",
-    render: () => renderRouting()
+    title: "MOVED 重定向",
+    desc: "客户端误发请求到 M1，M1 返回 -MOVED 5474 M2:6379，客户端自动重连 M2。",
+    detail: "MOVED 是永久重定向，客户端更新本地 slot 映射缓存。后续相同 slot 的请求不再产生重定向。",
+    kind: "normal",
+    nodeStates: {M1:'active',M2:'active',M3:'master',S1:'slave',S2:'slave',S3:'slave'},
+    edgeStates: {gossip:'normal', rep:'normal'},
+    highlight: 'moved',
+    client: {target:'M1', redirect:'M2', cmd:'-MOVED 5474', slot:5474}
   },
   {
-    highlightLines:[21,22,23,24],
-    hlJs:[18,19], hlPy:[11,12],
-    description:"MOVED 重定向: 客户端连接到错误节点时，收到 MOVED 5474 127.0.0.1:7001，自动重连",
-    render: () => renderMoved()
+    title: "Gossip 心跳传播",
+    desc: "每个节点每秒随机选择节点发送 PING，携带自身已知的集群状态（节点列表、slot 分配、epoch）。",
+    detail: "收到 PING 的节点回复 PONG 并更新本地视图。消息含发送者已知的其他节点状态，实现最终一致传播。",
+    kind: "normal",
+    nodeStates: {M1:'master',M2:'master',M3:'master',S1:'slave',S2:'slave',S3:'slave'},
+    edgeStates: {gossip:'active', rep:'normal'},
+    highlight: 'gossip',
+    client: null
   },
   {
-    highlightLines:[33,34,35,36,37],
-    hlJs:[22,23,24,25,26], hlPy:[17,18,19,20],
-    description:"主从复制: Master 处理写命令后，异步将命令同步给 Slave（replication_offset 跟踪进度）",
-    render: () => renderReplication()
+    title: "M2 超时 - PFAIL",
+    desc: "M2 停止响应心跳，M1 在 cluster-node-timeout(15s) 后将 M2 标记为 PFAIL（疑似下线）。",
+    detail: "PFAIL 是单个节点的主观判断，还需要其他主节点确认。M1 通过 Gossip 将 PFAIL 信息传播给 M3。",
+    kind: "failure",
+    nodeStates: {M1:'master',M2:'fail',M3:'master',S1:'slave',S2:'slave',S3:'slave'},
+    edgeStates: {gossip:'normal', rep:'normal'},
+    highlight: 'pfail',
+    client: null
   },
   {
-    highlightLines:[38,39,40,41],
-    hlJs:[18,19,20], hlPy:[11,12,13],
-    description:"Gossip 协议: 每个节点随机选择一些节点交换 cluster_state，传播心跳和状态信息",
-    render: () => renderGossip()
+    title: "多数确认 - FAIL",
+    desc: "M1 和 M3 都将 M2 标记为 PFAIL，超过半数主节点(2/3)确认，M2 状态升级为 FAIL。",
+    detail: "FAIL 状态通过 Gossip 广播到所有节点。此时 slot 5461-10922 暂时不可用，客户端收到 CLUSTERDOWN。",
+    kind: "failure",
+    nodeStates: {M1:'master',M2:'fail',M3:'master',S1:'slave',S2:'slave',S3:'slave'},
+    edgeStates: {gossip:'fail', rep:'normal'},
+    highlight: 'fail_confirm',
+    client: null
   },
   {
-    highlightLines:[12,13,21,22,23,24],
-    hlJs:[4,5,6,7,8,9,10,11,12,13], hlPy:[4,5,6,7,8],
-    description:"Master 1 故障: 超过 cluster-node-timeout (默认 15s) 未响应心跳，被标记为 PFAIL",
-    render: () => renderFailure()
+    title: "S2 发起选举",
+    desc: "S2 检测到其主节点 M2 已 FAIL，等待 election_delay 后向所有主节点广播 FAILOVER_AUTH_REQUEST。",
+    detail: "election_delay 基于 replication_offset 排序，offset 最大的从节点优先发起选举（数据最新）。每个 epoch 每个主节点只投一票。",
+    kind: "failure",
+    nodeStates: {M1:'master',M2:'fail',M3:'master',S1:'slave',S2:'active',S3:'slave'},
+    edgeStates: {gossip:'normal', rep:'normal'},
+    highlight: 'election',
+    client: null
   },
   {
-    highlightLines:[12,13,21,22,23,24],
-    hlJs:[4,5,6,7,8,9,10], hlPy:[4,5,6,7,8],
-    description:"Slave 1 发起选举: 向其他 Master 广播 FAILOVER_AUTH_REQUEST，获得多数节点投票（≥ N/2+1）",
-    render: () => renderElection()
+    title: "S2 晋升为新主",
+    desc: "S2 获得 M1 和 M3 的投票（2/3 多数），晋升为新主节点，接管 slot 5461-10922。",
+    detail: "S2 增加 configEpoch 并广播新配置。所有节点更新 slot 映射，客户端收到 MOVED 后刷新路由缓存。",
+    kind: "recovery",
+    nodeStates: {M1:'master',M2:'fail',M3:'master',S1:'slave',S2:'promoted',S3:'slave'},
+    edgeStates: {gossip:'active', rep:'normal'},
+    highlight: 'promoted',
+    client: null
   },
   {
-    highlightLines:[12,13,21,22,23,24,25,26],
-    hlJs:[4,5,6,7,8,9,10,11,12,13], hlPy:[4,5,6,7,8],
-    description:"Slave 1 晋升为 Master: 接管槽 0-5460，集群恢复全部 16384 槽服务，客户端更新路由表",
-    render: () => renderPromotion()
-  },
+    title: "集群恢复稳定",
+    desc: "新拓扑：M1 + S2(新主) + M3 对外服务，所有 16384 slot 重新可用，集群状态 CLUSTER_OK。",
+    detail: "原 M2 恢复后自动成为 S2(新主) 的从节点。建议补充新从节点以恢复每主一从的冗余配置。",
+    kind: "recovery",
+    nodeStates: {M1:'master',M2:'fail',M3:'master',S1:'slave',S2:'promoted',S3:'slave'},
+    edgeStates: {gossip:'active', rep:'active'},
+    highlight: 'stable',
+    client: null
+  }
 ];
 
-let step = 0, playing = false, timer = null;
-const SPEED = [900,550,320,180,80];
+/* ---- SVG Rendering ---- */
+function clearSvg() { while(svg.firstChild) svg.removeChild(svg.firstChild); }
 
-function renderOverview() {
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.88rem;font-weight:600;color:var(--blue);margin-bottom:14px;">Redis Cluster — 3 主 3 从架构</div>
-    ${clusterNodes(-1, -1, -1, -1)}
-    <div class="info-row">
-      <div class="info-box"><strong>总槽数</strong>16,384 个哈希槽</div>
-      <div class="info-box"><strong>最少节点</strong>3 主 (可选 + 从)</div>
-      <div class="info-box"><strong>可用性</strong>多数主节点存活即可服务</div>
-    </div>`;
+function svgEl(tag, attrs) {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const [k,v] of Object.entries(attrs)) el.setAttribute(k, v);
+  return el;
 }
 
-function renderSlots() {
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.88rem;font-weight:600;color:var(--yellow);margin-bottom:12px;">哈希槽 — 16,384 个槽分配</div>
-    <div style="font-size:0.8rem;color:var(--dim);margin-bottom:8px;">16384 槽（0 ~ 16383）平均分配给 3 个主节点：</div>
-    <div class="slot-bar" style="margin-bottom:6px;">
-      <div class="slot-seg" style="width:33.3%;background:rgba(56,189,248,0.3);color:var(--blue);">0-5460</div>
-      <div class="slot-seg" style="width:33.3%;background:rgba(74,222,128,0.3);color:var(--green);">5461-10922</div>
-      <div class="slot-seg" style="width:33.4%;background:rgba(196,132,252,0.3);color:var(--purple);">10923-16383</div>
-    </div>
-    <div style="display:flex;gap:12px;font-size:0.75rem;margin-bottom:14px;">
-      <span style="color:var(--blue)">Node 1: 5461 槽</span>
-      <span style="color:var(--green)">Node 2: 5462 槽</span>
-      <span style="color:var(--purple)">Node 3: 5461 槽</span>
-    </div>
-    <div style="padding:12px 16px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.82rem;color:var(--dim);line-height:1.7;">
-      <strong style="color:var(--text)">为什么是 16384？</strong>
-      Redis 作者认为 16384 个槽足够大（16K 节点），
-      同时 CLUSTER GOSSIP 心跳包中用 2KB 位图表示槽信息，16384 / 8 = 2048 字节，
-      节省带宽。而 65536 需要 8KB，包太大。
-    </div>`;
-}
+function renderStep(s) {
+  clearSvg();
 
-function renderSlotAssign() {
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.88rem;font-weight:600;color:var(--blue);margin-bottom:12px;">槽分配 — 每个节点负责的槽范围</div>
-    ${clusterNodes(-1, -1, -1, -1)}
-    <div style="background:var(--panel2);border-radius:8px;padding:12px 16px;font-family:monospace;font-size:0.78rem;line-height:2;color:var(--dim2);">
-      <div><span style="color:var(--blue)">Node 1 (:7000)</span> → slots: 0-5460 &nbsp;&nbsp;(5461 slots)</div>
-      <div><span style="color:var(--green)">Node 2 (:7001)</span> → slots: 5461-10922 (5462 slots)</div>
-      <div><span style="color:var(--purple)">Node 3 (:7002)</span> → slots: 10923-16383 (5461 slots)</div>
-    </div>`;
-}
+  // Defs
+  const defs = svgEl('defs',{});
+  const filt = svgEl('filter',{id:'glow',x:'-40%',y:'-40%',width:'180%',height:'180%'});
+  const blur = svgEl('feGaussianBlur',{stdDeviation:'3',result:'coloredBlur'});
+  const merge = svgEl('feMerge',{});
+  ['coloredBlur','SourceGraphic'].forEach(n=>{const mn=svgEl('feMergeNode',{});mn.setAttribute('in',n);merge.appendChild(mn);});
+  filt.appendChild(blur); filt.appendChild(merge); defs.appendChild(filt);
+  // Arrow markers
+  const marker = svgEl('marker',{id:'arrow',markerWidth:'6',markerHeight:'6',refX:'5',refY:'3',orient:'auto'});
+  marker.appendChild(svgEl('path',{d:'M0,0 L0,6 L6,3 z',fill:'rgba(45,212,191,.6)'}));
+  defs.appendChild(marker);
+  const markerR = svgEl('marker',{id:'arrowR',markerWidth:'6',markerHeight:'6',refX:'5',refY:'3',orient:'auto'});
+  markerR.appendChild(svgEl('path',{d:'M0,0 L0,6 L6,3 z',fill:'rgba(248,113,113,.6)'}));
+  defs.appendChild(markerR);
+  svg.appendChild(defs);
 
-function renderRouting() {
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.88rem;font-weight:600;color:var(--yellow);margin-bottom:12px;">Key 路由 — CRC16 哈希</div>
-    <div style="background:var(--panel2);border-radius:8px;padding:14px 16px;font-family:monospace;font-size:0.82rem;line-height:2;margin-bottom:14px;">
-      <div><span style="color:var(--dim)">// 计算 key 所在槽</span></div>
-      <div>slot = CRC16(<span style="color:var(--yellow)">"user:1"</span>) % 16384</div>
-      <div>&nbsp;&nbsp;&nbsp;&nbsp; = <span style="color:var(--orange)">55229</span> % 16384</div>
-      <div>&nbsp;&nbsp;&nbsp;&nbsp; = <span style="color:var(--green)">5474</span></div>
-      <div>&nbsp;</div>
-      <div>5474 ∈ [5461, 10922] → <span style="color:var(--green)">Node 2 (:7001)</span></div>
-    </div>
-    ${clusterNodes(1, -1, -1, -1)}`;
-}
+  // Draw Gossip edges between masters
+  for (const edge of EDGES) {
+    const from = NODES[edge.from], to = NODES[edge.to];
+    let cls = 'cedge';
+    if (s.edgeStates.gossip === 'active') cls += ' active';
+    if (s.edgeStates.gossip === 'fail') cls += ' fail';
+    const line = svgEl('line',{x1:from.x,y1:from.y,x2:to.x,y2:to.y,class:cls});
+    svg.appendChild(line);
+  }
 
-function renderMoved() {
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.88rem;font-weight:600;color:var(--yellow);margin-bottom:12px;">MOVED 重定向</div>
-    <div class="moved-box">
-      SET user:1 Alice &nbsp;&nbsp;<span style="color:var(--dim)">// 客户端发到 Node 1</span><br>
-      &lt; -MOVED 5474 127.0.0.1:7001<br>
-      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:var(--dim)">// 重定向到 Node 2</span>
-    </div>
-    <div style="padding:12px 16px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.82rem;color:var(--dim);line-height:1.7;margin-bottom:12px;">
-      <strong style="color:var(--text)">Smart Client：</strong>
-      go-redis 等客户端会缓存槽映射表，直接路由到正确节点（避免 MOVED 开销）。
-      只有槽迁移期间才会收到 MOVED，客户端自动更新路由表并重试。
-    </div>
-    <div style="padding:10px 14px;background:rgba(56,189,248,0.06);border-radius:8px;font-size:0.8rem;color:var(--blue);">
-      {} hash tag：SET {user:1}.name Alice → CRC16("user:1") 确保同一个 slot，允许多 key 操作
-    </div>`;
-}
+  // Draw replication edges (master->slave, vertical)
+  for (const edge of REP_EDGES) {
+    const from = NODES[edge.from], to = NODES[edge.to];
+    let strokeColor = 'rgba(255,255,255,.08)';
+    let dashArr = '3 3';
+    if (s.edgeStates.rep === 'active') { strokeColor = 'rgba(74,222,128,.4)'; dashArr = 'none'; }
+    // Skip if master is failed and this is its rep edge
+    if (s.nodeStates[edge.from] === 'fail') { strokeColor = 'rgba(248,113,113,.2)'; dashArr = '4 4'; }
+    const line = svgEl('line',{x1:from.x,y1:from.y+28,x2:to.x,y2:to.y-28,stroke:strokeColor,'stroke-width':'1.5','stroke-dasharray':dashArr});
+    svg.appendChild(line);
+  }
 
-function renderReplication() {
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.88rem;font-weight:600;color:var(--green);margin-bottom:12px;">主从复制流程</div>
-    ${clusterNodes(-1, -1, -1, -1)}
-    <div class="timeline" style="margin-top:8px;padding-left:24px;">
-      <div style="position:relative;margin-bottom:10px;padding-left:20px;">
-        <div style="position:absolute;left:0;top:4px;width:10px;height:10px;border-radius:50%;background:var(--blue);border:2px solid var(--blue)"></div>
-        <div style="font-size:0.8rem;color:var(--dim)"><strong style="color:var(--text)">全量复制（首次）：</strong>Slave 发送 PSYNC，Master 执行 BGSAVE + 发送 RDB + 缓冲区</div>
-      </div>
-      <div style="position:relative;margin-bottom:10px;padding-left:20px;">
-        <div style="position:absolute;left:0;top:4px;width:10px;height:10px;border-radius:50%;background:var(--green);border:2px solid var(--green)"></div>
-        <div style="font-size:0.8rem;color:var(--dim)"><strong style="color:var(--text)">增量复制（持续）：</strong>Master 异步发送 replication backlog，Slave 执行追赶</div>
-      </div>
-      <div style="position:relative;padding-left:20px;">
-        <div style="position:absolute;left:0;top:4px;width:10px;height:10px;border-radius:50%;background:var(--yellow);border:2px solid var(--yellow)"></div>
-        <div style="font-size:0.8rem;color:var(--dim)"><strong style="color:var(--text)">断线重连：</strong>基于 replication_offset 判断是否需要全量 vs 增量同步</div>
-      </div>
-    </div>`;
-}
+  // Draw special highlight elements
+  if (s.highlight === 'slots') {
+    // Slot bar at bottom
+    const barY = 310, barH = 18, barW = 360, barX = 60;
+    svg.appendChild(svgEl('rect',{x:barX,y:barY,width:barW/3,height:barH,fill:'rgba(56,189,248,.2)',stroke:'rgba(56,189,248,.4)','stroke-width':'1',rx:'3'}));
+    svg.appendChild(svgEl('rect',{x:barX+barW/3,y:barY,width:barW/3,height:barH,fill:'rgba(74,222,128,.2)',stroke:'rgba(74,222,128,.4)','stroke-width':'1',rx:'3'}));
+    svg.appendChild(svgEl('rect',{x:barX+2*barW/3,y:barY,width:barW/3,height:barH,fill:'rgba(192,132,252,.2)',stroke:'rgba(192,132,252,.4)','stroke-width':'1',rx:'3'}));
+    const t1 = svgEl('text',{x:barX+barW/6,y:barY+12,'text-anchor':'middle','font-size':'9',fill:'#38bdf8'}); t1.textContent='0-5460'; svg.appendChild(t1);
+    const t2 = svgEl('text',{x:barX+barW/2,y:barY+12,'text-anchor':'middle','font-size':'9',fill:'#4ade80'}); t2.textContent='5461-10922'; svg.appendChild(t2);
+    const t3 = svgEl('text',{x:barX+5*barW/6,y:barY+12,'text-anchor':'middle','font-size':'9',fill:'#c084fc'}); t3.textContent='10923-16383'; svg.appendChild(t3);
+    const lbl = svgEl('text',{x:240,y:348,'text-anchor':'middle','font-size':'9',fill:'#64748b'}); lbl.textContent='16384 slots total'; svg.appendChild(lbl);
+  }
 
-function renderGossip() {
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.88rem;font-weight:600;color:var(--teal);margin-bottom:12px;">Gossip 协议 — 节点心跳</div>
-    ${[
-      {from:'Node 1', to:'Node 2', type:'PING', status:'alive'},
-      {from:'Node 2', to:'Node 3', type:'PING', status:'alive'},
-      {from:'Node 3', to:'Node 1', type:'PONG', status:'alive'},
-      {from:'Node 1', to:'Node 3', type:'MEET', status:''},
-    ].map(({from,to,type,status}) => `
-    <div class="gossip-row">
-      <div class="gossip-dot pulse" style="background:var(--teal)"></div>
-      <div style="font-family:monospace;font-size:0.8rem;color:var(--teal);">${type}</div>
-      <div style="flex:1;font-size:0.8rem;color:var(--dim);">${from} → ${to}</div>
-      ${status ? `<div style="font-size:0.72rem;color:var(--green);">${status}</div>` : ''}
-    </div>`).join('')}
-    <div style="margin-top:12px;padding:12px 16px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.82rem;color:var(--dim);line-height:1.7;">
-      每隔 1 秒，节点随机选 1 个节点发送 PING，携带集群状态信息（槽信息、节点状态）。
-      超过 cluster-node-timeout/2 未响应，标记为 PFAIL（可能失败），超过 timeout 标记为 FAIL。
-    </div>`;
-}
+  if (s.client) {
+    // Draw client arrow
+    const target = NODES[s.client.target];
+    const clientY = 15;
+    // Client box
+    svg.appendChild(svgEl('rect',{x:200,y:clientY,width:80,height:24,rx:'6',fill:'rgba(255,255,255,.06)',stroke:'rgba(255,255,255,.2)','stroke-width':'1'}));
+    const ct = svgEl('text',{x:240,y:clientY+15,'text-anchor':'middle','font-size':'9',fill:'#e2e8f0'}); ct.textContent='Client'; svg.appendChild(ct);
+    // Arrow to target
+    svg.appendChild(svgEl('line',{x1:240,y1:clientY+24,x2:target.x,y2:target.y-28,stroke:'rgba(45,212,191,.6)','stroke-width':'2','marker-end':'url(#arrow)'}));
+    // Command label
+    if (s.client.cmd) {
+      const cmdT = svgEl('text',{x:240,y:clientY+48,'text-anchor':'middle','font-size':'8',fill:'#fbbf24'}); cmdT.textContent=s.client.cmd; svg.appendChild(cmdT);
+    }
+    if (s.client.redirect) {
+      // Redirect arrow from target to redirect node
+      const rTarget = NODES[s.client.redirect];
+      svg.appendChild(svgEl('line',{x1:target.x+40,y1:target.y,x2:rTarget.x-40,y2:rTarget.y,stroke:'#fbbf24','stroke-width':'2','stroke-dasharray':'5 3','marker-end':'url(#arrow)'}));
+      const rT = svgEl('text',{x:(target.x+rTarget.x)/2,y:target.y-10,'text-anchor':'middle','font-size':'8',fill:'#fbbf24'}); rT.textContent='MOVED'; svg.appendChild(rT);
+    }
+  }
 
-function renderFailure() {
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.88rem;font-weight:600;color:var(--red);margin-bottom:12px;">主节点故障检测</div>
-    ${clusterNodes(-1, -1, 0, -1)}
-    <div style="padding:12px 16px;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.3);border-radius:8px;font-family:monospace;font-size:0.8rem;margin-top:12px;">
-      <div style="color:var(--red)">Node 1 (:7000) → PFAIL</div>
-      <div style="color:var(--dim);margin-top:4px;"># cluster-node-timeout 15000 ms 未响应心跳</div>
-      <div style="color:var(--red);margin-top:4px;">Node 1 (:7000) → FAIL</div>
-      <div style="color:var(--dim);margin-top:4px;"># 多数节点确认 → 开始故障转移</div>
-    </div>
-    <div style="margin-top:10px;padding:10px 14px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.8rem;color:var(--dim);">
-      此时槽 0-5460 不可用，客户端对这些 key 的操作返回 CLUSTERDOWN 错误。
-    </div>`;
-}
+  if (s.highlight === 'gossip') {
+    // Animated gossip labels
+    const pairs = [{from:'M1',to:'M2',msg:'PING'},{from:'M2',to:'M3',msg:'PONG'},{from:'M3',to:'M1',msg:'PING'}];
+    pairs.forEach(p => {
+      const f = NODES[p.from], t = NODES[p.to];
+      const mx = (f.x+t.x)/2, my = (f.y+t.y)/2 - 10;
+      const lbl = svgEl('text',{x:mx,y:my,'text-anchor':'middle','font-size':'8',fill:'#2dd4bf'}); lbl.textContent=p.msg; svg.appendChild(lbl);
+    });
+  }
 
-function renderElection() {
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.88rem;font-weight:600;color:var(--yellow);margin-bottom:12px;">选举流程 — Slave 发起投票</div>
-    ${clusterNodes(-1, -1, 0, -1)}
-    <div style="margin-top:12px;">
-      ${[
-        {text:'Slave 1 发现 Master 1 FAIL，等待 election_delay（基于 replication_offset 排序）', color:'var(--yellow)'},
-        {text:'Slave 1 广播 FAILOVER_AUTH_REQUEST（包含 currentEpoch 和 configEpoch）', color:'var(--yellow)'},
-        {text:'Node 2 和 Node 3 回复 FAILOVER_AUTH_ACK（每个 epoch 只投一票）', color:'var(--green)'},
-        {text:'Slave 1 获得 2/3 票（超过多数），赢得选举', color:'var(--green)'},
-      ].map((item, i) => `
-      <div style="display:flex;gap:10px;margin-bottom:8px;font-size:0.8rem;">
-        <div style="color:${item.color};min-width:18px;font-weight:700;">${i+1}.</div>
-        <div style="color:var(--dim);">${item.text}</div>
-      </div>`).join('')}
-    </div>`;
-}
+  if (s.highlight === 'election') {
+    // Vote arrows from M1,M3 to S2
+    const s2 = NODES['S2'], m1 = NODES['M1'], m3 = NODES['M3'];
+    svg.appendChild(svgEl('line',{x1:m1.x,y1:m1.y+28,x2:s2.x-30,y2:s2.y-20,stroke:'#fbbf24','stroke-width':'1.5','stroke-dasharray':'4 3','marker-end':'url(#arrow)'}));
+    svg.appendChild(svgEl('line',{x1:m3.x,y1:m3.y+28,x2:s2.x+30,y2:s2.y-20,stroke:'#fbbf24','stroke-width':'1.5','stroke-dasharray':'4 3','marker-end':'url(#arrow)'}));
+    const vt = svgEl('text',{x:s2.x,y:s2.y-38,'text-anchor':'middle','font-size':'8',fill:'#fbbf24'}); vt.textContent='FAILOVER_AUTH_ACK'; svg.appendChild(vt);
+  }
 
-function renderPromotion() {
-  document.getElementById('vizArea').innerHTML = `
-    <div style="font-size:0.88rem;font-weight:600;color:var(--green);margin-bottom:12px;">故障转移完成 — 集群恢复</div>
-    ${clusterNodes(-1, -1, 0, 0)}
-    <div style="padding:12px 16px;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.3);border-radius:8px;font-family:monospace;font-size:0.8rem;margin-top:12px;">
-      <div style="color:var(--green)">New Master (:7003) 接管槽 0-5460</div>
-      <div style="color:var(--dim);margin-top:4px;"># 广播新的 configEpoch 通知所有节点</div>
-      <div style="color:var(--green);margin-top:4px;">集群状态: CLUSTER_OK</div>
-      <div style="color:var(--dim);margin-top:4px;"># 所有 16384 槽重新可用，服务恢复</div>
-    </div>
-    <div style="margin-top:10px;padding:10px 14px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:0.8rem;color:var(--dim);">
-      原 Master 恢复后自动成为新 Master 的 Slave，集群恢复为 3 主 3 从配置。
-    </div>`;
-}
+  // Draw nodes
+  for (const [id, node] of Object.entries(NODES)) {
+    const state = s.nodeStates[id];
+    let cls = 'cnode';
+    if (state === 'master') cls += ' master';
+    else if (state === 'active') cls += ' active';
+    else if (state === 'fail') cls += ' fail';
+    else if (state === 'promoted') cls += ' promoted';
 
-function render() {
-  STEPS[step].render();
-  renderCode();
-  document.getElementById('descText').textContent = STEPS[step].description;
-  document.getElementById('stepCounter').textContent = `${step + 1} / ${STEPS.length}`;
-  document.getElementById('btnPrev').disabled = step === 0;
-  document.getElementById('btnNext').disabled = step === STEPS.length - 1;
-}
+    const g = svgEl('g',{class:cls});
+    if (state === 'fail') g.classList.add('pulse-node');
 
-function renderCode() {
-  const lines = CODE_LINES;
-  const hl = (STEPS[step]||{}).highlightLines || [];
-  const body = document.getElementById('codeBody');
-  body.innerHTML = lines.map((l, i) =>
-    `<div class="code-line${hl.includes(i+1)?' active':''}" onclick="jumpToLine(${i+1})">
-      <span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
-  ).join('');
-  const el = body.querySelector('.code-line.active');
-  if (el) el.scrollIntoView({block:'nearest'});
-}
+    // Node rect
+    const w = 90, h = 50;
+    const rect = svgEl('rect',{x:node.x-w/2, y:node.y-h/2, width:w, height:h});
+    if (state === 'active' || state === 'promoted') rect.setAttribute('filter','url(#glow)');
+    g.appendChild(rect);
 
-function jumpToLine(lineNum) {
-  for (let i = STEPS.length-1; i >= 0; i--) {
-    const hl = (STEPS[i]||{}).highlightLines || [];
-    if (hl.includes(lineNum)) { step = i; render(); return; }
+    // Label
+    const labelT = svgEl('text',{x:node.x, y:node.y-8, 'text-anchor':'middle', 'font-size':'12', 'font-weight':'700'});
+    if (state === 'promoted') labelT.textContent = 'S2 (New M)';
+    else if (state === 'fail') labelT.textContent = 'X ' + node.label;
+    else labelT.textContent = node.label;
+    g.appendChild(labelT);
+
+    // Slot/role info
+    const infoT = svgEl('text',{x:node.x, y:node.y+8, 'text-anchor':'middle', 'font-size':'8.5', fill:'#64748b'});
+    if (state === 'promoted') infoT.textContent = 'slot 5461-10922';
+    else infoT.textContent = node.slots;
+    g.appendChild(infoT);
+
+    // Port label
+    const portIdx = ['M1','M2','M3','S1','S2','S3'].indexOf(id);
+    const ports = ['7000','7001','7002','7003','7004','7005'];
+    const portT = svgEl('text',{x:node.x, y:node.y+20, 'text-anchor':'middle', 'font-size':'7.5', fill:'#475569'});
+    portT.textContent = ':' + ports[portIdx];
+    g.appendChild(portT);
+
+    svg.appendChild(g);
+  }
+
+  // Info line at bottom
+  if (s.highlight !== 'slots') {
+    const info = svgEl('text',{x:240,y:350,'text-anchor':'middle','font-size':'9',fill:'#64748b'});
+    info.textContent = s.title;
+    svg.appendChild(info);
   }
 }
 
-function play() { if (step >= STEPS.length-1) step = 0; playing = true; document.getElementById('btnPlay').innerHTML = '⏸ 暂停'; tick(); }
-function pause() { playing = false; clearTimeout(timer); document.getElementById('btnPlay').innerHTML = '▶ 播放'; }
-function tick() { if (!playing) return; if (step < STEPS.length-1) { step++; render(); timer = setTimeout(tick, SPEED[parseInt(document.getElementById('speedRange').value)-1]); } else pause(); }
+/* ---- Controller ---- */
+let idx = 0, timer = null;
+const list     = document.getElementById('stepList');
+const titleEl  = document.getElementById('stepTitle');
+const descEl   = document.getElementById('stepDesc');
+const detailEl = document.getElementById('stepDetail');
+const badgeEl  = document.getElementById('stepKind');
+const playBtn  = document.getElementById('play');
 
-document.getElementById('btnPlay').addEventListener('click', () => playing ? pause() : play());
-document.getElementById('btnPrev').addEventListener('click', () => { pause(); if(step>0){step--;render();} });
-document.getElementById('btnNext').addEventListener('click', () => { pause(); if(step<STEPS.length-1){step++;render();} });
-document.getElementById('btnReset').addEventListener('click', () => { pause(); step=0; render(); });
+function render() {
+  const s = STEPS[idx];
+  titleEl.textContent = s.title;
+  descEl.textContent  = s.desc;
+  detailEl.textContent = s.detail;
+  badgeEl.textContent = s.kind;
+  badgeEl.className   = 'badge ' + s.kind;
+  renderStep(s);
+  document.querySelectorAll('.step-btn').forEach((b,i) => b.classList.toggle('active', i === idx));
+  document.querySelector('.controls .ctrl:nth-child(2)').disabled = idx === 0;
+  document.querySelector('.controls .ctrl:nth-child(4)').disabled = idx === STEPS.length - 1;
+}
 
+function drawList() {
+  list.innerHTML = STEPS.map((s,i) =>
+    `<button class="step-btn" data-i="${i}"><b>Step ${i+1}</b>${s.title}</button>`
+  ).join('');
+  list.querySelectorAll('button').forEach(b => b.onclick = () => { idx = Number(b.dataset.i); pause(); render(); });
+}
+
+function next()  { idx = Math.min(STEPS.length-1, idx+1); render(); if (idx === STEPS.length-1) pause(); }
+function prev()  { idx = Math.max(0, idx-1); render(); }
+function reset() { idx = 0; pause(); render(); }
+function pause() { if(timer) clearInterval(timer); timer = null; playBtn.textContent = '播放'; }
+function toggle(){ if(timer){ pause(); return; } playBtn.textContent = '暂停'; timer = setInterval(next, 2200); }
+
+drawList();
 render();
 </script>
 </body>

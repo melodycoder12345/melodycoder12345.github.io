@@ -2,618 +2,355 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>事务与死锁检测</title>
-<style>
-:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;--teal:#2dd4bf;}
-*{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
-nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
-.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
-nav h1{font-size:1.1rem;font-weight:600;}
-.ds-tags{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;}
-.ds-tag{font-size:0.72rem;padding:2px 8px;border-radius:4px;font-family:monospace;font-weight:500;}
-.main{display:flex;flex:1;overflow:hidden;}
-.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
-.viz-area{flex:1;overflow:auto;padding:20px;position:relative;}
-.desc-box{padding:12px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:44px;display:flex;align-items:center;}
-.step-counter{margin-left:auto;font-family:monospace;font-size:0.8rem;color:var(--dim);}
-.code-panel{width:44%;min-width:360px;display:flex;flex-direction:column;overflow:hidden;}
-.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
-.code-dot{width:10px;height:10px;border-radius:50%;}
-.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
-.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background .15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.7;}
-.code-line:hover{background:rgba(255,255,255,.04);}.code-line.active{background:rgba(251,191,36,.12);}.code-line.active .ln{color:var(--yellow);}
-.ln{min-width:44px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
-.lc{padding:0 16px 0 4px;flex:1;}
-.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;}.id{color:#e6edf3;}
-.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
-.btn{background:rgba(255,255,255,.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:.85rem;transition:all .15s;font-family:inherit;}
-.btn:hover{background:rgba(255,255,255,.12);}.btn.primary{background:rgba(56,189,248,.15);border-color:rgba(56,189,248,.3);color:var(--blue);}
-.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:.8rem;color:var(--dim);}
-input[type=range]{-webkit-appearance:none;width:80px;height:4px;background:var(--border);border-radius:2px;outline:none;}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
-@media(max-width:768px){body{height:auto!important;min-height:100vh;overflow-y:auto!important;}.main{flex-direction:column!important;height:auto!important;flex:none!important;}.viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:300px!important;flex:none!important;}.code-panel{width:100%!important;min-width:unset!important;height:320px!important;flex:none!important;}.controls{flex-wrap:wrap!important;height:auto!important;}.speed-wrap{margin-left:0!important;}}
-
-/* Deadlock-specific */
-.dl-container{display:flex;gap:20px;height:100%;min-height:380px;}
-.lock-col{width:260px;flex-shrink:0;display:flex;flex-direction:column;gap:12px;}
-.graph-col{flex:1;display:flex;flex-direction:column;gap:8px;}
-.panel-label{font-size:0.75rem;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-bottom:4px;}
-
-/* Lock table */
-.lock-table{border-collapse:collapse;width:100%;font-size:0.78rem;}
-.lock-table th{padding:6px 8px;text-align:center;color:var(--dim);font-weight:500;border-bottom:1px solid var(--border);}
-.lock-table td{padding:6px 8px;text-align:center;border:1px solid rgba(51,65,85,.5);font-family:monospace;font-size:0.72rem;transition:all .3s;}
-.lock-table .res-name{text-align:left;color:var(--dim);font-family:inherit;font-size:0.75rem;white-space:nowrap;}
-.cell-hold{background:rgba(74,222,128,.18);color:var(--green);font-weight:700;}
-.cell-wait{background:rgba(251,191,36,.18);color:var(--yellow);font-weight:700;animation:blink .8s step-end infinite;}
-.cell-free{background:rgba(255,255,255,.02);color:var(--border);}
-.cell-aborted{background:rgba(248,113,113,.1);color:var(--red);text-decoration:line-through;}
-@keyframes blink{0%,100%{opacity:1;}50%{opacity:.4;}}
-
-/* Phase badge */
-.phase-badge{padding:4px 10px;border-radius:5px;font-size:0.72rem;font-weight:600;font-family:monospace;display:inline-flex;align-items:center;gap:5px;}
-
-/* Wait for graph */
-.graph-wrap{flex:1;position:relative;min-height:200px;}
-svg.wfg{width:100%;height:100%;min-height:200px;}
-
-/* DFS path */
-.dfs-path{font-family:monospace;font-size:0.78rem;padding:8px 12px;background:rgba(255,255,255,.04);border-radius:6px;border:1px solid var(--border);}
-.dfs-path-label{color:var(--dim);font-size:0.72rem;margin-bottom:3px;}
-
-/* Victim banner */
-.victim-banner{padding:10px 14px;border-radius:8px;font-size:0.85rem;font-weight:600;border:1px solid var(--red);background:rgba(248,113,113,.12);color:var(--red);display:none;}
-.victim-banner.show{display:flex;align-items:center;gap:8px;}
-</style>
 <script src="../nav.js"></script>
 <script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#fb923c;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 18%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}a{color:inherit}.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:16px;align-items:stretch;margin-bottom:20px}.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:440px;display:flex;flex-direction:column;padding:18px}.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:radial-gradient(circle at 50% 20%,rgba(255,255,255,.05),transparent 50%),rgba(15,23,42,.64);overflow:hidden;display:flex;align-items:center;justify-content:center;}
+.dl-svg{width:100%;max-width:480px;height:auto;}
+/* SVG node states */
+.txn-node circle{transition:all .3s;}.txn-node text{transition:fill .3s;}
+.res-node rect{transition:all .3s;}.res-node text{transition:fill .3s;}
+.edge-line{transition:all .4s;stroke-width:2;}
+.edge-line.hold{stroke:var(--ok);stroke-width:2;}
+.edge-line.wait{stroke:var(--warn);stroke-width:2;stroke-dasharray:6 3;animation:edge-dash .8s linear infinite;}
+.edge-line.cycle{stroke:var(--bad);stroke-width:3;stroke-dasharray:none;animation:edge-pulse 1s infinite;}
+@keyframes edge-dash{to{stroke-dashoffset:-18;}}
+@keyframes edge-pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}.status p{color:var(--dim);font-size:.9rem;line-height:1.75}.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}.badge.failure{border-color:var(--bad);color:var(--bad)}.badge.recovery{border-color:var(--ok);color:var(--ok)}.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit}.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}.deep code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.82rem;color:var(--text)}.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}.btn:hover{color:var(--text);border-color:var(--accent)}@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"两阶段锁","body":"2PL 把事务分为加锁阶段（Growing）和解锁阶段（Shrinking）：一旦释放任意锁，就不能再申请新锁。严格 2PL 把写锁保持到提交。","tag":"2PL"},
+  {"title":"等待图","body":"Wait-for Graph 中节点是事务，有向边表示一个事务正在等待另一个事务释放资源。图中出现有向环就意味着发生死锁。","tag":"Wait-for Graph"},
+  {"title":"Victim 选择","body":"检测到死锁后，数据库选择代价最低的事务作为牺牲者（Victim）回滚，以打破环路让其他事务继续执行。","tag":"Victim"},
+  {"title":"间隙锁","body":"Gap Lock 锁定索引记录之间的间隙，防止其他事务在该范围内插入新行，是防止幻读的关键机制。","tag":"Gap Lock"}
+];</script>
 </head>
 <body>
-<nav>
-  <a href="index.html" class="back-btn">← 返回</a>
-  <h1>事务与死锁检测</h1>
-  <div class="ds-tags">
-    <span class="ds-tag" style="background:rgba(251,146,60,.15);color:var(--orange)">有向图 Wait-for Graph</span>
-    <span class="ds-tag" style="background:rgba(248,113,113,.15);color:var(--red)">DFS 环检测</span>
-    <span class="ds-tag" style="background:rgba(56,189,248,.15);color:var(--blue)">2PL 两阶段锁</span>
-  </div>
-</nav>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">数据库 / 事务 / C 类型</div>
+      <h1>事务与死锁检测</h1>
+      <p class="summary">两阶段锁（2PL）协议保证事务的可串行化隔离，但多个事务交叉加锁可能产生循环等待。数据库通过构建 Wait-for Graph 并运行 DFS 检测有向环来发现死锁，选择代价最小的事务回滚以恢复系统活性。</p>
+      <div class="tags"><span>2PL</span><span>死锁</span><span>Wait-for Graph</span><span>行锁</span><span>Gap Lock</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>两阶段锁</strong><span>Growing 阶段只加锁不释放，Shrinking 阶段只释放不加锁，保证可串行化。</span></li>
+        <li><strong>等待图</strong><span>有向图中节点为事务，边 T1→T2 表示 T1 等待 T2 释放锁。环即死锁。</span></li>
+        <li><strong>Victim 选择</strong><span>回滚代价最小的事务（undo 日志量、持有锁数、已执行时间等综合考虑）。</span></li>
+        <li><strong>间隙锁</strong><span>锁定索引记录间的间隙，防止幻读，InnoDB 在 RR 隔离级别默认启用。</span></li>
+      </ul>
+    </div>
+  </section>
 
-<div class="main">
-  <div class="viz-panel">
-    <div class="viz-area" id="vizArea">
-      <div class="dl-container">
-        <!-- Left: Lock table -->
-        <div class="lock-col">
-          <div class="panel-label">锁表 Lock Table</div>
-          <table class="lock-table" id="lockTable">
-            <thead>
-              <tr>
-                <th>资源</th>
-                <th>T1</th>
-                <th>T2</th>
-                <th>T3</th>
-              </tr>
-            </thead>
-            <tbody id="lockTableBody"></tbody>
-          </table>
-          <div id="phaseBadge" style="margin-top:8px;"></div>
-          <div id="victimBanner" class="victim-banner"></div>
-        </div>
-
-        <!-- Right: Wait-for graph -->
-        <div class="graph-col">
-          <div class="panel-label">等待图 Wait-for Graph</div>
-          <div class="graph-wrap">
-            <svg class="wfg" id="wfgSvg" viewBox="0 0 320 220"></svg>
-          </div>
-          <div class="dfs-path" id="dfsPathBox" style="display:none">
-            <div class="dfs-path-label">DFS 访问路径：</div>
-            <div id="dfsPathText"></div>
-          </div>
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">Step Timeline</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <svg class="dl-svg" viewBox="0 0 480 360" id="dlSvg">
+          <defs>
+            <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="rgba(255,255,255,.25)"/>
+            </marker>
+            <marker id="arrHold" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#4ade80"/>
+            </marker>
+            <marker id="arrWait" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#fbbf24"/>
+            </marker>
+            <marker id="arrCycle" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#f87171"/>
+            </marker>
+          </defs>
+          <!-- Transaction nodes (circles) -->
+          <g class="txn-node" id="nT1"><circle cx="120" cy="80" r="32" fill="rgba(56,189,248,.1)" stroke="#38bdf8" stroke-width="2"/><text x="120" y="85" text-anchor="middle" font-size="14" font-weight="700" fill="#38bdf8">T1</text></g>
+          <g class="txn-node" id="nT2"><circle cx="360" cy="80" r="32" fill="rgba(251,146,60,.1)" stroke="#fb923c" stroke-width="2"/><text x="360" y="85" text-anchor="middle" font-size="14" font-weight="700" fill="#fb923c">T2</text></g>
+          <g class="txn-node" id="nT3"><circle cx="240" cy="280" r="32" fill="rgba(192,132,252,.1)" stroke="#c084fc" stroke-width="2"/><text x="240" y="285" text-anchor="middle" font-size="14" font-weight="700" fill="#c084fc">T3</text></g>
+          <!-- Resource nodes (rectangles) -->
+          <g class="res-node" id="nRA"><rect x="180" y="140" width="80" height="36" rx="6" fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.15)" stroke-width="1.5"/><text x="220" y="163" text-anchor="middle" font-size="11" fill="#94a3b8">Row A</text></g>
+          <g class="res-node" id="nRB"><rect x="310" y="200" width="80" height="36" rx="6" fill="rgba(255,255,255,.04)" stroke="rgba(255,255,255,.15)" stroke-width="1.5"/><text x="350" y="223" text-anchor="middle" font-size="11" fill="#94a3b8">Row B</text></g>
+          <!-- Edges (dynamically shown/hidden) -->
+          <!-- T1 holds Row A -->
+          <line id="eT1RA" class="edge-line hold" x1="140" y1="105" x2="200" y2="140" marker-end="url(#arrHold)" style="opacity:0"/>
+          <!-- T2 holds Row B -->
+          <line id="eT2RB" class="edge-line hold" x1="358" y1="112" x2="352" y2="200" marker-end="url(#arrHold)" style="opacity:0"/>
+          <!-- T1 waits Row B (T1→T2) -->
+          <line id="eT1T2" class="edge-line wait" x1="152" y1="80" x2="328" y2="80" marker-end="url(#arrWait)" style="opacity:0"/>
+          <!-- T2 waits Row A (T2→T1) -->
+          <line id="eT2T1" class="edge-line wait" x1="328" y1="88" x2="152" y2="88" marker-end="url(#arrWait)" style="opacity:0"/>
+          <!-- Cycle edges (overlay) -->
+          <line id="eCyc1" class="edge-line cycle" x1="152" y1="80" x2="328" y2="80" marker-end="url(#arrCycle)" style="opacity:0"/>
+          <line id="eCyc2" class="edge-line cycle" x1="328" y1="88" x2="152" y2="88" marker-end="url(#arrCycle)" style="opacity:0"/>
+        </svg>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnReset">Reset</button>
+        <button class="ctrl" id="btnPrev">Prev</button>
+        <button class="ctrl primary" id="btnPlay">Play</button>
+        <button class="ctrl" id="btnNext">Next</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-hd">Status</div>
+      <div style="padding:14px" id="statusPanel">
+        <div class="badge" id="stepBadge">normal</div>
+        <div class="status">
+          <h2 id="statusTitle">初始状态</h2>
+          <p id="statusDesc">三个事务准备竞争两行数据的排他锁。</p>
         </div>
       </div>
-    </div>
-    <div class="desc-box">
-      <span id="desc">初始状态：三个事务，三个资源，准备开始加锁。</span>
-      <span class="step-counter" id="stepCounter">0 / 0</span>
-    </div>
-  </div>
+    </aside>
+  </section>
 
-  <!-- Code panel -->
-  <div class="code-panel">
-    <div class="code-panel-header">
-      <div class="code-dot" style="background:var(--orange)"></div>
-      <span>deadlock.go</span>
-    </div>
-    <div class="code-body" id="codeBody"></div>
-  </div>
-</div>
+  <section class="deep">
+    <section>
+      <h2>Background</h2>
+      <p>事务并发控制的核心矛盾：隔离性要求事务互不干扰，但完全串行执行吞吐量极低。两阶段锁通过允许并发加锁、但严格按阶段释放来平衡正确性与性能。</p>
+      <ul>
+        <li>写-写冲突必须用排他锁（X-lock）互斥</li>
+        <li>读-写冲突可用共享锁（S-lock）或 MVCC 解决</li>
+        <li>2PL 保证冲突可串行化，但可能产生死锁</li>
+        <li>死锁是正确协议的副产品，不是 bug</li>
+      </ul>
+    </section>
+    <section>
+      <h2>Misconceptions</h2>
+      <ul>
+        <li><strong>死锁 = 代码 bug？</strong> 错误。死锁是并发调度的正常现象，数据库有自动检测和恢复机制。</li>
+        <li><strong>Gap Lock 只锁「间隙」？</strong> 实际上 Next-Key Lock = Record Lock + Gap Lock，锁定的是左开右闭区间。</li>
+        <li><strong>innodb_lock_wait_timeout = 死锁检测？</strong> 不是。超时是被动放弃等待，死锁检测（innodb_deadlock_detect）是主动发现环路。</li>
+        <li><strong>加大超时就能避免死锁？</strong> 只会让等待更久，真正的死锁永远不会自行解开。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>Engineering</h2>
+      <ul>
+        <li><code>SHOW ENGINE INNODB STATUS</code> 查看最近死锁信息（LATEST DETECTED DEADLOCK 段）</li>
+        <li>一致的加锁顺序（如按主键升序）可从根本上避免循环等待</li>
+        <li>应用层重试模式：捕获 Deadlock Error（MySQL 1213），随机退避后重试事务</li>
+        <li>DFS 检测算法：对 Wait-for Graph 做深度优先搜索，维护 recStack 标记当前路径，若访问到 recStack 中的节点则发现环</li>
+        <li>时间复杂度 O(V+E)，V = 活跃事务数，E = 等待边数，通常很小</li>
+        <li>减小事务粒度、缩短事务持锁时间是降低死锁概率的最佳实践</li>
+      </ul>
+    </section>
+    <section>
+      <h2>Boundaries</h2>
+      <ul>
+        <li><strong>检测开销：</strong>每次加锁失败触发检测，高并发时 O(n^2) 开销可观；MySQL 8.0.18 引入后台线程批量检测</li>
+        <li><strong>锁升级：</strong>行锁过多时 InnoDB 不会自动升级为表锁（与 SQL Server 不同），但会消耗大量内存</li>
+        <li><strong>分布式死锁：</strong>跨节点的等待图需要全局协调，XA 事务只能依赖超时</li>
+        <li><strong>Phantom 与 Gap Lock：</strong>RR 级别下 Gap Lock 有效防止幻读，但可能锁住比预期更大的范围，导致意外阻塞</li>
+      </ul>
+    </section>
+  </section>
 
-<div class="controls">
-  <button class="btn" id="btnReset">⟳ 重置</button>
-  <button class="btn" id="btnPrev">← 上一步</button>
-  <button class="btn primary" id="btnPlay">▶ 播放</button>
-  <button class="btn" id="btnNext">下一步 →</button>
-  <div class="speed-wrap">
-    速度 <input type="range" id="speedRange" min="1" max="5" value="3">
+  <div class="back-row">
+    <a class="btn" href="index.html">← 返回数据库专题</a>
   </div>
-</div>
+</main>
 
 <script>
-window.PAGE_CONCEPTS = [
-  { title: 'ACID', body: `事务提供 Atomicity、Consistency、Isolation、Durability。数据库通过日志、锁、MVCC 和约束共同实现这些语义。` },
-  { title: '两阶段锁', body: `2PL 把事务分为加锁阶段和解锁阶段：一旦释放任意锁，就不能再申请新锁。严格 2PL 通常把写锁保持到提交。`, tag: '2PL' },
-  { title: '等待图', body: `等待图中节点是事务，边表示一个事务正在等待另一个事务释放资源。图中出现环就意味着发生死锁。` },
-  { title: '死锁检测', body: `数据库可以定期对等待图做 DFS 或拓扑检测。发现环后选择代价较低的事务回滚，释放锁让其他事务继续执行。` },
-  { title: '隔离与并发', body: `更高隔离级别能减少脏读、不可重复读和幻读，但通常需要更多锁或更严格的版本可见性判断，并发度会下降。` }
+const STEPS = [
+  {
+    id: 1, label: 'T1 获取 Row A 排他锁', kind: 'normal',
+    title: 'T1 加锁成功',
+    desc: 'T1 BEGIN，请求 Row A 的 X-lock。资源空闲，立即获得。2PL Growing 阶段开始。',
+    edges: ['eT1RA'],
+    nodeStates: { nT1: 'active', nT2: '', nT3: '', nRA: 'locked', nRB: '' }
+  },
+  {
+    id: 2, label: 'T2 获取 Row B 排他锁', kind: 'normal',
+    title: 'T2 加锁成功',
+    desc: 'T2 BEGIN，请求 Row B 的 X-lock。资源空闲，立即获得。两个事务各自持有一行。',
+    edges: ['eT1RA', 'eT2RB'],
+    nodeStates: { nT1: 'active', nT2: 'active', nT3: '', nRA: 'locked', nRB: 'locked' }
+  },
+  {
+    id: 3, label: 'T1 请求 Row B → 阻塞', kind: 'normal',
+    title: 'T1 等待 T2',
+    desc: 'T1 请求 Row B 的 X-lock，但 Row B 被 T2 持有。T1 进入等待队列。Wait-for Graph 添加边 T1→T2。',
+    edges: ['eT1RA', 'eT2RB', 'eT1T2'],
+    nodeStates: { nT1: 'waiting', nT2: 'active', nT3: '', nRA: 'locked', nRB: 'locked' }
+  },
+  {
+    id: 4, label: 'T2 请求 Row A → 阻塞', kind: 'normal',
+    title: 'T2 等待 T1',
+    desc: 'T2 请求 Row A 的 X-lock，但 Row A 被 T1 持有。T2 进入等待。Wait-for Graph 添加边 T2→T1。此时形成环路！',
+    edges: ['eT1RA', 'eT2RB', 'eT1T2', 'eT2T1'],
+    nodeStates: { nT1: 'waiting', nT2: 'waiting', nT3: '', nRA: 'locked', nRB: 'locked' }
+  },
+  {
+    id: 5, label: '环检测：T1→T2→T1', kind: 'failure',
+    title: '死锁确认！',
+    desc: 'Wait-for Graph 存在有向环 T1→T2→T1。两个事务互相等待对方释放锁，永远无法推进。',
+    edges: ['eT1RA', 'eT2RB', 'eCyc1', 'eCyc2'],
+    nodeStates: { nT1: 'deadlock', nT2: 'deadlock', nT3: '', nRA: 'locked', nRB: 'locked' }
+  },
+  {
+    id: 6, label: 'DFS 检测过程', kind: 'normal',
+    title: 'DFS 遍历等待图',
+    desc: '死锁检测线程对 Wait-for Graph 运行 DFS。从 T1 出发，访问 T2，T2 的邻居 T1 已在当前路径（recStack）中 → 发现环。',
+    edges: ['eT1RA', 'eT2RB', 'eCyc1', 'eCyc2'],
+    nodeStates: { nT1: 'deadlock', nT2: 'deadlock', nT3: '', nRA: 'locked', nRB: 'locked' }
+  },
+  {
+    id: 7, label: 'Victim: T2 回滚', kind: 'recovery',
+    title: 'T2 被选为牺牲者',
+    desc: 'Victim 选择策略：T2 undo 日志较少、持有锁数量较少，代价最小。数据库回滚 T2，释放其持有的 Row B 锁。',
+    edges: ['eT1RA'],
+    nodeStates: { nT1: 'active', nT2: 'victim', nT3: '', nRA: 'locked', nRB: '' }
+  },
+  {
+    id: 8, label: 'T1 获取 Row B 并提交', kind: 'recovery',
+    title: 'T1 完成事务',
+    desc: 'T2 回滚后 Row B 释放，T1 获得 Row B 的 X-lock。T1 执行完毕，COMMIT，释放所有锁。死锁解除。',
+    edges: ['eT1RA', 'eT2RB_t1'],
+    nodeStates: { nT1: 'committed', nT2: 'victim', nT3: '', nRA: '', nRB: '' }
+  },
+  {
+    id: 9, label: 'Gap Lock 防幻读', kind: 'normal',
+    title: '间隙锁场景',
+    desc: 'SELECT ... WHERE id BETWEEN 10 AND 20 FOR UPDATE 会对 (10,20) 间隙加 Gap Lock，阻止其他事务在此范围插入新行，防止幻读。',
+    edges: [],
+    nodeStates: { nT1: '', nT2: '', nT3: 'active', nRA: 'gap', nRB: 'gap' }
+  },
+  {
+    id: 10, label: '最佳实践：一致锁序', kind: 'normal',
+    title: '预防死锁',
+    desc: '所有事务按相同顺序（如主键升序）获取锁，从拓扑上消除环路可能。结合缩短事务时长、应用层重试，可将死锁影响降到最低。',
+    edges: [],
+    nodeStates: { nT1: 'active', nT2: 'active', nT3: 'active', nRA: '', nRB: '' }
+  }
 ];
 
-// --- Code ---
-const CODE_LINES = [
-  { ln:1,  html: '<span class="cm">// 等待图 + DFS 检测死锁</span>' },
-  { ln:2,  html: '<span class="kw">type</span> <span class="id">WaitForGraph</span> <span class="kw">struct</span> {' },
-  { ln:3,  html: '&nbsp;&nbsp;&nbsp;&nbsp;edges <span class="kw">map</span>[<span class="kw">int</span>][]<span class="kw">int</span> <span class="cm">// txnID → []waiting_for_txnIDs</span>' },
-  { ln:4,  html: '}' },
-  { ln:5,  html: '' },
-  { ln:6,  html: '<span class="cm">// AddEdge: 事务 from 等待事务 to 释放锁</span>' },
-  { ln:7,  html: '<span class="kw">func</span> (g <span class="kw">*WaitForGraph</span>) <span class="fn">AddEdge</span>(from, to <span class="kw">int</span>) {' },
-  { ln:8,  html: '&nbsp;&nbsp;&nbsp;&nbsp;g.edges[from] = <span class="fn">append</span>(g.edges[from], to)' },
-  { ln:9,  html: '}' },
-  { ln:10, html: '' },
-  { ln:11, html: '<span class="cm">// DetectCycle: DFS 检测环，O(V+E)</span>' },
-  { ln:12, html: '<span class="kw">func</span> (g <span class="kw">*WaitForGraph</span>) <span class="fn">DetectCycle</span>() (<span class="kw">bool</span>, []<span class="kw">int</span>) {' },
-  { ln:13, html: '&nbsp;&nbsp;&nbsp;&nbsp;visited := <span class="fn">make</span>(<span class="kw">map</span>[<span class="kw">int</span>]<span class="kw">bool</span>)' },
-  { ln:14, html: '&nbsp;&nbsp;&nbsp;&nbsp;recStack := <span class="fn">make</span>(<span class="kw">map</span>[<span class="kw">int</span>]<span class="kw">bool</span>) <span class="cm">// 当前 DFS 路径</span>' },
-  { ln:15, html: '&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">var</span> path []<span class="kw">int</span>' },
-  { ln:16, html: '' },
-  { ln:17, html: '&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">var</span> dfs <span class="kw">func</span>(v <span class="kw">int</span>) <span class="kw">bool</span>' },
-  { ln:18, html: '&nbsp;&nbsp;&nbsp;&nbsp;dfs = <span class="kw">func</span>(v <span class="kw">int</span>) <span class="kw">bool</span> {' },
-  { ln:19, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;visited[v] = <span class="kw">true</span>' },
-  { ln:20, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;recStack[v] = <span class="kw">true</span>' },
-  { ln:21, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;path = <span class="fn">append</span>(path, v)' },
-  { ln:22, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> _, neighbor := <span class="kw">range</span> g.edges[v] {' },
-  { ln:23, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> !visited[neighbor] {' },
-  { ln:24, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> <span class="fn">dfs</span>(neighbor) { <span class="kw">return</span> <span class="kw">true</span> }' },
-  { ln:25, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;} <span class="kw">else if</span> recStack[neighbor] {' },
-  { ln:26, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="kw">true</span> <span class="cm">// 发现环！</span>' },
-  { ln:27, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}' },
-  { ln:28, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}' },
-  { ln:29, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;recStack[v] = <span class="kw">false</span>' },
-  { ln:30, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;path = path[:len(path)-<span class="num">1</span>]' },
-  { ln:31, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="kw">false</span>' },
-  { ln:32, html: '&nbsp;&nbsp;&nbsp;&nbsp;}' },
-  { ln:33, html: '&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> txn := <span class="kw">range</span> g.edges {' },
-  { ln:34, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> !visited[txn] && <span class="fn">dfs</span>(txn) {' },
-  { ln:35, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="kw">true</span>, path <span class="cm">// 返回死锁路径</span>' },
-  { ln:36, html: '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}' },
-  { ln:37, html: '&nbsp;&nbsp;&nbsp;&nbsp;}' },
-  { ln:38, html: '&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="kw">false</span>, <span class="kw">nil</span>' },
-  { ln:39, html: '}' },
-  { ln:40, html: '<span class="cm">// 解决方案：选择代价最小的事务回滚（Victim Selection）</span>' },
-];
-
-const codeBody = document.getElementById('codeBody');
-CODE_LINES.forEach(({ln, html}) => {
-  const el = document.createElement('div');
-  el.className = 'code-line';
-  el.dataset.ln = ln;
-  el.innerHTML = `<span class="ln">${ln}</span><span class="lc">${html}</span>`;
-  codeBody.appendChild(el);
+// --- Render step list ---
+const stepList = document.getElementById('stepList');
+STEPS.forEach((s, i) => {
+  const btn = document.createElement('button');
+  btn.className = 'step-btn';
+  btn.innerHTML = `<b>Step ${s.id}</b>${s.label}`;
+  btn.onclick = () => { pause(); cur = i; render(); };
+  stepList.appendChild(btn);
 });
 
-// --- Steps ---
-// locks: [{txn:'T1'|'T2'|'T3', resource:'R1'|'R2'|'R3', status:'hold'|'wait'|'aborted'}]
-// waitGraph: [{from, to, highlight:'normal'|'cycle'}]
-// visitedNodes: ['T1',...]  dfsPath: ['T1','T2',...] victim: null|'T3'
-// phase: 'acquire'|'wait'|'detect'|'resolve'
-
-const steps = [
-  {
-    locks: [],
-    waitGraph: [],
-    visitedNodes: [], dfsPath: [],
-    victim: null, phase: 'acquire',
-    highlightLines: [2,3],
-    description: '初始状态：三个事务（T1, T2, T3），三个资源（R1=account_A, R2=account_B, R3=account_C）。等待图为空。'
-  },
-  {
-    locks: [{txn:'T1',resource:'R1',status:'hold'}],
-    waitGraph: [],
-    visitedNodes: [], dfsPath: [],
-    victim: null, phase: 'acquire',
-    highlightLines: [7,8],
-    description: 'T1 申请锁 R1（account_A）。资源空闲，T1 立即获得锁。2PL 加锁阶段开始。'
-  },
-  {
-    locks: [
-      {txn:'T1',resource:'R1',status:'hold'},
-      {txn:'T2',resource:'R2',status:'hold'}
-    ],
-    waitGraph: [],
-    visitedNodes: [], dfsPath: [],
-    victim: null, phase: 'acquire',
-    highlightLines: [7,8],
-    description: 'T2 申请锁 R2（account_B）。资源空闲，T2 立即获得锁。'
-  },
-  {
-    locks: [
-      {txn:'T1',resource:'R1',status:'hold'},
-      {txn:'T2',resource:'R2',status:'hold'},
-      {txn:'T3',resource:'R3',status:'hold'}
-    ],
-    waitGraph: [],
-    visitedNodes: [], dfsPath: [],
-    victim: null, phase: 'acquire',
-    highlightLines: [7,8],
-    description: 'T3 申请锁 R3（account_C）。资源空闲，T3 立即获得锁。三个事务各自持有一个资源。'
-  },
-  {
-    locks: [
-      {txn:'T1',resource:'R1',status:'hold'},
-      {txn:'T2',resource:'R2',status:'hold'},
-      {txn:'T3',resource:'R3',status:'hold'},
-      {txn:'T1',resource:'R2',status:'wait'}
-    ],
-    waitGraph: [{from:'T1',to:'T2',highlight:'normal'}],
-    visitedNodes: [], dfsPath: [],
-    victim: null, phase: 'wait',
-    highlightLines: [7,8],
-    description: 'T1 申请 R2（account_B），但 R2 被 T2 持有！T1 进入等待。等待图添加边：T1 → T2。'
-  },
-  {
-    locks: [
-      {txn:'T1',resource:'R1',status:'hold'},
-      {txn:'T2',resource:'R2',status:'hold'},
-      {txn:'T3',resource:'R3',status:'hold'},
-      {txn:'T1',resource:'R2',status:'wait'},
-      {txn:'T2',resource:'R3',status:'wait'}
-    ],
-    waitGraph: [
-      {from:'T1',to:'T2',highlight:'normal'},
-      {from:'T2',to:'T3',highlight:'normal'}
-    ],
-    visitedNodes: [], dfsPath: [],
-    victim: null, phase: 'wait',
-    highlightLines: [7,8],
-    description: 'T2 申请 R3（account_C），但 R3 被 T3 持有！T2 等待。等待图添加边：T2 → T3。'
-  },
-  {
-    locks: [
-      {txn:'T1',resource:'R1',status:'hold'},
-      {txn:'T2',resource:'R2',status:'hold'},
-      {txn:'T3',resource:'R3',status:'hold'},
-      {txn:'T1',resource:'R2',status:'wait'},
-      {txn:'T2',resource:'R3',status:'wait'},
-      {txn:'T3',resource:'R1',status:'wait'}
-    ],
-    waitGraph: [
-      {from:'T1',to:'T2',highlight:'normal'},
-      {from:'T2',to:'T3',highlight:'normal'},
-      {from:'T3',to:'T1',highlight:'normal'}
-    ],
-    visitedNodes: [], dfsPath: [],
-    victim: null, phase: 'wait',
-    highlightLines: [7,8],
-    description: 'T3 申请 R1（account_A），但 R1 被 T1 持有！T3 等待。等待图：T1→T2, T2→T3, T3→T1。三个事务形成环路！'
-  },
-  {
-    locks: [
-      {txn:'T1',resource:'R1',status:'hold'},
-      {txn:'T2',resource:'R2',status:'hold'},
-      {txn:'T3',resource:'R3',status:'hold'},
-      {txn:'T1',resource:'R2',status:'wait'},
-      {txn:'T2',resource:'R3',status:'wait'},
-      {txn:'T3',resource:'R1',status:'wait'}
-    ],
-    waitGraph: [
-      {from:'T1',to:'T2',highlight:'normal'},
-      {from:'T2',to:'T3',highlight:'normal'},
-      {from:'T3',to:'T1',highlight:'normal'}
-    ],
-    visitedNodes: ['T1'], dfsPath: ['T1'],
-    victim: null, phase: 'detect',
-    highlightLines: [12,13,14,15,17,18,19,20,21,33,34],
-    description: '死锁检测器启动！对等待图进行 DFS。从 T1 开始访问，标记 T1 为已访问，加入当前路径。'
-  },
-  {
-    locks: [
-      {txn:'T1',resource:'R1',status:'hold'},
-      {txn:'T2',resource:'R2',status:'hold'},
-      {txn:'T3',resource:'R3',status:'hold'},
-      {txn:'T1',resource:'R2',status:'wait'},
-      {txn:'T2',resource:'R3',status:'wait'},
-      {txn:'T3',resource:'R1',status:'wait'}
-    ],
-    waitGraph: [
-      {from:'T1',to:'T2',highlight:'normal'},
-      {from:'T2',to:'T3',highlight:'normal'},
-      {from:'T3',to:'T1',highlight:'normal'}
-    ],
-    visitedNodes: ['T1','T2'], dfsPath: ['T1','T2'],
-    victim: null, phase: 'detect',
-    highlightLines: [22,23,24,19,20,21],
-    description: 'DFS：T1 的邻居是 T2（T1等T2）。T2 未访问，递归访问 T2。路径：T1 → T2。'
-  },
-  {
-    locks: [
-      {txn:'T1',resource:'R1',status:'hold'},
-      {txn:'T2',resource:'R2',status:'hold'},
-      {txn:'T3',resource:'R3',status:'hold'},
-      {txn:'T1',resource:'R2',status:'wait'},
-      {txn:'T2',resource:'R3',status:'wait'},
-      {txn:'T3',resource:'R1',status:'wait'}
-    ],
-    waitGraph: [
-      {from:'T1',to:'T2',highlight:'normal'},
-      {from:'T2',to:'T3',highlight:'normal'},
-      {from:'T3',to:'T1',highlight:'normal'}
-    ],
-    visitedNodes: ['T1','T2','T3'], dfsPath: ['T1','T2','T3'],
-    victim: null, phase: 'detect',
-    highlightLines: [22,23,24,19,20,21],
-    description: 'DFS：T2 的邻居是 T3（T2等T3）。T3 未访问，递归访问 T3。路径：T1 → T2 → T3。'
-  },
-  {
-    locks: [
-      {txn:'T1',resource:'R1',status:'hold'},
-      {txn:'T2',resource:'R2',status:'hold'},
-      {txn:'T3',resource:'R3',status:'hold'},
-      {txn:'T1',resource:'R2',status:'wait'},
-      {txn:'T2',resource:'R3',status:'wait'},
-      {txn:'T3',resource:'R1',status:'wait'}
-    ],
-    waitGraph: [
-      {from:'T1',to:'T2',highlight:'cycle'},
-      {from:'T2',to:'T3',highlight:'cycle'},
-      {from:'T3',to:'T1',highlight:'cycle'}
-    ],
-    visitedNodes: ['T1','T2','T3'], dfsPath: ['T1','T2','T3','T1(环!)'],
-    victim: null, phase: 'detect',
-    highlightLines: [25,26],
-    description: 'DFS：T3 的邻居是 T1，但 T1 已在当前路径（recStack）中！发现环：T1 → T2 → T3 → T1。死锁确认！'
-  },
-  {
-    locks: [
-      {txn:'T1',resource:'R1',status:'hold'},
-      {txn:'T2',resource:'R2',status:'hold'},
-      {txn:'T3',resource:'R3',status:'aborted'},
-      {txn:'T1',resource:'R2',status:'wait'},
-      {txn:'T2',resource:'R3',status:'wait'},
-      {txn:'T3',resource:'R1',status:'aborted'}
-    ],
-    waitGraph: [
-      {from:'T1',to:'T2',highlight:'normal'},
-    ],
-    visitedNodes: [], dfsPath: [],
-    victim: 'T3', phase: 'resolve',
-    highlightLines: [40],
-    description: '选择代价最小的事务 T3 作为牺牲者（Victim）。T3 回滚，释放 R3。T2 获得 R3，死锁解除！T1→T2 的等待仍存在，但不再成环。'
-  }
-];
-
-// --- Render ---
-const RESOURCES = ['R1(account_A)','R2(account_B)','R3(account_C)'];
-const TXNS = ['T1','T2','T3'];
-const R_SHORT = ['R1','R2','R3'];
-
-function getCellStatus(txn, resShort, locks, victim) {
-  if (victim && victim === txn) return 'aborted';
-  const lock = locks.find(l => l.txn === txn && l.resource === resShort);
-  if (!lock) return 'free';
-  return lock.status;
-}
-
-function renderLockTable(locks, victim) {
-  const tbody = document.getElementById('lockTableBody');
-  tbody.innerHTML = '';
-  RESOURCES.forEach((res, ri) => {
-    const tr = document.createElement('tr');
-    let html = `<td class="res-name">${res}</td>`;
-    TXNS.forEach(txn => {
-      const status = getCellStatus(txn, R_SHORT[ri], locks, victim);
-      let cls = 'cell-free', text = '—';
-      if (status === 'hold') { cls = 'cell-hold'; text = 'HOLD'; }
-      else if (status === 'wait') { cls = 'cell-wait'; text = 'WAIT'; }
-      else if (status === 'aborted') { cls = 'cell-aborted'; text = 'ABORT'; }
-      html += `<td class="${cls}">${text}</td>`;
-    });
-    tr.innerHTML = html;
-    tbody.appendChild(tr);
-  });
-}
-
-// Node positions in SVG (viewBox 320x220)
-const NODE_POS = { T1: {x:80, y:60}, T2: {x:240, y:60}, T3: {x:160, y:160} };
-const TXN_COLORS = { T1: 'var(--blue)', T2: 'var(--orange)', T3: 'var(--teal)' };
-
-function renderWFG(waitGraph, visitedNodes, victim) {
-  const svg = document.getElementById('wfgSvg');
-  svg.innerHTML = '';
-
-  // defs for arrowheads
-  const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
-  const mkMarker = (id, color) => {
-    const m = document.createElementNS('http://www.w3.org/2000/svg','marker');
-    m.setAttribute('id', id);
-    m.setAttribute('markerWidth','8');
-    m.setAttribute('markerHeight','8');
-    m.setAttribute('refX','6');
-    m.setAttribute('refY','3');
-    m.setAttribute('orient','auto');
-    const p = document.createElementNS('http://www.w3.org/2000/svg','path');
-    p.setAttribute('d','M0,0 L0,6 L8,3 z');
-    p.setAttribute('fill', color);
-    m.appendChild(p);
-    return m;
-  };
-  defs.appendChild(mkMarker('arrow-normal','#94a3b8'));
-  defs.appendChild(mkMarker('arrow-cycle','#f87171'));
-  svg.appendChild(defs);
-
-  // Draw edges
-  waitGraph.forEach(edge => {
-    const from = NODE_POS[edge.from];
-    const to = NODE_POS[edge.to];
-    const isCycle = edge.highlight === 'cycle';
-    const color = isCycle ? '#f87171' : '#475569';
-    const markerId = isCycle ? 'arrow-cycle' : 'arrow-normal';
-
-    // Compute offset so arrows don't overlap node circles
-    const dx = to.x - from.x, dy = to.y - from.y;
-    const len = Math.sqrt(dx*dx+dy*dy);
-    const r = 26;
-    const sx = from.x + dx/len*r, sy = from.y + dy/len*r;
-    const ex = to.x - dx/len*r, ey = to.y - dy/len*r;
-
-    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
-    line.setAttribute('x1', sx); line.setAttribute('y1', sy);
-    line.setAttribute('x2', ex); line.setAttribute('y2', ey);
-    line.setAttribute('stroke', color);
-    line.setAttribute('stroke-width', isCycle ? '2.5' : '1.5');
-    line.setAttribute('marker-end', `url(#${markerId})`);
-    if (isCycle) {
-      line.setAttribute('stroke-dasharray','0');
-      line.style.animation = 'none';
-    }
-    svg.appendChild(line);
-
-    // Edge label (from → to short)
-    const mx = (sx+ex)/2, my = (sy+ey)/2;
-    const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
-    lbl.setAttribute('x', mx);
-    lbl.setAttribute('y', my - 5);
-    lbl.setAttribute('text-anchor','middle');
-    lbl.setAttribute('font-size','9');
-    lbl.setAttribute('fill', isCycle ? '#f87171' : '#64748b');
-    lbl.setAttribute('font-family','monospace');
-    lbl.textContent = `${edge.from}→${edge.to}`;
-    svg.appendChild(lbl);
-  });
-
-  // Draw nodes
-  TXNS.forEach(txn => {
-    const pos = NODE_POS[txn];
-    const isVisited = visitedNodes.includes(txn);
-    const isVictim = victim === txn;
-    const color = TXN_COLORS[txn];
-
-    const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
-    circle.setAttribute('cx', pos.x);
-    circle.setAttribute('cy', pos.y);
-    circle.setAttribute('r', 26);
-    if (isVictim) {
-      circle.setAttribute('fill','rgba(248,113,113,0.15)');
-      circle.setAttribute('stroke','#f87171');
-      circle.setAttribute('stroke-width','2.5');
-    } else if (isVisited) {
-      circle.setAttribute('fill','rgba(251,191,36,0.12)');
-      circle.setAttribute('stroke','#fbbf24');
-      circle.setAttribute('stroke-width','2.5');
-    } else {
-      circle.setAttribute('fill','rgba(30,41,59,0.9)');
-      circle.setAttribute('stroke', color.replace('var(--','').replace(')',''));
-      // Use inline style for CSS variable
-      circle.style.stroke = color;
-      circle.setAttribute('stroke-width','2');
-    }
-    svg.appendChild(circle);
-
-    const label = document.createElementNS('http://www.w3.org/2000/svg','text');
-    label.setAttribute('x', pos.x);
-    label.setAttribute('y', pos.y + 5);
-    label.setAttribute('text-anchor','middle');
-    label.setAttribute('font-size','14');
-    label.setAttribute('font-weight','700');
-    label.setAttribute('font-family','monospace');
-    label.style.fill = isVictim ? '#f87171' : (isVisited ? '#fbbf24' : color);
-    label.textContent = txn;
-    svg.appendChild(label);
-
-    if (isVictim) {
-      const badge = document.createElementNS('http://www.w3.org/2000/svg','text');
-      badge.setAttribute('x', pos.x);
-      badge.setAttribute('y', pos.y + 20);
-      badge.setAttribute('text-anchor','middle');
-      badge.setAttribute('font-size','8');
-      badge.setAttribute('fill','#f87171');
-      badge.setAttribute('font-family','sans-serif');
-      badge.textContent = 'ABORTED';
-      svg.appendChild(badge);
-    } else if (isVisited) {
-      const badge = document.createElementNS('http://www.w3.org/2000/svg','text');
-      badge.setAttribute('x', pos.x);
-      badge.setAttribute('y', pos.y + 20);
-      badge.setAttribute('text-anchor','middle');
-      badge.setAttribute('font-size','8');
-      badge.setAttribute('fill','#fbbf24');
-      badge.setAttribute('font-family','sans-serif');
-      badge.textContent = 'visited';
-      svg.appendChild(badge);
-    }
-  });
-}
-
-const PHASE_CONFIG = {
-  acquire: { label: '加锁阶段 (Growing Phase)', color: 'var(--green)', bg: 'rgba(74,222,128,.12)' },
-  wait:    { label: '等待中 (Blocked)', color: 'var(--yellow)', bg: 'rgba(251,191,36,.12)' },
-  detect:  { label: 'DFS 死锁检测', color: 'var(--orange)', bg: 'rgba(251,146,60,.12)' },
-  resolve: { label: '死锁解除 (Resolved)', color: 'var(--teal)', bg: 'rgba(45,212,191,.12)' },
-};
+// --- SVG Edge IDs ---
+const ALL_EDGES = ['eT1RA', 'eT2RB', 'eT1T2', 'eT2T1', 'eCyc1', 'eCyc2'];
 
 function render() {
-  const s = steps[cur];
-  renderLockTable(s.locks, s.victim);
-  renderWFG(s.waitGraph, s.visitedNodes, s.victim);
+  const s = STEPS[cur];
 
-  // Phase badge
-  const pb = document.getElementById('phaseBadge');
-  const pc = PHASE_CONFIG[s.phase];
-  pb.innerHTML = `<span class="phase-badge" style="background:${pc.bg};color:${pc.color};border:1px solid ${pc.color}33">● ${pc.label}</span>`;
+  // Step buttons
+  document.querySelectorAll('.step-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', i === cur);
+  });
 
-  // Victim banner
-  const vb = document.getElementById('victimBanner');
-  if (s.victim) {
-    vb.className = 'victim-banner show';
-    vb.innerHTML = `⚠ 牺牲者: ${s.victim} 已回滚`;
-  } else {
-    vb.className = 'victim-banner';
-  }
+  // Edges visibility
+  ALL_EDGES.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.opacity = s.edges.includes(id) ? '1' : '0';
+  });
 
-  // DFS path
-  const dfsBox = document.getElementById('dfsPathBox');
-  const dfsText = document.getElementById('dfsPathText');
-  if (s.dfsPath && s.dfsPath.length > 0) {
-    dfsBox.style.display = 'block';
-    dfsText.innerHTML = s.dfsPath.map((n,i) => {
-      const color = n.includes('环') ? '#f87171' : '#fbbf24';
-      return `<span style="color:${color};font-weight:600">${n}</span>${i < s.dfsPath.length-1 ? '<span style="color:#475569"> → </span>' : ''}`;
-    }).join('');
-  } else {
-    dfsBox.style.display = 'none';
-  }
+  // Node states
+  const svg = document.getElementById('dlSvg');
+  const nodeColors = {
+    nT1: { normal: '#38bdf8', active: '#38bdf8', waiting: '#fbbf24', deadlock: '#f87171', victim: '#f87171', committed: '#4ade80' },
+    nT2: { normal: '#fb923c', active: '#fb923c', waiting: '#fbbf24', deadlock: '#f87171', victim: '#f87171', committed: '#4ade80' },
+    nT3: { normal: '#c084fc', active: '#c084fc', waiting: '#fbbf24', deadlock: '#f87171', victim: '#f87171', committed: '#4ade80' }
+  };
 
-  document.getElementById('desc').textContent = s.description;
-  document.getElementById('stepCounter').textContent = (cur+1) + ' / ' + steps.length;
-  highlightLines(s.highlightLines || []);
+  ['nT1', 'nT2', 'nT3'].forEach(nid => {
+    const g = document.getElementById(nid);
+    if (!g) return;
+    const state = s.nodeStates[nid] || 'normal';
+    const baseColor = nodeColors[nid];
+    const color = baseColor[state] || baseColor.normal;
+    const circle = g.querySelector('circle');
+    const text = g.querySelector('text');
+    circle.setAttribute('stroke', color);
+    circle.setAttribute('fill', color.replace(')', ',.1)').replace('#', 'rgba(').replace(/([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i, (m,r,g,b) => `${parseInt(r,16)},${parseInt(g,16)},${parseInt(b,16)}`));
+    // Simplified fill
+    if (state === 'deadlock' || state === 'victim') {
+      circle.setAttribute('fill', 'rgba(248,113,113,.15)');
+      circle.setAttribute('stroke-width', '3');
+    } else if (state === 'committed') {
+      circle.setAttribute('fill', 'rgba(74,222,128,.12)');
+      circle.setAttribute('stroke-width', '2.5');
+    } else if (state === 'waiting') {
+      circle.setAttribute('fill', 'rgba(251,191,36,.1)');
+      circle.setAttribute('stroke', '#fbbf24');
+      circle.setAttribute('stroke-width', '2.5');
+    } else if (state === 'active') {
+      circle.setAttribute('fill', `${color}1a`);
+      circle.setAttribute('stroke-width', '2.5');
+    } else {
+      circle.setAttribute('fill', `${color}1a`);
+      circle.setAttribute('stroke-width', '2');
+    }
+    text.setAttribute('fill', color);
+  });
+
+  // Resource node states
+  ['nRA', 'nRB'].forEach(nid => {
+    const g = document.getElementById(nid);
+    if (!g) return;
+    const state = s.nodeStates[nid] || '';
+    const rect = g.querySelector('rect');
+    if (state === 'locked') {
+      rect.setAttribute('stroke', 'var(--warn)');
+      rect.setAttribute('fill', 'rgba(251,191,36,.08)');
+    } else if (state === 'gap') {
+      rect.setAttribute('stroke', 'var(--accent)');
+      rect.setAttribute('fill', 'rgba(251,146,60,.08)');
+    } else {
+      rect.setAttribute('stroke', 'rgba(255,255,255,.15)');
+      rect.setAttribute('fill', 'rgba(255,255,255,.04)');
+    }
+  });
+
+  // Status panel
+  const badge = document.getElementById('stepBadge');
+  badge.textContent = s.kind;
+  badge.className = 'badge' + (s.kind === 'failure' ? ' failure' : s.kind === 'recovery' ? ' recovery' : '');
+  document.getElementById('statusTitle').textContent = s.title;
+  document.getElementById('statusDesc').textContent = s.desc;
 }
 
-// --- Standard controls ---
-const SPEED=[1200,800,500,300,150];
-let cur=0,playing=false,timer=null;
-const btnPlay=document.getElementById('btnPlay');
-const speedRange=document.getElementById('speedRange');
-function highlightLines(lines){document.querySelectorAll('.code-line').forEach(el=>{el.classList.toggle('active',lines.includes(+el.dataset.ln));});}
-function play(){if(cur>=steps.length-1)cur=0;playing=true;btnPlay.innerHTML='⏸ 暂停';tick();}
-function pause(){playing=false;clearTimeout(timer);btnPlay.innerHTML='▶ 播放';}
-function tick(){if(!playing)return;if(cur<steps.length-1){cur++;render();timer=setTimeout(tick,SPEED[+speedRange.value-1]);}else pause();}
-document.getElementById('btnReset').onclick=()=>{pause();cur=0;render();};
-document.getElementById('btnPrev').onclick=()=>{pause();if(cur>0){cur--;render();}};
-document.getElementById('btnPlay').onclick=()=>{playing?pause():play();};
-document.getElementById('btnNext').onclick=()=>{pause();if(cur<steps.length-1){cur++;render();}};
-document.querySelectorAll('.code-line').forEach(el=>{el.addEventListener('click',()=>{const ln=+el.dataset.ln;let best=-1,bd=Infinity;steps.forEach((s,i)=>{if((s.highlightLines||[]).includes(ln)){const d=Math.abs(i-cur);if(d<bd){bd=d;best=i;}}});if(best>=0){cur=best;render();}});});
+// --- Controls ---
+let cur = 0, playing = false, timer = null;
+const SPEED = 1800;
+
+function play() {
+  if (cur >= STEPS.length - 1) cur = 0;
+  playing = true;
+  document.getElementById('btnPlay').textContent = 'Pause';
+  tick();
+}
+function pause() {
+  playing = false;
+  clearTimeout(timer);
+  document.getElementById('btnPlay').textContent = 'Play';
+}
+function tick() {
+  if (!playing) return;
+  if (cur < STEPS.length - 1) { cur++; render(); timer = setTimeout(tick, SPEED); }
+  else pause();
+}
+
+document.getElementById('btnReset').onclick = () => { pause(); cur = 0; render(); };
+document.getElementById('btnPrev').onclick = () => { pause(); if (cur > 0) { cur--; render(); } };
+document.getElementById('btnPlay').onclick = () => { playing ? pause() : play(); };
+document.getElementById('btnNext').onclick = () => { pause(); if (cur < STEPS.length - 1) { cur++; render(); } };
 
 render();
 </script>

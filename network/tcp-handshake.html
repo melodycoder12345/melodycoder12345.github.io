@@ -169,6 +169,16 @@ const STEPS = [
   {highlightLines:[11,12],hlJs:[14],hlPy:[14],description:'TIME_WAIT: 等待 2MSL (Maximum Segment Lifetime)，保证最后 ACK 能到达',phase:'teardown',draw:{cState:'TIME_WAIT',sState:'LAST_ACK',arrows:[]}},
   {highlightLines:[34,35,36],hlJs:[20,21],hlPy:[19,20],description:'Server 收到 ACK → Server CLOSED',phase:'teardown',draw:{cState:'TIME_WAIT',sState:'CLOSED',arrows:[]}},
   {highlightLines:[11,12],hlJs:[14,15],hlPy:[14],description:'Client TIME_WAIT 超时 → Client CLOSED。四次挥手完成！',phase:'teardown',draw:{cState:'CLOSED',sState:'CLOSED',arrows:[]}},
+
+  // ── RST 场景: 连接被拒绝 ──
+  {highlightLines:[6,7,8,9,10],hlJs:[5,6],hlPy:[8,9],description:'【RST 场景】Client 向一个未监听的端口发送 SYN（Server 端口关闭）',phase:'rst',draw:{cState:'SYN_SENT',sState:'CLOSED',arrows:[{from:'c',to:'s',label:'SYN seq=5000 → 端口未监听',color:'#10b981',progress:1}]}},
+  {highlightLines:[8,9,10],hlJs:[5,6],hlPy:[8,9],description:'【RST 场景】Server 返回 RST：端口不可达，连接被立即拒绝（无需等待超时）',phase:'rst',draw:{cState:'SYN_SENT',sState:'CLOSED',arrows:[{from:'s',to:'c',label:'RST (Connection Refused)',color:'#f87171',progress:1}]}},
+  {highlightLines:[8,9,10],hlJs:[5,6],hlPy:[8,9],description:'【RST 场景】Client 收到 RST → 立即回到 CLOSED，返回 ECONNREFUSED 错误',phase:'rst',draw:{cState:'CLOSED',sState:'CLOSED',arrows:[]}},
+
+  // ── SYN 超时重传场景 ──
+  {highlightLines:[6,7],hlJs:[5,6],hlPy:[8,9],description:'【超时重传】Client 发送 SYN，但网络丢包/中间防火墙丢弃，Server 未收到',phase:'timeout',draw:{cState:'SYN_SENT',sState:'CLOSED',arrows:[{from:'c',to:'s',label:'SYN seq=6000 ✗ (丢失)',color:'#64748b',progress:1}]}},
+  {highlightLines:[6,7],hlJs:[5,6],hlPy:[8,9],description:'【超时重传】等待 RTO (1s) 后重传 SYN，指数退避: 1s → 2s → 4s → 8s...',phase:'timeout',draw:{cState:'SYN_SENT',sState:'CLOSED',arrows:[{from:'c',to:'s',label:'SYN 重传 (RTO×2 退避) ✗',color:'#fb923c',progress:1}]}},
+  {highlightLines:[8,9,10],hlJs:[5,6],hlPy:[8,9],description:'【超时重传】重试达到 tcp_syn_retries 上限(默认6次,约127s) → 放弃，返回 ETIMEDOUT',phase:'timeout',draw:{cState:'CLOSED',sState:'CLOSED',arrows:[]}},
 ];
 
 let cur = 0, playing = false, timer = null;
@@ -200,8 +210,8 @@ function drawStep() {
   const midY = H * 0.5;
 
   // Phase label
-  const phaseColors = {handshake:'#10b981',data:'#fbbf24',teardown:'#f87171'};
-  const phaseNames = {handshake:'三次握手',data:'数据传输',teardown:'四次挥手'};
+  const phaseColors = {handshake:'#10b981',data:'#fbbf24',teardown:'#f87171',rst:'#f87171',timeout:'#fb923c'};
+  const phaseNames = {handshake:'三次握手',data:'数据传输',teardown:'四次挥手',rst:'RST 连接拒绝',timeout:'SYN 超时重传'};
   ctx.font = 'bold 12px monospace';
   ctx.textAlign = 'center';
   ctx.fillStyle = phaseColors[s.phase] || '#94a3b8';

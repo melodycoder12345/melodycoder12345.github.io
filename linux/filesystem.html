@@ -181,6 +181,30 @@ const STEPS = [
     highlightLines:[67,68,69,70,71,72,73,74,75,76,77,78], hlJs:[10], hlPy:[10],
     description:'文件删除：link_count-- 直到 0 才真正释放 inode 和数据块。ls -i 可查看 inode 号'
   },
+
+  // ── 失败场景: Permission Denied ──
+  {
+    view: 'error', errorType: 'eacces',
+    highlightLines:[11,12,13,19,20], hlJs:[2], hlPy:[2],
+    description:'【权限不足】进程尝试 open("/etc/shadow", O_RDONLY)，但 euid≠0 且无 r 权限 → VFS 检查 inode.i_mode 失败'
+  },
+  {
+    view: 'error', errorType: 'eacces_result',
+    highlightLines:[12,13], hlJs:[2], hlPy:[2],
+    description:'【权限不足】内核返回 -EACCES (Permission denied)，open() 返回 -1，errno=EACCES。常见于普通用户访问 root 文件'
+  },
+
+  // ── 失败场景: Disk Full ──
+  {
+    view: 'error', errorType: 'enospc',
+    highlightLines:[39,40,41,42], hlJs:[6], hlPy:[6],
+    description:'【磁盘满】write() 时内核尝试分配新数据块，但 superblock 中 free_blocks=0，无可用空间'
+  },
+  {
+    view: 'error', errorType: 'enospc_result',
+    highlightLines:[39,40,41,42], hlJs:[6], hlPy:[6],
+    description:'【磁盘满】内核返回 -ENOSPC (No space left on device)，write() 失败。部分写入可能已完成（短写），需检查返回字节数'
+  },
 ];
 
 function buildVFSView(s) {
@@ -314,6 +338,54 @@ function buildLinksView(s) {
   </div>`;
 }
 
+function buildErrorView(s) {
+  const et = s.errorType;
+  if (et === 'eacces' || et === 'eacces_result') {
+    const isResult = et === 'eacces_result';
+    return `<div style="margin-bottom:12px;font-size:0.82rem;color:var(--dim);">
+      <strong style="color:var(--red)">失败场景: Permission Denied (EACCES)</strong>
+    </div>
+    <div class="vfs-layers">
+      <div class="vfs-layer syscall-layer${!isResult?' active':''}" style="${!isResult?'border-color:var(--red);color:var(--red)':''}">
+        <strong>系统调用</strong>：open("/etc/shadow", O_RDONLY)
+      </div>
+      <div style="text-align:center;color:var(--dim2);font-size:0.75rem">↓</div>
+      <div class="vfs-layer vfs-layer-inner active" style="border-color:var(--red);color:var(--red)">
+        <strong>VFS 权限检查</strong>：inode.i_mode = -rw-r----- (owner: root)
+      </div>
+      <div style="text-align:center;color:${isResult?'var(--red)':'var(--dim2)'};font-size:0.9rem;font-weight:bold">${isResult?'✗ EACCES':'↓ 检查中...'}</div>
+    </div>
+    <div style="padding:12px 14px;background:rgba(248,113,113,0.08);border-radius:8px;border-left:3px solid var(--red);font-size:0.82rem;color:var(--dim);">
+      ${isResult
+        ? '<strong style="color:var(--red)">errno = EACCES</strong><br>进程 euid=1000 不匹配文件 uid=0，且不在文件 gid 组中，other 位无 r 权限 → 拒绝访问'
+        : '<strong style="color:var(--text)">权限检查流程</strong>：先比较 euid 与 inode.i_uid → 不匹配则检查 egid → 不匹配则看 other 权限位'}
+    </div>`;
+  }
+  // ENOSPC
+  const isResult = et === 'enospc_result';
+  return `<div style="margin-bottom:12px;font-size:0.82rem;color:var(--dim);">
+    <strong style="color:var(--orange)">失败场景: Disk Full (ENOSPC)</strong>
+  </div>
+  <div class="inode-box" style="border-color:var(--orange)">
+    <div class="inode-title">
+      <span style="color:var(--orange)">Super Block</span>
+      <span style="font-size:0.72rem;color:var(--dim2)">/dev/sda1 (ext4)</span>
+    </div>
+    <div class="inode-fields">
+      <div class="inode-field active" style="border-color:var(--red)"><span class="field-key">s_free_blocks: </span><span class="field-val" style="color:var(--red)">0</span></div>
+      <div class="inode-field"><span class="field-key">s_blocks_count: </span><span class="field-val">26214400</span></div>
+      <div class="inode-field active" style="border-color:var(--red)"><span class="field-key">s_free_inodes: </span><span class="field-val">1024</span></div>
+      <div class="inode-field"><span class="field-key">s_block_size: </span><span class="field-val">4096</span></div>
+    </div>
+  </div>
+  <div style="text-align:center;color:${isResult?'var(--red)':'var(--orange)'};font-size:0.9rem;font-weight:bold;margin:8px 0">${isResult?'✗ ENOSPC — write() 失败':'⚠ 尝试分配新块...'}</div>
+  <div style="padding:12px 14px;background:rgba(251,146,60,0.08);border-radius:8px;border-left:3px solid var(--orange);font-size:0.82rem;color:var(--dim);">
+    ${isResult
+      ? '<strong style="color:var(--red)">errno = ENOSPC</strong><br>write() 可能短写（部分字节已写入），应用需检查返回值。解决：清理磁盘空间、扩容分区、或启用磁盘配额预警'
+      : '<strong style="color:var(--text)">块分配失败</strong>：ext4_alloc_blocks() 在 block group 中搜索空闲块，所有 group 的 bitmap 均满 → 无法分配'}
+  </div>`;
+}
+
 function buildViz(step) {
   const s = STEPS[step];
   const container = document.getElementById('fsContainer');
@@ -322,6 +394,7 @@ function buildViz(step) {
     case 'inode': container.innerHTML = buildInodeView(s); break;
     case 'dentry': container.innerHTML = buildDentryView(s); break;
     case 'links': container.innerHTML = buildLinksView(s); break;
+    case 'error': container.innerHTML = buildErrorView(s); break;
   }
 }
 

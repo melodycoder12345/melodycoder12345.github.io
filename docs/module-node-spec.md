@@ -55,9 +55,14 @@
 
 结构要求：
 
-- 左侧：文字说明，解释问题背景、核心模型、适用条件、复杂度或工程价值。
-- 中间：动画或交互演示，展示完整状态变化。
+- 左侧：场景切换标签和步骤导航（dot nav）等控制元素，不放与动画内容直接相关的解释文字。
+- 中间：动画或交互演示，展示完整状态变化；动画下方放与当前步骤直接对应的说明文字。
 - 右侧：代码或伪代码，跟动画步骤对应。
+
+布局约束：
+
+- 与动画步骤直接相关的说明文字，放在动画区域下方，不放在左侧面板。
+- 动画内部尽量少放文字标注，优先用颜色、形状、箭头传达状态变化；必要的标注控制在 1-2 个词以内，避免在 SVG 画布内放多行说明文字。
 
 动画要求：
 
@@ -98,7 +103,8 @@
 
 - 文字说明必须完整，能独立解释概念背景、参与角色、状态机、关键流程和工程意义。
 - 动画演示可以不放代码区，但必须展示完整过程。
-- 每个动画步骤都要有明确标题、解释文案和当前状态。
+- 每个动画步骤都要有明确标题和解释文案，放在动画区域下方，不放在左侧面板。
+- 左侧面板只放场景切换标签和步骤导航控件。
 
 动画要求：
 
@@ -106,6 +112,7 @@
 - 对协议类主题，至少考虑正常路径、失败路径、恢复路径、冲突或选举等特殊情况。
 - 对系统流程类主题，至少考虑初始化、运行中变化、压力或故障条件、收敛结果。
 - 视觉质量按 `algo` 模块动画页标准执行，确保节点、边、日志、计数器、状态标签都清晰可读。
+- 动画内部节点和边的标签尽量精简，优先用视觉编码（颜色、虚线、高亮、大小）表达状态，避免在 SVG 中堆积长文字。
 - 不允许只画静态示意图冒充动画演示。
 
 参考方向：可复用 `algo` 模块的 step / controls / highlight 模式，内容深度参考 `golang` 模块长文页面。
@@ -149,11 +156,11 @@
 | `algo/knapsack.html` | `algo` | `algo-knapsack` | A | 是 | 是 | 动态规划表格过程动画页 |
 | `algo/lcs.html` | `algo` | `algo-lcs` | A | 是 | 是 | LCS 动态规划表格过程动画页 |
 | `algo/lis.html` | `algo` | `algo-lis` | A | 是 | 是 | LIS DP / patience sorting 过程动画页 |
-| `db/db-architecture.html` | `db` | `db-architecture` | B | 否 | 是 | 文字 / 概念说明页 |
-| `db/query-path.html` | `db` | `query-path` | B | 否 | 是 | 文字 / 概念说明页 |
-| `db/storage-layout.html` | `db` | `storage-layout` | B | 否 | 是 | 文字 / 概念说明页 |
+| `db/db-architecture.html` | `db` | `db-architecture` | C | 是 | 是 | C 类型系统架构页，覆盖连接层→解析→优化→执行→存储层级走查 |
+| `db/query-path.html` | `db` | `query-path` | C | 是 | 是 | C 类型系统流程页，覆盖 SQL 执行全路径各阶段 |
+| `db/storage-layout.html` | `db` | `storage-layout` | C | 是 | 是 | C 类型结构走查页，覆盖页格式、堆文件和行列存储 |
 | `db/buffer-pool.html` | `db` | `buffer` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |
-| `db/wal.html` | `db` | `wal` | B | 否 | 是 | 文字 / 概念说明页 |
+| `db/wal.html` | `db` | `wal` | C | 是 | 是 | C 类型系统流程页，覆盖正常提交和崩溃恢复双场景 |
 | `db/mysql-logs.html` | `db` | `mysql-logs` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |
 | `db/btree-index.html` | `db` | `bplus` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |
 | `db/hash-index.html` | `db` | `db-hash-index` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |
@@ -162,8 +169,8 @@
 | `db/external-sort.html` | `db` | `sort` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |
 | `db/mvcc.html` | `db` | `mvcc` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |
 | `db/transaction.html` | `db` | `locks` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |
-| `db/distributed-db.html` | `db` | `distributed-db` | B | 否 | 否 | 文字 / 概念说明页 |
-| `db/cache-layers.html` | `db` | `cache-layers` | B | 否 | 否 | 文字 / 概念说明页 |
+| `db/distributed-db.html` | `db` | `distributed-db` | C | 是 | 是 | C 类型系统流程页，覆盖分片、复制和 CAP 三场景 |
+| `db/cache-layers.html` | `db` | `cache-layers` | C | 是 | 是 | C 类型系统架构页，覆盖硬件缓存层级和数据库缓存体系 |
 | `redis/data-types.html` | `redis` | `redis-types` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |
 | `redis/persistence.html` | `redis` | `redis-persistence` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |
 | `redis/eviction.html` | `redis` | `redis-eviction` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |
@@ -173,7 +180,7 @@
 | `linux/virtual-memory.html` | `linux` | `vm` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |
 | `linux/filesystem.html` | `linux` | `fs` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |
 | `linux/scheduling.html` | `linux` | `sched` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |
-| `linux/commands.html` | `linux` | `linux-commands` | B | 否 | 是 | 文字 / 概念说明页 |
+| `linux/commands.html` | `linux` | `linux-commands` | A | 是 | 是 | 交互式命令参考页，步进浏览 6 类 24 个常用命令 |
 | `linux/process-lifecycle.html` | `linux` | `linux-process` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |
 | `network/tcp-handshake.html` | `network` | `tcp` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |
 | `network/tcp-congestion.html` | `network` | `congestion` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |

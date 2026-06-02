@@ -49,7 +49,9 @@ const STEPS=[
   {"title":"HTTP/3 映射到独立 streams","desc":"多个请求走不同 stream，各自排序和重传，应用层不再被其他 stream 的丢包阻塞。","kind":"normal","active":[1,2,3],"edges":[1,2],"detail":"底层拥塞控制仍是连接级，QUIC 解决的是 TCP 层队头阻塞，不是所有排队问题。"},
   {"title":"单个 packet 丢失触发重传","desc":"QUIC 用 packet number space 和 ACK range 判断丢包，只重传相关 frame。","kind":"failure","active":[1,3],"fail":[2],"edges":[2],"detail":"丢包会影响拥塞窗口和对应 stream，但其他已到达 stream 可以继续交付给 HTTP/3。"},
   {"title":"0-RTT 快速恢复的边界","desc":"恢复会话时客户端可用历史密钥发送 0-RTT 数据，但服务端必须防重放。","kind":"failure","active":[0,1,2],"fail":[0],"edges":[0,1],"detail":"0-RTT 只适合幂等请求；非幂等写入仍应等待握手确认或应用层去重。"},
-  {"title":"连接迁移到新网络路径","desc":"客户端从 Wi-Fi 切到蜂窝，四元组变化，但 Connection ID 让服务端识别同一连接。","kind":"recovery","active":[0,1,2,4],"recover":[0,4],"edges":[0,1,3],"detail":"路径验证成功后连接继续，拥塞控制和 RTT 估计会按新路径重新收敛。"}
+  {"title":"连接迁移到新网络路径","desc":"客户端从 Wi-Fi 切到蜂窝，四元组变化，但 Connection ID 让服务端识别同一连接。","kind":"recovery","active":[0,1,2,4],"recover":[0,4],"edges":[0,1,3],"detail":"路径验证成功后连接继续，拥塞控制和 RTT 估计会按新路径重新收敛。"},
+  {"title":"0-RTT 数据成功投递","desc":"客户端利用上次连接缓存的 session ticket 立即发送应用数据，服务端验证后直接处理，无需等待握手完成。","kind":"normal","active":[0,1,2],"edges":[0,1],"detail":"0-RTT 节省一个 RTT 的建连延迟。服务端必须验证 ticket 有效性和防重放窗口，仅接受幂等请求的 0-RTT 数据。"},
+  {"title":"迁移后路径验证：PATH_CHALLENGE / PATH_RESPONSE","desc":"连接迁移后服务端发送 PATH_CHALLENGE frame，客户端回复 PATH_RESPONSE 确认新路径可达。","kind":"normal","active":[0,1,2,4],"edges":[0,1,3],"detail":"路径验证防止放大攻击和路径欺骗。验证通过前，新路径不会承载大量数据。验证完成后拥塞控制和 RTT 估计在新路径上重新启动。"}
 ];
 let idx=0,timer=null;const list=document.getElementById('stepList'),title=document.getElementById('stepTitle'),desc=document.getElementById('stepDesc'),detail=document.getElementById('stepDetail'),badge=document.getElementById('stateBadge'),play=document.getElementById('btnPlay');
 function drawList(){list.innerHTML=STEPS.map((s,i)=>'<button class="step-btn" data-i="'+i+'"><b>Step '+(i+1)+'</b>'+s.title+'</button>').join('');list.querySelectorAll('button').forEach(b=>b.onclick=()=>{idx=Number(b.dataset.i);pause();render();});}
