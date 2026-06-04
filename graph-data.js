@@ -11,7 +11,8 @@
     cs:      { label: '组成原理',   color: '#a78bfa' },
     golang:  { label: 'Golang',     color: '#00add8' },
     distributed: { label: '分布式',     color: '#c084fc' },
-    ai:      { label: 'AI 系统',     color: '#8b5cf6' }
+    ai:      { label: 'AI 系统',     color: '#8b5cf6' },
+    'system-design': { label: '系统设计', color: '#f59e0b' }
   };
 
   window.GRAPH_NODES = [
@@ -25,6 +26,12 @@
     {id:'golang', label:'Golang', module:'golang', type:'module', href:'golang/index.html', desc:'35 个专题：GMP 调度、GC、Channel、逃逸分析、内存模型、并发模式和工程实践。'},
     {id:'distributed', label:'分布式系统', module:'distributed', type:'module', href:'distributed/index.html', desc:'CAP、Raft、Paxos、一致性哈希等分布式系统基础概念。'},
     {id:'ai', label:'AI 系统', module:'ai', type:'module', href:'ai/index.html', desc:'从 LLM 原理、推理、RAG、Agent 到训练、MoE、评测和部署的工程化知识。'},
+    {id:'system-design', label:'系统设计', module:'system-design', type:'module', href:'system-design/index.html', desc:'短链、限流、分布式 ID、消息推送、秒杀——把算法和中间件组装成真实系统。'},
+    {id:'sd-short-url', label:'短链系统', module:'system-design', type:'page', href:'system-design/short-url.html', desc:'URL 哈希、Base62 编码、数据库持久化、Redis 缓存和 302 重定向的完整链路。'},
+    {id:'sd-rate-limiter', label:'限流器', module:'system-design', type:'page', href:'system-design/rate-limiter.html', desc:'令牌桶、滑动窗口、分布式限流（Redis Lua）和多级降级策略。'},
+    {id:'sd-distributed-id', label:'分布式 ID', module:'system-design', type:'page', href:'system-design/distributed-id.html', desc:'Snowflake 位布局、时钟回拨处理、Leaf 号段模式和多机分配。'},
+    {id:'sd-push-system', label:'消息推送系统', module:'system-design', type:'page', href:'system-design/push-system.html', desc:'长连接管理、Kafka 消息分发、扇出写/扇出读、ACK 和重试机制。'},
+    {id:'sd-flash-sale', label:'秒杀系统', module:'system-design', type:'page', href:'system-design/flash-sale.html', desc:'流量漏斗、Redis 预扣库存、Kafka 异步下单、降级兜底和数据一致性。'},
     {id:'ai-llm-overview', label:'LLM 基础概念', module:'ai', type:'page', href:'ai/llm-overview.html', desc:'解释 Token、Embedding、预训练、微调、对齐和上下文窗口，是理解 LLM 系统的入口。'},
     {id:'ai-attention', label:'Transformer Attention', module:'ai', type:'page', href:'ai/transformer-attention.html', desc:'用 Q/K/V、Mask、Softmax 和 Multi-Head 动画理解 Transformer 如何聚合上下文。'},
     {id:'ai-kv-cache', label:'推理与 KV Cache', module:'ai', type:'page', href:'ai/inference-kv-cache.html', desc:'展示 Tokenize、Prefill、Decode、Sampling 和 Streaming 的在线推理链路。'},
@@ -214,6 +221,11 @@
     ['ai-rag','vector'],['ai-rag','bloom'],['ai-rag','probabilistic-ds'],['ai-rag','db-query-plan'],['ai-agent','go-web'],['ai-agent','http'],
     ['ai-agent','go-context'],['ai-agent','redis-stream'],['ai-training','kafka-overview'],['ai-training','sequential-io'],['ai-training','distributed-db'],
     ['ai-moe','cache-hierarchy'],['ai-moe','cgroup'],['ai-moe','lb'],['ai-eval-deploy','go-testing'],['ai-eval-deploy','go-pprof'],
-    ['ai-eval-deploy','kafka-consumer'],['ai-eval-deploy','ebpf']
+    ['ai-eval-deploy','kafka-consumer'],['ai-eval-deploy','ebpf'],
+    ['sd-short-url','hash'],['sd-short-url','bplus'],['sd-short-url','cache-layers'],['sd-short-url','redis-types'],['sd-short-url','lb'],['sd-short-url','http'],
+    ['sd-rate-limiter','sliding-window'],['sd-rate-limiter','redis-types'],['sd-rate-limiter','redis-lock'],['sd-rate-limiter','lb'],['sd-rate-limiter','go-context'],['sd-rate-limiter','congestion'],
+    ['sd-distributed-id','redis-types'],['sd-distributed-id','kafka-producer'],['sd-distributed-id','go-atomic'],['sd-distributed-id','consistent-hash'],['sd-distributed-id','go-concurrency'],
+    ['sd-push-system','kafka-overview'],['sd-push-system','kafka-group'],['sd-push-system','tcp'],['sd-push-system','epoll'],['sd-push-system','go-channel'],['sd-push-system','go-patterns'],
+    ['sd-flash-sale','redis-lock'],['sd-flash-sale','kafka-producer'],['sd-flash-sale','cache-layers'],['sd-flash-sale','go-context'],['sd-flash-sale','lb'],['sd-flash-sale','sliding-window']
   ];
 })();

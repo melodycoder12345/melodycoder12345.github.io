@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>限流器 - 系统设计</title>
+<script src="../nav.js"></script>
+<style>
+:root{
+  --bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;
+  --text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;
+  --accent:#f59e0b;--blue:#38bdf8;--green:#4ade80;--red:#f87171;--purple:#c084fc;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;overflow:hidden}
+.layout{display:grid;grid-template-columns:260px 1fr 340px;height:calc(100vh - 44px)}
+.steps-panel{background:rgba(17,24,39,.92);border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;overflow:hidden}
+.sp-head{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,.06)}
+.sp-eyebrow{font-size:.65rem;color:var(--accent);text-transform:uppercase;letter-spacing:.14em;font-weight:700;margin-bottom:6px}
+.sp-title{font-size:1rem;font-weight:700;margin-bottom:4px}
+.sp-sub{font-size:.75rem;color:var(--dim);line-height:1.5}
+.scene-tabs{display:flex;flex-direction:column;gap:4px;padding:12px 10px;border-bottom:1px solid rgba(255,255,255,.06)}
+.scene-tab{padding:8px 12px;border-radius:8px;font-size:.78rem;cursor:pointer;border:1px solid transparent;color:var(--dim);transition:all .15s;text-align:left;background:none}
+.scene-tab.active{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.3);color:#fde68a}
+.scene-tab:hover:not(.active){background:rgba(255,255,255,.04);color:var(--text)}
+.dot-nav{display:flex;gap:7px;align-items:center;padding:12px 16px;flex-wrap:wrap}
+.dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.15);cursor:pointer;transition:all .15s;flex-shrink:0}
+.dot.active{background:var(--accent);transform:scale(1.3)}
+.dot.done{background:rgba(245,158,11,.4)}
+.controls{display:flex;gap:8px;padding:10px 16px 14px;border-top:1px solid rgba(255,255,255,.06);margin-top:auto}
+.ctrl-btn{flex:1;padding:7px 0;border-radius:7px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--text);font-size:.78rem;cursor:pointer;transition:all .15s;font-family:inherit}
+.ctrl-btn:hover{background:rgba(255,255,255,.1)}
+.ctrl-btn.play{background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.35);color:#fde68a}
+.ctrl-btn.play:hover{background:rgba(245,158,11,.25)}
+.viz-panel{display:flex;flex-direction:column;overflow:hidden;background:rgba(13,17,23,.6)}
+.viz-canvas{flex:1;position:relative;overflow:hidden}
+svg.arch{width:100%;height:100%}
+.step-desc{padding:14px 20px;border-top:1px solid rgba(255,255,255,.06);background:rgba(17,24,39,.8);min-height:72px}
+.step-desc .sd-label{font-size:.65rem;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px}
+.step-desc .sd-text{font-size:.84rem;color:var(--text);line-height:1.6}
+.detail-panel{background:rgba(17,24,39,.92);border-left:1px solid rgba(255,255,255,.07);overflow-y:auto;padding:18px 16px}
+.dp-section{margin-bottom:22px}
+.dp-title{font-size:.68rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:10px;padding-bottom:7px;border-bottom:1px solid rgba(255,255,255,.06)}
+.dp-block{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:12px 14px;margin-bottom:8px}
+.dp-block h4{font-size:.82rem;font-weight:700;margin-bottom:6px;color:var(--text)}
+.dp-block p{font-size:.77rem;color:var(--dim);line-height:1.6}
+.dp-block code{font-size:.74rem;background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;font-family:monospace;color:#93c5fd}
+.highlight-note{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:10px 12px;font-size:.78rem;color:#fde68a;line-height:1.6;margin-bottom:8px}
+.algo-compare{display:grid;grid-template-columns:1fr;gap:6px}
+.algo-item{padding:8px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03)}
+.algo-item .ai-name{font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:3px}
+.algo-item .ai-desc{font-size:.73rem;color:var(--dim);line-height:1.5}
+.comp-box{transition:filter .2s}
+.comp-box.highlight{filter:drop-shadow(0 0 10px rgba(245,158,11,.6))}
+.comp-box.active{filter:drop-shadow(0 0 14px rgba(56,189,248,.7))}
+.comp-box.error{filter:drop-shadow(0 0 10px rgba(248,113,113,.6))}
+@media(max-width:1000px){
+  body{overflow:auto}
+  .layout{grid-template-columns:1fr;height:auto}
+  .viz-panel{height:480px}
+  .steps-panel,.detail-panel{height:auto;overflow:visible}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="steps-panel">
+    <div class="sp-head">
+      <div class="sp-eyebrow">System Design</div>
+      <div class="sp-title">限流器</div>
+      <div class="sp-sub">令牌桶 · 滑动窗口 · 分布式限流</div>
+    </div>
+    <div class="scene-tabs" id="sceneTabs">
+      <button class="scene-tab active" data-scene="0">🪣 令牌桶算法</button>
+      <button class="scene-tab" data-scene="1">🪟 滑动窗口</button>
+      <button class="scene-tab" data-scene="2">🌐 分布式限流</button>
+    </div>
+    <div class="dot-nav" id="dotNav"></div>
+    <div class="controls">
+      <button class="ctrl-btn" id="btnPrev">◀ 上一步</button>
+      <button class="ctrl-btn play" id="btnPlay">▶ 播放</button>
+      <button class="ctrl-btn" id="btnNext">下一步 ▶</button>
+    </div>
+  </aside>
+
+  <div class="viz-panel">
+    <div class="viz-canvas" id="vizCanvas">
+      <svg class="arch" id="archSvg" viewBox="0 0 680 480" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <div class="step-desc" id="stepDesc">
+      <div class="sd-label">步骤说明</div>
+      <div class="sd-text" id="sdText">选择限流算法场景，点击播放观察请求是如何被允许或拒绝的。</div>
+    </div>
+  </div>
+
+  <aside class="detail-panel">
+    <div class="dp-section">
+      <div class="dp-title">算法对比</div>
+      <div class="algo-compare">
+        <div class="algo-item">
+          <div class="ai-name">🪣 令牌桶（Token Bucket）</div>
+          <div class="ai-desc">桶中有令牌才能通过，令牌按固定速率补充。支持突发流量，是最常见的限流方式。适合 API 限流。</div>
+        </div>
+        <div class="algo-item">
+          <div class="ai-name">🚿 漏桶（Leaky Bucket）</div>
+          <div class="ai-desc">请求进入桶，以固定速率流出。完全平滑输出，不允许突发。适合需要严格均匀速率的场景（如网络带宽）。</div>
+        </div>
+        <div class="algo-item">
+          <div class="ai-name">🪟 滑动窗口（Sliding Window）</div>
+          <div class="ai-desc">记录每个请求的时间戳，统计滑动时间窗口内的请求数。精度高，内存占用较大，适合精细限流。</div>
+        </div>
+        <div class="algo-item">
+          <div class="ai-name">🔢 固定窗口（Fixed Window）</div>
+          <div class="ai-desc">每个时间窗口内计数，超过阈值则拒绝。实现简单，但存在边界突刺问题（两个窗口交界处可能有 2x 突发）。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dp-section">
+      <div class="dp-title">分布式限流</div>
+      <div class="dp-block">
+        <h4>Redis + Lua 原子扣减</h4>
+        <p>将令牌桶的 tokens 存储在 Redis 中，用 Lua 脚本原子地执行：检查令牌数 → 补充令牌 → 扣减令牌，避免并发竞争。</p>
+      </div>
+      <div class="highlight-note">Lua 脚本在 Redis 中是原子执行的，不会有并发问题。这是分布式限流最常用的实现方式。</div>
+      <div class="dp-block">
+        <h4>Redis Key 设计</h4>
+        <p>Key: <code>ratelimit:{user_id}:{window}</code><br>或 <code>ratelimit:{api_path}:{minute}</code><br>根据限流维度选择合适的 key 粒度。</p>
+      </div>
+    </div>
+
+    <div class="dp-section">
+      <div class="dp-title">降级策略</div>
+      <div class="dp-block">
+        <h4>多级限流</h4>
+        <p>通常在多个层次设置限流：Nginx 层（连接数/IP 限流）→ API Gateway（接口级别）→ 服务内（用户/租户级别）→ 数据库连接池。</p>
+      </div>
+      <div class="dp-block">
+        <h4>拒绝后的处理</h4>
+        <p>返回 <code>429 Too Many Requests</code>，响应头附带 <code>Retry-After</code> 和 <code>X-RateLimit-Remaining</code>，让客户端知道何时可以重试。</p>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script>
+(function(){
+'use strict';
+const NS = 'http://www.w3.org/2000/svg';
+const svg = document.getElementById('archSvg');
+
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// 场景步骤
+const SCENES = [
+  {
+    name: '令牌桶算法',
+    steps: [
+      { desc:'令牌桶初始状态：桶容量 10，当前 tokens=8，每秒补充 2 个 token。当请求到来时，先检查桶中是否有足够的 token。', state:'init', tokens:8, req:null, allow:null },
+      { desc:'请求 1 到达（cost=1）：tokens=8 ≥ 1，允许通过。tokens 从 8 减为 7。令牌桶允许一定的突发流量。', state:'allow', tokens:7, req:1, allow:true },
+      { desc:'请求 2 到达（cost=3）：tokens=7 ≥ 3，允许通过。tokens 从 7 减为 4。多个 token 成本的请求同样支持。', state:'allow', tokens:4, req:2, allow:true },
+      { desc:'时间流逝 1 秒：速率为 2 token/s，tokens 从 4 补充到 6（max=10）。这是令牌桶的关键特性：自动补充。', state:'refill', tokens:6, req:null, allow:null },
+      { desc:'突发请求：6 个请求同时到达（每个 cost=1）：tokens=6，全部允许通过，tokens 降为 0。令牌桶支持突发流量。', state:'burst', tokens:0, req:'×6', allow:true },
+      { desc:'请求被拒绝：tokens=0，下一个请求到来时无法获取 token，返回 429 Too Many Requests。等待令牌补充。', state:'reject', tokens:0, req:'new', allow:false },
+      { desc:'恢复：等待 0.5s 后补充 1 个 token，请求恢复通过。令牌桶的设计保证了长期平均速率不超过补充速率。', state:'recover', tokens:1, req:'retry', allow:true },
+    ]
+  },
+  {
+    name: '滑动窗口算法',
+    steps: [
+      { desc:'滑动窗口初始状态：时间窗口 60s，最大请求数 5，当前记录为空。每次请求到来时，清理过期记录再统计。', state:'init', window:[], limit:5, req:null, allow:null },
+      { desc:'T=0s，请求 1 到达：窗口内记录 [0s]，count=1 ≤ 5，允许通过并记录时间戳。', state:'allow', window:[0], limit:5, req:1, allow:true },
+      { desc:'T=10s，请求 2-4 到达：清理过期记录（无），窗口 [0,10,10,10]，count=4 ≤ 5，允许通过。', state:'allow', window:[0,10,10,10], limit:5, req:'2-4', allow:true },
+      { desc:'T=30s，请求 5 到达：窗口 [0,10,10,10,30]，count=5 = 5，允许通过，但此时窗口已满。', state:'full', window:[0,10,10,10,30], limit:5, req:5, allow:true },
+      { desc:'T=50s，请求 6 到达：窗口 [0,10,10,10,30,50]，count=6 > 5，拒绝。返回 429，告知 Retry-After。', state:'reject', window:[0,10,10,10,30,50], limit:5, req:6, allow:false },
+      { desc:'T=65s，请求 7 到达：清理过期记录（T<5s的记录），窗口 [10,10,10,30,50]，count=5，恰好允许通过。', state:'slide', window:[10,10,10,30,50], limit:5, req:7, allow:true },
+      { desc:'滑动窗口精确记录每次请求时间，避免了固定窗口的边界问题。代价是需要存储时间戳列表，内存开销较大。', state:'summary', window:[10,10,10,30,50], limit:5, req:null, allow:null },
+    ]
+  },
+  {
+    name: '分布式限流',
+    steps: [
+      { desc:'多节点服务场景：3 台 App Server 共享限流配额（总计 100 req/s），使用 Redis 作为集中式限流状态存储。', from:'client', to:'lb', color:'#38bdf8' },
+      { desc:'请求经过负载均衡分发到其中一台 App Server（Server 1）。每台服务器处理请求时都需要向 Redis 申请配额。', from:'lb', to:'app1', color:'#38bdf8' },
+      { desc:'Server 1 执行 Redis Lua 脚本：原子地检查当前 tokens → 补充 tokens → 扣减 1 个 token。Lua 脚本保证操作的原子性。', from:'app1', to:'redis', color:'#f59e0b', msg:'EVAL lua_script\n"ratelimit:api" 1 100 1' },
+      { desc:'Redis 执行 Lua 脚本：获取当前 tokens=78，补充到 80，扣减后返回 79 和 allowed=true。整个操作是单线程执行的。', from:'redis', to:'app1', color:'#4ade80', msg:'tokens=79, allowed=true' },
+      { desc:'Server 1 收到允许信号，处理请求并返回响应。同时，Server 2 和 Server 3 的请求也在并发向 Redis 申请配额。', from:'app1', to:'lb', color:'#4ade80', msg:'200 OK' },
+      { desc:'当 tokens 耗尽时，Redis 返回 allowed=false。所有 App Server 收到此信号后统一返回 429，实现集群级别的精确限流。', from:'redis', to:'app2', color:'#f87171', msg:'tokens=0, allowed=false' },
+      { desc:'分布式限流的核心是用 Redis 的单线程特性保证原子性，避免多节点并发竞争导致超量放行。Lua 脚本是最常见的实现方案。', from:'lb', to:'client', color:'#f87171', msg:'429 Too Many Requests' },
+    ]
+  }
+];
+
+const DIST_COMPS = {
+  client: { x:30,  y:210, w:90,  h:50, label:'Client',    color:'#38bdf8' },
+  lb:     { x:170, y:210, w:90,  h:50, label:'LB',        color:'#a78bfa' },
+  app1:   { x:320, y:110, w:90,  h:50, label:'App 1',     color:'#4ade80' },
+  app2:   { x:320, y:210, w:90,  h:50, label:'App 2',     color:'#4ade80' },
+  app3:   { x:320, y:310, w:90,  h:50, label:'App 3',     color:'#4ade80' },
+  redis:  { x:490, y:210, w:100, h:50, label:'Redis',     color:'#f87171' },
+};
+
+let currentScene = 0;
+let currentStep = -1;
+let playing = false;
+let timer = null;
+let arrowEl = null, msgEl = null;
+
+function compCenter(id, comps) {
+  const c = comps[id];
+  return { x: c.x + c.w/2, y: c.y + c.h/2 };
+}
+
+function drawBaseComponents(comps) {
+  svg.innerHTML = '';
+  // grid bg
+  const defs = document.createElementNS(NS,'defs');
+  const pat = document.createElementNS(NS,'pattern');
+  pat.setAttribute('id','grid');pat.setAttribute('width','32');pat.setAttribute('height','32');pat.setAttribute('patternUnits','userSpaceOnUse');
+  const pl = document.createElementNS(NS,'path');pl.setAttribute('d','M 32 0 L 0 0 0 32');pl.setAttribute('fill','none');pl.setAttribute('stroke','rgba(255,255,255,.035)');pl.setAttribute('stroke-width','0.5');
+  pat.appendChild(pl);defs.appendChild(pat);svg.appendChild(defs);
+  const bg = document.createElementNS(NS,'rect');bg.setAttribute('width','680');bg.setAttribute('height','480');bg.setAttribute('fill','url(#grid)');svg.appendChild(bg);
+
+  Object.entries(comps).forEach(([id, c]) => {
+    const g = document.createElementNS(NS,'g'); g.id='comp-'+id; g.setAttribute('class','comp-box');
+    const rect = document.createElementNS(NS,'rect');
+    rect.setAttribute('x',c.x);rect.setAttribute('y',c.y);rect.setAttribute('width',c.w);rect.setAttribute('height',c.h);
+    rect.setAttribute('rx','10');rect.setAttribute('fill',hexToRgba(c.color,.1));rect.setAttribute('stroke',c.color);rect.setAttribute('stroke-width','1.5');
+    g.appendChild(rect);
+    const label = document.createElementNS(NS,'text');
+    label.setAttribute('x',c.x+c.w/2);label.setAttribute('y',c.y+c.h/2+5);
+    label.setAttribute('text-anchor','middle');label.setAttribute('font-size','12');label.setAttribute('font-weight','700');label.setAttribute('fill',c.color);
+    label.textContent=c.label; g.appendChild(label);
+    svg.appendChild(g);
+  });
+}
+
+function drawTokenBucket(tokens, req, allow) {
+  svg.innerHTML = '';
+  const defs = document.createElementNS(NS,'defs');
+  const pat = document.createElementNS(NS,'pattern');
+  pat.setAttribute('id','grid');pat.setAttribute('width','32');pat.setAttribute('height','32');pat.setAttribute('patternUnits','userSpaceOnUse');
+  const pl = document.createElementNS(NS,'path');pl.setAttribute('d','M 32 0 L 0 0 0 32');pl.setAttribute('fill','none');pl.setAttribute('stroke','rgba(255,255,255,.035)');pl.setAttribute('stroke-width','0.5');
+  pat.appendChild(pl);defs.appendChild(pat);svg.appendChild(defs);
+  const bg = document.createElementNS(NS,'rect');bg.setAttribute('width','680');bg.setAttribute('height','480');bg.setAttribute('fill','url(#grid)');svg.appendChild(bg);
+
+  const MAX = 10;
+  const BX=220, BY=80, BW=240, BH=280;
+
+  // 桶外框
+  const bucket = document.createElementNS(NS,'rect');
+  bucket.setAttribute('x',BX);bucket.setAttribute('y',BY);bucket.setAttribute('width',BW);bucket.setAttribute('height',BH);
+  bucket.setAttribute('rx','12');bucket.setAttribute('fill','rgba(30,41,59,.7)');bucket.setAttribute('stroke','#334155');bucket.setAttribute('stroke-width','2');
+  svg.appendChild(bucket);
+
+  // 令牌
+  const tokenH = (BH - 20) / MAX;
+  for (let i=0; i<MAX; i++) {
+    const hasToken = i < tokens;
+    const ty = BY + BH - 10 - (i+1)*tokenH + 2;
+    const tr = document.createElementNS(NS,'rect');
+    tr.setAttribute('x',BX+10);tr.setAttribute('y',ty);tr.setAttribute('width',BW-20);tr.setAttribute('height',tokenH-3);tr.setAttribute('rx','4');
+    tr.setAttribute('fill', hasToken ? 'rgba(74,222,128,.25)' : 'rgba(255,255,255,.03)');
+    tr.setAttribute('stroke', hasToken ? 'rgba(74,222,128,.5)' : 'rgba(255,255,255,.06)');
+    svg.appendChild(tr);
+    if (hasToken) {
+      const tt = document.createElementNS(NS,'text');
+      tt.setAttribute('x',BX+BW/2);tt.setAttribute('y',ty+tokenH/2+4);
+      tt.setAttribute('text-anchor','middle');tt.setAttribute('font-size','9');tt.setAttribute('fill','#4ade80');
+      tt.textContent='●';svg.appendChild(tt);
+    }
+  }
+
+  // 标题
+  const t1 = document.createElementNS(NS,'text');t1.setAttribute('x',BX+BW/2);t1.setAttribute('y',BY-12);t1.setAttribute('text-anchor','middle');t1.setAttribute('font-size','13');t1.setAttribute('font-weight','700');t1.setAttribute('fill','#f59e0b');t1.textContent='令牌桶';svg.appendChild(t1);
+  const t2 = document.createElementNS(NS,'text');t2.setAttribute('x',BX+BW/2);t2.setAttribute('y',BY+BH+20);t2.setAttribute('text-anchor','middle');t2.setAttribute('font-size','12');t2.setAttribute('fill','#94a3b8');t2.textContent=`tokens: ${tokens} / ${MAX}`;svg.appendChild(t2);
+
+  // 速率说明
+  const t3 = document.createElementNS(NS,'text');t3.setAttribute('x',BX+BW/2);t3.setAttribute('y',BY+BH+38);t3.setAttribute('text-anchor','middle');t3.setAttribute('font-size','11');t3.setAttribute('fill','#64748b');t3.textContent='补充速率: 2 token/s';svg.appendChild(t3);
+
+  // 请求指示
+  if (req !== null) {
+    const reqColor = allow ? '#4ade80' : '#f87171';
+    const rx2 = allow ? BX+BW+40 : BX-100;
+    const ry = BY+BH/2;
+    const reqBox = document.createElementNS(NS,'rect');
+    reqBox.setAttribute('x',rx2);reqBox.setAttribute('y',ry-20);reqBox.setAttribute('width',80);reqBox.setAttribute('height',40);reqBox.setAttribute('rx','8');
+    reqBox.setAttribute('fill',hexToRgba(reqColor,.15));reqBox.setAttribute('stroke',reqColor);reqBox.setAttribute('stroke-width','1.5');svg.appendChild(reqBox);
+    const reqT = document.createElementNS(NS,'text');reqT.setAttribute('x',rx2+40);reqT.setAttribute('y',ry-4);reqT.setAttribute('text-anchor','middle');reqT.setAttribute('font-size','11');reqT.setAttribute('font-weight','700');reqT.setAttribute('fill',reqColor);reqT.textContent = allow ? '✓ 通过' : '✗ 拒绝';svg.appendChild(reqT);
+    const reqT2 = document.createElementNS(NS,'text');reqT2.setAttribute('x',rx2+40);reqT2.setAttribute('y',ry+12);reqT2.setAttribute('text-anchor','middle');reqT2.setAttribute('font-size','10');reqT2.setAttribute('fill','#94a3b8');reqT2.textContent=`req ${req}`;svg.appendChild(reqT2);
+    // 箭头
+    const ax = allow ? BX+BW : BX;
+    const arrow = document.createElementNS(NS,'line');
+    arrow.setAttribute('x1',ax);arrow.setAttribute('y1',ry);
+    arrow.setAttribute('x2', allow ? rx2 : rx2+80);arrow.setAttribute('y2',ry);
+    arrow.setAttribute('stroke',reqColor);arrow.setAttribute('stroke-width','2');arrow.setAttribute('marker-end','url(#ah)');svg.appendChild(arrow);
+  }
+}
+
+function drawSlidingWindow(windowData, limit, req, allow) {
+  svg.innerHTML = '';
+  const defs = document.createElementNS(NS,'defs');
+  const pat = document.createElementNS(NS,'pattern');
+  pat.setAttribute('id','grid');pat.setAttribute('width','32');pat.setAttribute('height','32');pat.setAttribute('patternUnits','userSpaceOnUse');
+  const pl = document.createElementNS(NS,'path');pl.setAttribute('d','M 32 0 L 0 0 0 32');pl.setAttribute('fill','none');pl.setAttribute('stroke','rgba(255,255,255,.035)');pl.setAttribute('stroke-width','0.5');
+  pat.appendChild(pl);defs.appendChild(pat);svg.appendChild(defs);
+  const bg = document.createElementNS(NS,'rect');bg.setAttribute('width','680');bg.setAttribute('height','480');bg.setAttribute('fill','url(#grid)');svg.appendChild(bg);
+
+  // 时间轴
+  const TLX=60, TLY=200, TLW=560, WINDOW=60;
+  const axisLine = document.createElementNS(NS,'line');
+  axisLine.setAttribute('x1',TLX);axisLine.setAttribute('y1',TLY+60);axisLine.setAttribute('x2',TLX+TLW);axisLine.setAttribute('y2',TLY+60);
+  axisLine.setAttribute('stroke','#334155');axisLine.setAttribute('stroke-width','2');svg.appendChild(axisLine);
+
+  // 时间刻度
+  for (let t=0;t<=WINDOW;t+=10) {
+    const x = TLX + (t/WINDOW)*TLW;
+    const tick = document.createElementNS(NS,'line');tick.setAttribute('x1',x);tick.setAttribute('y1',TLY+55);tick.setAttribute('x2',x);tick.setAttribute('y2',TLY+65);tick.setAttribute('stroke','#475569');tick.setAttribute('stroke-width','1');svg.appendChild(tick);
+    const tl = document.createElementNS(NS,'text');tl.setAttribute('x',x);tl.setAttribute('y',TLY+78);tl.setAttribute('text-anchor','middle');tl.setAttribute('font-size','10');tl.setAttribute('fill','#64748b');tl.textContent=t+'s';svg.appendChild(tl);
+  }
+
+  // 标题
+  const t1 = document.createElementNS(NS,'text');t1.setAttribute('x',TLX+TLW/2);t1.setAttribute('y',TLY-20);t1.setAttribute('text-anchor','middle');t1.setAttribute('font-size','13');t1.setAttribute('font-weight','700');t1.setAttribute('fill','#f59e0b');t1.textContent=`滑动窗口（60s, max=${limit}）`;svg.appendChild(t1);
+
+  // 窗口框
+  const winRect = document.createElementNS(NS,'rect');
+  winRect.setAttribute('x',TLX);winRect.setAttribute('y',TLY+20);winRect.setAttribute('width',TLW);winRect.setAttribute('height',40);winRect.setAttribute('rx','6');winRect.setAttribute('fill','rgba(245,158,11,.06)');winRect.setAttribute('stroke','rgba(245,158,11,.3)');winRect.setAttribute('stroke-dasharray','5 4');svg.appendChild(winRect);
+
+  // 请求点
+  windowData.forEach((t2, i) => {
+    const x = TLX + (t2/WINDOW)*TLW;
+    const isNew = (req !== null && i === windowData.length - 1);
+    const dotColor = isNew ? (allow ? '#4ade80' : '#f87171') : '#38bdf8';
+    const dot = document.createElementNS(NS,'circle');dot.setAttribute('cx',x);dot.setAttribute('cy',TLY+40);dot.setAttribute('r','8');
+    dot.setAttribute('fill',hexToRgba(dotColor,.25));dot.setAttribute('stroke',dotColor);dot.setAttribute('stroke-width','1.5');svg.appendChild(dot);
+    const dt = document.createElementNS(NS,'text');dt.setAttribute('x',x);dt.setAttribute('y',TLY+44);dt.setAttribute('text-anchor','middle');dt.setAttribute('font-size','9');dt.setAttribute('fill',dotColor);dt.textContent=String(i+1);svg.appendChild(dt);
+  });
+
+  // 计数
+  const count = windowData.length;
+  const countColor = count > limit ? '#f87171' : count === limit ? '#f59e0b' : '#4ade80';
+  const ct = document.createElementNS(NS,'text');ct.setAttribute('x',TLX+TLW/2);ct.setAttribute('y',TLY+110);ct.setAttribute('text-anchor','middle');ct.setAttribute('font-size','14');ct.setAttribute('font-weight','700');ct.setAttribute('fill',countColor);ct.textContent=`当前窗口请求数: ${count} / ${limit}`;svg.appendChild(ct);
+
+  if (req !== null) {
+    const rc = allow ? '#4ade80' : '#f87171';
+    const rs = document.createElementNS(NS,'text');rs.setAttribute('x',TLX+TLW/2);rs.setAttribute('y',TLY+135);rs.setAttribute('text-anchor','middle');rs.setAttribute('font-size','13');rs.setAttribute('font-weight','700');rs.setAttribute('fill',rc);rs.textContent=allow ? `✓ 请求 ${req} 允许通过` : `✗ 请求 ${req} 被拒绝 (429)`;svg.appendChild(rs);
+  }
+}
+
+function drawArrow(fromId, toId, color, msg, comps) {
+  if (arrowEl) arrowEl.remove();
+  if (msgEl) msgEl.remove();
+  const f = compCenter(fromId, comps), t = compCenter(toId, comps);
+  const cf = comps[fromId], ct2 = comps[toId];
+  color = color || '#f59e0b';
+  const dx=t.x-f.x, dy=t.y-f.y, len=Math.sqrt(dx*dx+dy*dy)||1;
+  const ux=dx/len, uy=dy/len;
+  const sx=f.x+ux*(cf.w/2+6), sy=f.y+uy*(cf.h/2+6);
+  const ex=t.x-ux*(ct2.w/2+6), ey=t.y-uy*(ct2.h/2+6);
+  const mx=(sx+ex)/2, my=(sy+ey)/2, perp=20;
+  const px2=mx-uy*perp, py2=my+ux*perp;
+  const pathD=`M${sx},${sy} Q${px2},${py2} ${ex},${ey}`;
+
+  const mid = 'am'+Date.now();
+  const defsEl = document.createElementNS(NS,'defs');
+  const mark = document.createElementNS(NS,'marker');mark.setAttribute('id',mid);mark.setAttribute('viewBox','0 0 10 10');mark.setAttribute('refX','9');mark.setAttribute('refY','5');mark.setAttribute('markerWidth','6');mark.setAttribute('markerHeight','6');mark.setAttribute('orient','auto');
+  const mp = document.createElementNS(NS,'path');mp.setAttribute('d','M 0 0 L 10 5 L 0 10 z');mp.setAttribute('fill',color);mark.appendChild(mp);defsEl.appendChild(mark);svg.appendChild(defsEl);
+
+  arrowEl = document.createElementNS(NS,'path');
+  arrowEl.setAttribute('d',pathD);arrowEl.setAttribute('fill','none');arrowEl.setAttribute('stroke',color);arrowEl.setAttribute('stroke-width','2');arrowEl.setAttribute('marker-end',`url(#${mid})`);
+  const tlen = approxLen(sx,sy,px2,py2,ex,ey);
+  arrowEl.setAttribute('stroke-dasharray',tlen);arrowEl.setAttribute('stroke-dashoffset',tlen);arrowEl.style.transition='stroke-dashoffset 0.5s ease';
+  svg.appendChild(arrowEl);
+  requestAnimationFrame(()=>{ arrowEl.setAttribute('stroke-dashoffset','0'); });
+
+  if (msg) {
+    const lines=msg.split('\n');
+    const lx=bezierPoint(sx,px2,ex,.5), ly=bezierPoint(sy,py2,ey,.5)-18;
+    msgEl=document.createElementNS(NS,'g');
+    const maxW=Math.max(...lines.map(l=>l.length))*6+16, mh=lines.length*14+10;
+    const mbg=document.createElementNS(NS,'rect');mbg.setAttribute('x',lx-maxW/2);mbg.setAttribute('y',ly-mh/2);mbg.setAttribute('width',maxW);mbg.setAttribute('height',mh);mbg.setAttribute('rx','5');mbg.setAttribute('fill','rgba(13,17,23,.88)');mbg.setAttribute('stroke',hexToRgba(color,.5));mbg.setAttribute('stroke-width','1');msgEl.appendChild(mbg);
+    lines.forEach((line,i)=>{const t2=document.createElementNS(NS,'text');t2.setAttribute('x',lx);t2.setAttribute('y',ly-mh/2+14+i*14);t2.setAttribute('text-anchor','middle');t2.setAttribute('font-size','10');t2.setAttribute('fill',color);t2.setAttribute('font-family','monospace');t2.textContent=line;msgEl.appendChild(t2);});
+    svg.appendChild(msgEl);
+  }
+}
+
+function bezierPoint(p0,p1,p2,t){return (1-t)*(1-t)*p0+2*(1-t)*t*p1+t*t*p2;}
+function approxLen(sx,sy,cx,cy,ex,ey){let l=0,px=sx,py=sy;for(let i=1;i<=20;i++){const t=i/20,nx=bezierPoint(sx,cx,ex,t),ny=bezierPoint(sy,cy,ey,t);l+=Math.sqrt((nx-px)**2+(ny-py)**2);px=nx;py=ny;}return l;}
+
+function renderStep(idx) {
+  const scene = SCENES[currentScene];
+  if (!scene) return;
+  if (idx < 0) idx = -1;
+  if (idx >= scene.steps.length) idx = scene.steps.length - 1;
+  currentStep = idx;
+  arrowEl=null; msgEl=null;
+
+  if (idx >= 0) {
+    const s = scene.steps[idx];
+    document.getElementById('sdText').textContent = s.desc;
+
+    if (currentScene === 0) {
+      drawTokenBucket(s.tokens, s.req, s.allow);
+    } else if (currentScene === 1) {
+      drawSlidingWindow(s.window, s.limit, s.req, s.allow);
+    } else {
+      drawBaseComponents(DIST_COMPS);
+      if (s.from && s.to) {
+        drawArrow(s.from, s.to, s.color, s.msg, DIST_COMPS);
+      }
+    }
+  } else {
+    document.getElementById('sdText').textContent = '选择限流算法场景，点击播放观察请求是如何被允许或拒绝的。';
+    if (currentScene === 0) drawTokenBucket(8, null, null);
+    else if (currentScene === 1) drawSlidingWindow([], 5, null, null);
+    else drawBaseComponents(DIST_COMPS);
+  }
+  updateDots();
+}
+
+function updateDots() {
+  const scene = SCENES[currentScene];
+  const nav = document.getElementById('dotNav');
+  nav.innerHTML = '';
+  scene.steps.forEach((_,i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i===currentStep?' active':i<currentStep?' done':'');
+    d.addEventListener('click', ()=>{ stopPlay(); renderStep(i); });
+    nav.appendChild(d);
+  });
+}
+
+function stopPlay(){playing=false;clearTimeout(timer);document.getElementById('btnPlay').textContent='▶ 播放';}
+function startPlay(){
+  playing=true; document.getElementById('btnPlay').textContent='⏸ 暂停';
+  function next(){if(!playing)return;const scene=SCENES[currentScene];if(currentStep<scene.steps.length-1){renderStep(currentStep+1);timer=setTimeout(next,1800);}else stopPlay();}
+  timer=setTimeout(next,400);
+}
+
+document.getElementById('sceneTabs').addEventListener('click', e => {
+  const btn=e.target.closest('.scene-tab'); if(!btn)return;
+  stopPlay(); currentScene=parseInt(btn.dataset.scene);
+  document.querySelectorAll('.scene-tab').forEach((t,i)=>t.classList.toggle('active',i===currentScene));
+  renderStep(-1);
+});
+document.getElementById('btnPlay').addEventListener('click',()=>{ if(playing){stopPlay();return;} const s=SCENES[currentScene]; if(currentStep>=s.steps.length-1)renderStep(-1); startPlay(); });
+document.getElementById('btnPrev').addEventListener('click',()=>{ stopPlay(); renderStep(currentStep-1); });
+document.getElementById('btnNext').addEventListener('click',()=>{ stopPlay(); renderStep(currentStep+1); });
+
+renderStep(-1);
+})();
+</script>
+</body>
+</html>

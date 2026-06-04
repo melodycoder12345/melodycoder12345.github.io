@@ -261,6 +261,11 @@
 | `ai/training-pipeline.html` | `ai` | `ai-training` | C | 是 | 是 | C 类型系统流程页，覆盖 Dataset、Batch、Forward、Loss、Backward、Optimizer 和 Checkpoint |
 | `ai/mixture-of-experts.html` | `ai` | `ai-moe` | C | 是 | 是 | C 类型系统流程页，覆盖 Router、Top-k Experts、容量限制和负载均衡 |
 | `ai/eval-deploy.html` | `ai` | `ai-eval-deploy` | B | 否 | 是 | B 类型工程说明页，覆盖评测集、灰度、观测、成本、延迟和回滚 |
+| `system-design/short-url.html` | `system-design` | `sd-short-url` | C | 是 | 否 | C 类型系统流程页，覆盖 URL 哈希、Base62、Redis 缓存、302 重定向和缓存穿透防护 |
+| `system-design/rate-limiter.html` | `system-design` | `sd-rate-limiter` | C | 是 | 否 | C 类型系统流程页，覆盖令牌桶、滑动窗口算法演示和分布式限流（Redis Lua）方案 |
+| `system-design/distributed-id.html` | `system-design` | `sd-distributed-id` | C | 是 | 否 | C 类型系统流程页，覆盖 Snowflake 位布局、时钟回拨处理和 Leaf 号段模式 |
+| `system-design/push-system.html` | `system-design` | `sd-push-system` | C | 是 | 否 | C 类型系统流程页，覆盖长连接管理、Kafka 分发、扇出写/扇出读选择、ACK 和断线重连 |
+| `system-design/flash-sale.html` | `system-design` | `sd-flash-sale` | C | 是 | 否 | C 类型系统流程页，覆盖流量漏斗、Redis 预扣库存、Kafka 异步下单、超卖防护和降级兜底 |
 
 新增页面登记规则：
 
