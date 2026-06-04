@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Training Pipeline - AI</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<link rel="stylesheet" href="ai.css">
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Forward","body":"输入 batch 经过模型得到 logits，并计算 loss。","tag":"term"},
+  {"title":"Backward","body":"根据 loss 反向传播梯度，更新每层参数的梯度缓存。","tag":"term"},
+  {"title":"Checkpoint","body":"保存模型权重、优化器状态和训练进度，用于恢复或发布。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="shell" data-page-type="C">
+  <section class="hero">
+    <div class="card"><div class="eyebrow">AI / Training / C 类型</div><h1>Training Pipeline</h1><p class="summary">训练不是“把数据喂给模型”这么简单，而是一条包含数据清洗、分词、批处理、前向、损失、反向、优化器和 checkpoint 的高成本流水线。</p><div class="tags"><span>Dataset</span><span>Forward</span><span>Backward</span><span>Checkpoint</span></div></div>
+    <div class="card map"><div class="eyebrow">关键问题</div><div class="term"><strong>数据决定上限</strong><span>脏数据、重复数据和错误标注会直接进入模型行为。</span></div><div class="term"><strong>梯度决定学习</strong><span>loss 只是信号，真正改变模型的是反向传播后的参数更新。</span></div><div class="term"><strong>Checkpoint 决定恢复</strong><span>训练中断、回滚、评估和部署都依赖可复现 checkpoint。</span></div></div>
+  </section>
+  <section class="lab">
+    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <section class="panel viz"><div class="stage" id="aiStage"></div><div class="controls"><button class="ctrl" id="btnReset">重置</button><button class="ctrl" id="btnPrev">上一步</button><button class="ctrl primary" id="btnPlay">播放</button><button class="ctrl" id="btnNext">下一步</button></div></section>
+    <aside class="panel"><div class="panel-hd">当前状态</div><div class="status"><span class="badge" id="stateBadge">normal</span><h2 id="stepTitle"></h2><p id="stepDesc"></p><p id="stepDetail"></p><div class="metrics" id="metrics"></div><div class="codebox"><h3>训练循环</h3><pre id="codeBlock"></pre></div></div></aside>
+  </section>
+  <section class="grid"><article class="section"><h2>训练和推理的区别</h2><p>推理只做前向计算并输出 token，训练还要保存中间激活、计算 loss、反向传播并更新参数，因此显存和算力需求更高。</p></article><article class="section"><h2>边界情况</h2><ul><li>loss 下降不代表业务效果提升，必须配合验证集和人工评测。</li><li>checkpoint 只保存权重不够，优化器状态、数据进度和随机种子也影响恢复。</li></ul></article></section>
+  <div class="back-row"><a class="btn" href="index.html">返回 AI 模块</a><a class="btn" href="../graph.html?q=Training">在知识星图中查看</a></div>
+</main>
+<script>
+window.AI_DEMO = {
+  title:'Training Pipeline', viewBox:'0 0 560 360',
+  nodes:[
+    {id:'data',label:'Dataset',sub:'clean + dedup',x:72,y:70,w:112},{id:'tok',label:'Tokenize',sub:'ids',x:220,y:70,w:110},{id:'batch',label:'Batch',sub:'packed seq',x:380,y:70,w:110},
+    {id:'forward',label:'Forward',sub:'logits',x:380,y:178,w:112},{id:'loss',label:'Loss',sub:'next token',x:220,y:178,w:104},{id:'backward',label:'Backward',sub:'gradients',x:72,y:178,w:118},
+    {id:'opt',label:'Optimizer',sub:'update',x:220,y:288,w:118},{id:'ckpt',label:'Checkpoint',sub:'resume',x:430,y:288,w:126}
+  ],
+  edges:[
+    {id:'e1',x1:128,y1:70,x2:165,y2:70},{id:'e2',x1:275,y1:70,x2:325,y2:70},{id:'e3',x1:380,y1:97,x2:380,y2:145},
+    {id:'e4',x1:324,y1:178,x2:272,y2:178},{id:'e5',x1:168,y1:178,x2:131,y2:178},{id:'e6',x1:104,y1:205,x2:180,y2:270},{id:'e7',x1:279,y1:288,x2:367,y2:288}
+  ],
+  code:'for batch in dataloader:\\n    logits = model(batch.tokens)\\n    loss = cross_entropy(logits, batch.labels)\\n    loss.backward()\\n    optimizer.step()\\n    optimizer.zero_grad()\\n    maybe_save_checkpoint()',
+  steps:[
+    {kicker:'data',title:'准备训练数据',badge:'data',nodes:['data'],desc:'数据清洗、去重、过滤和配比决定模型能学到什么。'},
+    {kicker:'tokenize',title:'分词并构造样本',badge:'tokenize',nodes:['data','tok'],edges:['e1'],desc:'文本被转成 token id，并按训练目标构造输入和 label。'},
+    {kicker:'batch',title:'打包 Batch',badge:'batch',nodes:['tok','batch'],edges:['e2'],desc:'把多个样本组成 batch，提高 GPU 利用率，也要处理 padding 和长度分布。'},
+    {kicker:'forward',title:'前向计算得到 logits',badge:'forward',nodes:['batch','forward'],edges:['e3'],desc:'模型对每个位置预测下一个 token 的概率分布。'},
+    {kicker:'loss',title:'计算 Loss',badge:'loss',nodes:['forward','loss'],edges:['e4'],desc:'把预测分布和真实下一个 token 比较，得到训练信号。',metrics:[{label:'objective',value:'next-token CE'}]},
+    {kicker:'backward',title:'反向传播梯度',badge:'backward',nodes:['loss','backward'],edges:['e5'],desc:'梯度从 loss 反向流过模型层，告诉每个参数该如何调整。'},
+    {kicker:'update',title:'优化器更新参数',badge:'optimizer',nodes:['backward','opt'],edges:['e6'],desc:'AdamW 等优化器结合梯度、学习率和动量状态更新权重。'},
+    {kicker:'ckpt',title:'保存 Checkpoint',badge:'checkpoint',tone:'good',goodNodes:['ckpt'],nodes:['opt'],edges:['e7'],desc:'周期性保存权重、优化器状态和进度，支持恢复训练、评估和发布。'},
+    {kicker:'failure',title:'训练中断后恢复',badge:'recovery',tone:'warn',warnNodes:['ckpt'],desc:'节点故障或作业抢占时，从最近 checkpoint 恢复，避免从头训练。',detail:'如果只保存模型权重，优化器状态丢失会改变后续训练轨迹。'}
+  ]
+};
+</script>
+<script src="ai.js"></script>
+</body>
+</html>

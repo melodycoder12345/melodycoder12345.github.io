@@ -6,7 +6,7 @@
 
   const H = 44;
   const RKEY = 'recentPages_v2';
-  const MODULE_RE = '(algo|db|kafka|redis|linux|network|cs|golang|distributed)';
+  const MODULE_RE = '(algo|db|kafka|redis|linux|network|cs|golang|distributed|ai)';
   const MODULE_PATH_RE = new RegExp('/' + MODULE_RE + '/');
   const HOME = MODULE_PATH_RE.test(window.location.pathname) ? '../index.html' : 'index.html';
   const ROOT = HOME.replace(/index\.html$/, '');
@@ -219,7 +219,7 @@ body.sn-legacy-wrapped .sn-legacy-code{width:390px;min-width:390px;overflow:auto
       list.appendChild(empty);
       return;
     }
-    const cc = { '算法': '#38bdf8', '数据库': '#fbbf24', 'Kafka': '#ff6b35', 'Redis': '#ef4444', 'Linux': '#6ee7b7', '网络': '#10b981', '组成原理': '#a78bfa', 'Golang': '#00add8', '分布式': '#c084fc', '概念': '#c084fc' };
+    const cc = { '算法': '#38bdf8', '数据库': '#fbbf24', 'Kafka': '#ff6b35', 'Redis': '#ef4444', 'Linux': '#6ee7b7', '网络': '#10b981', '组成原理': '#a78bfa', 'Golang': '#00add8', '分布式': '#c084fc', 'AI 系统': '#8b5cf6', '概念': '#c084fc' };
     items.forEach(function (r) {
       const item = d.createElement('a');
       item.className = 'sn-item';
@@ -424,7 +424,8 @@ body.sn-legacy-wrapped .sn-legacy-code{width:390px;min-width:390px;overflow:auto
       network: { label: '网络', href: 'index.html' },
       cs: { label: '组成原理', href: 'index.html' },
       golang: { label: 'Golang', href: 'index.html' },
-      distributed: { label: '分布式', href: 'index.html' }
+      distributed: { label: '分布式', href: 'index.html' },
+      ai: { label: 'AI 系统', href: 'index.html' }
     };
     return match ? map[match[1]] : null;
   }
@@ -534,7 +535,8 @@ body.sn-legacy-wrapped .sn-legacy-code{width:390px;min-width:390px;overflow:auto
       network: { cat: '网络', icon: '🌐' },
       cs: { cat: '组成原理', icon: '🧠' },
       golang: { cat: 'Golang', icon: '🐹' },
-      distributed: { cat: '分布式', icon: '🌐' }
+      distributed: { cat: '分布式', icon: '🌐' },
+      ai: { cat: 'AI 系统', icon: '🤖' }
     }[match[1]];
     var title = (d.querySelector('nav h1, .nav-title, header h1') || {}).textContent || d.title.replace(/\s*[-|].*$/, '');
     if (!window.NavTracker) return;

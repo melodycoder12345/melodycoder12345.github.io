@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transformer Attention - AI</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<link rel="stylesheet" href="ai.css">
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Q / K / V","body":"Query 表示当前位置要找什么，Key 表示其他位置提供什么索引，Value 表示被聚合的信息。","tag":"term"},
+  {"title":"Mask","body":"自回归模型用 mask 阻止当前位置看到未来 token。","tag":"term"},
+  {"title":"Softmax","body":"把 attention score 归一化成权重，权重越高的信息贡献越大。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="shell" data-page-type="A">
+  <section class="hero">
+    <div class="card"><div class="eyebrow">AI / Attention / A 类型</div><h1>Transformer Attention</h1><p class="summary">Attention 让每个 token 根据上下文动态选择“应该看谁”。这页用一条可步进的计算链路展示 Q/K/V、Score、Mask、Softmax、Weighted Sum 和 Multi-Head 的关系。</p><div class="tags"><span>QKV</span><span>Softmax</span><span>Mask</span><span>Multi-Head</span></div></div>
+    <div class="card map"><div class="eyebrow">阅读顺序</div><div class="term"><strong>先看 Q/K/V</strong><span>它们来自同一个 hidden state 的三组线性投影。</span></div><div class="term"><strong>再看权重</strong><span>score 越高，当前 token 越依赖对应上下文。</span></div><div class="term"><strong>最后看 Head</strong><span>多个 head 学习不同关系，例如语法、指代、位置和实体。</span></div></div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <section class="panel viz"><div class="stage" id="aiStage"></div><div class="controls"><button class="ctrl" id="btnReset">重置</button><button class="ctrl" id="btnPrev">上一步</button><button class="ctrl primary" id="btnPlay">播放</button><button class="ctrl" id="btnNext">下一步</button></div></section>
+    <aside class="panel"><div class="panel-hd">当前状态</div><div class="status"><span class="badge" id="stateBadge">normal</span><h2 id="stepTitle"></h2><p id="stepDesc"></p><p id="stepDetail"></p><div class="metrics" id="metrics"></div><div class="codebox"><h3>伪代码</h3><pre id="codeBlock"></pre></div></div></aside>
+  </section>
+
+  <section class="grid">
+    <article class="section"><h2>为什么重要</h2><p>没有 Attention，模型很难在长上下文里把“当前要生成的 token”和前文某个实体、约束或格式要求联系起来。Attention 的代价通常随序列长度平方增长，因此它也是长上下文成本的核心来源。</p></article>
+    <article class="section"><h2>常见误区</h2><ul><li>Attention 权重不是严格解释性证据，只能说明一次前向计算里的信息聚合倾向。</li><li>Multi-Head 不是简单复制多份模型，而是让不同子空间学习不同关系。</li></ul></article>
+  </section>
+  <div class="back-row"><a class="btn" href="index.html">返回 AI 模块</a><a class="btn" href="../graph.html?q=Attention">在知识星图中查看</a></div>
+</main>
+<script>
+window.AI_DEMO = {
+  title: 'Transformer Attention',
+  viewBox: '0 0 560 360',
+  nodes: [
+    {id:'tokens',label:'Tokens',sub:'x1 x2 x3',x:76,y:70,w:104},
+    {id:'qkv',label:'Q K V',sub:'linear proj',x:230,y:70,w:104},
+    {id:'score',label:'Score',sub:'QK^T / sqrt(d)',x:384,y:70,w:120},
+    {id:'mask',label:'Mask',sub:'no future',x:384,y:176,w:110},
+    {id:'softmax',label:'Softmax',sub:'weights',x:230,y:176,w:110},
+    {id:'sum',label:'Weighted Sum',sub:'attn * V',x:76,y:176,w:126},
+    {id:'heads',label:'Multi-Head',sub:'concat + proj',x:230,y:292,w:138},
+    {id:'output',label:'Output',sub:'contextual token',x:430,y:292,w:126}
+  ],
+  edges: [
+    {id:'e1',x1:128,y1:70,x2:178,y2:70},{id:'e2',x1:282,y1:70,x2:324,y2:70},{id:'e3',x1:384,y1:97,x2:384,y2:149},
+    {id:'e4',x1:334,y1:176,x2:285,y2:176},{id:'e5',x1:175,y1:176,x2:139,y2:176},{id:'e6',x1:106,y1:203,x2:190,y2:270},{id:'e7',x1:299,y1:292,x2:367,y2:292}
+  ],
+  code: 'Q = X @ Wq\\nK = X @ Wk\\nV = X @ Wv\\nscore = Q @ K.T / sqrt(d)\\nscore = score + causal_mask\\nweight = softmax(score)\\nout = weight @ V',
+  steps: [
+    {kicker:'input',title:'Token 进入模型',badge:'input',nodes:['tokens'],desc:'文本已经被切成 token，并查表得到初始向量。',detail:'每个位置都有自己的 hidden state，后续投影会从它派生 Q、K、V。',metrics:[{label:'sequence',value:'3 tokens'}]},
+    {kicker:'project',title:'生成 Q / K / V',badge:'linear',nodes:['tokens','qkv'],edges:['e1'],desc:'同一组 token 向量经过三套线性层，得到 Query、Key 和 Value。',detail:'Q 负责发问，K 负责被匹配，V 负责携带最终要聚合的信息。'},
+    {kicker:'score',title:'计算相关性分数',badge:'score',nodes:['qkv','score'],edges:['e2'],desc:'用 Q 和 K 点积得到当前位置与其他位置的相关性，再除以 sqrt(d) 稳定尺度。',detail:'分数越高，说明当前位置越应该关注那个 token。'},
+    {kicker:'mask',title:'应用因果 Mask',badge:'causal',tone:'warn',nodes:['score'],warnNodes:['mask'],edges:['e3'],desc:'自回归模型不能看到未来 token，mask 会把非法位置压到极小值。',detail:'没有 mask，训练时模型会偷看答案，推理时行为会错位。'},
+    {kicker:'softmax',title:'归一化成权重',badge:'weights',nodes:['mask','softmax'],edges:['e4'],desc:'Softmax 把分数转成概率分布，让所有可见位置的权重和为 1。',metrics:[{label:'sum(weights)',value:'1.0'}]},
+    {kicker:'mix',title:'按权重聚合 Value',badge:'context',nodes:['softmax','sum'],edges:['e5'],desc:'每个 Value 按注意力权重加权求和，得到带上下文的新表示。',detail:'这一步让当前 token 吸收了它认为重要的上下文信息。'},
+    {kicker:'heads',title:'多个 Head 并行学习关系',badge:'multi-head',nodes:['sum','heads','output'],edges:['e6','e7'],desc:'多个 head 在不同子空间重复注意力计算，再拼接投影成输出。',detail:'一个 head 可能关注位置，一个关注实体指代，另一个关注格式约束。',metrics:[{label:'output',value:'context-aware hidden'}]}
+  ]
+};
+</script>
+<script src="ai.js"></script>
+</body>
+</html>

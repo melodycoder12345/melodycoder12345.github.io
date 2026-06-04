@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>推理与 KV Cache - AI</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<link rel="stylesheet" href="ai.css">
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Prefill","body":"一次性处理输入 prompt，生成每层的 KV Cache，通常决定首 token 延迟。","tag":"term"},
+  {"title":"Decode","body":"逐 token 生成，每步复用历史 KV，只计算新 token 的增量。","tag":"term"},
+  {"title":"KV Cache","body":"保存每层历史 token 的 Key/Value，避免每次生成都重算完整上下文。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="shell" data-page-type="C">
+  <section class="hero">
+    <div class="card"><div class="eyebrow">AI / Inference / C 类型</div><h1>推理与 KV Cache</h1><p class="summary">在线推理不是一次函数调用，而是 tokenize、prefill、缓存、逐 token decode、采样和流式返回的长链路。KV Cache 用空间换时间，是 LLM 服务吞吐和延迟优化的核心。</p><div class="tags"><span>Prefill</span><span>KV Cache</span><span>Decode</span><span>Streaming</span></div></div>
+    <div class="card map"><div class="eyebrow">核心观察</div><div class="term"><strong>首 token 慢</strong><span>prefill 要处理完整 prompt，检索材料越长，首 token 延迟越高。</span></div><div class="term"><strong>后续 token 贵</strong><span>decode 每步只处理新 token，但要反复读写每层 KV Cache。</span></div><div class="term"><strong>缓存有边界</strong><span>上下文过长、请求中断、batch 重排都会影响 cache 命中和显存占用。</span></div></div>
+  </section>
+  <section class="lab">
+    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <section class="panel viz"><div class="stage" id="aiStage"></div><div class="controls"><button class="ctrl" id="btnReset">重置</button><button class="ctrl" id="btnPrev">上一步</button><button class="ctrl primary" id="btnPlay">播放</button><button class="ctrl" id="btnNext">下一步</button></div></section>
+    <aside class="panel"><div class="panel-hd">当前状态</div><div class="status"><span class="badge" id="stateBadge">normal</span><h2 id="stepTitle"></h2><p id="stepDesc"></p><p id="stepDetail"></p><div class="metrics" id="metrics"></div><div class="codebox"><h3>服务伪代码</h3><pre id="codeBlock"></pre></div></div></aside>
+  </section>
+  <section class="grid"><article class="section"><h2>工程意义</h2><p>Prefill 更像一次大矩阵批处理，Decode 更像大量小步循环。高吞吐服务会把请求合批、拆分 prefill/decode 队列，并用 continuous batching 降低 GPU 空转。</p></article><article class="section"><h2>失败模式</h2><ul><li>上下文被 RAG 塞满后，首 token 延迟和显存占用同时上升。</li><li>cache eviction 或请求取消处理不好，会造成显存泄漏或尾延迟抖动。</li></ul></article></section>
+  <div class="back-row"><a class="btn" href="index.html">返回 AI 模块</a><a class="btn" href="../graph.html?q=KV%20Cache">在知识星图中查看</a></div>
+</main>
+<script>
+window.AI_DEMO = {
+  title:'Inference KV Cache', viewBox:'0 0 560 360',
+  nodes:[
+    {id:'user',label:'User Prompt',sub:'text',x:72,y:78,w:116},{id:'tok',label:'Tokenizer',sub:'ids',x:220,y:78,w:112},{id:'prefill',label:'Prefill',sub:'full context',x:380,y:78,w:118},
+    {id:'cache',label:'KV Cache',sub:'per layer',x:380,y:188,w:124},{id:'decode',label:'Decode Loop',sub:'one token',x:220,y:188,w:124},{id:'sample',label:'Sampling',sub:'top-p / temp',x:72,y:188,w:124},
+    {id:'stream',label:'Stream',sub:'SSE chunks',x:220,y:298,w:112},{id:'limit',label:'Context Limit',sub:'evict / truncate',x:430,y:298,w:132}
+  ],
+  edges:[
+    {id:'e1',x1:130,y1:78,x2:164,y2:78},{id:'e2',x1:276,y1:78,x2:321,y2:78},{id:'e3',x1:380,y1:105,x2:380,y2:155},
+    {id:'e4',x1:318,y1:188,x2:282,y2:188},{id:'e5',x1:158,y1:188,x2:134,y2:188},{id:'e6',x1:104,y1:214,x2:180,y2:282},{id:'e7',x1:282,y1:298,x2:364,y2:298},{id:'e8',x1:282,y1:206,x2:360,y2:278}
+  ],
+  code:'tokens = tokenize(prompt)\\nkv = model.prefill(tokens)\\nwhile not done:\\n    logits, kv = model.decode(last, kv)\\n    next = sample(logits, temperature, top_p)\\n    stream(next)',
+  steps:[
+    {kicker:'request',title:'请求进入推理服务',badge:'request',nodes:['user'],desc:'用户输入、系统指令和检索材料共同组成 prompt。',metrics:[{label:'input',value:'prompt + context'}]},
+    {kicker:'tokenize',title:'切分成 Token IDs',badge:'tokenize',nodes:['user','tok'],edges:['e1'],desc:'Tokenizer 把文本转成模型词表里的离散 id。',detail:'不同模型 tokenizer 不同，同样文本的 token 数也不同。'},
+    {kicker:'prefill',title:'Prefill 处理完整上下文',badge:'prefill',nodes:['tok','prefill'],edges:['e2'],desc:'模型一次性处理全部输入 token，生成每层历史 token 的 Key/Value。',metrics:[{label:'latency',value:'first-token dominated'}]},
+    {kicker:'cache',title:'写入 KV Cache',badge:'cache',nodes:['prefill','cache'],edges:['e3'],desc:'KV Cache 保存历史上下文，后续 decode 不需要重算旧 token。',detail:'缓存大小约随层数、head 数、上下文长度和 batch 增长。'},
+    {kicker:'decode',title:'逐 token Decode',badge:'decode',nodes:['cache','decode'],edges:['e4'],desc:'每一步只把上一个 token 输入模型，并读取历史 KV 计算下一个 token。',metrics:[{label:'unit',value:'1 token / step'}]},
+    {kicker:'sample',title:'采样决定下一个 token',badge:'sampling',nodes:['decode','sample'],edges:['e5'],desc:'temperature、top-p、top-k 会影响输出确定性和多样性。'},
+    {kicker:'stream',title:'流式返回给客户端',badge:'stream',goodNodes:['stream'],nodes:['sample'],edges:['e6'],desc:'生成的 token 通过 SSE 或 WebSocket 增量返回，降低用户感知等待。'},
+    {kicker:'limit',title:'长上下文触发边界',badge:'boundary',tone:'warn',warnNodes:['limit','cache'],warnEdges:['e7','e8'],desc:'当上下文过长或显存紧张时，服务需要截断、滑窗、分页 KV 或拒绝请求。',detail:'这也是 RAG 不能盲目塞材料的原因。'}
+  ]
+};
+</script>
+<script src="ai.js"></script>
+</body>
+</html>

@@ -10,7 +10,8 @@
     kafka:   { label: 'Kafka',      color: '#ff6b35' },
     cs:      { label: '组成原理',   color: '#a78bfa' },
     golang:  { label: 'Golang',     color: '#00add8' },
-    distributed: { label: '分布式',     color: '#c084fc' }
+    distributed: { label: '分布式',     color: '#c084fc' },
+    ai:      { label: 'AI 系统',     color: '#8b5cf6' }
   };
 
   window.GRAPH_NODES = [
@@ -23,6 +24,15 @@
     {id:'cs', label:'计算机组成原理', module:'cs', type:'module', href:'cs/index.html', desc:'CPU、指令、流水线、缓存层次、内存寻址和 I/O 总线。'},
     {id:'golang', label:'Golang', module:'golang', type:'module', href:'golang/index.html', desc:'35 个专题：GMP 调度、GC、Channel、逃逸分析、内存模型、并发模式和工程实践。'},
     {id:'distributed', label:'分布式系统', module:'distributed', type:'module', href:'distributed/index.html', desc:'CAP、Raft、Paxos、一致性哈希等分布式系统基础概念。'},
+    {id:'ai', label:'AI 系统', module:'ai', type:'module', href:'ai/index.html', desc:'从 LLM 原理、推理、RAG、Agent 到训练、MoE、评测和部署的工程化知识。'},
+    {id:'ai-llm-overview', label:'LLM 基础概念', module:'ai', type:'page', href:'ai/llm-overview.html', desc:'解释 Token、Embedding、预训练、微调、对齐和上下文窗口，是理解 LLM 系统的入口。'},
+    {id:'ai-attention', label:'Transformer Attention', module:'ai', type:'page', href:'ai/transformer-attention.html', desc:'用 Q/K/V、Mask、Softmax 和 Multi-Head 动画理解 Transformer 如何聚合上下文。'},
+    {id:'ai-kv-cache', label:'推理与 KV Cache', module:'ai', type:'page', href:'ai/inference-kv-cache.html', desc:'展示 Tokenize、Prefill、Decode、Sampling 和 Streaming 的在线推理链路。'},
+    {id:'ai-rag', label:'RAG Pipeline', module:'ai', type:'page', href:'ai/rag-pipeline.html', desc:'串起 Chunk、Embedding、向量索引、召回、重排、Prompt 组装和生成。'},
+    {id:'ai-agent', label:'Agent Tool Calling', module:'ai', type:'page', href:'ai/agent-tool-calling.html', desc:'解释 Planner、工具调用、Observation、Memory、Guardrail 和停止条件组成的 Agent 循环。'},
+    {id:'ai-training', label:'Training Pipeline', module:'ai', type:'page', href:'ai/training-pipeline.html', desc:'展示 Dataset、Tokenize、Batch、Forward、Loss、Backward、Optimizer 和 Checkpoint 的训练主链路。'},
+    {id:'ai-moe', label:'Mixture of Experts', module:'ai', type:'page', href:'ai/mixture-of-experts.html', desc:'用 Router、Top-k Expert、容量限制和负载均衡理解 MoE 稀疏激活架构。'},
+    {id:'ai-eval-deploy', label:'AI 评测与部署', module:'ai', type:'page', href:'ai/eval-deploy.html', desc:'讲 Golden Set、灰度、观测、成本、延迟、Prompt 版本和回滚组成的上线闭环。'},
     {id:'algo-bubble-sort', label:'冒泡排序', module:'algo', type:'page', href:'algo/bubble-sort.html', desc:'相邻元素比较交换，适合理解排序稳定性和局部有序。'},
     {id:'algo-selection-sort', label:'选择排序', module:'algo', type:'page', href:'algo/selection-sort.html', desc:'每轮选择最小元素放到有序区，展示选择型排序思想。'},
     {id:'algo-insertion-sort', label:'插入排序', module:'algo', type:'page', href:'algo/insertion-sort.html', desc:'维护有序前缀，将新元素插入正确位置。'},
@@ -197,6 +207,13 @@
     ['go-sql','go-context'],['go-pprof','go-gc'],['go-pprof','go-runtime'],['go-slice-map','go-mem-alloc'],['go-slice-map','hash'],['go-strings-bytes','go-string'],
     ['go-modules','go-architecture'],['mysql-logs','wal'],['mysql-logs','kafka-producer'],['mysql-logs','sequential-io'],['cap-theorem','raft'],['cap-theorem','paxos'],['paxos','distributed-db'],['paxos','raft'],
     ['raft','distributed-db'],['raft','kafka-replica'],['raft','redis-cluster'],['cap-theorem','distributed-db'],['cap-theorem','redis-cluster'],['cap-theorem','redis-lock'],
-    ['zero-copy','kafka-overview'],['zero-copy','fs'],['zero-copy','http']
+    ['zero-copy','kafka-overview'],['zero-copy','fs'],['zero-copy','http'],
+    ['ai-llm-overview','ai-attention'],['ai-llm-overview','ai-training'],['ai-attention','ai-kv-cache'],['ai-kv-cache','ai-rag'],
+    ['ai-rag','ai-agent'],['ai-agent','ai-eval-deploy'],['ai-training','ai-moe'],['ai-moe','ai-kv-cache'],['ai-eval-deploy','ai-rag'],
+    ['ai-attention','memory-addressing'],['ai-attention','number-repr'],['ai-kv-cache','cache-hierarchy'],['ai-kv-cache','memory-addressing'],
+    ['ai-rag','vector'],['ai-rag','bloom'],['ai-rag','probabilistic-ds'],['ai-rag','db-query-plan'],['ai-agent','go-web'],['ai-agent','http'],
+    ['ai-agent','go-context'],['ai-agent','redis-stream'],['ai-training','kafka-overview'],['ai-training','sequential-io'],['ai-training','distributed-db'],
+    ['ai-moe','cache-hierarchy'],['ai-moe','cgroup'],['ai-moe','lb'],['ai-eval-deploy','go-testing'],['ai-eval-deploy','go-pprof'],
+    ['ai-eval-deploy','kafka-consumer'],['ai-eval-deploy','ebpf']
   ];
 })();

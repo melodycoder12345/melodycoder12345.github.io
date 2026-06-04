@@ -9,7 +9,7 @@
   --bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;
   --text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;
   --algo:#38bdf8;--db:#fbbf24;--kafka:#ff6b35;--redis:#dc382c;
-  --linux:#6ee7b7;--network:#10b981;--distributed:#c084fc;
+  --linux:#6ee7b7;--network:#10b981;--distributed:#c084fc;--ai:#8b5cf6;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:radial-gradient(circle at 20% 0%,rgba(56,189,248,.12),transparent 34%),radial-gradient(circle at 90% 10%,rgba(192,132,252,.10),transparent 30%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;overflow:hidden;}
@@ -81,8 +81,8 @@ h1{font-size:2rem;line-height:1.1;margin-bottom:12px;letter-spacing:-.04em;}
     <a href="index.html" class="back">← 返回首页</a>
     <div class="eyebrow">Knowledge Graph</div>
     <h1>知识星图</h1>
-    <p class="intro">像 Obsidian 双链一样，把算法、组成原理、Golang、数据库、Redis、Linux、网络、Kafka 与分布式系统连起来。点击节点可查看关联页面，拖动画布可探索全局结构。</p>
-    <input id="search" class="search" placeholder="搜索：B+ 树、Raft、CAP、epoll、QUIC...">
+    <p class="intro">像 Obsidian 双链一样，把算法、组成原理、Golang、数据库、Redis、Linux、网络、Kafka、分布式系统与 AI 系统连起来。点击节点可查看关联页面，拖动画布可探索全局结构。</p>
+    <input id="search" class="search" placeholder="搜索：B+ 树、Raft、RAG、KV Cache、Agent...">
     <div class="filters" id="filters"></div>
     <div class="stats">
       <div class="stat"><strong id="nodeCount">0</strong><span>图谱节点</span></div>
@@ -101,6 +101,7 @@ h1{font-size:2rem;line-height:1.1;margin-bottom:12px;letter-spacing:-.04em;}
       <div class="legend-row"><span><i class="dot" style="background:#a78bfa"></i>组成原理</span><span>硬件底座</span></div>
       <div class="legend-row"><span><i class="dot" style="background:#00add8"></i>Golang</span><span>语言运行时</span></div>
       <div class="legend-row"><span><i class="dot" style="background:var(--distributed)"></i>分布式</span><span>一致性协议</span></div>
+      <div class="legend-row"><span><i class="dot" style="background:var(--ai)"></i>AI 系统</span><span>LLM 工程</span></div>
     </div>
   </aside>
 
@@ -231,7 +232,11 @@ const RELATION_NOTES = {
   [edgeKey('dijkstra','network')]: '路由选择可以抽象成图上的最短路径问题，Dijkstra 是理解路径代价计算的基础。',
   [edgeKey('trie','dns')]: 'DNS 域名天然是层级前缀结构，Trie 可帮助理解前缀匹配和层级查找。',
   [edgeKey('lb','consistent-hash')]: '负载均衡在有状态请求或缓存场景中常用一致性哈希减少后端变化带来的迁移。',
-  [edgeKey('linux-commands','kmp')]: 'grep/日志检索背后是字符串匹配问题，KMP 是理解高效匹配的经典算法。'
+  [edgeKey('linux-commands','kmp')]: 'grep/日志检索背后是字符串匹配问题，KMP 是理解高效匹配的经典算法。',
+  [edgeKey('ai-rag','vector')]: 'RAG 的低延迟语义召回依赖向量索引；HNSW、IVF、PQ 决定召回质量、延迟和内存成本。',
+  [edgeKey('ai-kv-cache','cache-hierarchy')]: 'KV Cache 是 LLM 推理里的关键缓存，和硬件缓存一样都用局部性换取更低重复计算成本。',
+  [edgeKey('ai-agent','go-web')]: 'Agent 工具调用最终需要稳定的服务边界、超时、权限和错误处理，Go Web 服务是典型承载方式。',
+  [edgeKey('ai-eval-deploy','kafka-consumer')]: 'AI 线上评测和监控常从日志流中消费样本、反馈和错误事件，Kafka 消费链路是常见基础设施。'
 };
 
 const RELATION_PROBLEMS = {
@@ -254,7 +259,11 @@ const RELATION_PROBLEMS = {
   [edgeKey('dijkstra','network')]: '解决网络中按代价选择更优路径的问题。',
   [edgeKey('trie','dns')]: '解决层级域名、前缀路由和字符串前缀快速匹配的问题。',
   [edgeKey('lb','consistent-hash')]: '解决后端节点变化时请求或缓存 key 大量迁移的问题。',
-  [edgeKey('linux-commands','kmp')]: '解决日志和文本中快速查找关键字的问题。'
+  [edgeKey('linux-commands','kmp')]: '解决日志和文本中快速查找关键字的问题。',
+  [edgeKey('ai-rag','vector')]: '解决外部知识如何被毫秒级召回并放入模型上下文的问题。',
+  [edgeKey('ai-kv-cache','cache-hierarchy')]: '解决长上下文推理中重复计算过多、首 token 和逐 token 延迟过高的问题。',
+  [edgeKey('ai-agent','go-web')]: '解决模型规划如何安全落到真实 API、数据库或业务工具的问题。',
+  [edgeKey('ai-eval-deploy','kafka-consumer')]: '解决 AI 应用上线后如何持续收集质量、成本、延迟和错误信号的问题。'
 };
 
 const RELATION_CONCEPTS = {
@@ -274,7 +283,11 @@ const RELATION_CONCEPTS = {
   [edgeKey('dijkstra','network')]: 'Dijkstra 是带权图上的最短路径算法。',
   [edgeKey('trie','dns')]: 'Trie 是按前缀逐层匹配的树形结构。',
   [edgeKey('lb','consistent-hash')]: '一致性哈希是稳定路由到节点的分布式算法。',
-  [edgeKey('linux-commands','kmp')]: 'KMP 是字符串匹配算法。'
+  [edgeKey('linux-commands','kmp')]: 'KMP 是字符串匹配算法。',
+  [edgeKey('ai-rag','vector')]: '向量索引是 RAG 检索层的核心数据结构。',
+  [edgeKey('ai-kv-cache','cache-hierarchy')]: 'KV Cache 属于推理服务中的多级缓存和内存带宽问题。',
+  [edgeKey('ai-agent','go-web')]: '工具调用是 LLM 与后端服务边界之间的协议。',
+  [edgeKey('ai-eval-deploy','kafka-consumer')]: '日志消费是在线评测和观测系统的数据入口。'
 };
 
 function relationNote(inside, outside) {
@@ -293,7 +306,7 @@ function renderFilterInsight() {
   if (activeModule === 'all') {
     filterInsight.innerHTML = `
       <h3>关联说明</h3>
-      <p class="insight-summary">选择某个模块后，图中只保留该模块节点，并带出它们的一跳关联。比如筛选分布式时，会看到 CAP、Raft、Paxos、一致性哈希如何连接数据库、Redis、Kafka 和网络模块。</p>
+      <p class="insight-summary">选择某个模块后，图中只保留该模块节点，并带出它们的一跳关联。比如筛选 AI 系统时，会看到 RAG、KV Cache、Agent 和评测部署如何连接向量索引、缓存、Go Web、Kafka 与 Linux 观测链路。</p>
     `;
     return;
   }

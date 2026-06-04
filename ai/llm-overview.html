@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM 基础概念 - AI</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<link rel="stylesheet" href="ai.css">
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Token","body":"模型处理文本的基本单位，可能是字、词片段、标点或空格组合。","tag":"term"},
+  {"title":"Embedding","body":"把离散 token 映射成连续向量，使模型可以用矩阵计算表达语义。","tag":"term"},
+  {"title":"Alignment","body":"通过 SFT、RLHF、DPO 等方式，让模型输出更符合人类偏好和安全边界。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="shell" data-page-type="B">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">AI / LLM / B 类型</div>
+      <h1>LLM 基础概念</h1>
+      <p class="summary">LLM 不是“数据库里查答案”，而是基于上下文预测下一个 token 的概率模型。理解 Token、Embedding、训练阶段、上下文窗口和对齐，是阅读推理、RAG、Agent 页面的前置知识。</p>
+      <div class="tags"><span>Token</span><span>Embedding</span><span>Pretrain</span><span>Alignment</span></div>
+    </div>
+    <div class="card map">
+      <div class="eyebrow">核心术语</div>
+      <div class="term"><strong>Token</strong><span>文本进入模型前会被 tokenizer 切成 token，模型每一步输出的是下一个 token 的概率分布。</span></div>
+      <div class="term"><strong>Embedding</strong><span>token id 本身没有语义，embedding table 把它变成向量，后续层才能计算相似性和上下文关系。</span></div>
+      <div class="term"><strong>Context Window</strong><span>模型一次能看到的 token 上限。窗口变长不等于记忆变强，还会带来成本、延迟和注意力稀释问题。</span></div>
+    </div>
+  </section>
+
+  <section class="grid">
+    <article class="section">
+      <h2>模型到底在做什么</h2>
+      <p>自回归 LLM 的核心任务是：给定前面的 token 序列，预测下一个 token。训练时它看大量文本，学习“在这个上下文里，哪些 token 更可能出现”。推理时它反复采样下一个 token，再把新 token 放回上下文继续预测。</p>
+      <ul>
+        <li><strong>不是精确检索</strong>：模型参数中压缩了训练语料里的统计规律，但不会像数据库一样保存可定位记录。</li>
+        <li><strong>不是固定规则引擎</strong>：同一个 prompt 在不同温度、采样策略和上下文下可能输出不同结果。</li>
+        <li><strong>不是无限记忆</strong>：上下文窗口之外的信息不会被当前推理直接看到，除非通过 RAG、Memory 或微调进入模型行为。</li>
+      </ul>
+    </article>
+    <article class="section">
+      <h2>从文本到向量</h2>
+      <p>文本先被 tokenizer 转成 token id，再通过 embedding table 查出向量。位置编码或 RoPE 提供顺序信息，Transformer 层通过 Attention 让每个 token 和上下文里的其他 token 建立关系。</p>
+      <pre>text = "KV Cache saves compute"
+tokens = tokenizer.encode(text)
+vectors = embedding[tokens]
+hidden = transformer(vectors, position)
+next_token = sample(lm_head(hidden[-1]))</pre>
+      <div class="callout">Embedding 不是“词典解释”，而是一个高维空间里的坐标。语义相近的 token 或句子通常距离更近，这也是 RAG 向量检索成立的基础。</div>
+    </article>
+    <article class="section">
+      <h2>训练阶段</h2>
+      <ul>
+        <li><strong>Pretraining</strong>：用海量文本做 next-token prediction，学习语言、知识和推理模式。</li>
+        <li><strong>SFT</strong>：用高质量指令数据训练模型按用户任务作答，把“会续写”转成“会响应”。</li>
+        <li><strong>Alignment</strong>：用人类偏好或规则数据约束输出风格、安全边界和拒答策略。</li>
+        <li><strong>Fine-tuning / LoRA</strong>：在特定领域或格式上调整模型行为，成本低于从头训练。</li>
+      </ul>
+    </article>
+    <article class="section">
+      <h2>常见误区</h2>
+      <ul>
+        <li>把参数量当作唯一指标。数据质量、推理策略、上下文工程和工具能力同样重要。</li>
+        <li>把长上下文当作 RAG 替代品。长上下文能放更多材料，但检索、排序和引用仍需要系统设计。</li>
+        <li>把 Prompt 当作代码。Prompt 可以表达任务意图，但缺少类型约束、测试覆盖和稳定依赖管理，需要评测闭环兜底。</li>
+      </ul>
+    </article>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">返回 AI 模块</a>
+    <a class="btn" href="../graph.html?q=LLM">在知识星图中查看</a>
+  </div>
+</main>
+</body>
+</html>

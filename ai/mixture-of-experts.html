@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mixture of Experts - AI</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<link rel="stylesheet" href="ai.css">
+<script>window.PAGE_CONCEPTS=[
+  {"title":"MoE","body":"Mixture of Experts，用稀疏激活让每个 token 只经过少量专家网络。","tag":"term"},
+  {"title":"Router","body":"为 token 选择 top-k experts，并给出路由权重。","tag":"term"},
+  {"title":"Capacity","body":"每个 expert 一次能处理的 token 数有限，超载会导致排队、丢弃或重路由。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="shell" data-page-type="C">
+  <section class="hero">
+    <div class="card"><div class="eyebrow">AI / MoE / C 类型</div><h1>Mixture of Experts</h1><p class="summary">MoE 用更多参数扩大模型容量，但每个 token 只激活少量 expert。它的核心不是“专家越多越好”，而是 router、容量、负载均衡和通信成本的工程权衡。</p><div class="tags"><span>Router</span><span>Top-k</span><span>Sparse Activation</span><span>Capacity</span></div></div>
+    <div class="card map"><div class="eyebrow">直觉</div><div class="term"><strong>参数多</strong><span>总参数量很大，模型有更多专业子网络。</span></div><div class="term"><strong>激活少</strong><span>每个 token 只走 top-k experts，单 token 计算量不会线性增长。</span></div><div class="term"><strong>调度难</strong><span>如果 router 总把 token 发给少数 expert，会造成热点和质量退化。</span></div></div>
+  </section>
+  <section class="lab">
+    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <section class="panel viz"><div class="stage" id="aiStage"></div><div class="controls"><button class="ctrl" id="btnReset">重置</button><button class="ctrl" id="btnPrev">上一步</button><button class="ctrl primary" id="btnPlay">播放</button><button class="ctrl" id="btnNext">下一步</button></div></section>
+    <aside class="panel"><div class="panel-hd">当前状态</div><div class="status"><span class="badge" id="stateBadge">normal</span><h2 id="stepTitle"></h2><p id="stepDesc"></p><p id="stepDetail"></p><div class="metrics" id="metrics"></div><div class="codebox"><h3>路由伪代码</h3><pre id="codeBlock"></pre></div></div></aside>
+  </section>
+  <section class="grid"><article class="section"><h2>为什么能扩容</h2><p>Dense 模型每层参数都会参与每个 token 的计算。MoE 把 FFN 替换成多个 expert，并让 token 只走 top-k expert，于是总参数量增加，但每 token 计算保持相对可控。</p></article><article class="section"><h2>工程挑战</h2><ul><li>Expert 分布在不同 GPU 时，token 路由会引入跨卡通信。</li><li>负载不均衡会让某些 expert 成为瓶颈，需要 auxiliary loss 或容量约束。</li></ul></article></section>
+  <div class="back-row"><a class="btn" href="index.html">返回 AI 模块</a><a class="btn" href="../graph.html?q=MoE">在知识星图中查看</a></div>
+</main>
+<script>
+window.AI_DEMO = {
+  title:'Mixture of Experts', viewBox:'0 0 560 360',
+  nodes:[
+    {id:'tokens',label:'Tokens',sub:'batch',x:78,y:78,w:110},{id:'router',label:'Router',sub:'top-k gate',x:230,y:78,w:112},{id:'e1',label:'Expert 1',sub:'FFN',x:410,y:44,w:106},
+    {id:'e2',label:'Expert 2',sub:'FFN',x:410,y:122,w:106},{id:'e3',label:'Expert 3',sub:'FFN',x:410,y:200,w:106},{id:'combine',label:'Combine',sub:'weighted sum',x:230,y:254,w:126},
+    {id:'out',label:'Output',sub:'hidden',x:78,y:254,w:110},{id:'cap',label:'Capacity',sub:'limit',x:410,y:304,w:116}
+  ],
+  edges:[
+    {id:'e01',x1:133,y1:78,x2:174,y2:78},{id:'e12',x1:286,y1:68,x2:357,y2:48},{id:'e13',x1:286,y1:78,x2:357,y2:122},{id:'e14',x1:286,y1:88,x2:357,y2:200},
+    {id:'e21',x1:360,y1:56,x2:276,y2:232},{id:'e22',x1:360,y1:132,x2:276,y2:244},{id:'e23',x1:360,y1:210,x2:276,y2:256},{id:'e31',x1:168,y1:254,x2:133,y2:254},{id:'e40',x1:410,y1:227,x2:410,y2:276}
+  ],
+  code:'scores = router(token_hidden)\\nexperts = top_k(scores, k=2)\\noutputs = []\\nfor expert, weight in experts:\\n    outputs.append(weight * expert(token))\\nreturn sum(outputs)',
+  steps:[
+    {kicker:'tokens',title:'Token Batch 进入 MoE 层',badge:'batch',nodes:['tokens'],desc:'每个 token 都要经过 router 决定走哪些 expert。'},
+    {kicker:'route',title:'Router 计算 expert 分数',badge:'router',nodes:['tokens','router'],edges:['e01'],desc:'Router 是一个小网络，为每个 token 输出到各 expert 的分数。'},
+    {kicker:'top-k',title:'选择 Top-k Experts',badge:'top-k',nodes:['router','e1','e2'],edges:['e12','e13'],desc:'常见设置是 top-1 或 top-2。未选中的 expert 不参与该 token 计算。',metrics:[{label:'activated',value:'2 / 3 experts'}]},
+    {kicker:'expert',title:'专家网络并行处理',badge:'expert',nodes:['e1','e2'],edges:['e21','e22'],desc:'每个 expert 通常是 FFN 子网络，处理被路由过来的 token。'},
+    {kicker:'combine',title:'按路由权重合并输出',badge:'combine',nodes:['combine','out'],edges:['e31'],desc:'多个 expert 的输出按 router 权重加权求和，回到主干网络。'},
+    {kicker:'capacity',title:'Expert 容量触顶',badge:'capacity',tone:'warn',warnNodes:['e2','cap'],warnEdges:['e40'],desc:'如果太多 token 被分配给同一个 expert，会触发容量限制。',detail:'系统可能丢弃、重路由或延迟处理这些 token。'},
+    {kicker:'imbalance',title:'负载不均衡影响吞吐',badge:'imbalance',tone:'bad',badNodes:['router','e2'],badEdges:['e13'],desc:'Router 偏向少数 expert 会造成热点 GPU，降低整体吞吐并影响训练稳定性。'},
+    {kicker:'balanced',title:'辅助损失推动均衡',badge:'balanced',tone:'good',goodNodes:['router','e1','e2','e3'],edges:['e12','e13','e14'],desc:'训练时通常加入 load balancing loss，让 token 更均匀地分配到 experts。'}
+  ]
+};
+</script>
+<script src="ai.js"></script>
+</body>
+</html>

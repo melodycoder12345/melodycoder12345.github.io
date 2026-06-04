@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Tool Calling - AI</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<link rel="stylesheet" href="ai.css">
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Tool Calling","body":"模型输出结构化函数调用，由宿主系统执行工具并把 observation 返回上下文。","tag":"term"},
+  {"title":"Planner","body":"把用户目标拆成可执行步骤，决定何时调用哪个工具。","tag":"term"},
+  {"title":"Guardrail","body":"限制工具权限、参数和循环次数，避免越权或无限执行。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="shell" data-page-type="C">
+  <section class="hero">
+    <div class="card"><div class="eyebrow">AI / Agent / C 类型</div><h1>Agent Tool Calling</h1><p class="summary">Agent 不是模型自己“会操作世界”，而是宿主系统让模型规划、选择工具、接收 observation，再继续推理。可靠 Agent 的关键是权限、状态、错误处理和停止条件。</p><div class="tags"><span>Planner</span><span>Tool</span><span>Observation</span><span>Guardrail</span></div></div>
+    <div class="card map"><div class="eyebrow">设计边界</div><div class="term"><strong>模型只提议</strong><span>真正执行工具的是应用系统，必须校验权限、参数和副作用。</span></div><div class="term"><strong>循环要有刹车</strong><span>最大步数、超时、预算和人工确认能避免无限调用。</span></div><div class="term"><strong>Observation 要可追溯</strong><span>工具结果、错误和重试都应进入日志，方便回放与评测。</span></div></div>
+  </section>
+  <section class="lab">
+    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <section class="panel viz"><div class="stage" id="aiStage"></div><div class="controls"><button class="ctrl" id="btnReset">重置</button><button class="ctrl" id="btnPrev">上一步</button><button class="ctrl primary" id="btnPlay">播放</button><button class="ctrl" id="btnNext">下一步</button></div></section>
+    <aside class="panel"><div class="panel-hd">当前状态</div><div class="status"><span class="badge" id="stateBadge">normal</span><h2 id="stepTitle"></h2><p id="stepDesc"></p><p id="stepDetail"></p><div class="metrics" id="metrics"></div><div class="codebox"><h3>执行循环</h3><pre id="codeBlock"></pre></div></div></aside>
+  </section>
+  <section class="grid"><article class="section"><h2>工程场景</h2><p>客服自动化、代码助理、数据分析机器人和运维助手都属于 Agent 场景。它们的共同点是模型需要读取上下文、调用外部工具，并根据结果继续行动。</p></article><article class="section"><h2>风险点</h2><ul><li>Prompt injection 可能诱导 Agent 忽略系统规则或泄露工具结果。</li><li>工具 schema 过宽会扩大破坏面，写操作最好显式确认或分级授权。</li></ul></article></section>
+  <div class="back-row"><a class="btn" href="index.html">返回 AI 模块</a><a class="btn" href="../graph.html?q=Agent">在知识星图中查看</a></div>
+</main>
+<script>
+window.AI_DEMO = {
+  title:'Agent Tool Calling', viewBox:'0 0 560 360',
+  nodes:[
+    {id:'goal',label:'User Goal',sub:'task',x:76,y:70,w:114},{id:'planner',label:'Planner',sub:'steps',x:224,y:70,w:112},{id:'guard',label:'Guardrail',sub:'policy',x:384,y:70,w:118},
+    {id:'tool',label:'Tool Call',sub:'API / DB',x:384,y:178,w:118},{id:'obs',label:'Observation',sub:'result',x:224,y:178,w:120},{id:'memory',label:'Memory',sub:'state',x:76,y:178,w:112},
+    {id:'eval',label:'Eval',sub:'done?',x:224,y:292,shape:'diamond',w:94,h:64},{id:'answer',label:'Final Answer',sub:'grounded',x:430,y:292,w:126}
+  ],
+  edges:[
+    {id:'e1',x1:133,y1:70,x2:168,y2:70},{id:'e2',x1:280,y1:70,x2:325,y2:70},{id:'e3',x1:384,y1:97,x2:384,y2:145},
+    {id:'e4',x1:325,y1:178,x2:284,y2:178},{id:'e5',x1:164,y1:178,x2:132,y2:178},{id:'e6',x1:104,y1:205,x2:188,y2:270},
+    {id:'e7',x1:271,y1:292,x2:367,y2:292},{id:'e8',x1:224,y1:260,x2:224,y2:102}
+  ],
+  code:'for step in range(max_steps):\\n    action = model.plan(goal, memory)\\n    assert policy.allow(action)\\n    observation = tools.call(action)\\n    memory.append(action, observation)\\n    if evaluator.done(memory): break\\nreturn final_answer(memory)',
+  steps:[
+    {kicker:'goal',title:'接收用户目标',badge:'goal',nodes:['goal'],desc:'用户通常给的是结果目标，而不是精确执行步骤。'},
+    {kicker:'plan',title:'Planner 拆解任务',badge:'plan',nodes:['goal','planner'],edges:['e1'],desc:'模型根据目标和上下文生成下一步计划，例如搜索、读取文件或调用业务 API。'},
+    {kicker:'policy',title:'Guardrail 校验动作',badge:'guardrail',nodes:['planner','guard'],edges:['e2'],desc:'宿主系统检查工具权限、参数范围、预算和是否需要人工确认。'},
+    {kicker:'tool',title:'执行工具调用',badge:'tool',nodes:['guard','tool'],edges:['e3'],desc:'工具由应用系统执行，不由模型直接执行。写操作、外部请求和敏感数据要特别谨慎。'},
+    {kicker:'observe',title:'把 Observation 放回上下文',badge:'observe',nodes:['tool','obs'],edges:['e4'],desc:'工具结果、错误码和摘要回到模型上下文，供下一步推理使用。'},
+    {kicker:'memory',title:'更新短期状态',badge:'memory',nodes:['obs','memory'],edges:['e5'],desc:'Agent 需要记住已尝试步骤、工具结果、失败原因和待办事项。'},
+    {kicker:'loop',title:'评估是否继续循环',badge:'loop',nodes:['memory','eval'],edges:['e6'],desc:'如果目标未完成，Agent 回到 Planner 继续下一轮；如果完成，生成最终回答。',metrics:[{label:'max steps',value:'guarded'}]},
+    {kicker:'failure',title:'工具失败或越权被拦截',badge:'blocked',tone:'bad',badNodes:['guard','tool'],badEdges:['e3'],desc:'当工具超时、参数非法、权限不足或风险过高时，系统应阻断并要求改计划。',detail:'不要让模型用自然语言绕过权限检查。'},
+    {kicker:'final',title:'生成可追溯最终回答',badge:'done',tone:'good',goodNodes:['answer'],nodes:['eval'],edges:['e7'],desc:'最终回答应引用 observation，并说明做了哪些操作、哪些步骤失败或被跳过。'}
+  ]
+};
+</script>
+<script src="ai.js"></script>
+</body>
+</html>

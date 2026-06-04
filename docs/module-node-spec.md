@@ -253,6 +253,14 @@
 | `network/quic.html` | `network` | `quic` | C | 是 | 否 | C 类型协议动画页，覆盖握手、独立流、丢包、0-RTT 边界和连接迁移 |
 | `kafka/kraft.html` | `kafka` | `kraft` | C | 是 | 否 | C 类型协议动画页，覆盖 controller quorum、metadata log、故障选主和 Broker 追平 |
 | `kafka/exactly-once.html` | `kafka` | `exactly-once` | C | 是 | 否 | C 类型系统流程页，覆盖幂等生产、事务提交、失败回滚和恢复重试 |
+| `ai/llm-overview.html` | `ai` | `ai-llm-overview` | B | 否 | 是 | B 类型概念说明页，覆盖 Token、Embedding、训练阶段、上下文窗口和对齐 |
+| `ai/transformer-attention.html` | `ai` | `ai-attention` | A | 是 | 是 | A 类型过程 / 代码动画页，覆盖 Q/K/V、Mask、Softmax、加权求和和 Multi-Head |
+| `ai/inference-kv-cache.html` | `ai` | `ai-kv-cache` | C | 是 | 是 | C 类型系统流程页，覆盖 Tokenize、Prefill、KV Cache、Decode、Sampling 和 Streaming |
+| `ai/rag-pipeline.html` | `ai` | `ai-rag` | C | 是 | 是 | C 类型系统流程页，覆盖 Chunk、Embedding、向量索引、召回、Rerank、Prompt 组装和生成 |
+| `ai/agent-tool-calling.html` | `ai` | `ai-agent` | C | 是 | 是 | C 类型系统流程页，覆盖 Planner、Tool Call、Observation、Memory、Guardrail 和停止条件 |
+| `ai/training-pipeline.html` | `ai` | `ai-training` | C | 是 | 是 | C 类型系统流程页，覆盖 Dataset、Batch、Forward、Loss、Backward、Optimizer 和 Checkpoint |
+| `ai/mixture-of-experts.html` | `ai` | `ai-moe` | C | 是 | 是 | C 类型系统流程页，覆盖 Router、Top-k Experts、容量限制和负载均衡 |
+| `ai/eval-deploy.html` | `ai` | `ai-eval-deploy` | B | 否 | 是 | B 类型工程说明页，覆盖评测集、灰度、观测、成本、延迟和回滚 |
 
 新增页面登记规则：
 

@@ -223,6 +223,23 @@
 
 ---
 
+## ai 模块
+
+| 页面 | 类型 | 理由 |
+|------|------|------|
+| `ai/llm-overview.html` | B | LLM 基础术语和训练阶段解释，适合长文概念说明 |
+| `ai/transformer-attention.html` | A | Q/K/V、Mask、Softmax、加权求和与伪代码强绑定，是计算过程动画 |
+| `ai/inference-kv-cache.html` | C | Tokenize→Prefill→KV Cache→Decode→Streaming 是多阶段推理服务流程 |
+| `ai/rag-pipeline.html` | C | Chunk→Embedding→Vector Index→Retrieve→Rerank→Generate 是系统流程 |
+| `ai/agent-tool-calling.html` | C | Planner→Tool→Observation→Memory→Eval 是多组件协作流程 |
+| `ai/training-pipeline.html` | C | Dataset→Forward→Loss→Backward→Optimizer→Checkpoint 是训练系统流程 |
+| `ai/mixture-of-experts.html` | C | Router→Top-k Experts→Combine→Capacity 是模型架构流程 |
+| `ai/eval-deploy.html` | B | 评测、灰度、观测、成本和回滚属于工程实践说明 |
+
+**小计：A=1, B=2, C=5**
+
+---
+
 ## 全局统计
 
 | 模块 | A | B | C | 合计 |
@@ -236,9 +253,10 @@
 | cs | 7 | 0 | 0 | 7 |
 | golang | 11 | 24 | 0 | 35 |
 | distributed | 0 | 0 | 4 | 4 |
-| **总计** | **73** | **37** | **20** | **130** |
+| ai | 1 | 2 | 5 | 8 |
+| **总计** | **74** | **39** | **25** | **138** |
 
-不含 index.html / topic.html 等导航页。占比：A 56%, B 28%, C 15%。
+不含 index.html / topic.html 等导航页。占比：A 54%, B 28%, C 18%。
 
 ---
 

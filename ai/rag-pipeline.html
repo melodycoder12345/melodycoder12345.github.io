@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAG Pipeline - AI</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<link rel="stylesheet" href="ai.css">
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Chunk","body":"把文档切成适合检索和放入上下文的片段，粒度会影响召回与噪声。","tag":"term"},
+  {"title":"Rerank","body":"对初召回结果重新排序，提升最终进入 prompt 的材料质量。","tag":"term"},
+  {"title":"Grounding","body":"让回答基于检索材料，并尽量给出可追溯引用。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="shell" data-page-type="C">
+  <section class="hero">
+    <div class="card"><div class="eyebrow">AI / RAG / C 类型</div><h1>RAG Pipeline</h1><p class="summary">RAG 用检索系统给 LLM 补充外部知识。它的质量不只取决于模型，还取决于切分、向量化、索引、召回、重排、上下文组装和引用策略。</p><div class="tags"><span>Chunk</span><span>Embedding</span><span>Vector Index</span><span>Rerank</span></div></div>
+    <div class="card map"><div class="eyebrow">核心权衡</div><div class="term"><strong>召回 vs 噪声</strong><span>top-k 太小漏答案，太大又会把无关材料塞进上下文。</span></div><div class="term"><strong>切分 vs 语义</strong><span>chunk 太短丢上下文，太长降低匹配精度并浪费 token。</span></div><div class="term"><strong>引用 vs 生成</strong><span>回答要尽量 grounded，否则模型仍可能基于先验编造。</span></div></div>
+  </section>
+  <section class="lab">
+    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <section class="panel viz"><div class="stage" id="aiStage"></div><div class="controls"><button class="ctrl" id="btnReset">重置</button><button class="ctrl" id="btnPrev">上一步</button><button class="ctrl primary" id="btnPlay">播放</button><button class="ctrl" id="btnNext">下一步</button></div></section>
+    <aside class="panel"><div class="panel-hd">当前状态</div><div class="status"><span class="badge" id="stateBadge">normal</span><h2 id="stepTitle"></h2><p id="stepDesc"></p><p id="stepDetail"></p><div class="metrics" id="metrics"></div><div class="codebox"><h3>检索伪代码</h3><pre id="codeBlock"></pre></div></div></aside>
+  </section>
+  <section class="grid"><article class="section"><h2>和向量索引的关系</h2><p>RAG 的在线召回通常依赖 ANN 向量索引，例如 HNSW、IVF、PQ。索引负责把“语义相近”变成可在毫秒级执行的近似最近邻搜索，细节可继续看 <code>db/vector.html</code>。</p></article><article class="section"><h2>常见失败</h2><ul><li>文档切分不保留标题、层级、时间和权限元数据，导致召回片段无法解释。</li><li>只做向量召回不做 rerank，容易把语义相似但答案无关的段落放进 prompt。</li></ul></article></section>
+  <div class="back-row"><a class="btn" href="index.html">返回 AI 模块</a><a class="btn" href="../db/vector.html">查看向量索引</a><a class="btn" href="../graph.html?q=RAG">在知识星图中查看</a></div>
+</main>
+<script>
+window.AI_DEMO = {
+  title:'RAG Pipeline', viewBox:'0 0 560 360',
+  nodes:[
+    {id:'docs',label:'Documents',sub:'raw files',x:72,y:70,w:116},{id:'chunk',label:'Chunk',sub:'split + meta',x:220,y:70,w:110},{id:'embed',label:'Embedding',sub:'vectors',x:380,y:70,w:120},
+    {id:'index',label:'Vector Index',sub:'ANN',x:380,y:178,w:126},{id:'query',label:'User Query',sub:'question',x:72,y:178,w:116},{id:'retrieve',label:'Retrieve',sub:'top-k',x:220,y:178,w:110},
+    {id:'rerank',label:'Rerank',sub:'cross encoder',x:220,y:288,w:112},{id:'prompt',label:'Prompt',sub:'compose',x:380,y:288,w:110},{id:'answer',label:'Answer',sub:'with citations',x:500,y:178,w:112}
+  ],
+  edges:[
+    {id:'e1',x1:130,y1:70,x2:165,y2:70},{id:'e2',x1:275,y1:70,x2:320,y2:70},{id:'e3',x1:380,y1:97,x2:380,y2:145},
+    {id:'e4',x1:130,y1:178,x2:165,y2:178},{id:'e5',x1:275,y1:178,x2:320,y2:178},{id:'e6',x1:220,y1:205,x2:220,y2:260},
+    {id:'e7',x1:276,y1:288,x2:325,y2:288},{id:'e8',x1:435,y1:270,x2:478,y2:204}
+  ],
+  code:'chunks = split(docs, keep_metadata=True)\\nvectors = embed(chunks)\\nindex.upsert(vectors)\\nq = embed(user_query)\\ncandidates = index.search(q, top_k=20)\\nctx = rerank(candidates)[:6]\\nanswer = llm(prompt(query, ctx))',
+  steps:[
+    {kicker:'ingest',title:'文档进入知识库',badge:'ingest',nodes:['docs'],desc:'原始文档可能来自网页、PDF、工单、代码仓库或内部知识库。'},
+    {kicker:'chunk',title:'切分并保留元数据',badge:'chunk',nodes:['docs','chunk'],edges:['e1'],desc:'Chunk 策略决定召回粒度。标题、路径、更新时间、权限等元数据必须保留。'},
+    {kicker:'embed',title:'生成向量表示',badge:'embedding',nodes:['chunk','embed'],edges:['e2'],desc:'Embedding 模型把每个 chunk 映射到语义向量空间。',metrics:[{label:'vector',value:'dense float array'}]},
+    {kicker:'index',title:'写入向量索引',badge:'ANN',nodes:['embed','index'],edges:['e3'],desc:'HNSW、IVF、PQ 等索引用近似最近邻换取低延迟召回。'},
+    {kicker:'query',title:'用户问题向量化',badge:'query',nodes:['query','retrieve'],edges:['e4'],desc:'查询也要用同类 embedding 模型转成向量，才能和文档向量比较。'},
+    {kicker:'retrieve',title:'初召回 top-k',badge:'top-k',nodes:['retrieve','index'],edges:['e5'],desc:'向量索引返回语义相近的候选片段，但相近不等于真正能回答问题。',metrics:[{label:'candidate',value:'top 20'}]},
+    {kicker:'rerank',title:'Rerank 去噪排序',badge:'rerank',nodes:['retrieve','rerank'],edges:['e6'],desc:'Reranker 用更贵但更准的模型重排候选，减少无关上下文。'},
+    {kicker:'compose',title:'组装 Prompt 并生成',badge:'grounded',goodNodes:['prompt','answer'],nodes:['rerank'],edges:['e7','e8'],desc:'最终只把高质量片段、引用和指令放进上下文，让模型基于材料作答。',detail:'如果没有命中证据，应明确回答不知道或请求补充信息。'}
+  ]
+};
+</script>
+<script src="ai.js"></script>
+</body>
+</html>
