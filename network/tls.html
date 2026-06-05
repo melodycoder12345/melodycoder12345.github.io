@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TLS 1.3 - 网络</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#10b981;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 18%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:420px;display:flex;flex-direction:column;padding:18px}
+.stage{position:relative;flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:radial-gradient(circle at 50% 20%,rgba(255,255,255,.06),transparent 42%),rgba(15,23,42,.64);overflow:hidden}
+.node{position:absolute;width:86px;height:86px;border-radius:24px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.055);display:flex;align-items:center;justify-content:center;text-align:center;color:var(--dim);font-weight:800;font-size:.78rem;transition:all .25s;line-height:1.3}
+.node.active{border-color:var(--accent);color:var(--text);background:color-mix(in srgb,var(--accent) 16%,transparent);box-shadow:0 0 30px color-mix(in srgb,var(--accent) 25%,transparent)}
+.node.fail{border-color:var(--bad);color:var(--text);background:color-mix(in srgb,var(--bad) 12%,transparent);box-shadow:0 0 28px rgba(248,113,113,.22)}
+.node.recover{border-color:var(--ok);color:var(--text);background:color-mix(in srgb,var(--ok) 12%,transparent);box-shadow:0 0 28px rgba(74,222,128,.18)}
+.n1{left:4%;top:38%}
+.n2{left:27%;top:7%}
+.n3{right:7%;top:7%}
+.n4{right:7%;top:47%}
+.n5{left:42%;top:52%}
+.n6{left:15%;bottom:7%}
+.edge{position:absolute;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.25;transform-origin:left center;transition:opacity .25s,filter .25s}
+.edge.active{opacity:1;filter:drop-shadow(0 0 8px var(--accent))}
+.e0{left:11%;top:42%;width:22%;transform:rotate(-44deg)}
+.e1{left:35%;top:17%;width:40%;transform:rotate(0deg)}
+.e2{left:82%;top:22%;width:26%;transform:rotate(86deg)}
+.e3{left:50%;top:57%;width:32%;transform:rotate(-7deg)}
+.e4{left:10%;top:52%;width:35%;transform:rotate(8deg)}
+.e5{left:8%;top:56%;width:16%;transform:rotate(74deg)}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}
+.status p{color:var(--dim);font-size:.9rem;line-height:1.75}
+.status .detail{margin-top:8px;font-size:.82rem;color:var(--dim2)}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.failure{border-color:var(--bad);color:var(--bad)}
+.badge.recovery{border-color:var(--ok);color:var(--ok)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit;transition:all .15s}
+.ctrl:hover{border-color:rgba(255,255,255,.22);background:rgba(255,255,255,.1)}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.deep code{font-family:monospace;color:var(--accent);font-size:.85em}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.node{width:76px;height:76px}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Handshake","body":"TLS握手：客户端和服务端协商加密套件、交换密钥、验证身份的过程，TLS 1.3 只需 1-RTT。","tag":"term"},
+  {"title":"Forward Secrecy","body":"前向安全：即使长期密钥泄漏，历史会话也无法被解密——依赖 ECDHE 每次生成临时密钥对。","tag":"term"},
+  {"title":"Session Ticket","body":"会话复用：客户端携带上次握手缓存的 ticket，服务端验证后可跳过完整握手，实现 0-RTT。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">网络 / TLS 1.3 / C 类型</div>
+      <h1>TLS 1.3</h1>
+      <p class="summary">TLS 1.3 把握手从 2-RTT 缩短到 1-RTT，并用 ECDHE 保证前向安全。理解握手流程、证书链验证和 0-RTT 的重放风险，是排查 HTTPS 延迟和证书问题的基础。</p>
+      <div class="tags"><span>TLS 1.3</span><span>ECDHE</span><span>Certificate</span><span>0-RTT</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>Handshake</strong><span>TLS握手：客户端和服务端协商加密套件、交换密钥、验证身份的过程，TLS 1.3 只需 1-RTT。</span></li>
+        <li><strong>Forward Secrecy</strong><span>前向安全：即使长期密钥泄漏，历史会话也无法被解密——依赖 ECDHE 每次生成临时密钥对。</span></li>
+        <li><strong>Session Ticket</strong><span>会话复用：客户端携带上次握手缓存的 ticket，服务端验证后可跳过完整握手，实现 0-RTT。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">Step Timeline</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <div class="edge e0"></div>
+        <div class="edge e1"></div>
+        <div class="edge e2"></div>
+        <div class="edge e3"></div>
+        <div class="edge e4"></div>
+        <div class="edge e5"></div>
+        <div class="node n1">Client</div>
+        <div class="node n2">Client<br>Hello</div>
+        <div class="node n3">Server<br>Hello</div>
+        <div class="node n4">Certifi<br>cate</div>
+        <div class="node n5">Key<br>Exchange</div>
+        <div class="node n6">App<br>Data</div>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnReset">重置</button>
+        <button class="ctrl" id="btnPrev">上一步</button>
+        <button class="ctrl primary" id="btnPlay">播放</button>
+        <button class="ctrl" id="btnNext">下一步</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-hd">当前状态</div>
+      <div class="status">
+        <span class="badge" id="stateBadge">normal</span>
+        <h2 id="stepTitle"></h2>
+        <p id="stepDesc"></p>
+        <p class="detail" id="stepDetail"></p>
+      </div>
+    </aside>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>背景与机制</h2>
+      <p>TLS 1.2 需要 2 次往返（TCP 握手 + TLS 握手）才能发送第一个字节。TLS 1.3 移除了 RSA 密钥交换和弱算法（RC4、DES、3DES、MD5、SHA-1），强制使用 ECDHE 保证前向安全，把握手压缩到 1-RTT（首次）或 0-RTT（会话恢复）。密钥派生使用 HKDF，握手全程加密，握手消息不暴露给网络中间设备。</p>
+    </section>
+    <section>
+      <h2>常见误区</h2>
+      <ul>
+        <li>把 HTTPS 等同于"安全"——TLS 只保护传输中的数据，服务端漏洞和 DNS 劫持需额外防护。</li>
+        <li>0-RTT 有重放风险：攻击者可截获并重播 0-RTT 数据，只适合幂等请求（GET），不可用于写操作。</li>
+        <li>握手变快不等于整体更快——证书链过长或缺少 OCSP Stapling 仍会造成明显延迟。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>工程场景</h2>
+      <ul>
+        <li>CDN 终止 TLS 后的证书生命周期管理，Let's Encrypt ACME 协议自动续期。</li>
+        <li>双向 TLS（mTLS）：客户端也提供证书，用于微服务互信（Istio、Envoy sidecar）。</li>
+        <li>gRPC 和 QUIC 都依赖 TLS 1.3；排查握手延迟可用 <code>openssl s_client -connect host:443 -tls1_3</code>。</li>
+        <li>证书固定（Certificate Pinning）防中间人，但更新证书时需同步更新 Pin，否则服务中断。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>边界与恢复</h2>
+      <p>动画覆盖三类场景：正常 1-RTT 握手到应用数据传输；证书验证失败（过期 / 域名不匹配 / CA 不受信任）导致握手中止并触发 alert；0-RTT 快速重连利用 session ticket 跳过握手直接发送数据。线上可用 <code>curl -v --tlsv1.3 https://example.com</code> 观察握手细节和证书链。</p>
+    </section>
+  </section>
+</main>
+
+<script>
+const STEPS = [
+  {
+    title: "Client Hello",
+    desc: "客户端发送支持的密码套件列表、随机数（client_random）和 key_share（ECDHE 临时公钥）。",
+    kind: "normal",
+    active: [0, 1],
+    edges: [0],
+    detail: "TLS 1.3 在 ClientHello 中直接附上 key_share，允许服务端在第一次回复时完成密钥交换，实现 1-RTT。ClientHello 中已移除所有废弃密码套件。"
+  },
+  {
+    title: "Server Hello + 证书",
+    desc: "服务端选择 TLS_AES_256_GCM_SHA384，回复自己的 key_share、server_random 并发送证书链。",
+    kind: "normal",
+    active: [1, 2, 3],
+    edges: [1, 2],
+    detail: "ServerHello 后紧接加密传输 EncryptedExtensions、Certificate 和 CertificateVerify，全部在同一个 flight 完成，减少往返。"
+  },
+  {
+    title: "证书链验证",
+    desc: "客户端验证服务端证书链：检查签名有效性、notBefore/notAfter、SAN 域名匹配和 OCSP 撤销状态。",
+    kind: "normal",
+    active: [0, 3, 4],
+    edges: [2, 3],
+    detail: "证书链从叶子证书到中间 CA 再到根 CA，每级用上级公钥验签。根 CA 需在操作系统信任库中。OCSP Stapling 由服务端预取撤销状态，避免客户端额外 HTTP 请求。"
+  },
+  {
+    title: "ECDHE 密钥交换",
+    desc: "双方用各自的 ECDHE 临时密钥对计算共享密钥（Shared Secret），通过 HKDF 派生出对称加密密钥。",
+    kind: "normal",
+    active: [0, 4],
+    edges: [3, 4],
+    detail: "ECDHE 每次握手生成新的临时密钥对，共享密钥不依赖长期私钥，保证前向安全（PFS）。即使服务端私钥事后泄漏，历史流量也无法被解密。"
+  },
+  {
+    title: "Client Finished",
+    desc: "客户端发送 Finished 消息，握手完成。双方切换到对称加密（AES-GCM 或 ChaCha20-Poly1305）。",
+    kind: "normal",
+    active: [0, 1, 4],
+    edges: [0, 4],
+    detail: "Finished 消息是对整个握手记录的 HMAC，防止中间人篡改协商参数。从此刻起所有数据均用协商好的对称密钥加密。TLS 1.3 首次握手共 1 RTT。"
+  },
+  {
+    title: "Application Data",
+    desc: "握手完成，正常加密通信。HTTPS 数据在 TLS record 中传输，内容对网络中间设备不可见。",
+    kind: "normal",
+    active: [0, 5],
+    edges: [4, 5],
+    detail: "每个 TLS record 最大 16KB，包含 content type、版本号、加密载荷和 AEAD 认证标签。Record 保证机密性（加密）和完整性（认证标签），任何篡改都会被检测到。"
+  },
+  {
+    title: "证书验证失败",
+    desc: "证书过期、域名不匹配或 CA 不受信任——客户端发送 alert(bad_certificate)，握手立即中止。",
+    kind: "failure",
+    active: [0, 1, 2],
+    fail: [3],
+    edges: [0, 1, 2],
+    detail: "常见原因：(1) 证书 notAfter 过期；(2) SAN 字段不含请求的域名；(3) 中间 CA 未随叶子证书一起发送；(4) 时钟偏差导致证书尚未生效。浏览器会展示 NET::ERR_CERT_INVALID。"
+  },
+  {
+    title: "0-RTT 快速重连",
+    desc: "客户端携带 session ticket，第一个请求与 ClientHello 同时发出，无需等待握手完成。",
+    kind: "recovery",
+    active: [0, 5],
+    recover: [0, 5],
+    edges: [0, 5],
+    detail: "0-RTT 减少一个 RTT 的建连延迟，适合延迟敏感场景。服务端必须验证 ticket 有效性和防重放窗口（early_data binder + replay protection）。只应用于幂等请求，非幂等写入必须等待 1-RTT 握手完成。"
+  }
+];
+
+let idx = 0, timer = null;
+const list = document.getElementById('stepList');
+const stepTitle = document.getElementById('stepTitle');
+const stepDesc = document.getElementById('stepDesc');
+const stepDetail = document.getElementById('stepDetail');
+const badge = document.getElementById('stateBadge');
+const play = document.getElementById('btnPlay');
+
+function drawList() {
+  list.innerHTML = STEPS.map((s, i) =>
+    '<button class="step-btn" data-i="' + i + '"><b>Step ' + (i + 1) + '</b>' + s.title + '</button>'
+  ).join('');
+  list.querySelectorAll('button').forEach(b => b.onclick = () => { idx = Number(b.dataset.i); pause(); render(); });
+}
+
+function render() {
+  const s = STEPS[idx];
+  stepTitle.textContent = s.title;
+  stepDesc.textContent = s.desc;
+  stepDetail.textContent = s.detail;
+  badge.textContent = s.kind;
+  badge.className = 'badge ' + s.kind;
+  document.querySelectorAll('.step-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
+  document.querySelectorAll('.node').forEach((n, i) => {
+    n.classList.toggle('active', (s.active || []).includes(i));
+    n.classList.toggle('fail', (s.fail || []).includes(i));
+    n.classList.toggle('recover', (s.recover || []).includes(i));
+  });
+  document.querySelectorAll('.edge').forEach((e, i) => e.classList.toggle('active', (s.edges || []).includes(i)));
+  document.getElementById('btnPrev').disabled = idx === 0;
+  document.getElementById('btnNext').disabled = idx === STEPS.length - 1;
+}
+
+function next() { idx = Math.min(STEPS.length - 1, idx + 1); render(); if (idx === STEPS.length - 1) pause(); }
+function prev() { idx = Math.max(0, idx - 1); render(); }
+function reset() { idx = 0; pause(); render(); }
+function pause() { if (timer) clearInterval(timer); timer = null; play.textContent = '播放'; }
+function toggle() {
+  if (timer) { pause(); return; }
+  play.textContent = '暂停';
+  timer = setInterval(next, 1800);
+}
+
+document.getElementById('btnNext').onclick = next;
+document.getElementById('btnPrev').onclick = prev;
+document.getElementById('btnReset').onclick = reset;
+play.onclick = toggle;
+drawList();
+render();
+</script>
+<script>if (window.NavTracker) NavTracker.track('TLS 1.3', window.location.href, '🔐', '网络');</script>
+<script src="../footer.js"></script>
+</body>
+</html>

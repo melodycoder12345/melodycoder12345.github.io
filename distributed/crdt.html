@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CRDT（无冲突复制数据类型）- 分布式</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#c084fc;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 18%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1100px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:22px;align-items:stretch;margin-bottom:28px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(1.8rem,3.5vw,3.5rem);line-height:1.08;letter-spacing:-.05em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:.95rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:5px 10px;font-size:.75rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.87rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.81rem;line-height:1.65}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:28px}
+.article-card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.6);border-radius:18px;padding:22px;display:flex;flex-direction:column;gap:14px}
+.article-card h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px}
+.article-card p{color:var(--dim);font-size:.88rem;line-height:1.82}
+.article-card ul{display:flex;flex-direction:column;gap:7px;padding-left:18px}
+.article-card li{color:var(--dim);font-size:.87rem;line-height:1.75}
+.article-card strong{color:var(--text);}
+.type-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+.type-item{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);border-radius:10px;padding:10px 12px}
+.type-item .type-name{font-size:.78rem;font-family:monospace;color:var(--accent);font-weight:700;margin-bottom:3px}
+.type-item .type-desc{font-size:.76rem;color:var(--dim);line-height:1.6}
+pre{background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.75rem;line-height:1.7;margin-top:10px}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;background:rgba(192,132,252,.1);padding:1px 4px;border-radius:4px;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.cm{color:#8b949e}.st{color:#a5d6ff}.num{color:#79c0ff}
+.table-wrap{overflow-x:auto;margin-top:10px}
+table{width:100%;border-collapse:collapse;font-size:.81rem}
+th{background:color-mix(in srgb,var(--accent) 8%,transparent);color:var(--accent);padding:8px 12px;text-align:left;border:1px solid rgba(255,255,255,.08);font-size:.76rem}
+td{padding:7px 12px;border:1px solid rgba(255,255,255,.07);color:var(--dim)}
+tr:hover td{background:rgba(255,255,255,.02)}
+.tag-inline{display:inline-flex;border-radius:999px;padding:2px 7px;font-size:.68rem;font-family:monospace;border:1px solid;vertical-align:middle;margin-left:4px}
+.tag-ok{border-color:var(--ok);color:var(--ok)}
+.tag-bad{border-color:var(--bad);color:var(--bad)}
+.tag-warn{border-color:var(--warn);color:var(--warn)}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:900px){.hero,.grid{grid-template-columns:1fr}.content{padding:28px 16px 56px}.type-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main class="content" data-page-type="B">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">分布式 / CRDT / B 类型</div>
+      <h1>CRDT<br>无冲突复制<br>数据类型</h1>
+      <p class="summary">CRDT 通过数学设计保证任何副本在接收到所有操作后最终状态相同，无需协调即可合并，是协同编辑、分布式计数器和购物车的基础。</p>
+      <div class="tags"><span>最终一致性</span><span>合并</span><span>G-Counter</span><span>LWW</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>State-based CRDT（CvRDT）</strong><span>通过合并完整状态实现收敛。合并函数是幂等、交换且结合的——无论消息顺序如何，最终状态相同。</span></li>
+        <li><strong>Op-based CRDT（CmRDT）</strong><span>只传播操作，接收方重放操作得到相同结果。要求消息传递可靠且操作满足交换律。</span></li>
+        <li><strong>Monotonic Join Semilattice</strong><span>CRDT 合并操作满足幂等性、交换律和结合律，保证无论哪些副本先合并，最终结果相同。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="grid">
+    <!-- 文章1: 为什么需要 CRDT -->
+    <article class="article-card">
+      <h2>为什么需要 CRDT？</h2>
+      <p>在 AP 分布式系统中（参考 CAP 定理），分区时系统选择继续服务（Available），各副本可能独立接受写入，产生冲突。传统解决方案是"最后写入者获胜"（LWW），但这会丢失并发写入。</p>
+      <p>CRDT 从数学层面解决这个问题：<strong>设计数据结构，使得合并操作天然满足幂等性、交换律和结合律</strong>。无论副本以何种顺序收到更新，合并后的状态必然相同。</p>
+      <p>核心洞察：不是"协调写入"（需要共识），而是"设计可自动合并的数据结构"（不需要协调）。</p>
+    </article>
+
+    <!-- 文章2: State-based vs Op-based + 代码示例 -->
+    <article class="article-card">
+      <h2>State-based vs Op-based CRDT</h2>
+      <p><strong>State-based CRDT（CvRDT）</strong>：副本定期互相发送完整状态，接收方用 <code>merge()</code> 函数合并。G-Counter 示例：</p>
+      <pre><span class="cm">// G-Counter: 每个副本维护自己的计数器向量</span>
+<span class="kw">type</span> <span class="fn">GCounter</span> = Map[NodeId, Int]
+
+<span class="kw">def</span> <span class="fn">increment</span>(nodeId: NodeId, gc: GCounter): GCounter =
+  gc + (nodeId -> (gc.getOrElse(nodeId, <span class="num">0</span>) + <span class="num">1</span>))
+
+<span class="kw">def</span> <span class="fn">value</span>(gc: GCounter): Int = gc.values.sum
+
+<span class="kw">def</span> <span class="fn">merge</span>(a: GCounter, b: GCounter): GCounter =
+  (a.keys ++ b.keys).map { k =>
+    k -> math.max(a.getOrElse(k, <span class="num">0</span>), b.getOrElse(k, <span class="num">0</span>))
+  }.toMap <span class="cm">// max 操作保证幂等、交换、结合</span></pre>
+      <p style="margin-top:8px"><strong>Op-based CRDT（CmRDT）</strong>：只传播操作（如 +1），要求可靠的消息传递和操作满足交换律（add(x) 和 add(y) 顺序无关）。通常更高效但依赖基础设施保证。</p>
+    </article>
+
+    <!-- 文章3: 常见 CRDT 类型 -->
+    <article class="article-card">
+      <h2>常见 CRDT 类型</h2>
+      <div class="type-grid">
+        <div class="type-item"><div class="type-name">G-Counter</div><div class="type-desc">只增计数器，merge 取 max。适合页面访问量统计。</div></div>
+        <div class="type-item"><div class="type-name">PN-Counter</div><div class="type-desc">两个 G-Counter：P（加法）- N（减法）= 净值。支持递减。</div></div>
+        <div class="type-item"><div class="type-name">G-Set</div><div class="type-desc">只增集合，merge 取并集。适合标签系统（不支持删除）。</div></div>
+        <div class="type-item"><div class="type-name">2P-Set</div><div class="type-desc">两个 G-Set：added + removed，删除不可撤销。</div></div>
+        <div class="type-item"><div class="type-name">OR-Set</div><div class="type-desc">用唯一标签区分同名元素，支持删除+重新添加。Riak 使用。</div></div>
+        <div class="type-item"><div class="type-name">LWW-Register</div><div class="type-desc">带时间戳的寄存器，最高时间戳的值获胜。依赖时钟同步。</div></div>
+      </div>
+      <div class="table-wrap" style="margin-top:14px">
+        <table>
+          <tr><th>类型</th><th>支持操作</th><th>删除支持</th></tr>
+          <tr><td>G-Counter</td><td>increment</td><td>❌</td></tr>
+          <tr><td>PN-Counter</td><td>increment, decrement</td><td>N/A</td></tr>
+          <tr><td>OR-Set</td><td>add, remove</td><td>✅</td></tr>
+          <tr><td>RGA（序列）</td><td>insert, delete</td><td>✅ (tombstone)</td></tr>
+        </table>
+      </div>
+    </article>
+
+    <!-- 文章4: LWW 的局限性和 Lamport 时钟 -->
+    <article class="article-card">
+      <h2>LWW 的局限性与 Lamport 时钟</h2>
+      <p><strong>LWW（Last Write Wins）</strong>是最简单的冲突解决策略：每次写入携带时间戳，时间戳大的值"获胜"。但这有严重问题：</p>
+      <ul>
+        <li><strong>时钟漂移</strong>：分布式系统的物理时钟不完全同步，可能造成旧值覆盖新值。</li>
+        <li><strong>并发写入丢失</strong>：两个合法的并发写入，只有一个"获胜"，另一个被静默丢弃。</li>
+        <li><strong>Cassandra 的使用</strong>：Cassandra 默认用 LWW，在同一 row 并发写时可能丢失数据。</li>
+      </ul>
+      <p><strong>Lamport 时钟</strong>是一种逻辑时钟：每个事件有一个递增计数器，消息携带发送方的计数器，接收方取 max(本地, 消息) + 1。它保证因果序但不能检测并发事件（需要向量时钟）。</p>
+      <pre><span class="cm">// Lamport 时钟：因果关系保证</span>
+<span class="kw">class</span> <span class="fn">LamportClock</span>:
+  <span class="fn">tick</span>(): <span class="kw">self</span>.time += <span class="num">1</span>
+  <span class="fn">update</span>(received_time): <span class="kw">self</span>.time = max(<span class="kw">self</span>.time, received_time) + <span class="num">1</span></pre>
+    </article>
+
+    <!-- 文章5: 工程场景 -->
+    <article class="article-card">
+      <h2>工程场景</h2>
+      <ul>
+        <li><strong>Figma 协同编辑</strong>：Figma 使用基于 CRDT 的方法（结合 OT 思想）让多人同时编辑同一画布不产生冲突，每个操作有唯一 ID 和向量时钟。</li>
+        <li><strong>Riak（Amazon Dynamo 的开源实现）</strong>：默认使用 OR-Set 和 LWW-Register 作为分布式数据结构，配合向量时钟检测并发写。</li>
+        <li><strong>Redis CRDT（Redis Enterprise）</strong>：Redis Enterprise 的 CRDT 模式支持 Counter、Set 等数据结构的跨地域自动合并，无需中心协调。</li>
+        <li><strong>Automerge / Yjs</strong>：开源 CRDT 库，用于构建协同编辑应用（如 VS Code Live Share 的底层）。</li>
+        <li><strong>PlanetScale / CockroachDB</strong>：某些内部数据结构（如 schema 元数据）使用 CRDT 思想保证跨节点最终一致。</li>
+      </ul>
+    </article>
+
+    <!-- 文章6: 误区 -->
+    <article class="article-card">
+      <h2>误区与边界</h2>
+      <p><strong>误区 1：CRDT 能解决所有冲突</strong><br>CRDT 只解决"数据结构层面"的冲突，不解决"业务语义冲突"。例如：两个用户同时修改一篇文章的同一段落，CRDT 可以合并，但合并后的语义是否正确需要人工判断或应用层决策。</p>
+      <p><strong>误区 2：CRDT 是免费的</strong><br>State-based CRDT 需要传输完整状态（带宽成本高），tombstone（删除标记）会无限增长需要定期 GC。OR-Set 的 tombstone 会随时间膨胀。</p>
+      <p><strong>误区 3：Op-based CRDT 更简单</strong><br>Op-based CRDT 要求可靠的消息传递（at-least-once）和操作幂等，需要消息去重机制，复杂度转移到了基础设施层。</p>
+      <p><strong>何时选择 CRDT？</strong>：有真实并发写需求 + 可以接受最终一致性 + 数据操作能抽象为可交换操作（计数器、集合、文本插入）时，CRDT 是极好的选择。</p>
+    </article>
+  </section>
+</main>
+<script>if (window.NavTracker) NavTracker.track('CRDT（无冲突复制数据类型）', window.location.href, '🔀', '分布式');</script>
+<script src="../footer.js"></script>
+</body>
+</html>

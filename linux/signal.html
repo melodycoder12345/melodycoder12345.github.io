@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>信号（Signal）- Linux</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#6ee7b7;--blue:#38bdf8;--green:#4ade80;--bad:#f87171;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+.topnav{display:flex;align-items:center;gap:14px;padding:11px 22px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-link{color:var(--dim);text-decoration:none;font-size:.88rem;}.back-link:hover{color:var(--text);}
+.topnav-title{font-size:1.05rem;font-weight:700;}
+.ntags{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.main{display:flex;flex:1;overflow:hidden;}
+/* Left panel */
+.ctrl-panel{width:265px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid var(--border);background:var(--panel);overflow:hidden;}
+.panel-hd{padding:10px 14px;border-bottom:1px solid var(--border);font-size:.72rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800;}
+.scenario-tabs{display:flex;flex-direction:column;gap:6px;padding:10px;}
+.sc-tab{border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:var(--dim);border-radius:10px;padding:9px 12px;cursor:pointer;text-align:left;font-family:inherit;font-size:.82rem;transition:all .15s;}
+.sc-tab:hover{color:var(--text);border-color:rgba(255,255,255,.18);}
+.sc-tab.active{border-color:var(--accent);color:var(--text);background:color-mix(in srgb,var(--accent) 12%,transparent);}
+.sc-tab b{display:block;font-size:.68rem;color:var(--accent);margin-bottom:2px;}
+.step-list{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:7px;}
+.step-item{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);color:var(--dim);border-radius:10px;padding:9px 11px;cursor:pointer;font-family:inherit;font-size:.8rem;text-align:left;transition:all .15s;width:100%;}
+.step-item:hover{color:var(--text);border-color:rgba(255,255,255,.14);}
+.step-item.active{border-color:var(--accent);color:var(--text);background:color-mix(in srgb,var(--accent) 12%,transparent);}
+.step-item b{display:block;font-size:.7rem;color:var(--accent);margin-bottom:3px;}
+.ctrl-foot{padding:10px;border-top:1px solid var(--border);display:flex;gap:6px;}
+.cbtn{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--text);border-radius:8px;padding:7px 10px;cursor:pointer;font-family:inherit;font-size:.82rem;flex:1;}
+.cbtn:hover{background:rgba(255,255,255,.1);}
+.cbtn.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);}
+.cbtn:disabled{opacity:.4;cursor:not-allowed;}
+/* Center viz panel */
+.viz-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;background:rgba(15,23,42,.5);}
+.svg-wrap{flex:1;padding:20px;position:relative;overflow:hidden;}
+svg.main-svg{width:100%;height:100%;}
+.desc-bar{padding:12px 20px;border-top:1px solid var(--border);background:rgba(255,255,255,.02);font-size:.88rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
+.step-badge{font-size:.72rem;padding:2px 8px;border-radius:99px;font-family:monospace;border:1px solid var(--accent);color:var(--accent);flex-shrink:0;}
+.step-badge.failure{border-color:var(--bad);color:var(--bad);}
+.step-badge.recovery{border-color:var(--green);color:var(--green);}
+/* Right code panel */
+.code-panel{width:420px;flex-shrink:0;display:flex;flex-direction:column;border-left:1px solid var(--border);background:#0d1117;overflow:hidden;}
+.code-hd{padding:10px 16px;border-bottom:1px solid var(--border);font-size:.78rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;background:var(--panel);}
+.dots{display:flex;gap:5px;}
+.dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:18px 20px;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.78rem;line-height:1.7;color:#e6edf3;}
+.code-body pre{white-space:pre-wrap;word-break:break-word;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.cm{color:#8b949e;font-style:italic}.pkg{color:#ffa657}.id{color:#79c0ff}.num{color:#79c0ff}
+/* SVG element styles */
+.box{transition:all .3s}
+.box-rect{fill:rgba(30,41,59,.9);stroke:rgba(255,255,255,.15);stroke-width:1.5;transition:all .3s}
+.box.active .box-rect{stroke:#6ee7b7;fill:color-mix(in srgb,#6ee7b7 14%,rgba(30,41,59,.9))}
+.box.fail .box-rect{stroke:#f87171;fill:color-mix(in srgb,#f87171 12%,rgba(30,41,59,.9))}
+.box.kernel .box-rect{fill:rgba(17,24,39,.9);stroke:rgba(56,189,248,.25)}
+.box.kernel.active .box-rect{stroke:#38bdf8;fill:color-mix(in srgb,#38bdf8 12%,rgba(17,24,39,.9))}
+.box-title{fill:#94a3b8;font-family:'Segoe UI',system-ui;font-size:11px;font-weight:700;text-anchor:middle;dominant-baseline:middle;transition:fill .3s}
+.box-state{fill:#64748b;font-family:monospace;font-size:10px;text-anchor:middle;dominant-baseline:middle;transition:fill .3s}
+.box.active .box-title{fill:#e2e8f0}
+.box.active .box-state{fill:#6ee7b7}
+.box.fail .box-state{fill:#f87171}
+.sig-arrow{stroke:#fbbf24;stroke-width:2;fill:none;opacity:0;transition:opacity .3s}
+.sig-arrow.active{opacity:1}
+.sig-lbl{fill:#fbbf24;font-family:monospace;font-size:10px;text-anchor:middle;opacity:0;transition:opacity .3s}
+.sig-lbl.active{opacity:1}
+.green-arrow{stroke:#4ade80;stroke-width:2;fill:none;opacity:0;transition:opacity .3s}
+.green-arrow.active{opacity:1}
+.red-arrow{stroke:#f87171;stroke-width:2;fill:none;opacity:0;transition:opacity .3s}
+.red-arrow.active{opacity:1}
+.boundary{stroke:rgba(255,255,255,.08);stroke-width:1;stroke-dasharray:6,4}
+.b-lbl{fill:#475569;font-family:'Segoe UI',system-ui;font-size:10px}
+@media(max-width:1100px){.code-panel{width:320px}}
+@media(max-width:850px){.code-panel{display:none}}
+</style>
+</head>
+<body>
+<div class="topnav">
+  <a class="back-link" href="index.html">← Linux</a>
+  <span class="topnav-title">信号（Signal）</span>
+  <div class="ntags">
+    <span class="ntag">SIGTERM</span><span class="ntag">SIGSEGV</span><span class="ntag">SIGCHLD</span><span class="ntag">signal handler</span><span class="ntag">async-signal-safe</span>
+  </div>
+</div>
+<div class="main">
+  <aside class="ctrl-panel">
+    <div class="panel-hd">场景选择</div>
+    <div class="scenario-tabs">
+      <button class="sc-tab active" data-sc="0"><b>场景 1</b>SIGTERM 优雅退出</button>
+      <button class="sc-tab" data-sc="1"><b>场景 2</b>SIGSEGV 段错误处理</button>
+      <button class="sc-tab" data-sc="2"><b>场景 3</b>SIGCHLD 子进程回收</button>
+    </div>
+    <div class="panel-hd" style="border-top:1px solid var(--border)">Step Timeline</div>
+    <div class="step-list" id="stepList"></div>
+    <div class="ctrl-foot">
+      <button class="cbtn" id="btnReset">重置</button>
+      <button class="cbtn" id="btnPrev">◀</button>
+      <button class="cbtn primary" id="btnPlay">播放</button>
+      <button class="cbtn" id="btnNext">▶</button>
+    </div>
+  </aside>
+  <section class="viz-panel">
+    <div class="svg-wrap">
+      <svg class="main-svg" id="vizSvg" viewBox="0 0 660 380" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <marker id="ahY" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#fbbf24"/></marker>
+          <marker id="ahG" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#4ade80"/></marker>
+          <marker id="ahR" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#f87171"/></marker>
+        </defs>
+        <!-- Kernel/User boundary -->
+        <line x1="0" y1="200" x2="660" y2="200" class="boundary"/>
+        <text x="12" y="190" class="b-lbl">用户态</text>
+        <text x="12" y="218" class="b-lbl">内核态</text>
+
+        <!-- Signal source box -->
+        <g id="bSrc" class="box">
+          <rect class="box-rect" x="30" y="50" width="110" height="60" rx="10"/>
+          <text class="box-title" x="85" y="75" id="srcTitle">kill -15 PID</text>
+          <text class="box-state" x="85" y="94" id="srcState">signal source</text>
+        </g>
+
+        <!-- Target process box -->
+        <g id="bProc" class="box">
+          <rect class="box-rect" x="260" y="50" width="150" height="70" rx="10"/>
+          <text class="box-title" x="335" y="75" id="procTitle">目标进程</text>
+          <text class="box-state" x="335" y="95" id="procState">Running</text>
+          <text class="box-state" x="335" y="111" style="fill:#475569;font-size:9px" id="procPid">PID: 1234</text>
+        </g>
+
+        <!-- Handler box -->
+        <g id="bHandler" class="box">
+          <rect class="box-rect" x="490" y="50" width="140" height="60" rx="10"/>
+          <text class="box-title" x="560" y="75" id="handlerTitle">Signal Handler</text>
+          <text class="box-state" x="560" y="94" id="handlerState">not invoked</text>
+        </g>
+
+        <!-- Kernel pending signals box -->
+        <g id="bKernel" class="box kernel">
+          <rect class="box-rect" x="210" y="230" width="200" height="70" rx="10"/>
+          <text class="box-title" x="310" y="255">内核 Pending 表</text>
+          <text class="box-state" x="310" y="274" id="kernelState">pending: none</text>
+          <text class="box-state" x="310" y="289" style="font-size:9px;fill:#475569" id="kernelState2">task_struct.pending</text>
+        </g>
+
+        <!-- Arrows: source → kernel -->
+        <path id="a0" class="sig-arrow" d="M140,80 Q200,80 210,260" marker-end="url(#ahY)"/>
+        <text id="l0" class="sig-lbl" x="172" y="168">sys_kill()</text>
+
+        <!-- Arrows: kernel → process (deliver) -->
+        <path id="a1" class="sig-arrow" d="M335,200 L335,125" marker-end="url(#ahY)"/>
+        <text id="l1" class="sig-lbl" x="348" y="165">deliver</text>
+
+        <!-- Arrows: process → handler -->
+        <path id="a2" class="green-arrow" d="M412,75 L488,75" marker-end="url(#ahG)"/>
+        <text id="l2" class="sig-lbl" x="450" y="66" style="fill:#4ade80">handler()</text>
+
+        <!-- Arrows: handler → exit (red) -->
+        <path id="a3" class="red-arrow" d="M560,112 L560,155 Q560,175 530,185" marker-end="url(#ahR)"/>
+        <text id="l3" class="sig-lbl" x="580" y="148" style="fill:#f87171">exit/cleanup</text>
+      </svg>
+    </div>
+    <div class="desc-bar">
+      <span class="step-badge" id="stepBadge">normal</span>
+      <span id="stepDesc">选择场景和步骤开始演示</span>
+    </div>
+  </section>
+  <aside class="code-panel">
+    <div class="code-hd">
+      <div class="dots"><div class="dot" style="background:#f87171"></div><div class="dot" style="background:#fbbf24"></div><div class="dot" style="background:#4ade80"></div></div>
+      <span id="codeTitle">Go 代码示例</span>
+    </div>
+    <div class="code-body"><pre id="codeContent"></pre></div>
+  </aside>
+</div>
+<script>
+const SCENARIOS=[
+{
+  name:"SIGTERM 优雅退出",
+  codeTitle:"Go — 优雅退出处理 SIGTERM",
+  code:`<span class="cm">// 优雅退出：捕获 SIGTERM/SIGINT</span>
+<span class="kw">package</span> <span class="pkg">main</span>
+
+<span class="kw">import</span> (
+  <span class="st">"context"</span>
+  <span class="st">"log"</span>
+  <span class="st">"os"</span>
+  <span class="st">"os/signal"</span>
+  <span class="st">"sync"</span>
+  <span class="st">"syscall"</span>
+)
+
+<span class="kw">func</span> <span class="fn">main</span>() {
+  ctx, cancel := context.<span class="fn">WithCancel</span>(
+    context.<span class="fn">Background</span>())
+  <span class="kw">var</span> wg sync.WaitGroup
+
+  <span class="cm">// 注册信号监听通道</span>
+  sigs := <span class="fn">make</span>(<span class="kw">chan</span> os.Signal, <span class="num">1</span>)
+  signal.<span class="fn">Notify</span>(sigs,
+    syscall.SIGTERM,
+    syscall.SIGINT)
+
+  <span class="kw">go func</span>() {
+    sig := <-sigs
+    log.<span class="fn">Printf</span>(<span class="st">"received %v"</span>, sig)
+    <span class="fn">cancel</span>()  <span class="cm">// 广播取消给所有 goroutine</span>
+    wg.<span class="fn">Wait</span>() <span class="cm">// 等待清理完成</span>
+    os.<span class="fn">Exit</span>(<span class="num">0</span>)
+  }()
+
+  wg.<span class="fn">Add</span>(<span class="num">1</span>)
+  <span class="kw">go</span> <span class="fn">worker</span>(ctx, &wg)
+
+  <span class="kw">select</span> {} <span class="cm">// block forever</span>
+}
+
+<span class="cm">// async-signal-safe 限制：</span>
+<span class="cm">// signal handler 中只能调用可重入函数</span>
+<span class="cm">// malloc/printf/lock 均不安全</span>
+<span class="cm">// Go runtime 会自动处理信号栈切换</span>`,
+  steps:[
+    {title:"进程正常运行（Running）",desc:"进程启动，signal.Notify 注册 SIGTERM/SIGINT 到 Go channel，goroutine 阻塞在 <-sigs 等待信号。",kind:"normal",src:"kill -15 PID",srcState:"待发送",proc:"Running",procState:"Running",handler:"Signal Handler",handlerState:"not invoked",kernel:"idle",kernelState2:"pending: none",arrows:[]},
+    {title:"kill -15 发送 SIGTERM",desc:"shell 执行 kill -15 1234，内核调用 sys_kill()，将 SIGTERM 写入目标进程 task_struct 的 pending signal 位图。",kind:"normal",src:"kill -15 1234",srcState:"sending",proc:"Running",procState:"Running",handler:"Signal Handler",handlerState:"not invoked",kernel:"接收 sys_kill()",kernelState2:"pending: SIGTERM",arrows:[0,1]},
+    {title:"内核标记 pending signal",desc:"目标进程处于运行态，内核在其 task_struct 的 pending.signal 字段设置 SIGTERM 位，等待下次返回用户态时递送。",kind:"normal",src:"kill -15 1234",srcState:"sent",proc:"Running",procState:"Running",handler:"Signal Handler",handlerState:"not invoked",kernel:"标记 pending",kernelState2:"pending: SIGTERM (bit 15)",arrows:[1]},
+    {title:"从内核态返回时检查 pending",desc:"进程下次从内核态（系统调用或中断处理）返回用户态时，内核调用 do_signal() 检查 pending signal。",kind:"normal",src:"kill -15 1234",srcState:"done",proc:"Checking",procState:"Pending Check",handler:"Signal Handler",handlerState:"waiting",kernel:"do_signal()",kernelState2:"delivering SIGTERM...",arrows:[1]},
+    {title:"执行注册的 signal handler",desc:"内核修改进程的栈帧（sigframe），使进程返回用户态时跳入 Go runtime 的 sigtramp，再回调 signal.Notify 写入 channel。",kind:"normal",src:"kill -15 1234",srcState:"done",proc:"In Handler",procState:"In Handler",handler:"Signal Handler",handlerState:"running",kernel:"clear pending",kernelState2:"pending: none",arrows:[2]},
+    {title:"handler 清理资源，exit(0)",desc:"goroutine 从 channel 读出信号，调用 cancel() 广播取消，wg.Wait() 等待所有 worker 完成，最后 os.Exit(0) 正常退出。",kind:"recovery",src:"kill -15 1234",srcState:"done",proc:"Exiting",procState:"exit(0)",handler:"cleanup done",handlerState:"completed",kernel:"idle",kernelState2:"pending: none",arrows:[3]}
+  ]
+},{
+  name:"SIGSEGV 段错误",
+  codeTitle:"Go — SIGSEGV 与 runtime panic",
+  code:`<span class="cm">// SIGSEGV：访问非法地址 → CPU 异常 → 内核信号</span>
+<span class="kw">package</span> <span class="pkg">main</span>
+
+<span class="kw">import</span> (
+  <span class="st">"log"</span>
+  <span class="st">"os"</span>
+  <span class="st">"os/signal"</span>
+  <span class="st">"syscall"</span>
+)
+
+<span class="kw">func</span> <span class="fn">main</span>() {
+  <span class="cm">// Go runtime 默认捕获 SIGSEGV 并 panic</span>
+  <span class="cm">// 显式注册可在 panic 前记录 crash info</span>
+  sigs := <span class="fn">make</span>(<span class="kw">chan</span> os.Signal, <span class="num">1</span>)
+  signal.<span class="fn">Notify</span>(sigs, syscall.SIGSEGV)
+
+  <span class="kw">go func</span>() {
+    sig := <-sigs
+    log.<span class="fn">Printf</span>(<span class="st">"FATAL: %v, writing crashlog"</span>, sig)
+    os.<span class="fn">Exit</span>(<span class="num">11</span>) <span class="cm">// 128 + SIGSEGV(11)</span>
+  }()
+
+  <span class="cm">// 触发 nil pointer dereference</span>
+  <span class="kw">var</span> p *<span class="id">int</span> = <span class="num">nil</span>
+  _ = *p <span class="cm">// → SIGSEGV</span>
+}
+
+<span class="cm">// Go runtime 实际处理路径：</span>
+<span class="cm">// SIGSEGV → runtime.sigpanic</span>
+<span class="cm">// → panic: invalid memory address</span>
+<span class="cm">// → goroutine stack trace</span>
+<span class="cm">// → core dump (GOTRACEBACK=crash)</span>
+<span class="cm">// exit code: 2 (panic) 或 11 (raw signal)</span>`,
+  steps:[
+    {title:"进程访问非法地址",desc:"程序执行 *nil 或访问越界内存，CPU MMU 查页表时发现虚拟地址无合法映射。",kind:"normal",src:"进程自身",srcState:"非法访问",proc:"Running",procState:"Running",handler:"Default Handler",handlerState:"SIG_DFL",kernel:"idle",kernelState2:"pending: none",arrows:[]},
+    {title:"CPU 触发 Page Fault → 内核",desc:"CPU 触发 #PF（Page Fault）硬件异常，自动跳入内核的 do_page_fault() 异常处理例程。",kind:"failure",src:"CPU #PF",srcState:"exception",proc:"Faulting",procState:"Page Fault",handler:"Default Handler",handlerState:"SIG_DFL",kernel:"do_page_fault()",kernelState2:"checking VMA...",arrows:[0,1]},
+    {title:"内核判断无权限 → 发送 SIGSEGV",desc:"内核检查进程的 VMA（虚拟内存区域），发现该地址无读写权限（not mapped），决定发送 SIGSEGV 给进程。",kind:"failure",src:"CPU #PF",srcState:"exception",proc:"Faulting",procState:"Faulting",handler:"Default Handler",handlerState:"SIG_DFL",kernel:"force_sig(SIGSEGV)",kernelState2:"pending: SIGSEGV",arrows:[1]},
+    {title:"默认动作：core dump + 进程终止",desc:"SIGSEGV 默认动作是 Core+Terminate：写 core dump 文件（包含内存快照和寄存器状态），进程以退出码 11 终止。",kind:"failure",src:"CPU #PF",srcState:"done",proc:"Terminated",procState:"exit(11)",handler:"core dump",handlerState:"written",kernel:"idle",kernelState2:"pending: none",arrows:[2,3]}
+  ]
+},{
+  name:"SIGCHLD 子进程回收",
+  codeTitle:"Go — SIGCHLD 避免僵尸进程",
+  code:`<span class="cm">// SIGCHLD：子进程退出时内核通知父进程</span>
+<span class="kw">package</span> <span class="pkg">main</span>
+
+<span class="kw">import</span> (
+  <span class="st">"log"</span>
+  <span class="st">"os"</span>
+  <span class="st">"os/exec"</span>
+  <span class="st">"os/signal"</span>
+  <span class="st">"syscall"</span>
+)
+
+<span class="kw">func</span> <span class="fn">main</span>() {
+  <span class="cm">// 创建子进程</span>
+  cmd := exec.<span class="fn">Command</span>(<span class="st">"sleep"</span>, <span class="st">"2"</span>)
+  cmd.<span class="fn">Start</span>()
+  childPid := cmd.Process.Pid
+
+  <span class="cm">// 监听 SIGCHLD</span>
+  sigs := <span class="fn">make</span>(<span class="kw">chan</span> os.Signal, <span class="num">1</span>)
+  signal.<span class="fn">Notify</span>(sigs, syscall.SIGCHLD)
+
+  <span class="kw">go func</span>() {
+    <-sigs
+    <span class="cm">// waitpid 回收子进程，释放 task_struct</span>
+    <span class="kw">var</span> ws syscall.WaitStatus
+    pid, _ := syscall.<span class="fn">Wait4</span>(
+      childPid, &ws, <span class="num">0</span>, <span class="num">nil</span>)
+    log.<span class="fn">Printf</span>(
+      <span class="st">"child %d exited: %v"</span>, pid, ws)
+  }()
+
+  <span class="cm">// 不调用 waitpid：子进程变为僵尸进程</span>
+  <span class="cm">// ps 输出显示为 Z 状态（zombie）</span>
+  <span class="cm">// 僵尸占用 PID 和 task_struct，不释放</span>
+  os.<span class="fn">Exit</span>(<span class="num">0</span>)
+}`,
+  steps:[
+    {title:"父进程 fork() 创建子进程",desc:"父进程调用 fork()，内核创建子进程副本，两者并发运行。父进程注册 SIGCHLD handler 等待子进程退出。",kind:"normal",src:"父进程",srcState:"running",proc:"Parent Running",procState:"Running",handler:"SIGCHLD Handler",handlerState:"waiting",kernel:"idle",kernelState2:"pending: none",arrows:[]},
+    {title:"子进程完成工作并调用 exit()",desc:"子进程完成任务，调用 exit()，内核保留其 task_struct（zombie 状态），等待父进程用 waitpid() 回收。",kind:"normal",src:"子进程",srcState:"exit(0)",proc:"Parent Running",procState:"Running",handler:"SIGCHLD Handler",handlerState:"waiting",kernel:"child→zombie",kernelState2:"zombie: child PID",arrows:[0,1]},
+    {title:"内核向父进程发送 SIGCHLD",desc:"子进程进入 zombie 状态时，内核向父进程发送 SIGCHLD，通知子进程状态发生变化（退出或停止）。",kind:"normal",src:"子进程",srcState:"zombie",proc:"Recv SIGCHLD",procState:"In Handler",handler:"SIGCHLD Handler",handlerState:"running",kernel:"send SIGCHLD",kernelState2:"pending: SIGCHLD",arrows:[1,2]},
+    {title:"waitpid() 回收资源：僵尸消除",desc:"父进程在 handler 中调用 wait4(childPid)，内核释放子进程的 task_struct，PID 可复用，僵尸彻底清除。",kind:"recovery",src:"子进程",srcState:"reaped",proc:"Parent Running",procState:"Running",handler:"wait4() done",handlerState:"completed",kernel:"idle",kernelState2:"zombie cleared",arrows:[3]}
+  ]
+}];
+
+let sc=0,idx=0,timer=null;
+const stepList=document.getElementById('stepList'),descEl=document.getElementById('stepDesc'),badgeEl=document.getElementById('stepBadge');
+
+function applyState(s){
+  const set=(id,txt)=>{const el=document.getElementById(id);if(el)el.textContent=txt||'';};
+  const cls=(id,add,rem)=>{const el=document.getElementById(id);if(el){rem.forEach(c=>el.classList.remove(c));add.forEach(c=>el.classList.add(c));}};
+  set('srcTitle',s.src||'');set('srcState',s.srcState||'');
+  set('procState',s.procState||'');set('procPid','PID: 1234');
+  set('handlerTitle',s.handler||'');set('handlerState',s.handlerState||'');
+  set('kernelState',s.kernelState||'');set('kernelState2',s.kernelState2||'');
+  // proc box state
+  const bProc=document.getElementById('bProc');
+  if(bProc){bProc.classList.remove('active','fail');if(s.procState&&s.procState!=='idle'){if(s.kind==='failure'||s.procState==='Terminated'||s.procState==='Faulting'||s.procState==='exit(11)')bProc.classList.add('fail');else bProc.classList.add('active');}}
+  const bKernel=document.getElementById('bKernel');
+  if(bKernel){bKernel.classList.remove('active');if(s.kernelState&&s.kernelState!=='idle')bKernel.classList.add('active');}
+  const bHandler=document.getElementById('bHandler');
+  if(bHandler){bHandler.classList.remove('active');if(s.handlerState&&s.handlerState!=='not invoked'&&s.handlerState!=='SIG_DFL'&&s.handlerState!=='waiting')bHandler.classList.add('active');}
+  // arrows
+  ['a0','a1','a2','a3'].forEach((id,i)=>{
+    const el=document.getElementById(id),ll=document.getElementById('l'+i);
+    const on=(s.arrows||[]).includes(i);
+    if(el)el.style.opacity=on?'1':'0';
+    if(ll)ll.style.opacity=on?'1':'0';
+  });
+}
+
+function loadScenario(s){
+  sc=s;idx=0;pause();
+  document.querySelectorAll('.sc-tab').forEach((t,i)=>t.classList.toggle('active',i===s));
+  document.getElementById('codeContent').innerHTML=SCENARIOS[s].code;
+  document.getElementById('codeTitle').textContent=SCENARIOS[s].codeTitle;
+  drawSteps();render();
+}
+
+function drawSteps(){
+  const steps=SCENARIOS[sc].steps;
+  stepList.innerHTML=steps.map((s,i)=>`<button class="step-item" data-i="${i}"><b>Step ${i+1}</b>${s.title}</button>`).join('');
+  stepList.querySelectorAll('button').forEach(b=>b.onclick=()=>{idx=+b.dataset.i;pause();render();});
+}
+
+function render(){
+  const s=SCENARIOS[sc].steps[idx];
+  descEl.textContent=s.desc;badgeEl.textContent=s.kind;badgeEl.className='step-badge '+s.kind;
+  stepList.querySelectorAll('button').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  applyState(s);
+  document.getElementById('btnPrev').disabled=idx===0;
+  document.getElementById('btnNext').disabled=idx===SCENARIOS[sc].steps.length-1;
+}
+
+function next(){const len=SCENARIOS[sc].steps.length;idx=Math.min(len-1,idx+1);render();if(idx===len-1)pause();}
+function prev(){idx=Math.max(0,idx-1);render();}
+function reset(){idx=0;pause();render();}
+function pause(){if(timer)clearInterval(timer);timer=null;document.getElementById('btnPlay').textContent='播放';}
+function toggle(){if(timer){pause();return;}document.getElementById('btnPlay').textContent='暂停';timer=setInterval(next,2200);}
+
+document.querySelectorAll('.sc-tab').forEach((t,i)=>t.onclick=()=>loadScenario(i));
+document.getElementById('btnNext').onclick=next;document.getElementById('btnPrev').onclick=prev;
+document.getElementById('btnReset').onclick=reset;document.getElementById('btnPlay').onclick=toggle;
+loadScenario(0);
+if(window.NavTracker)NavTracker.track('信号（Signal）',window.location.href,'⚡','Linux');
+</script>
+</body>
+</html>

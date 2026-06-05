@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Linux 网络协议栈 - Linux</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#6ee7b7;--blue:#38bdf8;--green:#4ade80;--bad:#f87171;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 18%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:520px;display:flex;flex-direction:column;padding:18px}
+.stage{position:relative;flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:radial-gradient(circle at 50% 20%,rgba(255,255,255,.05),transparent 50%),rgba(15,23,42,.64);overflow:hidden;min-height:420px}
+/* SVG styles */
+.nd rect{fill:rgba(30,41,59,.9);stroke:rgba(255,255,255,.15);stroke-width:1.5;transition:all .3s}
+.nd.active rect{stroke:#6ee7b7;fill:color-mix(in srgb,#6ee7b7 14%,rgba(30,41,59,.9))}
+.nd.fail rect{stroke:#f87171;fill:color-mix(in srgb,#f87171 12%,rgba(30,41,59,.9))}
+.nd.recv rect{stroke:#38bdf8;fill:color-mix(in srgb,#38bdf8 12%,rgba(30,41,59,.9))}
+.nd.dashed rect{stroke-dasharray:6,3;stroke:rgba(251,191,36,.35)}
+.nd.dashed.active rect{stroke:#fbbf24;stroke-dasharray:none;fill:color-mix(in srgb,#fbbf24 12%,rgba(30,41,59,.9))}
+.nd text{fill:#94a3b8;font-family:'Segoe UI',system-ui;font-size:11px;text-anchor:middle;dominant-baseline:middle;transition:fill .3s;pointer-events:none}
+.nd.active text,.nd.recv text{fill:#e2e8f0}
+.nd text.sub{font-size:9px;fill:#64748b}
+.nd.active text.sub{fill:#94a3b8}
+.nd.dashed text{fill:#78716c}
+.nd.dashed.active text{fill:#e2e8f0}
+.eg{stroke:rgba(110,231,183,.18);stroke-width:2;fill:none;transition:stroke .3s,filter .3s,opacity .3s;marker-end:url(#ah)}
+.eg.active{stroke:#6ee7b7;filter:drop-shadow(0 0 6px rgba(110,231,183,.5))}
+.eg.recv{stroke:rgba(56,189,248,.18);marker-end:url(#ahB)}
+.eg.recv.active{stroke:#38bdf8;filter:drop-shadow(0 0 6px rgba(56,189,248,.5))}
+.dir-lbl{fill:#64748b;font-family:monospace;font-size:9px;text-anchor:middle;opacity:0;transition:opacity .3s}
+.dir-lbl.active{opacity:1}
+.layer-bg{fill:rgba(255,255,255,.02);stroke:rgba(255,255,255,.05);stroke-width:1}
+.layer-lbl{fill:#374151;font-family:'Segoe UI',system-ui;font-size:9px;text-anchor:start}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}
+.status p{color:var(--dim);font-size:.88rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.failure{border-color:var(--bad);color:var(--bad)}
+.badge.recv{border-color:var(--blue);color:var(--blue)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+code{background:rgba(255,255,255,.08);border-radius:4px;padding:1px 5px;font-family:monospace;font-size:.82em;color:var(--accent)}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"sk_buff","body":"内核中表示网络数据包的核心数据结构，贯穿从网卡到应用层的完整路径，通过指针调整减少数据复制","tag":"term"},
+  {"title":"Netfilter/iptables","body":"内核网络钩子框架，可在包处理的 PREROUTING/INPUT/OUTPUT/FORWARD/POSTROUTING 节点插入过滤/NAT/连接跟踪规则","tag":"term"},
+  {"title":"NAPI（New API）","body":"现代网卡驱动的中断+轮询混合模型，高流量时切换到轮询模式，减少中断开销，提升吞吐","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">Linux / Network Stack / C 类型</div>
+      <h1>Linux 网络协议栈</h1>
+      <p class="summary">Linux 网络栈从用户态 socket 到网卡 DMA 经过多个内核子系统。理解数据包的完整收发路径，是分析高性能网络、调优 TCP 参数和排查网络问题的基础。</p>
+      <div class="tags"><span>Socket</span><span>sk_buff</span><span>网卡 DMA</span><span>TCP 内核栈</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>sk_buff</strong><span>内核中表示网络数据包的核心数据结构，贯穿从网卡到应用层的完整路径，通过指针调整减少数据复制</span></li>
+        <li><strong>Netfilter/iptables</strong><span>内核网络钩子框架，可在包处理的各节点插入过滤/NAT/连接跟踪规则</span></li>
+        <li><strong>NAPI（New API）</strong><span>现代网卡驱动的中断+轮询混合模型，高流量时切换到轮询模式，减少中断开销</span></li>
+      </ul>
+    </div>
+  </section>
+  <section class="lab">
+    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <svg id="vizSvg" width="100%" height="100%" viewBox="0 0 680 460" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <marker id="ah" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+              <polygon points="0 0,8 3,0 6" fill="context-stroke"/>
+            </marker>
+            <marker id="ahB" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+              <polygon points="0 0,8 3,0 6" fill="#38bdf8"/>
+            </marker>
+          </defs>
+
+          <!-- Layer backgrounds -->
+          <rect class="layer-bg" x="4" y="4" width="672" height="80" rx="6"/>
+          <text class="layer-lbl" x="10" y="18">用户态</text>
+          <rect class="layer-bg" x="4" y="90" width="672" height="364" rx="6"/>
+          <text class="layer-lbl" x="10" y="104">内核态</text>
+
+          <!-- SEND direction edges (green) -->
+          <line id="e0" class="eg" x1="115" y1="48" x2="200" y2="48"/>
+          <line id="e1" class="eg" x1="290" y1="90" x2="290" y2="155"/>
+          <line id="e2" class="eg" x1="290" y1="215" x2="290" y2="275"/>
+          <line id="e3" class="eg" x1="345" y1="300" x2="440" y2="300"/>
+          <line id="e4" class="eg" x1="290" y1="345" x2="290" y2="390"/>
+          <line id="e5" class="eg" x1="240" y1="415" x2="120" y2="415"/>
+
+          <!-- RECV direction edges (blue) -->
+          <line id="e6" class="eg recv" x1="120" y1="430" x2="240" y2="430"/>
+          <line id="e7" class="eg recv" x1="290" y1="400" x2="290" y2="355"/>
+          <line id="e8" class="eg recv" x1="420" y1="300" x2="330" y2="300"/>
+          <line id="e9" class="eg recv" x1="290" y1="285" x2="290" y2="225"/>
+          <line id="e10" class="eg recv" x1="290" y1="165" x2="290" y2="100"/>
+
+          <!-- Direction labels -->
+          <text id="dl0" class="dir-lbl" x="160" y="40">write()</text>
+          <text id="dl1" class="dir-lbl" x="305" y="130">TCP封装</text>
+          <text id="dl2" class="dir-lbl" x="305" y="252">IP封装</text>
+          <text id="dl3" class="dir-lbl" x="393" y="292">Netfilter</text>
+          <text id="dl4" class="dir-lbl" x="305" y="370">TX ring</text>
+          <text id="dl5" class="dir-lbl" x="180" y="408">DMA send</text>
+
+          <!-- AppProcess -->
+          <g id="n0" class="nd">
+            <rect x="30" y="22" width="85" height="52" rx="9"/>
+            <text x="73" y="44">应用进程</text>
+            <text x="73" y="60" class="sub">write(sockfd)</text>
+          </g>
+          <!-- Socket -->
+          <g id="n1" class="nd">
+            <rect x="200" y="22" width="80" height="52" rx="9"/>
+            <text x="240" y="44">Socket</text>
+            <text x="240" y="60" class="sub">VFS layer</text>
+          </g>
+          <!-- TCP Layer -->
+          <g id="n2" class="nd">
+            <rect x="250" y="112" width="80" height="52" rx="9"/>
+            <text x="290" y="134">TCP 层</text>
+            <text x="290" y="150" class="sub">seq / cwnd</text>
+          </g>
+          <!-- IP Layer -->
+          <g id="n3" class="nd">
+            <rect x="250" y="272" width="80" height="52" rx="9"/>
+            <text x="290" y="294">IP 层</text>
+            <text x="290" y="310" class="sub">路由 / ARP</text>
+          </g>
+          <!-- Netfilter -->
+          <g id="n4" class="nd dashed">
+            <rect x="440" y="272" width="90" height="52" rx="9"/>
+            <text x="485" y="289">Netfilter</text>
+            <text x="485" y="306" class="sub">iptables hooks</text>
+          </g>
+          <!-- NIC Driver -->
+          <g id="n5" class="nd">
+            <rect x="250" y="392" width="80" height="52" rx="9"/>
+            <text x="290" y="414">NIC 驱动</text>
+            <text x="290" y="430" class="sub">TX/RX ring</text>
+          </g>
+          <!-- Physical NIC -->
+          <g id="n6" class="nd">
+            <rect x="30" y="392" width="85" height="52" rx="9"/>
+            <text x="73" y="414">物理网卡</text>
+            <text x="73" y="430" class="sub">DMA</text>
+          </g>
+        </svg>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnReset">重置</button>
+        <button class="ctrl" id="btnPrev">上一步</button>
+        <button class="ctrl primary" id="btnPlay">播放</button>
+        <button class="ctrl" id="btnNext">下一步</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-hd">当前状态</div>
+      <div class="status">
+        <span class="badge" id="stateBadge">normal</span>
+        <h2 id="stepTitle">选择步骤开始</h2>
+        <p id="stepDesc"></p>
+        <p id="stepDetail" style="margin-top:8px;font-size:.82rem;color:var(--dim2)"></p>
+      </div>
+    </aside>
+  </section>
+  <section class="deep">
+    <section>
+      <h2>零拷贝优化</h2>
+      <ul>
+        <li><code>sendfile()</code>：数据从文件直接到 socket buffer，绕过用户空间，减少 2 次 CPU 复制（nginx 静态文件默认使用）</li>
+        <li><code>mmap + write</code>：mmap 将文件映射到用户空间，write 时 page cache 直接传给网卡</li>
+        <li><code>splice()</code>：内核内管道拼接，零复制传输，适合代理场景</li>
+        <li>sk_buff 通过 headroom/tailroom 指针避免数据移动，协议层只修改指针偏移</li>
+      </ul>
+    </section>
+    <section>
+      <h2>TCP 内核参数调优</h2>
+      <ul>
+        <li><code>tcp_rmem/tcp_wmem</code>：receive/send buffer 动态范围，影响吞吐上限</li>
+        <li><code>tcp_congestion_control</code>：bbr 适合弱网；cubic 适合数据中心</li>
+        <li><code>net.core.somaxconn</code>：listen backlog 上限，影响突发连接接受能力</li>
+        <li><code>tcp_fastopen</code>：TFO 在 SYN 包携带数据，减少 1 RTT 建连延迟</li>
+      </ul>
+    </section>
+    <section>
+      <h2>DPDK / XDP Bypass 内核</h2>
+      <p>高性能场景下，内核网络栈本身成为瓶颈（中断处理、内存拷贝、锁竞争）：</p>
+      <ul>
+        <li><strong>DPDK</strong>：用户态轮询驱动，绕过内核网络栈，延迟 &lt;1µs，适合 NFV/5G</li>
+        <li><strong>eBPF XDP</strong>：在网卡驱动层（最早 hook 点）运行 eBPF 程序，丢包/转发决定在 DMA 后立即做，不进入内核栈</li>
+        <li><strong>io_uring</strong>：异步 I/O 接口，减少系统调用次数，适合高并发 socket</li>
+      </ul>
+    </section>
+    <section>
+      <h2>工程场景与排查</h2>
+      <ul>
+        <li>查 TCP receive buffer 是否满：<code>ss -tmip</code> 查看 rcv_space 和 rcv_buf</li>
+        <li>Netfilter 规则影响性能：<code>nft list ruleset</code> 检查规则数量</li>
+        <li>高软中断：<code>cat /proc/softirqs</code> 查看 NET_RX 软中断分布</li>
+        <li>网卡 RX 队列积压：<code>ethtool -S eth0</code> 查看 rx_missed_errors</li>
+      </ul>
+    </section>
+  </section>
+</main>
+<script>
+const STEPS=[
+  {title:"应用 write(sockfd, data)",desc:"应用层调用 write()，系统调用进入内核态。数据从用户 buffer 复制到 socket send buffer（sk_buff 链）。",kind:"normal",nodes:[0,1],edges:[0],dlabels:[0],detail:"write() 是同步系统调用，完成时数据已在内核 socket buffer，应用可复用 buffer，但不代表已发出。"},
+  {title:"TCP 层：封装头部，管理状态",desc:"TCP 层获取 sk_buff，添加 TCP 头（src port、dst port、seq、ack、flags），更新拥塞窗口（cwnd）和发送窗口。",kind:"normal",nodes:[1,2],edges:[1],dlabels:[1],detail:"如果 cwnd 或 receiver window 为 0，TCP 会暂停发送（流量控制）。nagle 算法可能将小包合并。"},
+  {title:"IP 层：封装 IP 头，查路由，ARP",desc:"IP 层添加 IP 头（TTL、协议、src/dst IP），查路由表找下一跳，若无 ARP 缓存则发 ARP 请求解析 MAC 地址。",kind:"normal",nodes:[2,3],edges:[2],dlabels:[2],detail:"路由查找用最长前缀匹配（LPM）。ARP 缓存超时（默认 5min）后需重新解析，会有短暂延迟。"},
+  {title:"Netfilter OUTPUT 钩子：iptables 检查",desc:"IP 层完成后数据包经过 Netfilter 的 OUTPUT 钩子，iptables/nftables 规则在此决定是否放行、修改（NAT）或丢弃。",kind:"normal",nodes:[3,4],edges:[3],dlabels:[3],detail:"连接跟踪（conntrack）也在此建立/查找连接状态。规则过多会明显影响转发性能。"},
+  {title:"网卡驱动：提交 TX ring DMA 描述符",desc:"驱动层将 sk_buff 转成 DMA 描述符写入 TX ring（环形队列），通知网卡 MMIO 寄存器有新数据包待发送。",kind:"normal",nodes:[3,5],edges:[4],dlabels:[4],detail:"TX ring 是锁无关的 MPSC 队列。发满时 qdisc（queueing discipline）的令牌桶/SFQ 等策略介入。"},
+  {title:"网卡 DMA：自主读取内存发送",desc:"网卡控制器通过 DMA 自主读取内存中的数据包，无需 CPU 参与。发送完成后触发中断，驱动回收 sk_buff。",kind:"normal",nodes:[5,6],edges:[5],dlabels:[5],detail:"DMA 完成中断（TX complete IRQ）触发 sk_buff 释放。可用 ethtool -C 调整中断合并（coalesce）参数。"},
+  {title:"（收包）网卡 DMA 中断 / NAPI 轮询",desc:"数据包到达网卡，DMA 写入 RX ring buffer。触发硬件中断（或 NAPI 在高负载下切轮询），驱动开始处理。",kind:"recv",nodes:[6,5],edges:[6],dlabels:[],detail:"NAPI: 第一个包触发中断，之后切轮询消费 RX ring，直到队列空才重开中断，大幅减少中断次数。"},
+  {title:"驱动创建 sk_buff 封装数据包",desc:"驱动从 RX ring 读取 DMA 描述符，创建 sk_buff，设置 data/tail/end 指针，提交给内核网络层处理。",kind:"recv",nodes:[5,3],edges:[7],dlabels:[],detail:"sk_buff 的 headroom 预留给上层协议头，tail 和 end 之间是有效数据。整个收发路径只修改指针，不移动数据。"},
+  {title:"Netfilter INPUT 钩子：连接跟踪+过滤",desc:"数据包经过 Netfilter INPUT 钩子，conntrack 查找/建立连接状态，iptables 防火墙规则决定是否递交给上层。",kind:"recv",nodes:[4,3],edges:[8],dlabels:[],detail:"conntrack 状态：NEW/ESTABLISHED/RELATED/INVALID。INVALID 包默认丢弃，不建立新状态。"},
+  {title:"TCP 层：校验序列号，ACK，放入 buffer",desc:"TCP 层验证序列号（防止重放），更新接收窗口，将数据放入 socket receive buffer，发送 ACK 给对端。",kind:"recv",nodes:[3,2],edges:[9],dlabels:[],detail:"如果数据乱序，TCP 会暂存在 out-of-order queue，等缺失段到达再一起提交 application（SACK 优化）。"},
+  {title:"应用 read(sockfd, buf)：用户空间",desc:"应用层调用 read()，内核将 socket receive buffer 中的数据复制到用户空间 buffer，系统调用返回。",kind:"recv",nodes:[2,1,0],edges:[10],dlabels:[],detail:"这是最后一次数据复制：内核→用户空间。零拷贝技术（mmap/splice）可消除此复制，但增加了使用复杂度。"}
+];
+let idx=0,timer=null;
+const stepList=document.getElementById('stepList'),stepTitle=document.getElementById('stepTitle'),stepDesc=document.getElementById('stepDesc'),stepDetail=document.getElementById('stepDetail'),stateBadge=document.getElementById('stateBadge'),btnPlay=document.getElementById('btnPlay');
+function drawList(){stepList.innerHTML=STEPS.map((s,i)=>`<button class="step-btn" data-i="${i}"><b>Step ${i+1}</b>${s.title}</button>`).join('');stepList.querySelectorAll('button').forEach(b=>b.onclick=()=>{idx=+b.dataset.i;pause();render();});}
+function render(){
+  const s=STEPS[idx];
+  stepTitle.textContent=s.title;stepDesc.textContent=s.desc;stepDetail.textContent=s.detail||'';
+  stateBadge.textContent=s.kind==='recv'?'recv':s.kind;stateBadge.className='badge '+(s.kind==='recv'?'recv':s.kind);
+  stepList.querySelectorAll('.step-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  for(let i=0;i<7;i++){const n=document.getElementById('n'+i);if(n){n.classList.remove('active','fail','recv');if((s.nodes||[]).includes(i))n.classList.add(s.kind==='recv'?'recv':'active');}}
+  for(let i=0;i<11;i++){const e=document.getElementById('e'+i);if(e)e.classList.toggle('active',(s.edges||[]).includes(i));}
+  for(let i=0;i<6;i++){const d=document.getElementById('dl'+i);if(d)d.classList.toggle('active',(s.dlabels||[]).includes(i));}
+  document.getElementById('btnPrev').disabled=idx===0;
+  document.getElementById('btnNext').disabled=idx===STEPS.length-1;
+}
+function next(){idx=Math.min(STEPS.length-1,idx+1);render();if(idx===STEPS.length-1)pause();}
+function prev(){idx=Math.max(0,idx-1);render();}
+function reset(){idx=0;pause();render();}
+function pause(){if(timer)clearInterval(timer);timer=null;btnPlay.textContent='播放';}
+function toggle(){if(timer){pause();return;}btnPlay.textContent='暂停';timer=setInterval(next,1900);}
+document.getElementById('btnNext').onclick=next;document.getElementById('btnPrev').onclick=prev;document.getElementById('btnReset').onclick=reset;btnPlay.onclick=toggle;
+drawList();render();
+if(window.NavTracker)NavTracker.track('Linux 网络协议栈',window.location.href,'🌐','Linux');
+</script>
+</body>
+</html>

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>地理位置服务 - 系统设计</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#f59e0b;--blue:#38bdf8;--green:#4ade80;--red:#f87171;--purple:#c084fc;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 15%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:440px;display:flex;flex-direction:column;padding:18px}
+.stage{position:relative;flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:radial-gradient(circle at 50% 20%,rgba(255,255,255,.06),transparent 42%),rgba(15,23,42,.64);overflow:hidden}
+.node{position:absolute;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.055);display:flex;align-items:center;justify-content:center;text-align:center;color:var(--dim);font-weight:700;font-size:.78rem;padding:8px 12px;transition:all .25s;min-width:80px;min-height:48px}
+.node.active{border-color:var(--accent);color:var(--text);background:color-mix(in srgb,var(--accent) 16%,transparent);box-shadow:0 0 24px color-mix(in srgb,var(--accent) 25%,transparent)}
+.node.fail{border-color:var(--red);color:var(--text);box-shadow:0 0 24px rgba(248,113,113,.22)}
+.node.recover{border-color:var(--green);color:var(--text);box-shadow:0 0 24px rgba(74,222,128,.18)}
+.edge{position:absolute;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.18;transform-origin:left center;transition:opacity .25s,filter .25s;pointer-events:none}
+.edge.active{opacity:1;filter:drop-shadow(0 0 6px var(--accent))}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}
+.status p{color:var(--dim);font-size:.9rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.failure{border-color:var(--red);color:var(--red)}
+.badge.recovery{border-color:var(--green);color:var(--green)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+/* 6 nodes: Client, GeoEncoder, GeoHashIndex, SearchService, DB, Result */
+.n0{left:3%;top:40%}.n1{left:22%;top:18%}.n2{left:43%;top:5%}.n3{left:58%;top:38%}.n4{left:76%;top:5%}.n5{left:76%;top:68%}
+/* edges */
+.e0{left:9%;top:46%;width:20%;transform:rotate(-24deg)}
+.e1{left:28%;top:24%;width:22%;transform:rotate(-18deg)}
+.e2{left:28%;top:26%;width:34%;transform:rotate(14deg)}
+.e3{left:49%;top:12%;width:17%;transform:rotate(0deg)}
+.e4{left:49%;top:12%;width:16%;transform:rotate(36deg)}
+.e5{left:64%;top:44%;width:21%;transform:rotate(44deg)}
+.e6{left:82%;top:14%;width:22%;transform:rotate(90deg)}
+@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">系统设计 / Geo Service / C 类型</div>
+      <h1>地理位置服务</h1>
+      <p class="summary">地理位置服务的核心是将二维坐标转换为可索引的一维编码，用 GeoHash 或四叉树支持"附近的 X"查询。理解精度/性能权衡是设计打车、外卖等 LBS 服务的基础。</p>
+      <div class="tags"><span>GeoHash</span><span>四叉树</span><span>附近的人</span><span>范围查询</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>GeoHash（地理编码）</strong><span>将经纬度递归地分格编码为 base32 字符串，前缀相同表示地理位置相近。9 位精度约 5m×5m，6 位约 1.2km×0.6km。</span></li>
+        <li><strong>Quadtree（四叉树）</strong><span>递归四等分平面，每个叶子节点存储区域内的点，适合非均匀分布的 POI 数据，热点区域自动细分。</span></li>
+        <li><strong>Proximity（附近查询）</strong><span>查询半径 R 内的所有实体，关键是减少无效扫描。GeoHash 需查当前格 + 相邻 8 格共 9 格，再精确过滤。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">Step Timeline</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <div class="edge e0"></div>
+        <div class="edge e1"></div>
+        <div class="edge e2"></div>
+        <div class="edge e3"></div>
+        <div class="edge e4"></div>
+        <div class="edge e5"></div>
+        <div class="edge e6"></div>
+        <div class="node n0">Client<br><small style="font-weight:400;font-size:.7rem;color:inherit">(lat, lng)</small></div>
+        <div class="node n1">GeoEncode<br><small style="font-weight:400;font-size:.7rem;color:inherit">编码器</small></div>
+        <div class="node n2">GeoHash<br><small style="font-weight:400;font-size:.7rem;color:inherit">索引格子</small></div>
+        <div class="node n3">Search Svc<br><small style="font-weight:400;font-size:.7rem;color:inherit">搜索服务</small></div>
+        <div class="node n4">POI DB<br><small style="font-weight:400;font-size:.7rem;color:inherit">兴趣点库</small></div>
+        <div class="node n5">Result<br><small style="font-weight:400;font-size:.7rem;color:inherit">排序结果</small></div>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnReset">重置</button>
+        <button class="ctrl" id="btnPrev">上一步</button>
+        <button class="ctrl primary" id="btnPlay">播放</button>
+        <button class="ctrl" id="btnNext">下一步</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-hd">当前状态</div>
+      <div class="status">
+        <span class="badge" id="stateBadge">normal</span>
+        <h2 id="stepTitle">选择步骤开始</h2>
+        <p id="stepDesc">地理位置服务核心是 GeoHash 编码 + 相邻格子查询 + 精确过滤，点击步骤查看完整流程。</p>
+        <p id="stepDetail" style="margin-top:8px;font-size:.82rem;color:var(--dim2)"></p>
+      </div>
+    </aside>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>背景与机制</h2>
+      <p>打车（滴滴）、外卖（美团）、附近的人（陌陌）都需要实时"附近的 X"查询。核心挑战是：如何对二维坐标高效建索引？GeoHash 将经纬度交错编码为一维字符串，字典序相邻 ≈ 地理位置相邻，可以用 B-Tree 或 Redis ZSet 做范围查询。但 GeoHash 存在边界误判，必须查 9 个相邻格子，然后精确过滤。</p>
+    </section>
+    <section>
+      <h2>常见误区</h2>
+      <ul>
+        <li>GeoHash 前缀相同不等于距离一定近——两个点可能 GeoHash 完全不同但物理距离很近（跨格子边界）。</li>
+        <li>只查当前 GeoHash 格会漏掉边界附近的点，必须查当前格 + 周围 8 个格共 9 格，再用真实距离过滤。</li>
+        <li>Redis GEORADIUS 的精度取决于 GeoHash 编码位数，精度越高 key 越多，内存消耗越大。</li>
+        <li>四叉树更新频繁时（司机实时位置）性能比 Redis GEO 差，动态场景优先用 Redis GEO。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>工程场景</h2>
+      <ul>
+        <li>Redis GEO：GEOADD key lng lat member，GEORADIUS key lng lat 500 m WITHCOORD COUNT 20</li>
+        <li>司机位置更新：每 5s 上报一次，Redis 写入，高频更新场景考虑 local 聚合后批量写</li>
+        <li>H3 Hexagonal Grid：Uber 开源的六边形网格编码，比 GeoHash 边界误差更小，适合面积统计</li>
+        <li>Geofence（地理围栏）：判断某点是否在多边形区域内，用 Ray Casting 算法</li>
+      </ul>
+    </section>
+    <section>
+      <h2>边界与恢复</h2>
+      <ul>
+        <li>热点区域：CBD 区域司机密集，单个 GeoHash 格查询返回几千条，需分页 + COUNT 限制</li>
+        <li>实时位置更新：司机下线时删除 GEOREM，避免查到已下线司机</li>
+        <li>精度选择：骑手配送用 7 位（约 150m）；打车用 6 位（约 1.2km），根据业务半径选精度</li>
+        <li>跨精度查询：先用低精度粗筛大范围，再用高精度精确过滤，两阶段查询减少扫描量</li>
+      </ul>
+    </section>
+  </section>
+</main>
+
+<script>
+const STEPS=[
+  {title:"用户上报位置",desc:"客户端发送当前 (lat=31.2304, lng=121.4737) 坐标，请求查询附近 500m 内的餐厅。",kind:"normal",active:[0],fail:[],recover:[],edges:[],detail:"实时 LBS 应用每 5~30s 上报一次位置。本次查询同时触发：将用户当前位置写入 Redis GEO，并执行范围查询。"},
+  {title:"GeoHash 编码",desc:"GeoEncoder 将 (lat, lng) 交错编码为 base32 字符串，精度 7 位（约 153m×153m 格子）。",kind:"normal",active:[0,1],fail:[],recover:[],edges:[0],detail:"GeoHash 原理：将经纬度范围二分，交错取 bit 拼成整数，base32 编码得字符串。wzwgqfz = 上海某地 7 位精度。"},
+  {title:"存储到 Redis GEO",desc:"GEOADD nearby:restaurants 121.4737 31.2304 'restaurant_42'，Redis 内部用 GeoHash 52bit 编码存 ZSet。",kind:"normal",active:[1,2],fail:[],recover:[],edges:[1],detail:"Redis GEO 底层是 ZSet，score = geohash52，member = POI 名称或 ID。GEOADD 时间复杂度 O(log N)。"},
+  {title:"范围查询请求",desc:"用户请求附近 500m 内的餐厅，Search Service 计算当前格子 + 相邻 8 格共 9 个 GeoHash 格的覆盖范围。",kind:"normal",active:[0,3],fail:[],recover:[],edges:[2],detail:"九格查询原因：边界情况下用户在格子边缘，真正距离最近的 POI 可能在相邻格子中，只查当前格会漏掉。"},
+  {title:"Redis GEORADIUS 查询",desc:"GEORADIUS nearby:restaurants 121.4737 31.2304 500 m WITHCOORD WITHDIST COUNT 50 ASC，返回半径内 POI。",kind:"normal",active:[2,3,4],fail:[],recover:[],edges:[3,4],detail:"GEORADIUS 内部：计算覆盖半径的 GeoHash 范围 → 执行 ZRANGEBYSCORE 扫描 → 精确 Haversine 距离过滤。"},
+  {title:"边界误判过滤",desc:"相邻格子的部分 POI 实际距离超过 500m（格子重叠区域），Search Service 用 Haversine 公式精确过滤。",kind:"failure",active:[2,3],fail:[2],recover:[],edges:[3],detail:"Redis GEORADIUS 已内置精确过滤，但若自己实现 GeoHash 范围查询，必须在应用层用精确距离公式二次过滤。"},
+  {title:"查询 POI 详情",desc:"Search Service 用返回的 POI ID 批量查 POI DB，获取餐厅名称、评分、营业状态等详情。",kind:"normal",active:[3,4],fail:[],recover:[],edges:[3,4,6],detail:"POI DB（MySQL/PostgreSQL）存储 POI 的静态信息，按 poi_id 主键查询，MGET 批量获取减少 RTT。"},
+  {title:"排序返回结果",desc:"按距离升序排列，过滤掉已关闭的餐厅，返回 Top-20 结果给客户端，附带距离（米）和坐标。",kind:"recovery",active:[3,5],fail:[],recover:[3,5],edges:[5],detail:"排序维度：距离（主）+ 评分（次）+ 营业状态。返回字段：name, distance, lat, lng, rating, open。"}
+];
+
+let idx=0,timer=null;
+const list=document.getElementById('stepList'),title=document.getElementById('stepTitle'),desc=document.getElementById('stepDesc'),detail=document.getElementById('stepDetail'),badge=document.getElementById('stateBadge'),play=document.getElementById('btnPlay');
+
+function drawList(){
+  list.innerHTML=STEPS.map((s,i)=>'<button class="step-btn'+(i===idx?' active':'')+'" data-i="'+i+'"><b>Step '+(i+1)+'</b>'+s.title+'</button>').join('');
+  list.querySelectorAll('button').forEach(b=>b.onclick=()=>{idx=Number(b.dataset.i);pause();render();});
+}
+
+function render(){
+  const s=STEPS[idx];
+  title.textContent=s.title;desc.textContent=s.desc;detail.textContent=s.detail;
+  badge.textContent=s.kind;badge.className='badge '+s.kind;
+  document.querySelectorAll('.step-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  document.querySelectorAll('.node').forEach((n,i)=>{
+    n.classList.toggle('active',(s.active||[]).includes(i));
+    n.classList.toggle('fail',(s.fail||[]).includes(i));
+    n.classList.toggle('recover',(s.recover||[]).includes(i));
+  });
+  document.querySelectorAll('.edge').forEach((e,i)=>e.classList.toggle('active',(s.edges||[]).includes(i)));
+  document.getElementById('btnPrev').disabled=idx===0;
+  document.getElementById('btnNext').disabled=idx===STEPS.length-1;
+}
+
+function next(){idx=Math.min(STEPS.length-1,idx+1);render();if(idx===STEPS.length-1)pause();}
+function prev(){idx=Math.max(0,idx-1);render();}
+function reset(){idx=0;pause();render();}
+function pause(){if(timer)clearInterval(timer);timer=null;play.textContent='播放';}
+function toggle(){if(timer){pause();return;}play.textContent='暂停';timer=setInterval(next,1800);}
+
+document.getElementById('btnNext').onclick=next;
+document.getElementById('btnPrev').onclick=prev;
+document.getElementById('btnReset').onclick=reset;
+play.onclick=toggle;
+drawList();render();
+</script>
+<script>if(window.NavTracker)NavTracker.track('地理位置服务',window.location.href,'📍','系统设计');</script>
+<script src="../footer.js"></script>
+</body>
+</html>

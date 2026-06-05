@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AC 自动机 - 算法</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#38bdf8;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--purple:#c084fc;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.layout{flex:1;display:grid;grid-template-columns:260px 1fr 300px;min-height:0;overflow:hidden}
+
+.left-panel{background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.lp-head{padding:14px 14px 10px;border-bottom:1px solid var(--border);flex-shrink:0}
+.lp-title{font-size:.93rem;font-weight:700;margin-bottom:3px}
+.lp-sub{font-size:.7rem;color:var(--dim2)}
+.badges{display:flex;gap:5px;margin-top:7px;flex-wrap:wrap}
+.badge{font-size:.66rem;padding:2px 7px;border-radius:999px;font-family:monospace}
+.badge.time{background:rgba(251,191,36,.12);color:var(--warn)}
+.badge.space{background:rgba(74,222,128,.12);color:var(--ok)}
+.scene-tabs{display:flex;gap:4px;padding:8px;border-bottom:1px solid var(--border);flex-shrink:0}
+.scene-tab{flex:1;padding:7px 4px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--dim);font-size:.74rem;cursor:pointer;text-align:center;transition:all .15s}
+.scene-tab:hover{color:var(--text);border-color:var(--dim)}
+.scene-tab.active{background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.4);color:var(--accent)}
+.step-list{flex:1;overflow-y:auto;padding:5px}
+.step-item{padding:7px 9px;border-radius:7px;margin-bottom:3px;cursor:pointer;border-left:2px solid transparent;transition:all .15s}
+.step-item:hover{background:rgba(255,255,255,.04)}
+.step-item.active{background:rgba(56,189,248,.07);border-left-color:var(--accent)}
+.step-num{font-size:.63rem;font-family:monospace;color:var(--accent);margin-bottom:1px}
+.step-text{font-size:.72rem;color:var(--dim);line-height:1.38}
+.lp-patterns{padding:8px;border-top:1px solid var(--border);flex-shrink:0}
+.pat-title{font-size:.65rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.pat-row{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px}
+.pat-chip{padding:2px 8px;border:1px solid rgba(56,189,248,.3);background:rgba(56,189,248,.06);border-radius:5px;font-family:monospace;font-size:.72rem;color:var(--accent)}
+.text-row{font-family:monospace;font-size:.78rem;color:var(--dim);margin-top:6px}
+.text-row span{color:var(--text)}
+.lp-controls{padding:9px 8px;border-top:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;gap:7px}
+.ctrl-row{display:flex;gap:5px}
+.ctrl-btn{flex:1;padding:6px 3px;border-radius:7px;border:1px solid var(--border);background:rgba(255,255,255,.05);color:var(--text);font-size:.76rem;cursor:pointer;text-align:center;transition:all .15s}
+.ctrl-btn:hover{background:rgba(255,255,255,.1)}
+.ctrl-btn.primary{background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.35);color:var(--accent)}
+.ctrl-btn:disabled{opacity:.35;cursor:not-allowed}
+.speed-row{display:flex;align-items:center;gap:5px;font-size:.7rem;color:var(--dim2)}
+input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:var(--border);border-radius:2px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:var(--accent);cursor:pointer}
+
+.viz-panel{display:flex;flex-direction:column;overflow:hidden}
+.viz-canvas{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:12px;overflow:hidden}
+#acSvg{max-width:100%;max-height:85%}
+.text-display{display:flex;gap:3px;align-items:center;padding:8px 14px;background:var(--panel);border:1px solid var(--border);border-radius:10px;font-family:monospace;font-size:1rem}
+.text-ch{width:28px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:6px;border:2px solid transparent;font-weight:700;transition:all .25s}
+.text-ch.cur{background:rgba(56,189,248,.2);border-color:var(--accent);color:var(--accent)}
+.text-ch.match{background:rgba(74,222,128,.2);border-color:var(--ok);color:var(--ok)}
+.text-ch.past{color:var(--dim2)}
+.step-desc-bar{padding:11px 18px;border-top:1px solid var(--border);flex-shrink:0;font-size:.83rem;color:var(--dim);display:flex;align-items:center;gap:10px}
+.match-badge{padding:3px 9px;border-radius:5px;font-size:.7rem;font-weight:700;flex-shrink:0;background:rgba(74,222,128,.15);color:var(--ok);display:none}
+.step-ctr{margin-left:auto;font-size:.74rem;font-family:monospace;color:var(--dim2);white-space:nowrap}
+
+.code-panel{border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;background:#0d1117}
+.code-header{padding:9px 13px;border-bottom:1px solid var(--border);font-size:.78rem;color:var(--dim);display:flex;gap:6px;align-items:center;flex-shrink:0;background:var(--panel)}
+.code-dot{width:10px;height:10px;border-radius:50%}
+.code-body{flex:1;overflow-y:auto;padding:8px 0}
+.code-body::-webkit-scrollbar{width:4px}
+.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.code-line{display:flex;align-items:stretch;font-family:'JetBrains Mono',monospace;font-size:.76rem;line-height:1.62;transition:background .15s}
+.code-line.active{background:rgba(251,191,36,.1)}
+.ln{min-width:38px;padding:0 8px 0 12px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:.7rem}
+.code-line.active .ln{color:var(--warn)}
+.lc{padding:0 12px 0 3px;flex:1}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}
+</style>
+</head>
+<body>
+<div class="layout">
+  <div class="left-panel">
+    <div class="lp-head">
+      <div class="lp-title">AC 自动机 Aho-Corasick</div>
+      <div class="lp-sub">多模式字符串匹配</div>
+      <div class="badges">
+        <span class="badge time">构建 O(∑|p|)</span>
+        <span class="badge space">匹配 O(|t|+结果数)</span>
+      </div>
+    </div>
+    <div class="scene-tabs">
+      <button class="scene-tab active" onclick="switchScene(0)">构建自动机</button>
+      <button class="scene-tab" onclick="switchScene(1)">多模式匹配</button>
+    </div>
+    <div class="step-list" id="stepList"></div>
+    <div class="lp-patterns">
+      <div class="pat-title">模式集合 &amp; 文本</div>
+      <div class="pat-row">
+        <span class="pat-chip">he</span><span class="pat-chip">she</span>
+        <span class="pat-chip">his</span><span class="pat-chip">hers</span>
+      </div>
+      <div class="text-row">文本：<span>"ushers"</span></div>
+    </div>
+    <div class="lp-controls">
+      <div class="ctrl-row">
+        <button class="ctrl-btn" onclick="reset()">⏮</button>
+        <button class="ctrl-btn" onclick="prev()">◀</button>
+        <button class="ctrl-btn primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+        <button class="ctrl-btn" onclick="next()">▶</button>
+      </div>
+      <div class="speed-row">
+        <span>慢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>快</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="viz-panel">
+    <div class="viz-canvas">
+      <svg id="acSvg" viewBox="0 0 570 360" preserveAspectRatio="xMidYMid meet"></svg>
+      <div id="textDisplay" style="display:none" class="text-display"></div>
+    </div>
+    <div class="step-desc-bar">
+      <span class="match-badge" id="matchBadge"></span>
+      <span id="stepDesc">选择场景，点击播放</span>
+      <span class="step-ctr" id="stepCtr">0 / 0</span>
+    </div>
+  </div>
+
+  <div class="code-panel">
+    <div class="code-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px">aho_corasick.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+
+<script src="../footer.js"></script>
+<script>
+const CODE = [
+  {h:`<span class="kw">type</span> ACNode <span class="kw">struct</span> {`},                                  // 0
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;children [<span class="num">26</span>]<span class="kw">int</span>    <span class="cm">// -1 表示无子节点</span>`},     // 1
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;fail     <span class="kw">int</span>       <span class="cm">// fail 指针</span>`},            // 2
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;output   []<span class="kw">string</span> <span class="cm">// 匹配的模式</span>`},           // 3
+  {h:`}`},                                                                          // 4
+  {h:``},                                                                           // 5
+  {h:`<span class="cm">// Build 构建 AC 自动机</span>`},                                         // 6
+  {h:`<span class="kw">func</span> <span class="fn">Build</span>(patterns []<span class="kw">string</span>) []ACNode {`},      // 7
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 第一步：建 Trie</span>`},                               // 8
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> _, p := <span class="kw">range</span> patterns {`},               // 9
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;cur := root`},                                   // 10
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> _, c := <span class="kw">range</span> p {`},           // 11
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 沿字符建路径</span>`},               // 12
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> ac[cur].children[c] == -<span class="num">1</span> {`}, // 13
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ac[cur].children[c] = <span class="fn">newNode</span>(ac)`}, // 14
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},                               // 15
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;cur = ac[cur].children[c]`},    // 16
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},                               // 17
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ac[cur].output = <span class="fn">append</span>(ac[cur].output, p)`}, // 18
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;}`},                                   // 19
+  {h:``},                                                                           // 20
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 第二步：BFS 构建 fail 指针</span>`},              // 21
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;q := []<span class="kw">int</span>{root}`},                         // 22
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> <span class="fn">len</span>(q) > <span class="num">0</span> {`},                    // 23
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;cur := q[<span class="num">0</span>]; q = q[<span class="num">1</span>:]`},          // 24
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> c, next := <span class="kw">range</span> ac[cur].children {`},  // 25
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> next == -<span class="num">1</span> { <span class="kw">continue</span> }`}, // 26
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;f := ac[cur].fail`},              // 27
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> f != root && ac[f].children[c] == -<span class="num">1</span> {`}, // 28
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;f = ac[f].fail <span class="cm">// 沿 fail 链找</span>`}, // 29
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},                               // 30
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> ac[f].children[c] != -<span class="num">1</span> && ac[f].children[c] != next {`}, // 31
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ac[next].fail = ac[f].children[c]`}, // 32
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},                               // 33
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;q = <span class="fn">append</span>(q, next)`},              // 34
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},                               // 35
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;}`},                                   // 36
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> ac`},                            // 37
+  {h:`}`},                                                                          // 38
+  {h:``},                                                                           // 39
+  {h:`<span class="cm">// Search 在文本中搜索所有模式</span>`},                                  // 40
+  {h:`<span class="kw">func</span> <span class="fn">Search</span>(ac []ACNode, text <span class="kw">string</span>) {`},    // 41
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;cur := root`},                               // 42
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> i, c := <span class="kw">range</span> text {`},              // 43
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> cur != root && ac[cur].children[c] == -<span class="num">1</span> {`}, // 44
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;cur = ac[cur].fail <span class="cm">// fail 跳转</span>`}, // 45
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},                               // 46
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> ac[cur].children[c] != -<span class="num">1</span> {`},     // 47
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;cur = ac[cur].children[c]`},    // 48
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},                               // 49
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 输出匹配（含 fail 链上的输出）</span>`},   // 50
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> t := cur; t != root; t = ac[t].fail {`}, // 51
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">emit</span>(ac[t].output, i)`},           // 52
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},                               // 53
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;}`},                                   // 54
+  {h:`}`},                                                                          // 55
+];
+
+// ─── Trie structure definition ─────────────────────────────────────
+// Node positions in SVG 570×360
+// root(0): (285, 35)
+// level1: h(1):(150,105), s(2):(420,105)
+// level2: h.e(3):(80,175), h.i(4):(220,175), s.h(5):(420,175)
+// level3: h.e.r(6):(80,245), h.i.s(7):(220,245), s.h.e(8):(420,245)
+// level4: h.e.r.s(9):(80,315)
+
+const NODES_DEF = [
+  {id:'root', label:'root', x:285, y:35},
+  {id:'h',    label:'h',    x:150, y:105},
+  {id:'s',    label:'s',    x:420, y:105},
+  {id:'he',   label:'he',   x:80,  y:175, out:['he']},
+  {id:'hi',   label:'hi',   x:220, y:175},
+  {id:'sh',   label:'sh',   x:420, y:175},
+  {id:'her',  label:'her',  x:80,  y:245},
+  {id:'his',  label:'his',  x:220, y:245, out:['his']},
+  {id:'she',  label:'she',  x:420, y:245, out:['she']},
+  {id:'hers', label:'hers', x:80,  y:315, out:['hers']},
+];
+
+// Trie edges (solid) and fail edges (dashed)
+const TRIE_EDGES = [
+  ['root','h','h'],['root','s','s'],
+  ['h','he','e'],['h','hi','i'],
+  ['s','sh','h'],
+  ['he','her','r'],
+  ['hi','his','s'],
+  ['sh','she','e'],
+  ['her','hers','s'],
+];
+
+// Fail edges (after BFS construction)
+const FAIL_EDGES = [
+  ['sh','h'],    // sh.fail = h
+  ['she','he'],  // she.fail = he
+  ['his','s'],   // his.fail = s  
+  ['hers','s'],  // hers.fail = s
+];
+
+// ─── Scene data ────────────────────────────────────────────────────
+const SCENES = [
+  {
+    label: '构建自动机',
+    showText: false,
+    steps: [
+      { visNodes:['root'], visEdges:[], visFailEdges:[], hlNodes:['root'], hlEdges:[], outputs:{},
+        desc:'初始化 root 节点。AC 自动机是带 fail 指针的 Trie 树', code:[0,1,2,3,7,8] },
+      { visNodes:['root','h','he'], visEdges:[['root','h'],['h','he']], visFailEdges:[], hlNodes:['he'], hlEdges:[['root','h'],['h','he']], outputs:{he:['he']},
+        desc:'插入模式 "he"：root→h→e。节点 he 标记为终止节点（输出 "he"）', code:[9,10,11,13,14,16,18] },
+      { visNodes:['root','h','he','s','sh','she'], visEdges:[['root','h'],['h','he'],['root','s'],['s','sh'],['sh','she']], visFailEdges:[], hlNodes:['she'], hlEdges:[['root','s'],['s','sh'],['sh','she']], outputs:{he:['he'],she:['she']},
+        desc:'插入模式 "she"：root→s→h→e。节点 she 标记为终止节点（输出 "she"）', code:[9,11,13,14,16,18] },
+      { visNodes:['root','h','he','hi','his','s','sh','she'], visEdges:[['root','h'],['h','he'],['h','hi'],['hi','his'],['root','s'],['s','sh'],['sh','she']], visFailEdges:[], hlNodes:['his'], hlEdges:[['root','h'],['h','hi'],['hi','his']], outputs:{he:['he'],she:['she'],his:['his']},
+        desc:'插入模式 "his"：root→h→i→s（共用 h 节点）。节点 his 标记输出 "his"', code:[9,10,11,13,14,16,18] },
+      { visNodes:NODES_DEF.map(n=>n.id), visEdges:TRIE_EDGES.map(e=>[e[0],e[1]]), visFailEdges:[], hlNodes:['hers'], hlEdges:[['h','he'],['he','her'],['her','hers']], outputs:{he:['he'],she:['she'],his:['his'],hers:['hers']},
+        desc:'插入模式 "hers"：root→h→e→r→s（复用 h, he 节点）。Trie 构建完成，4 个模式共享前缀节点', code:[9,18,19] },
+      { visNodes:NODES_DEF.map(n=>n.id), visEdges:TRIE_EDGES.map(e=>[e[0],e[1]]), visFailEdges:[['sh','h']], hlNodes:['sh','h'], hlEdges:[['sh','h']], outputs:{he:['he'],she:['she'],his:['his'],hers:['hers']},
+        desc:'BFS 构建 fail 指针。sh.fail = h（"sh" 最长真后缀是 "h"，h 是某模式前缀）', code:[21,22,23,24,25,27,28,29,31,32] },
+      { visNodes:NODES_DEF.map(n=>n.id), visEdges:TRIE_EDGES.map(e=>[e[0],e[1]]), visFailEdges:[['sh','h'],['she','he']], hlNodes:['she','he'], hlEdges:[['she','he']], outputs:{he:['he'],she:['she'],his:['his'],hers:['hers']},
+        desc:'she.fail = he（"she" 的最长真后缀是 "he"，he 是终止节点！匹配 "she" 时也会自动输出 "he"）', code:[27,28,29,31,32,34] },
+      { visNodes:NODES_DEF.map(n=>n.id), visEdges:TRIE_EDGES.map(e=>[e[0],e[1]]), visFailEdges:[['sh','h'],['she','he'],['his','s'],['hers','s']], hlNodes:[], hlEdges:[], outputs:{he:['he'],she:['she'],his:['his'],hers:['hers']},
+        desc:'his.fail = s，hers.fail = s（对应最长后缀前缀匹配）。AC 自动机构建完成！所有 fail 指针建立', code:[36,37,38] },
+    ]
+  },
+  {
+    label: '多模式匹配',
+    showText: true,
+    steps: [
+      { visNodes:NODES_DEF.map(n=>n.id), visEdges:TRIE_EDGES.map(e=>[e[0],e[1]]), visFailEdges:FAIL_EDGES.map(e=>[e[0],e[1]]), hlNodes:['root'], hlEdges:[], curNode:'root', textIdx:-1, matchedWords:[],
+        desc:'初始化：从根节点开始，准备匹配文本 "ushers"', code:[41,42], matchWord:'' },
+      { visNodes:NODES_DEF.map(n=>n.id), visEdges:TRIE_EDGES.map(e=>[e[0],e[1]]), visFailEdges:FAIL_EDGES.map(e=>[e[0],e[1]]), hlNodes:['root'], hlEdges:[], curNode:'root', textIdx:0, matchedWords:[],
+        desc:'处理 \'u\'：root 无 \'u\' 子节点，且已在 root → 停留在 root', code:[43,44,45,47], matchWord:'' },
+      { visNodes:NODES_DEF.map(n=>n.id), visEdges:TRIE_EDGES.map(e=>[e[0],e[1]]), visFailEdges:FAIL_EDGES.map(e=>[e[0],e[1]]), hlNodes:['root','s'], hlEdges:[['root','s']], curNode:'s', textIdx:1, matchedWords:[],
+        desc:'处理 \'s\'：root 有子节点 s → 转移到 s 节点', code:[43,47,48], matchWord:'' },
+      { visNodes:NODES_DEF.map(n=>n.id), visEdges:TRIE_EDGES.map(e=>[e[0],e[1]]), visFailEdges:FAIL_EDGES.map(e=>[e[0],e[1]]), hlNodes:['s','sh'], hlEdges:[['s','sh']], curNode:'sh', textIdx:2, matchedWords:[],
+        desc:'处理 \'h\'：s 有子节点 sh → 转移到 sh 节点。当前路径 "sh"', code:[43,47,48], matchWord:'' },
+      { visNodes:NODES_DEF.map(n=>n.id), visEdges:TRIE_EDGES.map(e=>[e[0],e[1]]), visFailEdges:FAIL_EDGES.map(e=>[e[0],e[1]]), hlNodes:['sh','she','he'], hlEdges:[['sh','she'],['she','he']], curNode:'she', textIdx:3, matchedWords:['she','he'],
+        desc:'处理 \'e\'：sh → she（输出 "she"！）。沿 fail 链：she.fail=he（输出 "he"！）。一次状态转移发现两个匹配', code:[43,47,48,50,51,52], matchWord:'she + he' },
+      { visNodes:NODES_DEF.map(n=>n.id), visEdges:TRIE_EDGES.map(e=>[e[0],e[1]]), visFailEdges:FAIL_EDGES.map(e=>[e[0],e[1]]), hlNodes:['she','he','her'], hlEdges:[['she','he'],['he','her']], curNode:'her', textIdx:4, matchedWords:['she','he'],
+        desc:'处理 \'r\'：she 无 \'r\'，沿 fail：she.fail=he → he 有 \'r\'（her）→ 转移到 her 节点。体现 fail 指针避免回溯的精髓', code:[43,44,45,47,48], matchWord:'' },
+      { visNodes:NODES_DEF.map(n=>n.id), visEdges:TRIE_EDGES.map(e=>[e[0],e[1]]), visFailEdges:FAIL_EDGES.map(e=>[e[0],e[1]]), hlNodes:['her','hers','s'], hlEdges:[['her','hers'],['hers','s']], curNode:'hers', textIdx:5, matchedWords:['she','he','hers'],
+        desc:'处理 \'s\'：her→hers（输出 "hers"！终止节点）。hers.fail=s，s 无输出。匹配完成！', code:[43,47,48,50,51,52], matchWord:'hers' },
+      { visNodes:NODES_DEF.map(n=>n.id), visEdges:TRIE_EDGES.map(e=>[e[0],e[1]]), visFailEdges:FAIL_EDGES.map(e=>[e[0],e[1]]), hlNodes:[], hlEdges:[], curNode:'', textIdx:5, matchedWords:['she','he','hers'],
+        desc:'匹配完成！在 "ushers" 中找到 3 个模式：she[1-3]、he[2-3]、hers[2-5]。时间复杂度 O(|text|+结果数)', code:[54,55], matchWord:'全部完成' },
+    ]
+  }
+];
+
+const TEXT = 'ushers';
+const SPEED = [900, 600, 380, 220, 100];
+let curScene = 0, curStep = 0, playing = false, timer = null;
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+// ─── SVG helpers ─────────────────────────────────────────────────
+function svgEl(tag, attrs) {
+  const e = document.createElementNS(SVG_NS, tag);
+  for (const [k,v] of Object.entries(attrs)) e.setAttribute(k, v);
+  return e;
+}
+
+function getNode(id) { return NODES_DEF.find(n => n.id === id); }
+
+function drawTrieEdge(svg, fid, tid, label, isHL, isDashed) {
+  const f = getNode(fid), t = getNode(tid);
+  if (!f || !t) return;
+  const dx = t.x-f.x, dy = t.y-f.y, len = Math.sqrt(dx*dx+dy*dy);
+  const r = 16;
+  const sx = f.x+dx/len*r, sy = f.y+dy/len*r;
+  const ex = t.x-dx/len*(r+3), ey = t.y-dy/len*(r+3);
+
+  if (isDashed) {
+    // Fail edge: curved dashed line
+    const mx = (sx+ex)/2 + (dy/len)*40, my = (sy+ey)/2 - (dx/len)*40;
+    const path = svgEl('path', {
+      d:`M ${sx},${sy} Q ${mx},${my} ${ex},${ey}`,
+      stroke: isHL ? '#c084fc' : '#334155',
+      'stroke-width': isHL ? '2' : '1',
+      fill:'none', 'stroke-dasharray':'5,3',
+      'marker-end':`url(#${isHL?'arr-fail-hl':'arr-fail'})`
+    });
+    svg.appendChild(path);
+    // Label "fail"
+    const lx = 0.25*sx+0.5*mx+0.25*ex, ly = 0.25*sy+0.5*my+0.25*ey;
+    const lt = svgEl('text', {x:lx,y:ly-2,'text-anchor':'middle','font-size':'7','font-family':'monospace',fill:isHL?'#c084fc':'#475569'});
+    lt.textContent = 'fail';
+    svg.appendChild(lt);
+  } else {
+    const line = svgEl('line', {x1:sx,y1:sy,x2:ex,y2:ey,
+      stroke:isHL?'#38bdf8':'#475569','stroke-width':isHL?'2':'1.5','stroke-linecap':'round',
+      'marker-end':`url(#${isHL?'arr-hl':'arr'})`
+    });
+    svg.appendChild(line);
+    // Edge label (char)
+    if (label) {
+      const lx = (sx+ex)/2-4, ly = (sy+ey)/2-3;
+      const lt = svgEl('text', {x:lx,y:ly,'text-anchor':'middle','font-size':'10','font-family':'monospace',
+        fill:isHL?'#38bdf8':'#94a3b8','font-weight':'700'});
+      lt.textContent = label;
+      svg.appendChild(lt);
+    }
+  }
+}
+
+function drawACNode(svg, node, isHL, isCurMatch, outputs) {
+  const g = svgEl('g', {});
+  const r = 16;
+  const hasOut = outputs && node.out && node.out.length > 0;
+  // Glow
+  if (isHL) {
+    const glow = svgEl('circle', {cx:node.x,cy:node.y,r:r+5,fill:isCurMatch?'rgba(74,222,128,.2)':'rgba(56,189,248,.15)'});
+    g.appendChild(glow);
+  }
+  // Double ring for output nodes
+  if (hasOut) {
+    const outer = svgEl('circle', {cx:node.x,cy:node.y,r:r+3,fill:'none',stroke:isHL?'#4ade80':'#22c55e','stroke-width':'1.5'});
+    g.appendChild(outer);
+  }
+  const fill = isCurMatch ? 'rgba(74,222,128,.25)' : isHL ? 'rgba(56,189,248,.2)' : 'var(--panel2, #1e293b)';
+  const stroke = isCurMatch ? '#4ade80' : isHL ? '#38bdf8' : '#475569';
+  const circle = svgEl('circle', {cx:node.x,cy:node.y,r,fill,stroke,'stroke-width':'2'});
+  g.appendChild(circle);
+  // Label
+  const disp = node.id === 'root' ? '∅' : node.label.slice(-1);
+  const txt = svgEl('text', {x:node.x,y:node.y+5,'text-anchor':'middle','font-size':'12','font-weight':'700','font-family':'monospace',fill:isHL?'#fff':'#e2e8f0'});
+  txt.textContent = disp;
+  g.appendChild(txt);
+  // Output indicator
+  if (hasOut && outputs) {
+    const ot = svgEl('text', {x:node.x,y:node.y+r+12,'text-anchor':'middle','font-size':'8','font-family':'monospace',fill:'#4ade80'});
+    ot.textContent = (node.out||[]).join(',');
+    g.appendChild(ot);
+  }
+  svg.appendChild(g);
+}
+
+// ─── Render ───────────────────────────────────────────────────────
+function render() {
+  const scene = SCENES[curScene];
+  const step = scene.steps[curStep];
+  const svg = document.getElementById('acSvg');
+  svg.innerHTML = `
+    <defs>
+      <marker id="arr" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+        <polygon points="0 0, 7 2.5, 0 5" fill="#475569"/>
+      </marker>
+      <marker id="arr-hl" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+        <polygon points="0 0, 7 2.5, 0 5" fill="#38bdf8"/>
+      </marker>
+      <marker id="arr-fail" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+        <polygon points="0 0, 7 2.5, 0 5" fill="#334155"/>
+      </marker>
+      <marker id="arr-fail-hl" markerWidth="7" markerHeight="5" refX="6" refY="2.5" orient="auto">
+        <polygon points="0 0, 7 2.5, 0 5" fill="#c084fc"/>
+      </marker>
+    </defs>`;
+
+  const visNodeSet = new Set(step.visNodes || []);
+  const hlEdgeSet = new Set((step.hlEdges||[]).map(e=>`${e[0]}|${e[1]}`));
+  const hlNodeSet = new Set(step.hlNodes||[]);
+
+  // Draw trie edges
+  (step.visEdges||[]).forEach(([fid, tid]) => {
+    const edgeDef = TRIE_EDGES.find(e => e[0]===fid && e[1]===tid);
+    const label = edgeDef ? edgeDef[2] : '';
+    const isHL = hlEdgeSet.has(`${fid}|${tid}`);
+    if (visNodeSet.has(fid) && visNodeSet.has(tid)) drawTrieEdge(svg, fid, tid, label, isHL, false);
+  });
+
+  // Draw fail edges
+  (step.visFailEdges||[]).forEach(([fid, tid]) => {
+    const isHL = hlEdgeSet.has(`${fid}|${tid}`);
+    if (visNodeSet.has(fid) && visNodeSet.has(tid)) drawTrieEdge(svg, fid, tid, '', isHL, true);
+  });
+
+  // Draw nodes
+  NODES_DEF.forEach(node => {
+    if (!visNodeSet.has(node.id)) return;
+    const isHL = hlNodeSet.has(node.id);
+    const isCurMatch = step.curNode === node.id && scene.showText;
+    drawACNode(svg, node, isHL, isCurMatch, step.outputs);
+  });
+
+  // Text display
+  const textDiv = document.getElementById('textDisplay');
+  if (scene.showText) {
+    textDiv.style.display = 'flex';
+    textDiv.innerHTML = TEXT.split('').map((ch, i) => {
+      const matched = step.matchedWords && step.matchedWords.length > 0 && i <= step.textIdx && step.textIdx < i+4;
+      const isCur = i === step.textIdx;
+      const isPast = i < step.textIdx;
+      let cls = '';
+      if (isCur) cls = 'cur';
+      else if (isPast) cls = 'past';
+      return `<div class="text-ch ${cls}">${ch}</div>`;
+    }).join('');
+  } else {
+    textDiv.style.display = 'none';
+  }
+
+  // Match badge
+  const badge = document.getElementById('matchBadge');
+  if (step.matchWord) {
+    badge.style.display = '';
+    badge.textContent = `匹配: ${step.matchWord}`;
+  } else {
+    badge.style.display = 'none';
+  }
+
+  // Code
+  document.querySelectorAll('.code-line').forEach(el => el.classList.remove('active'));
+  (step.code||[]).forEach(ln => {
+    const el2 = document.querySelector(`.code-line[data-ln="${ln}"]`);
+    if (el2) { el2.classList.add('active'); el2.scrollIntoView({block:'nearest'}); }
+  });
+
+  document.getElementById('stepDesc').textContent = step.desc;
+  document.getElementById('stepCtr').textContent = `${curStep+1} / ${scene.steps.length}`;
+  buildStepList();
+}
+
+function buildStepList() {
+  const scene = SCENES[curScene];
+  document.getElementById('stepList').innerHTML = scene.steps.map((s,i) =>
+    `<div class="step-item${i===curStep?' active':''}" onclick="goStep(${i})">
+      <div class="step-num">步骤 ${i+1}</div>
+      <div class="step-text">${s.desc.slice(0,58)}${s.desc.length>58?'…':''}</div>
+    </div>`
+  ).join('');
+}
+
+function buildCode() {
+  document.getElementById('codeBody').innerHTML = CODE.map((l,i) =>
+    `<div class="code-line" data-ln="${i}"><span class="ln">${i+1}</span><span class="lc">${l.h||'&nbsp;'}</span></div>`
+  ).join('');
+}
+
+// ─── Controls ─────────────────────────────────────────────────────
+function switchScene(idx) {
+  curScene=idx; curStep=0; pause();
+  document.querySelectorAll('.scene-tab').forEach((t,i) => t.classList.toggle('active',i===idx));
+  buildStepList(); render();
+}
+function goStep(i) { pause(); curStep=i; render(); }
+function reset() { pause(); curStep=0; render(); }
+function prev() { pause(); if (curStep>0) { curStep--; render(); } }
+function next() { pause(); if (curStep<SCENES[curScene].steps.length-1) { curStep++; render(); } }
+function togglePlay() { if (playing) pause(); else { if (curStep>=SCENES[curScene].steps.length-1) curStep=0; play(); } }
+function play() { playing=true; document.getElementById('btnPlay').textContent='⏸ 暂停'; tick(); }
+function pause() { playing=false; clearTimeout(timer); document.getElementById('btnPlay').textContent='▶ 播放'; }
+function tick() {
+  if (!playing) return;
+  const spd = SPEED[parseInt(document.getElementById('speedRange').value)-1];
+  if (curStep<SCENES[curScene].steps.length-1) { curStep++; render(); timer=setTimeout(tick,spd); }
+  else pause();
+}
+
+buildCode(); buildStepList(); render();
+</script>
+</body>
+</html>

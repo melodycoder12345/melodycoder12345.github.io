@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZooKeeper - 分布式</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#c084fc;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 18%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:440px;display:flex;flex-direction:column;padding:18px}
+.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:radial-gradient(circle at 50% 20%,rgba(255,255,255,.05),transparent 50%),rgba(15,23,42,.64);overflow:hidden;display:flex;align-items:center;justify-content:center;}
+.zk-svg{width:100%;max-width:480px;height:auto;}
+.rnode{transition:all .3s;}
+.rnode rect{fill:rgba(255,255,255,.055);stroke:rgba(255,255,255,.12);stroke-width:1.5;transition:all .3s;}
+.rnode text{fill:#94a3b8;transition:fill .3s;}
+.rnode.active rect{fill:color-mix(in srgb,var(--accent) 16%,transparent);stroke:var(--accent);stroke-width:2;}
+.rnode.active text{fill:#f8fafc;}
+.rnode.fail rect{fill:rgba(248,113,113,.1);stroke:#f87171;stroke-width:2;}
+.rnode.fail text{fill:#f87171;}
+.rnode.recover rect{fill:rgba(74,222,128,.1);stroke:#4ade80;stroke-width:2;}
+.rnode.recover text{fill:#4ade80;}
+.rnode.leader rect{fill:color-mix(in srgb,var(--accent) 22%,transparent);stroke:var(--accent);stroke-width:2.5;}
+.rnode.leader text{fill:#f8fafc;}
+@keyframes leader-glow{0%,100%{filter:drop-shadow(0 0 4px color-mix(in srgb,var(--accent) 50%,transparent));}50%{filter:drop-shadow(0 0 10px color-mix(in srgb,var(--accent) 80%,transparent));}}
+.rnode.leader rect{animation:leader-glow 2s infinite;}
+.redge{stroke:rgba(255,255,255,.15);stroke-width:1.5;fill:none;transition:all .3s;}
+.redge.active{stroke:var(--accent);stroke-width:2.5;filter:drop-shadow(0 0 4px color-mix(in srgb,var(--accent) 60%,transparent));}
+.redge.fail{stroke:#f87171;stroke-width:2;}
+.redge.ok{stroke:#4ade80;stroke-width:2;}
+/* znode tree styles */
+.zk-branch{stroke:rgba(255,255,255,.15);stroke-width:1;fill:none;}
+.znode-circle{fill:rgba(255,255,255,.055);stroke:rgba(255,255,255,.12);stroke-width:1;transition:all .3s;}
+.znode-circle.watch-active{fill:color-mix(in srgb,#fbbf24 20%,transparent);stroke:#fbbf24;stroke-width:2;}
+.znode-circle.watch-trigger{fill:color-mix(in srgb,var(--accent) 25%,transparent);stroke:var(--accent);stroke-width:2;}
+.znode-label{fill:#64748b;font-size:9px;transition:fill .3s;}
+.znode-label.watch-active{fill:#fbbf24;}
+.znode-label.watch-trigger{fill:var(--accent);}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}
+.status p{color:var(--dim);font-size:.9rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.failure{border-color:var(--bad);color:var(--bad)}
+.badge.recovery{border-color:var(--ok);color:var(--ok)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"ZAB","body":"ZooKeeper Atomic Broadcast：类 Paxos 的原子广播协议，Leader 接收写请求，广播给 Follower，多数派 ACK 后提交。","tag":"term"},
+  {"title":"znode","body":"ZooKeeper 的数据节点，树形结构，有 persistent/ephemeral/sequential 三种类型。","tag":"term"},
+  {"title":"Watch","body":"一次性触发器，客户端对 znode 注册 Watch，节点变化时收到通知，必须重新注册。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">分布式 / ZooKeeper / C 类型</div>
+      <h1>ZooKeeper</h1>
+      <p class="summary">ZooKeeper 用 ZAB 协议维护分布式一致性，提供强一致的 znodes 树形数据结构，适合配置管理、服务发现和分布式锁。Watch 机制让客户端能监听节点变化。</p>
+      <div class="tags"><span>ZAB</span><span>Watch</span><span>znode</span><span>Leader选举</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>ZAB（ZooKeeper Atomic Broadcast）</strong><span>类 Paxos 的原子广播协议，Leader 接收写请求，广播给 Follower，多数派 ACK 后提交。</span></li>
+        <li><strong>znode</strong><span>ZooKeeper 的数据节点，树形结构，有 persistent/ephemeral/sequential 三种类型。</span></li>
+        <li><strong>Watch</strong><span>一次性触发器，客户端对 znode 注册 Watch，节点变化时收到通知，必须重新注册。</span></li>
+      </ul>
+    </div>
+  </section>
+  <section class="lab">
+    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <svg class="zk-svg" viewBox="0 0 480 350" id="zkSvg">
+          <defs>
+            <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="rgba(255,255,255,.25)"/></marker>
+            <marker id="arrA" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#c084fc"/></marker>
+            <marker id="arrF" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#f87171"/></marker>
+            <marker id="arrOk" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#4ade80"/></marker>
+            <marker id="arrW" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#fbbf24"/></marker>
+          </defs>
+
+          <!-- e0: Client→Leader -->
+          <line id="e0" class="redge" x1="240" y1="54" x2="240" y2="110" marker-end="url(#arr)"/>
+          <!-- e1: Leader→F1 (proposal) -->
+          <line id="e1" class="redge" x1="200" y1="164" x2="128" y2="232" marker-end="url(#arr)"/>
+          <!-- e2: Leader→F2 (proposal) -->
+          <line id="e2" class="redge" x1="280" y1="164" x2="352" y2="232" marker-end="url(#arr)"/>
+          <!-- e3: F1→Leader (ACK) -->
+          <line id="e3" class="redge" x1="140" y1="232" x2="210" y2="164" marker-end="url(#arr)" style="opacity:0"/>
+          <!-- e4: F2→Leader (ACK) -->
+          <line id="e4" class="redge" x1="362" y1="232" x2="272" y2="164" marker-end="url(#arr)" style="opacity:0"/>
+          <!-- e5: Leader→Client (watch notify) -->
+          <line id="e5" class="redge" x1="252" y1="110" x2="252" y2="54" marker-end="url(#arr)" style="opacity:0"/>
+          <!-- e6: F1↔F2 (election) -->
+          <line id="e6" class="redge" x1="170" y1="258" x2="310" y2="258" marker-end="url(#arr)" style="opacity:0"/>
+
+          <!-- Status label -->
+          <text id="statusLabel" x="240" y="210" text-anchor="middle" font-size="10" fill="#64748b">ZAB 协议</text>
+
+          <!-- Node: Client (top center) -->
+          <g id="n_client" class="rnode">
+            <rect x="182" y="12" width="116" height="42" rx="10"/>
+            <text x="240" y="28" text-anchor="middle" font-size="11" font-weight="700">Client</text>
+            <text x="240" y="44" text-anchor="middle" font-size="9" fill="#64748b" id="n_client_sub">读写请求</text>
+          </g>
+
+          <!-- Node: Leader (center) -->
+          <g id="n_leader" class="rnode leader">
+            <rect x="164" y="110" width="152" height="54" rx="10"/>
+            <text x="240" y="131" text-anchor="middle" font-size="12" font-weight="700">Leader</text>
+            <text x="240" y="150" text-anchor="middle" font-size="9.5" id="n_leader_sub">ZK Leader</text>
+          </g>
+
+          <!-- Node: F1 (bottom left) -->
+          <g id="n_f1" class="rnode">
+            <rect x="38" y="232" width="118" height="52" rx="10"/>
+            <text x="97" y="252" text-anchor="middle" font-size="12" font-weight="700">F1</text>
+            <text x="97" y="270" text-anchor="middle" font-size="9.5" id="n_f1_sub">Follower</text>
+          </g>
+
+          <!-- Node: F2 (bottom right) -->
+          <g id="n_f2" class="rnode">
+            <rect x="324" y="232" width="118" height="52" rx="10"/>
+            <text x="383" y="252" text-anchor="middle" font-size="12" font-weight="700">F2</text>
+            <text x="383" y="270" text-anchor="middle" font-size="9.5" id="n_f2_sub">Follower</text>
+          </g>
+
+          <!-- znode Tree (bottom center as visual indicator) -->
+          <!-- tree root: / -->
+          <line class="zk-branch" x1="240" y1="300" x2="200" y2="322"/>
+          <line class="zk-branch" x1="240" y1="300" x2="240" y2="322"/>
+          <line class="zk-branch" x1="240" y1="300" x2="280" y2="322"/>
+          <circle id="zn_root" class="znode-circle" cx="240" cy="298" r="7"/>
+          <text class="znode-label" x="240" y="295" text-anchor="middle" font-size="7">/</text>
+          <!-- /services -->
+          <circle id="zn_services" class="znode-circle" cx="240" cy="322" r="7"/>
+          <text class="znode-label" x="240" y="319" text-anchor="middle" font-size="7">services</text>
+          <!-- /services/payment -->
+          <line class="zk-branch" x1="240" y1="329" x2="240" y2="344"/>
+          <circle id="zn_pay" class="znode-circle" cx="240" cy="344" r="7"/>
+          <text id="zn_pay_label" class="znode-label" x="240" y="341" text-anchor="middle" font-size="7">payment</text>
+          <!-- /locks -->
+          <circle id="zn_locks" class="znode-circle" cx="200" cy="322" r="7"/>
+          <text class="znode-label" x="200" y="319" text-anchor="middle" font-size="7">locks</text>
+          <!-- /config -->
+          <circle id="zn_config" class="znode-circle" cx="280" cy="322" r="7"/>
+          <text class="znode-label" x="280" y="319" text-anchor="middle" font-size="7">config</text>
+        </svg>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnReset">重置</button>
+        <button class="ctrl" id="btnPrev">上一步</button>
+        <button class="ctrl primary" id="btnPlay">播放</button>
+        <button class="ctrl" id="btnNext">下一步</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-hd">当前状态</div>
+      <div class="status">
+        <span class="badge" id="stateBadge">normal</span>
+        <h2 id="stepTitle"></h2>
+        <p id="stepDesc"></p>
+        <p id="stepDetail" style="margin-top:8px;font-size:.82rem;"></p>
+      </div>
+    </aside>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>背景与机制</h2>
+      <p>ZooKeeper 使用 ZAB（ZooKeeper Atomic Broadcast）协议，这是一种类 Paxos 的原子广播协议。写请求必须经过 Leader，Leader 将其广播为 Proposal，Follower 收到后写 WAL 并 ACK，多数派 ACK 后 Leader 发 Commit。读请求可以由任意节点处理，但可能读到旧数据（follower 可能滞后）。Watch 是一次性通知，触发后必须重新注册。</p>
+    </section>
+    <section>
+      <h2>常见误区</h2>
+      <ul>
+        <li>Watch 是一次性的——触发后自动失效，需要在回调中重新注册，否则会漏事件。</li>
+        <li>从 Follower 读数据可能不是最新的——如需强一致读，必须用 sync() 先同步。</li>
+        <li>ZooKeeper 不适合存储大量数据，每个 znode 最大 1MB，设计用于元数据管理。</li>
+        <li>临时节点（ephemeral）在会话断开后自动删除，这是分布式锁和服务发现的基础。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>工程场景</h2>
+      <ul>
+        <li>Kafka 0.x 用 ZooKeeper 管理 broker 元数据和 Controller 选举（Kafka 2.8+ 引入 KRaft 取代）。</li>
+        <li>Hadoop/HBase 用 ZooKeeper 做 Master 选举和 RegionServer 心跳。</li>
+        <li>分布式锁：在 /locks 下创建临时顺序节点，序号最小的节点持有锁。</li>
+        <li>现代系统倾向用 etcd 替代 ZooKeeper——更简洁的 API、更好的性能和 Raft 协议。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>边界与恢复</h2>
+      <p>动画覆盖：① 正常写请求的 ZAB 流程；② Watch 注册和触发通知；③ Follower 故障集群仍可服务（多数派存活）；④ Leader 故障后 F1/F2 通过 ZAB 选出新 Leader。ZAB 选举要求新 Leader 的 zxid（事务 ID）最大——保证已提交的事务不丢失。</p>
+    </section>
+  </section>
+</main>
+<script>
+/* nodes: n_client(0), n_leader(1), n_f1(2), n_f2(3)
+   edges: e0=Client→Leader, e1=Leader→F1, e2=Leader→F2,
+          e3=F1→Leader(ACK), e4=F2→Leader(ACK),
+          e5=Leader→Client(notify), e6=F1↔F2(election) */
+
+const STEPS = [
+  {
+    title: "初始状态 — ZK 集群已就绪，Leader 已选举",
+    desc: "ZooKeeper 三节点集群，Leader 已通过 ZAB 选举，F1/F2 为 Follower，客户端就绪。",
+    kind: "normal",
+    detail: "Leader 会定期向 Follower 发送心跳。znode 树（底部）展示了 /services/payment、/locks 等路径。",
+    status: "集群就绪",
+    clientSub: "就绪", leaderSub: "ZK Leader", f1Sub: "Follower", f2Sub: "Follower",
+    watchPay: false, watchTrigger: false,
+    active: [1], fail: [], recover: [], edges: [], failEdges: [], okEdges: []
+  },
+  {
+    title: "Client 发送写请求 → Leader",
+    desc: "所有写请求必须路由到 Leader，客户端直接连接 Leader 或通过 Follower 转发。",
+    kind: "normal",
+    detail: "ZooKeeper 的强一致性保证来自于：所有写都经过 Leader，Leader 通过 ZAB 广播到多数派才提交。",
+    status: "写请求到达 Leader",
+    clientSub: "写请求", leaderSub: "处理写请求", f1Sub: "Follower", f2Sub: "Follower",
+    watchPay: false, watchTrigger: false,
+    active: [0,1], fail: [], recover: [], edges: [0], failEdges: [], okEdges: []
+  },
+  {
+    title: "Leader 广播 Proposal（ZAB Phase 1）",
+    desc: "Leader 将写操作封装为 Proposal，携带全局唯一的 zxid，广播给所有 Follower。",
+    kind: "normal",
+    detail: "zxid = epoch + counter，epoch 在每次选举时递增，counter 在每个 epoch 内单调递增。Follower 收到 Proposal 后先写 WAL（事务日志）再 ACK。",
+    status: "ZAB Proposal 广播中",
+    clientSub: "等待响应", leaderSub: "广播 Proposal", f1Sub: "写 WAL…", f2Sub: "写 WAL…",
+    watchPay: false, watchTrigger: false,
+    active: [1], fail: [], recover: [], edges: [1,2], failEdges: [], okEdges: []
+  },
+  {
+    title: "多数派 ACK → Leader 发送 Commit",
+    desc: "F1/F2 写完 WAL 后向 Leader ACK，Leader 收到多数派 ACK 后发送 Commit，事务提交。",
+    kind: "normal",
+    detail: "Commit 后 Leader 应用到内存数据树，Follower 也应用到本地状态。之后 Leader 回复 Client 写成功。",
+    status: "多数派确认，提交",
+    clientSub: "等待响应", leaderSub: "收到 ACK，发 Commit", f1Sub: "ACK ✓", f2Sub: "ACK ✓",
+    watchPay: false, watchTrigger: false,
+    active: [1,2,3], fail: [], recover: [], edges: [3,4], failEdges: [], okEdges: []
+  },
+  {
+    title: "Client 注册 Watch — /services/payment",
+    desc: "客户端在 /services/payment 节点上注册 Watch，一旦该节点被创建/修改/删除，Client 将收到通知。",
+    kind: "normal",
+    detail: "Watch 是一次性的：触发一次后自动失效。生产代码中必须在 Watch 回调中重新注册，否则会漏掉后续变化。",
+    status: "Watch 已注册",
+    clientSub: "Watch 已注册", leaderSub: "记录 Watch", f1Sub: "Follower", f2Sub: "Follower",
+    watchPay: true, watchTrigger: false,
+    active: [0,1], fail: [], recover: [], edges: [0], failEdges: [], okEdges: []
+  },
+  {
+    title: "新服务实例注册到 /services/payment — 触发 Watch",
+    desc: "新的 PaymentService 实例在 /services/payment 创建临时节点，触发 Client 的 Watch 通知。",
+    kind: "normal",
+    detail: "服务发现模式：服务启动时在 /services/{name}/ 创建临时顺序节点，下线时临时节点自动删除并触发 Watch，实现服务健康监控。",
+    status: "Watch 触发 → 通知 Client",
+    clientSub: "收到 Watch 通知！", leaderSub: "发送 Watch 通知", f1Sub: "同步更新", f2Sub: "同步更新",
+    watchPay: true, watchTrigger: true,
+    active: [0,1], fail: [], recover: [], edges: [5], failEdges: [], okEdges: []
+  },
+  {
+    title: "⚡ F1 宕机 — F2 + Leader 仍构成多数派",
+    desc: "F1 突然宕机，但 Leader + F2 仍有 2/3 节点，仍构成多数派，集群继续正常服务。",
+    kind: "failure",
+    detail: "ZooKeeper 的多数派（Quorum）设计：2n+1 个节点可容忍 n 个节点失败。3 节点集群可容忍 1 个节点失败。",
+    status: "F1 宕机，集群仍可用",
+    clientSub: "继续读写", leaderSub: "仍为 Leader", f1Sub: "宕机", f2Sub: "Follower",
+    watchPay: false, watchTrigger: false,
+    active: [0,1,3], fail: [2], recover: [], edges: [0,2], failEdges: [], okEdges: []
+  },
+  {
+    title: "⚡ Leader 宕机 → F1/F2 通过 ZAB 选出新 Leader",
+    desc: "原 Leader 宕机，F1/F2 在 election timeout 后启动 ZAB 选举，选出 zxid 最大的节点作为新 Leader。",
+    kind: "recovery",
+    detail: "ZAB 选举：每个 Follower 投票给 zxid 最大的候选人（zxid 最大意味着数据最新）。第一个获得多数票的节点成为新 Leader，随后完成 recovery phase 同步其余节点。",
+    status: "新 Leader 选举完成",
+    clientSub: "等待重连", leaderSub: "宕机", f1Sub: "新 Leader ✓", f2Sub: "Follower",
+    watchPay: false, watchTrigger: false,
+    active: [2,3], fail: [1], recover: [2], edges: [6], failEdges: [], okEdges: []
+  }
+];
+
+const NODE_IDS = ['n_client','n_leader','n_f1','n_f2'];
+const EDGE_IDS = ['e0','e1','e2','e3','e4','e5','e6'];
+const HIDDEN_EDGES = [3,4,5,6];
+
+let idx = 0, timer = null;
+const list    = document.getElementById('stepList');
+const titleEl = document.getElementById('stepTitle');
+const descEl  = document.getElementById('stepDesc');
+const detailEl= document.getElementById('stepDetail');
+const badge   = document.getElementById('stateBadge');
+const play    = document.getElementById('btnPlay');
+
+function render() {
+  const s = STEPS[idx];
+  titleEl.textContent  = s.title;
+  descEl.textContent   = s.desc;
+  detailEl.textContent = s.detail;
+  badge.textContent = s.kind;
+  badge.className   = 'badge ' + s.kind;
+
+  document.getElementById('statusLabel').textContent = s.status;
+  document.getElementById('n_client_sub').textContent = s.clientSub;
+  document.getElementById('n_leader_sub').textContent = s.leaderSub;
+  document.getElementById('n_f1_sub').textContent = s.f1Sub;
+  document.getElementById('n_f2_sub').textContent = s.f2Sub;
+
+  // Watch visualization
+  const znPay = document.getElementById('zn_pay');
+  const znPayLbl = document.getElementById('zn_pay_label');
+  znPay.className.baseVal = 'znode-circle' + (s.watchTrigger ? ' watch-trigger' : s.watchPay ? ' watch-active' : '');
+  znPayLbl.className.baseVal = 'znode-label' + (s.watchTrigger ? ' watch-trigger' : s.watchPay ? ' watch-active' : '');
+
+  document.querySelectorAll('.step-btn').forEach((b,i) => b.classList.toggle('active', i === idx));
+
+  NODE_IDS.forEach((id,i) => {
+    const el = document.getElementById(id);
+    el.classList.remove('active','fail','recover','leader');
+    if (s.fail.includes(i))    { el.classList.add('fail');    return; }
+    if (s.recover.includes(i)) { el.classList.add('recover'); return; }
+    if (s.active.includes(i))  {
+      el.classList.add(id === 'n_leader' ? 'leader' : 'active');
+    } else if (id === 'n_leader' && !s.fail.includes(1)) {
+      el.classList.add('leader');
+    }
+  });
+
+  EDGE_IDS.forEach((id,i) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('active','fail','ok');
+    if (s.failEdges && s.failEdges.includes(i)) {
+      el.classList.add('fail'); el.style.opacity='1'; el.setAttribute('marker-end','url(#arrF)');
+    } else if (s.okEdges && s.okEdges.includes(i)) {
+      el.classList.add('ok'); el.style.opacity='1'; el.setAttribute('marker-end','url(#arrOk)');
+    } else if (s.edges.includes(i)) {
+      el.classList.add('active'); el.style.opacity='1'; el.setAttribute('marker-end','url(#arrA)');
+    } else {
+      el.setAttribute('marker-end','url(#arr)');
+      el.style.opacity = HIDDEN_EDGES.includes(i) ? '0' : '1';
+    }
+  });
+
+  document.getElementById('btnPrev').disabled = idx === 0;
+  document.getElementById('btnNext').disabled = idx === STEPS.length - 1;
+}
+
+function drawList() {
+  list.innerHTML = STEPS.map((s,i) =>
+    `<button class="step-btn" data-i="${i}"><b>Step ${i+1}</b>${s.title}</button>`
+  ).join('');
+  list.querySelectorAll('button').forEach(b => b.onclick = () => { idx = Number(b.dataset.i); pause(); render(); });
+}
+
+function next()  { idx = Math.min(STEPS.length-1, idx+1); render(); if (idx === STEPS.length-1) pause(); }
+function prev()  { idx = Math.max(0, idx-1); render(); }
+function reset() { idx = 0; pause(); render(); }
+function pause() { if (timer) clearInterval(timer); timer = null; play.textContent = '播放'; }
+function toggle(){ if (timer) { pause(); return; } play.textContent = '暂停'; timer = setInterval(next, 1900); }
+
+document.getElementById('btnNext').onclick  = next;
+document.getElementById('btnPrev').onclick  = prev;
+document.getElementById('btnReset').onclick = reset;
+play.onclick = toggle;
+drawList();
+render();
+</script>
+<script>if (window.NavTracker) NavTracker.track('ZooKeeper', window.location.href, '🐘', '分布式');</script>
+<script src="../footer.js"></script>
+</body>
+</html>

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>进程间通信（IPC）- Linux</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#6ee7b7;--blue:#38bdf8;--green:#4ade80;--bad:#f87171;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 18%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:480px;display:flex;flex-direction:column;padding:18px}
+.stage{position:relative;flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:radial-gradient(circle at 50% 20%,rgba(255,255,255,.05),transparent 50%),rgba(15,23,42,.64);overflow:hidden;min-height:360px}
+/* SVG node/edge styles */
+.nd rect{fill:rgba(30,41,59,.9);stroke:rgba(255,255,255,.15);stroke-width:1.5;transition:all .3s}
+.nd.active rect{stroke:#6ee7b7;fill:color-mix(in srgb,#6ee7b7 14%,rgba(30,41,59,.9))}
+.nd.fail rect{stroke:#f87171;fill:color-mix(in srgb,#f87171 12%,rgba(30,41,59,.9))}
+.nd.recover rect{stroke:#4ade80;fill:color-mix(in srgb,#4ade80 12%,rgba(30,41,59,.9))}
+.nd text{fill:#94a3b8;font-family:'Segoe UI',system-ui;font-size:11px;text-anchor:middle;dominant-baseline:middle;transition:fill .3s;pointer-events:none}
+.nd.active text{fill:#e2e8f0}
+.nd text.sub{font-size:9px;fill:#64748b}
+.nd.active text.sub{fill:#94a3b8}
+.eg{stroke:rgba(110,231,183,.18);stroke-width:2;fill:none;transition:stroke .3s,opacity .3s,filter .3s;marker-end:url(#ah)}
+.eg.active{stroke:#6ee7b7;filter:drop-shadow(0 0 6px rgba(110,231,183,.6))}
+.eg.fail{stroke:#f87171}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}
+.status p{color:var(--dim);font-size:.88rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.failure{border-color:var(--bad);color:var(--bad)}
+.badge.recovery{border-color:var(--green);color:var(--green)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+table{width:100%;border-collapse:collapse;font-size:.82rem;margin-top:8px}
+th{background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--accent);padding:7px 10px;text-align:left;border:1px solid rgba(255,255,255,.08);font-size:.76rem}
+td{padding:6px 10px;border:1px solid rgba(255,255,255,.06);color:var(--dim)}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Pipe（管道）","body":"单向字节流，内核缓冲区，父子进程最简通信方式，支持匿名和命名管道（FIFO），写满 64KB 后阻塞","tag":"term"},
+  {"title":"Shared Memory（共享内存）","body":"多进程映射同一物理内存区域，最快的 IPC 方式，零数据复制，但需配合信号量同步原语","tag":"term"},
+  {"title":"Message Queue（消息队列）","body":"内核管理的消息链表，带 mtype 类型字段，支持按类型选择接收，发送方和接收方完全解耦","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">Linux / IPC / C 类型</div>
+      <h1>进程间通信（IPC）</h1>
+      <p class="summary">Linux 提供管道、消息队列、共享内存、信号量等多种 IPC 机制，各自在通信语义、性能和适用场景上不同。选择合适的 IPC 方式直接影响系统性能和架构复杂度。</p>
+      <div class="tags"><span>管道</span><span>共享内存</span><span>消息队列</span><span>信号量</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>Pipe（管道）</strong><span>单向字节流，内核缓冲区，父子进程最简通信方式，支持匿名和命名管道（FIFO）</span></li>
+        <li><strong>Shared Memory（共享内存）</strong><span>多进程映射同一物理内存区域，最快的 IPC 方式，零数据复制，需配合同步原语</span></li>
+        <li><strong>Message Queue（消息队列）</strong><span>内核管理的消息链表，带 mtype 类型字段，支持按类型选择接收，发送方接收方解耦</span></li>
+      </ul>
+    </div>
+  </section>
+  <section class="lab">
+    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <svg id="vizSvg" width="100%" height="100%" viewBox="0 0 680 400" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <marker id="ah" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+              <polygon points="0 0,8 3,0 6" fill="context-stroke"/>
+            </marker>
+          </defs>
+          <!-- Edges -->
+          <line id="e0" class="eg" x1="122" y1="170" x2="303" y2="95"/>
+          <line id="e1" class="eg" x1="377" y1="95" x2="558" y2="170"/>
+          <line id="e2" class="eg" x1="122" y1="200" x2="303" y2="200"/>
+          <line id="e3" class="eg" x1="377" y1="200" x2="558" y2="200"/>
+          <line id="e4" class="eg" x1="122" y1="230" x2="303" y2="305"/>
+          <line id="e5" class="eg" x1="377" y1="305" x2="558" y2="230"/>
+          <line id="e6" class="eg" x1="377" y1="185" x2="498" y2="115"/>
+          <!-- ProcessA -->
+          <g id="n0" class="nd">
+            <rect x="42" y="172" width="80" height="56" rx="10"/>
+            <text x="82" y="197">进程 A</text>
+            <text x="82" y="213" class="sub">ProcessA</text>
+          </g>
+          <!-- ProcessB -->
+          <g id="n1" class="nd">
+            <rect x="558" y="172" width="80" height="56" rx="10"/>
+            <text x="598" y="197">进程 B</text>
+            <text x="598" y="213" class="sub">ProcessB</text>
+          </g>
+          <!-- Pipe -->
+          <g id="n2" class="nd">
+            <rect x="303" y="52" width="74" height="56" rx="10"/>
+            <text x="340" y="77">管道</text>
+            <text x="340" y="93" class="sub">Buffer 64KB</text>
+          </g>
+          <!-- SharedMem -->
+          <g id="n3" class="nd">
+            <rect x="303" y="172" width="74" height="56" rx="10"/>
+            <text x="340" y="197">共享</text>
+            <text x="340" y="213" class="sub">内存 shm</text>
+          </g>
+          <!-- MsgQueue -->
+          <g id="n4" class="nd">
+            <rect x="303" y="292" width="74" height="56" rx="10"/>
+            <text x="340" y="317">消息</text>
+            <text x="340" y="333" class="sub">队列 mq</text>
+          </g>
+          <!-- Semaphore -->
+          <g id="n5" class="nd">
+            <rect x="498" y="72" width="74" height="56" rx="10"/>
+            <text x="535" y="97">信号量</text>
+            <text x="535" y="113" class="sub">Semaphore</text>
+          </g>
+        </svg>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnReset">重置</button>
+        <button class="ctrl" id="btnPrev">上一步</button>
+        <button class="ctrl primary" id="btnPlay">播放</button>
+        <button class="ctrl" id="btnNext">下一步</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-hd">当前状态</div>
+      <div class="status">
+        <span class="badge" id="stateBadge">normal</span>
+        <h2 id="stepTitle">选择步骤开始</h2>
+        <p id="stepDesc"></p>
+        <p id="stepDetail" style="margin-top:8px;font-size:.82rem;color:var(--dim2)"></p>
+      </div>
+    </aside>
+  </section>
+  <section class="deep">
+    <section>
+      <h2>IPC 性能对比</h2>
+      <table>
+        <thead><tr><th>机制</th><th>延迟</th><th>吞吐</th><th>适用场景</th></tr></thead>
+        <tbody>
+          <tr><td>共享内存</td><td>~100ns</td><td>极高</td><td>大量数据、数据库 buffer pool</td></tr>
+          <tr><td>匿名管道</td><td>~1µs</td><td>高</td><td>父子进程单向数据流</td></tr>
+          <tr><td>命名管道(FIFO)</td><td>~2µs</td><td>中</td><td>无血缘进程、日志管道</td></tr>
+          <tr><td>消息队列</td><td>~5µs</td><td>中</td><td>解耦异步消息、带类型路由</td></tr>
+          <tr><td>Unix Domain Socket</td><td>~3µs</td><td>高</td><td>本地 RPC、支持 fd 传递</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section>
+      <h2>Socket vs 本地 IPC</h2>
+      <p>网络 Socket（TCP/UDP）可跨主机，但在本地通信时有额外的网络栈开销。Unix Domain Socket（AF_UNIX）绕过网络层，支持传递文件描述符，适合本地进程间 RPC。</p>
+      <ul>
+        <li>nginx 使用 Unix Domain Socket 与 upstream worker 通信</li>
+        <li>Docker daemon 使用 /var/run/docker.sock 接受客户端连接</li>
+        <li>systemd 使用 Socket activation，传递 fd 给服务进程</li>
+      </ul>
+    </section>
+    <section>
+      <h2>工程场景</h2>
+      <ul>
+        <li>nginx worker 通过共享内存共享连接计数和限速状态（ngx_shm_zone_t）</li>
+        <li>PostgreSQL 进程间通过共享内存共享 buffer pool，信号量保护页面锁</li>
+        <li>Redis fork() 子进程做 RDB 快照，利用 Copy-on-Write 避免全量复制</li>
+        <li>Chrome 多进程架构：渲染进程与主进程通过 Mojo IPC 通信</li>
+      </ul>
+    </section>
+    <section>
+      <h2>边界与误区</h2>
+      <ul>
+        <li>共享内存不是"免费的"：缓存行竞争（false sharing）在多核下依然有损耗</li>
+        <li>管道容量 64KB，写满后 write() 阻塞，两端互等可能导致死锁</li>
+        <li>System V IPC（shmget/msgget）资源不随进程退出自动释放，需手动 ipcrm</li>
+        <li>POSIX 信号量（sem_open）有名称，进程退出不影响信号量计数值</li>
+      </ul>
+    </section>
+  </section>
+</main>
+<script>
+const STEPS=[
+  {title:"fork() 创建父子进程",desc:"父进程调用 pipe(fd) 创建管道，再 fork() 创建子进程。父子进程各持有管道两端文件描述符。",kind:"normal",nodes:[0,1],edges:[],detail:"pipe() 返回 fd[0]（读端）和 fd[1]（写端）。fork() 后两进程都持有两端，惯例是各自关闭不使用的那端。"},
+  {title:"父进程 write(pipe_fd[1], data)",desc:"父进程关闭读端，向写端写入数据。数据暂存在内核管道缓冲区（默认 64KB），不立即传到子进程。",kind:"normal",nodes:[0,2],edges:[0],detail:"管道是字节流，无消息边界。写入超过 64KB 时 write() 阻塞，等子进程读走数据再继续。"},
+  {title:"子进程 read(pipe_fd[0], buf)",desc:"子进程关闭写端，从读端读数据。内核将管道缓冲区数据复制到子进程用户空间。",kind:"normal",nodes:[2,1],edges:[1],detail:"共 2 次数据复制：用户态→内核缓冲区（write），内核缓冲区→用户态（read）。"},
+  {title:"命名管道（FIFO）：无血缘进程通信",desc:"mkfifo(\"/tmp/myfifo\", 0666) 在文件系统创建 FIFO，任意进程通过路径名打开同一管道。",kind:"normal",nodes:[0,2,1],edges:[0,1],detail:"FIFO 有文件系统路径但数据仍在内核缓冲区，不写磁盘。常用于日志管道和进程间单向数据流。"},
+  {title:"共享内存：shmget/shmat 映射",desc:"shmget() 申请内核共享内存段，两进程各自 shmat() 将同一物理内存映射到各自虚拟地址空间。",kind:"normal",nodes:[0,3,1],edges:[2,3],detail:"映射完成后进程通过普通指针访问内存，写操作对另一进程立即可见。虚拟地址不同，物理地址相同。"},
+  {title:"共享内存直接读写：零复制",desc:"两进程直接读写共享内存区域，无系统调用，无数据复制，延迟约 100ns——是最快的 IPC 方式。",kind:"normal",nodes:[0,3,1],edges:[2,3],detail:"但多进程同时写会导致数据竞争（race condition），必须配合信号量或 futex 同步。"},
+  {title:"信号量同步：sem_wait / sem_post",desc:"sem_wait() 原子减 1，值为 0 时阻塞；sem_post() 原子加 1 并唤醒等待者。防止共享内存竞态。",kind:"normal",nodes:[3,5],edges:[6],detail:"信号量本身不传数据，只做互斥或计数同步。POSIX sem（sem_open）比 System V sem（semget）接口更简洁。"},
+  {title:"消息队列：msgsnd 发送带类型消息",desc:"msgsnd() 向内核消息链表添加消息，消息含 mtype 类型字段。发送方不需接收方在线——实现解耦。",kind:"normal",nodes:[0,4],edges:[4],detail:"消息队列有消息边界（不同于管道字节流）。每条消息最大 MSGMAX 字节（默认 8KB），队列总大小 MSGMNB（16KB）。"},
+  {title:"消息队列：msgrcv 按类型接收",desc:"msgrcv(qid, buf, size, mtype, flags) 按 mtype 过滤：0=先进先出；>0=接收特定类型；<0=接收 ≤|mtype| 的最小类型。",kind:"normal",nodes:[4,1],edges:[5],detail:"类型过滤在内核完成，只有匹配的消息被复制到用户空间，实现简单优先级路由。"},
+  {title:"IPC 性能总结：选型依据",desc:"共享内存（零复制）吞吐最高；管道（2次复制）接口最简；消息队列灵活但开销最大；场景决定选型。",kind:"normal",nodes:[0,2,3,4,1],edges:[0,1,2,3,4,5],detail:"大量数据→共享内存+信号量；父子单向流→管道；异步消息路由→消息队列；本地 RPC 传 fd→Unix Domain Socket。"}
+];
+let idx=0,timer=null;
+const stepList=document.getElementById('stepList'),stepTitle=document.getElementById('stepTitle'),stepDesc=document.getElementById('stepDesc'),stepDetail=document.getElementById('stepDetail'),stateBadge=document.getElementById('stateBadge'),btnPlay=document.getElementById('btnPlay');
+function drawList(){stepList.innerHTML=STEPS.map((s,i)=>`<button class="step-btn" data-i="${i}"><b>Step ${i+1}</b>${s.title}</button>`).join('');stepList.querySelectorAll('button').forEach(b=>b.onclick=()=>{idx=+b.dataset.i;pause();render();});}
+function render(){
+  const s=STEPS[idx];
+  stepTitle.textContent=s.title;stepDesc.textContent=s.desc;stepDetail.textContent=s.detail||'';
+  stateBadge.textContent=s.kind;stateBadge.className='badge '+s.kind;
+  stepList.querySelectorAll('.step-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  for(let i=0;i<6;i++){const n=document.getElementById('n'+i);if(n){n.classList.toggle('active',(s.nodes||[]).includes(i));n.classList.remove('fail','recover');}}
+  for(let i=0;i<7;i++){const e=document.getElementById('e'+i);if(e)e.classList.toggle('active',(s.edges||[]).includes(i));}
+  document.getElementById('btnPrev').disabled=idx===0;
+  document.getElementById('btnNext').disabled=idx===STEPS.length-1;
+}
+function next(){idx=Math.min(STEPS.length-1,idx+1);render();if(idx===STEPS.length-1)pause();}
+function prev(){idx=Math.max(0,idx-1);render();}
+function reset(){idx=0;pause();render();}
+function pause(){if(timer)clearInterval(timer);timer=null;btnPlay.textContent='播放';}
+function toggle(){if(timer){pause();return;}btnPlay.textContent='暂停';timer=setInterval(next,1800);}
+document.getElementById('btnNext').onclick=next;document.getElementById('btnPrev').onclick=prev;document.getElementById('btnReset').onclick=reset;btnPlay.onclick=toggle;
+drawList();render();
+if(window.NavTracker)NavTracker.track('进程间通信（IPC）',window.location.href,'🔗','Linux');
+</script>
+</body>
+</html>

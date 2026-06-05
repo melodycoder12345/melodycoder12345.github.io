@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saga 模式 - 分布式</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#c084fc;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 18%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:440px;display:flex;flex-direction:column;padding:18px}
+.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:radial-gradient(circle at 50% 20%,rgba(255,255,255,.05),transparent 50%),rgba(15,23,42,.64);overflow:hidden;display:flex;align-items:center;justify-content:center;}
+.saga-svg{width:100%;max-width:480px;height:auto;}
+.rnode{transition:all .3s;}
+.rnode rect{fill:rgba(255,255,255,.055);stroke:rgba(255,255,255,.12);stroke-width:1.5;transition:all .3s;}
+.rnode text{fill:#94a3b8;transition:fill .3s;}
+.rnode.active rect{fill:color-mix(in srgb,var(--accent) 16%,transparent);stroke:var(--accent);stroke-width:2;}
+.rnode.active text{fill:#f8fafc;}
+.rnode.fail rect{fill:rgba(248,113,113,.1);stroke:#f87171;stroke-width:2;}
+.rnode.fail text{fill:#f87171;}
+.rnode.recover rect{fill:rgba(74,222,128,.1);stroke:#4ade80;stroke-width:2;}
+.rnode.recover text{fill:#4ade80;}
+.rnode.coord-hi rect{fill:color-mix(in srgb,var(--accent) 22%,transparent);stroke:var(--accent);stroke-width:2.5;}
+.rnode.coord-hi text{fill:#f8fafc;}
+@keyframes coord-glow{0%,100%{filter:drop-shadow(0 0 4px color-mix(in srgb,var(--accent) 50%,transparent));}50%{filter:drop-shadow(0 0 10px color-mix(in srgb,var(--accent) 80%,transparent));}}
+.rnode.coord-hi rect{animation:coord-glow 2s infinite;}
+.rnode.warn rect{fill:rgba(251,191,36,.1);stroke:#fbbf24;stroke-width:2;}
+.rnode.warn text{fill:#fbbf24;}
+.redge{stroke:rgba(255,255,255,.15);stroke-width:1.5;fill:none;transition:all .3s;}
+.redge.active{stroke:var(--accent);stroke-width:2.5;filter:drop-shadow(0 0 4px color-mix(in srgb,var(--accent) 60%,transparent));}
+.redge.fail{stroke:#f87171;stroke-width:2;}
+.redge.ok{stroke:#4ade80;stroke-width:2;}
+.redge.warn{stroke:#fbbf24;stroke-width:2;stroke-dasharray:5,3;}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}
+.status p{color:var(--dim);font-size:.9rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.failure{border-color:var(--bad);color:var(--bad)}
+.badge.recovery{border-color:var(--ok);color:var(--ok)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Compensating Transaction","body":"补偿事务：回滚语义不是撤销，而是用反向操作抵消已提交步骤的影响。","tag":"term"},
+  {"title":"Orchestration","body":"编排式：中心化 Saga Coordinator 按顺序调用各服务，适合流程复杂、需要可见性的场景。","tag":"term"},
+  {"title":"Choreography","body":"协同式：每个服务监听事件并触发下一步，去中心化但调试链路复杂。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">分布式 / Saga / C 类型</div>
+      <h1>Saga 模式</h1>
+      <p class="summary">Saga 把分布式事务拆成一系列本地事务和补偿操作，通过编排或协同方式实现最终一致性，避免了 2PC 的全局锁和阻塞。</p>
+      <div class="tags"><span>补偿事务</span><span>编排式</span><span>协同式</span><span>最终一致性</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>Compensating Transaction（补偿事务）</strong><span>回滚语义不是撤销，而是"用反向操作抵消已提交步骤的影响"。</span></li>
+        <li><strong>Orchestration（编排式）</strong><span>中心化 Saga Coordinator 按顺序调用各服务，适合流程复杂、需要可见性的场景。</span></li>
+        <li><strong>Choreography（协同式）</strong><span>每个服务监听事件并触发下一步，去中心化但调试链路复杂。</span></li>
+      </ul>
+    </div>
+  </section>
+  <section class="lab">
+    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <svg class="saga-svg" viewBox="0 0 480 350" id="sagaSvg">
+          <defs>
+            <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="rgba(255,255,255,.25)"/></marker>
+            <marker id="arrA" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#c084fc"/></marker>
+            <marker id="arrF" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#f87171"/></marker>
+            <marker id="arrOk" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#4ade80"/></marker>
+            <marker id="arrW" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#fbbf24"/></marker>
+          </defs>
+
+          <!-- e0: Coord→OrderService -->
+          <line id="e0" class="redge" x1="196" y1="48" x2="110" y2="118" marker-end="url(#arr)"/>
+          <!-- e1: Coord→PaymentService -->
+          <line id="e1" class="redge" x1="240" y1="60" x2="240" y2="118" marker-end="url(#arr)"/>
+          <!-- e2: Coord→InventoryService -->
+          <line id="e2" class="redge" x1="284" y1="48" x2="370" y2="118" marker-end="url(#arr)"/>
+          <!-- e3: PaymentService→Compensate -->
+          <line id="e3" class="redge" x1="240" y1="170" x2="240" y2="222" marker-end="url(#arr)" style="opacity:0"/>
+          <!-- e4: Compensate→OrderService -->
+          <line id="e4" class="redge" x1="194" y1="248" x2="118" y2="170" marker-end="url(#arr)" style="opacity:0"/>
+          <!-- e5: OrderService→EventBus (choreography) -->
+          <line id="e5" class="redge" x1="82" y1="170" x2="148" y2="308" marker-end="url(#arr)" style="opacity:0"/>
+          <!-- e6: EventBus→PaymentService (choreography) -->
+          <line id="e6" class="redge" x1="200" y1="308" x2="210" y2="170" marker-end="url(#arr)" style="opacity:0"/>
+          <!-- e7: PaymentService→InventoryService (choreography flow) -->
+          <line id="e7" class="redge" x1="308" y1="144" x2="346" y2="144" marker-end="url(#arr)" style="opacity:0"/>
+          <!-- e8: InventoryService→EventBus fail event -->
+          <line id="e8" class="redge" x1="374" y1="170" x2="296" y2="308" marker-end="url(#arr)" style="opacity:0"/>
+
+          <!-- Mode label -->
+          <text id="modeLabel" x="240" y="210" text-anchor="middle" font-size="10" fill="#64748b">编排式 (Orchestration)</text>
+
+          <!-- Node: SagaCoordinator (top center) -->
+          <g id="n_coord" class="rnode">
+            <rect x="158" y="10" width="164" height="50" rx="10"/>
+            <text x="240" y="30" text-anchor="middle" font-size="11" font-weight="700">SagaCoordinator</text>
+            <text x="240" y="48" text-anchor="middle" font-size="9" fill="#64748b" id="n_coord_sub">编排协调器</text>
+          </g>
+
+          <!-- Node: OrderService (left) -->
+          <g id="n_order" class="rnode">
+            <rect x="22" y="118" width="120" height="52" rx="10"/>
+            <text x="82" y="138" text-anchor="middle" font-size="11" font-weight="700">OrderService</text>
+            <text x="82" y="156" text-anchor="middle" font-size="9" fill="#64748b" id="n_order_sub">T1</text>
+          </g>
+
+          <!-- Node: PaymentService (center) -->
+          <g id="n_pay" class="rnode">
+            <rect x="180" y="118" width="120" height="52" rx="10"/>
+            <text x="240" y="138" text-anchor="middle" font-size="11" font-weight="700">PaymentService</text>
+            <text x="240" y="156" text-anchor="middle" font-size="9" fill="#64748b" id="n_pay_sub">T2</text>
+          </g>
+
+          <!-- Node: InventoryService (right) -->
+          <g id="n_inv" class="rnode">
+            <rect x="338" y="118" width="124" height="52" rx="10"/>
+            <text x="400" y="138" text-anchor="middle" font-size="11" font-weight="700">InventoryService</text>
+            <text x="400" y="156" text-anchor="middle" font-size="9" fill="#64748b" id="n_inv_sub">T3</text>
+          </g>
+
+          <!-- Node: CompensatePayment (below payment) -->
+          <g id="n_comp" class="rnode">
+            <rect x="158" y="222" width="164" height="50" rx="10"/>
+            <text x="240" y="242" text-anchor="middle" font-size="10" font-weight="700">CompensatePayment</text>
+            <text x="240" y="260" text-anchor="middle" font-size="9" fill="#64748b" id="n_comp_sub">C2 (refund)</text>
+          </g>
+
+          <!-- Node: EventBus (bottom) -->
+          <g id="n_bus" class="rnode">
+            <rect x="118" y="294" width="244" height="44" rx="10"/>
+            <text x="240" y="314" text-anchor="middle" font-size="11" font-weight="700">EventBus</text>
+            <text x="240" y="330" text-anchor="middle" font-size="9" fill="#64748b" id="n_bus_sub">协同式事件总线</text>
+          </g>
+        </svg>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnReset">重置</button>
+        <button class="ctrl" id="btnPrev">上一步</button>
+        <button class="ctrl primary" id="btnPlay">播放</button>
+        <button class="ctrl" id="btnNext">下一步</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-hd">当前状态</div>
+      <div class="status">
+        <span class="badge" id="stateBadge">normal</span>
+        <h2 id="stepTitle"></h2>
+        <p id="stepDesc"></p>
+        <p id="stepDetail" style="margin-top:8px;font-size:.82rem;"></p>
+      </div>
+    </aside>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>背景与机制</h2>
+      <p>微服务时代跨服务调用无法使用 2PC——各服务有独立数据库，不能参与同一 XA 事务。Saga 将长事务拆分为 T1→T2→T3…的本地事务序列，每步成功后发布事件；若某步失败，按逆序执行补偿操作 …C2→C1。编排式（Orchestrator）有中心协调器控制流程；协同式（Choreography）各服务自主监听事件响应。</p>
+    </section>
+    <section>
+      <h2>常见误区</h2>
+      <ul>
+        <li>Saga 不提供隔离性（I），执行中间状态对其他事务可见，可能导致"脏读"。</li>
+        <li>补偿不等于回滚——已提交步骤的效果必须用反向业务操作抵消，不能完美复原。</li>
+        <li>某些操作天然无法补偿（如已发出的短信、外部支付），需要业务层额外设计。</li>
+        <li>协同式 Saga 的调试链路极复杂，事件追踪工具（Zipkin/Jaeger）不可或缺。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>工程场景</h2>
+      <ul>
+        <li>电商下单流程：OrderService→PaymentService→InventoryService→LogisticsService，任一失败触发补偿链。</li>
+        <li>Temporal（前 Cadence）提供 Saga 编排 SDK，支持 durable execution 和自动重试。</li>
+        <li>Apache Kafka + Kafka Streams 可以实现协同式 Saga，每个 topic 是一个事务阶段。</li>
+        <li>Axon Framework（Java）内置 Saga 编排支持，通过注解声明补偿。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>边界与恢复</h2>
+      <p>动画覆盖：① 编排式正常路径（T1→T2→T3）；② 库存失败触发补偿链（C2→C1）；③ 协同式事件驱动流程；④ 协同式失败时自补偿事件传播。关键保障：每个本地事务必须是幂等的，消息投递保证 at-least-once，消费者要做去重（通过唯一事务ID）。</p>
+    </section>
+  </section>
+</main>
+<script>
+/* nodes: n_coord(0), n_order(1), n_pay(2), n_inv(3), n_comp(4), n_bus(5)
+   edges: e0=Coord→Order, e1=Coord→Pay, e2=Coord→Inv,
+          e3=Pay→Comp, e4=Comp→Order, e5=Order→Bus,
+          e6=Bus→Pay, e7=Pay→Inv, e8=Inv→Bus(fail) */
+
+const STEPS = [
+  {
+    title: "用户下单 — OrderService 创建本地事务 T1",
+    desc: "OrderService 创建本地订单（T1），Saga 启动。编排模式下，Coordinator 收到请求开始调度。",
+    kind: "normal",
+    detail: "T1 是一个普通的本地数据库事务，提交后才进入下一步。Saga 的关键：每步都是已提交的本地事务，不是两阶段的未提交状态。",
+    mode: "编排式 (Orchestration)",
+    coordSub: "启动 Saga", orderSub: "T1 已提交", paySub: "等待", invSub: "等待", compSub: "待命", busSub: "协同式事件总线",
+    active: [0,1], fail: [], recover: [], edges: [0], failEdges: [], okEdges: []
+  },
+  {
+    title: "编排式: Coordinator 调用 PaymentService (T2)",
+    desc: "Coordinator 调用 PaymentService，扣款成功，T2 提交。",
+    kind: "normal",
+    detail: "T2 扣款成功后，PaymentService 向 Coordinator 返回成功，Coordinator 推进到下一步。",
+    mode: "编排式 (Orchestration)",
+    coordSub: "调用 T2", orderSub: "T1 ✓", paySub: "T2 执行中", invSub: "等待", compSub: "待命", busSub: "协同式事件总线",
+    active: [0,2], fail: [], recover: [], edges: [1], failEdges: [], okEdges: []
+  },
+  {
+    title: "编排式: Coordinator 调用 InventoryService (T3)",
+    desc: "Coordinator 调用 InventoryService，扣库存成功，T3 提交，Saga 正常完成。",
+    kind: "normal",
+    detail: "三个本地事务全部提交，Saga 正常结束。此时没有全局锁，各服务资源早已释放。",
+    mode: "编排式 (Orchestration)",
+    coordSub: "Saga 完成 ✓", orderSub: "T1 ✓", paySub: "T2 ✓", invSub: "T3 ✓", compSub: "未触发", busSub: "协同式事件总线",
+    active: [], fail: [], recover: [0,1,2,3], edges: [], failEdges: [], okEdges: []
+  },
+  {
+    title: "⚡ InventoryService 失败 — 库存不足",
+    desc: "InventoryService 检测到库存不足，T3 失败，向 Coordinator 返回失败响应。",
+    kind: "failure",
+    detail: "T3 失败意味着 Saga 需要回滚。但 T1（订单创建）和 T2（扣款）已经提交，无法真正撤销——只能执行补偿操作。",
+    mode: "编排式 — 触发补偿",
+    coordSub: "T3 失败！触发补偿", orderSub: "T1 ✓ (已提交)", paySub: "T2 ✓ (需补偿)", invSub: "T3 失败", compSub: "准备补偿", busSub: "协同式事件总线",
+    active: [0], fail: [3], recover: [], edges: [], failEdges: [2], okEdges: []
+  },
+  {
+    title: "⚡ 触发补偿 C2 — PaymentService.refund()",
+    desc: "Coordinator 调用 PaymentService 的补偿接口（C2），执行退款操作抵消 T2 的扣款。",
+    kind: "failure",
+    detail: "C2 不是回滚 T2，而是一个全新的退款事务。如果退款本身失败，需要重试，这是 Saga 必须保证幂等的原因。",
+    mode: "编排式 — 补偿 C2",
+    coordSub: "执行 C2", orderSub: "T1 ✓", paySub: "C2 退款中", invSub: "T3 失败", compSub: "C2 执行", busSub: "协同式事件总线",
+    active: [0,4], fail: [3], recover: [], edges: [3], failEdges: [], okEdges: []
+  },
+  {
+    title: "⚡ 触发补偿 C1 — OrderService.cancel()",
+    desc: "Coordinator 调用 OrderService 的补偿接口（C1），取消订单，Saga 回滚完成。",
+    kind: "failure",
+    detail: "补偿链按逆序执行：C3（库存不需补偿，T3未提交）→ C2（退款）→ C1（取消订单）。Saga 最终到达一个业务上合理的一致状态。",
+    mode: "编排式 — Saga 回滚完成",
+    coordSub: "Saga 回滚完成", orderSub: "C1 取消订单", paySub: "C2 ✓ 已退款", invSub: "T3 失败", compSub: "C2 已完成", busSub: "协同式事件总线",
+    active: [0], fail: [3], recover: [4], edges: [4], failEdges: [], okEdges: []
+  },
+  {
+    title: "协同式: OrderCreated 事件发布到 EventBus",
+    desc: "协同式模式下，OrderService 提交 T1 后发布 OrderCreated 事件到 EventBus，无需中心协调器。",
+    kind: "normal",
+    detail: "协同式 Saga 完全去中心化——每个服务只需监听自己关心的事件，触发本地事务后发布新事件。",
+    mode: "协同式 (Choreography)",
+    coordSub: "不参与协同式", orderSub: "T1 ✓ → 发布事件", paySub: "监听事件…", invSub: "监听事件…", compSub: "待命", busSub: "OrderCreated ✉",
+    active: [1,5], fail: [], recover: [], edges: [5], failEdges: [], okEdges: []
+  },
+  {
+    title: "协同式: EventBus 触发 PaymentService，T2 完成后触发 T3",
+    desc: "PaymentService 收到 OrderCreated，执行扣款 T2，发布 PaymentProcessed。InventoryService 监听并执行 T3。",
+    kind: "normal",
+    detail: "事件链：OrderCreated→PaymentService(T2)→PaymentProcessed→InventoryService(T3)。这种模式下每个服务只需关注自己的输入事件和输出事件。",
+    mode: "协同式 (Choreography)",
+    coordSub: "不参与", orderSub: "T1 ✓", paySub: "T2 ✓ → 发布", invSub: "T3 执行中", compSub: "待命", busSub: "PaymentProcessed ✉",
+    active: [2,3,5], fail: [], recover: [], edges: [6,7], failEdges: [], okEdges: []
+  },
+  {
+    title: "⚡ 协同式: InventoryService 失败，发布 InventoryFailed",
+    desc: "InventoryService T3 失败，发布 InventoryFailed 事件到 EventBus，触发补偿链。",
+    kind: "failure",
+    detail: "协同式下没有中心协调器来触发补偿——各服务自己监听失败事件并执行补偿。这导致补偿链的可追踪性很差。",
+    mode: "协同式 — 失败事件传播",
+    coordSub: "不参与", orderSub: "T1 ✓", paySub: "监听失败事件…", invSub: "T3 失败！发布事件", compSub: "待命", busSub: "InventoryFailed ✉",
+    active: [5], fail: [3], recover: [], edges: [8], failEdges: [], okEdges: []
+  },
+  {
+    title: "隔离性问题 — Saga 中间状态对外可见",
+    desc: "Saga 各步骤是已提交的本地事务，执行中其他服务/用户可以看到中间状态（如已扣款但库存不足）。",
+    kind: "failure",
+    detail: "这是 Saga 不满足 ACID 中 I（Isolation）的体现。解决方案：语义锁（订单标记为 PENDING，防止重复处理）；或接受最终一致性作为业务取舍。",
+    mode: "⚠ 隔离性：中间状态可见",
+    coordSub: "等待补偿完成", orderSub: "PENDING 状态可见", paySub: "T2 已提交可见", invSub: "T3 失败", compSub: "补偿中…", busSub: "事件传播中",
+    active: [], fail: [], recover: [], edges: [], failEdges: [], okEdges: []
+  }
+];
+
+const NODE_IDS = ['n_coord','n_order','n_pay','n_inv','n_comp','n_bus'];
+const EDGE_IDS = ['e0','e1','e2','e3','e4','e5','e6','e7','e8'];
+const HIDDEN_EDGES = [3,4,5,6,7,8];
+
+let idx = 0, timer = null;
+const list    = document.getElementById('stepList');
+const titleEl = document.getElementById('stepTitle');
+const descEl  = document.getElementById('stepDesc');
+const detailEl= document.getElementById('stepDetail');
+const badge   = document.getElementById('stateBadge');
+const play    = document.getElementById('btnPlay');
+
+function render() {
+  const s = STEPS[idx];
+  titleEl.textContent  = s.title;
+  descEl.textContent   = s.desc;
+  detailEl.textContent = s.detail;
+  badge.textContent = s.kind;
+  badge.className   = 'badge ' + s.kind;
+
+  document.getElementById('modeLabel').textContent = s.mode;
+  document.getElementById('n_coord_sub').textContent = s.coordSub;
+  document.getElementById('n_order_sub').textContent = s.orderSub;
+  document.getElementById('n_pay_sub').textContent   = s.paySub;
+  document.getElementById('n_inv_sub').textContent   = s.invSub;
+  document.getElementById('n_comp_sub').textContent  = s.compSub;
+  document.getElementById('n_bus_sub').textContent   = s.busSub;
+
+  document.querySelectorAll('.step-btn').forEach((b,i) => b.classList.toggle('active', i === idx));
+
+  NODE_IDS.forEach((id,i) => {
+    const el = document.getElementById(id);
+    el.classList.remove('active','fail','recover','coord-hi','warn');
+    if (s.fail.includes(i))    { el.classList.add('fail');    return; }
+    if (s.recover.includes(i)) { el.classList.add('recover'); return; }
+    if (s.active.includes(i))  {
+      el.classList.add(i === 0 ? 'coord-hi' : 'active');
+    }
+  });
+
+  EDGE_IDS.forEach((id,i) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('active','fail','ok','warn');
+    if (s.failEdges.includes(i)) {
+      el.classList.add('fail'); el.style.opacity='1'; el.setAttribute('marker-end','url(#arrF)');
+    } else if (s.okEdges && s.okEdges.includes(i)) {
+      el.classList.add('ok'); el.style.opacity='1'; el.setAttribute('marker-end','url(#arrOk)');
+    } else if (s.edges.includes(i)) {
+      el.classList.add('active'); el.style.opacity='1'; el.setAttribute('marker-end','url(#arrA)');
+    } else {
+      el.setAttribute('marker-end','url(#arr)');
+      el.style.opacity = HIDDEN_EDGES.includes(i) ? '0' : '1';
+    }
+  });
+
+  document.getElementById('btnPrev').disabled = idx === 0;
+  document.getElementById('btnNext').disabled = idx === STEPS.length - 1;
+}
+
+function drawList() {
+  list.innerHTML = STEPS.map((s,i) =>
+    `<button class="step-btn" data-i="${i}"><b>Step ${i+1}</b>${s.title}</button>`
+  ).join('');
+  list.querySelectorAll('button').forEach(b => b.onclick = () => { idx = Number(b.dataset.i); pause(); render(); });
+}
+
+function next()  { idx = Math.min(STEPS.length-1, idx+1); render(); if (idx === STEPS.length-1) pause(); }
+function prev()  { idx = Math.max(0, idx-1); render(); }
+function reset() { idx = 0; pause(); render(); }
+function pause() { if (timer) clearInterval(timer); timer = null; play.textContent = '播放'; }
+function toggle(){ if (timer) { pause(); return; } play.textContent = '暂停'; timer = setInterval(next, 1900); }
+
+document.getElementById('btnNext').onclick  = next;
+document.getElementById('btnPrev').onclick  = prev;
+document.getElementById('btnReset').onclick = reset;
+play.onclick = toggle;
+drawList();
+render();
+</script>
+<script>if (window.NavTracker) NavTracker.track('Saga 模式', window.location.href, '🔁', '分布式');</script>
+<script src="../footer.js"></script>
+</body>
+</html>

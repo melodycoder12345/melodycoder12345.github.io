@@ -266,6 +266,40 @@
 | `system-design/distributed-id.html` | `system-design` | `sd-distributed-id` | C | 是 | 否 | C 类型系统流程页，覆盖 Snowflake 位布局、时钟回拨处理和 Leaf 号段模式 |
 | `system-design/push-system.html` | `system-design` | `sd-push-system` | C | 是 | 否 | C 类型系统流程页，覆盖长连接管理、Kafka 分发、扇出写/扇出读选择、ACK 和断线重连 |
 | `system-design/flash-sale.html` | `system-design` | `sd-flash-sale` | C | 是 | 否 | C 类型系统流程页，覆盖流量漏斗、Redis 预扣库存、Kafka 异步下单、超卖防护和降级兜底 |
+| `network/tls.html` | `network` | `tls` | C | 是 | 否 | C 类型协议动画页，覆盖 TLS 1.3 握手、证书链验证、前向安全 ECDHE 和 0-RTT 会话复用 |
+| `network/websocket.html` | `network` | `websocket` | C | 是 | 否 | C 类型协议动画页，覆盖 HTTP Upgrade 握手、帧格式、心跳 Ping/Pong 和断线重连流程 |
+| `network/grpc.html` | `network` | `grpc` | C | 是 | 否 | C 类型系统流程页，覆盖 Protobuf 序列化、HTTP/2 多路复用和四种流 RPC 模式 |
+| `network/http2.html` | `network` | `http2` | B | 否 | 否 | B 类型概念说明页，覆盖二进制帧、多路复用、HPACK 头部压缩和服务器推送与 HTTP/1.1 对比 |
+| `distributed/2pc.html` | `distributed` | `dist-2pc` | C | 是 | 否 | C 类型协议动画页，覆盖 Prepare/Commit 两阶段、协调者故障、参与者阻塞和悬挂处理 |
+| `distributed/saga.html` | `distributed` | `saga` | C | 是 | 否 | C 类型系统流程页，覆盖事务补偿、编排式和协同式 Saga 流程动画 |
+| `distributed/zookeeper.html` | `distributed` | `zookeeper` | C | 是 | 否 | C 类型协议动画页，覆盖 ZAB 协议、Leader 选举、Watch 通知和 znode 操作 |
+| `distributed/gossip.html` | `distributed` | `gossip` | C | 是 | 否 | C 类型系统流程页，覆盖 Push/Pull/Push-Pull 三种传播模型和收敛过程 |
+| `distributed/crdt.html` | `distributed` | `crdt` | B | 否 | 否 | B 类型概念说明页，覆盖 G-Counter、LWW、OR-Set 等无冲突数据类型原理 |
+| `distributed/base.html` | `distributed` | `base-theory` | B | 否 | 否 | B 类型概念说明页，覆盖 BASE vs ACID 对比和最终一致性的实现路径 |
+| `system-design/feed-system.html` | `system-design` | `sd-feed-system` | C | 是 | 否 | C 类型系统流程页，覆盖推模式/拉模式/混合扇出策略和 Timeline 存储方案 |
+| `system-design/chat-system.html` | `system-design` | `sd-chat-system` | C | 是 | 否 | C 类型系统流程页，覆盖 WebSocket 长连接管理、消息顺序、收件箱和离线推送 |
+| `system-design/search-suggest.html` | `system-design` | `sd-search-suggest` | C | 是 | 否 | C 类型系统流程页，覆盖前缀 Trie/Redis sorted set、候选词排分和实时热词聚合 |
+| `system-design/object-storage.html` | `system-design` | `sd-object-storage` | C | 是 | 否 | C 类型系统流程页，覆盖分块上传、纠删码副本策略、元数据分离和 GC 机制 |
+| `system-design/task-scheduler.html` | `system-design` | `sd-task-scheduler` | C | 是 | 否 | C 类型系统流程页，覆盖时间轮 O(1) 触发、分布式分片和幂等执行保证 |
+| `system-design/geo-service.html` | `system-design` | `sd-geo-service` | C | 是 | 否 | C 类型系统流程页，覆盖 GeoHash 编码、附近的人查询和四叉树空间索引 |
+| `algo/red-black-tree.html` | `algo` | `algo-rbt` | A | 是 | 否 | A 类型过程/代码动画页，覆盖红黑树插入旋转着色和删除修复过程 |
+| `algo/fenwick-tree.html` | `algo` | `algo-bit` | A | 是 | 否 | A 类型过程/代码动画页，覆盖树状数组 lowbit 前缀和更新和查询过程 |
+| `algo/floyd-warshall.html` | `algo` | `algo-floyd` | A | 是 | 否 | A 类型过程/代码动画页，覆盖全源最短路 DP 表格填充和负权环检测 |
+| `algo/backtracking.html` | `algo` | `algo-backtracking` | B | 否 | 否 | B 类型概念说明页，覆盖回溯模板、剪枝策略和组合/排列/子集经典题型 |
+| `algo/greedy.html` | `algo` | `algo-greedy` | B | 否 | 否 | B 类型概念说明页，覆盖贪心选择性质、最优子结构和活动选择/霍夫曼编码案例 |
+| `algo/aho-corasick.html` | `algo` | `algo-ac` | A | 是 | 否 | A 类型过程/代码动画页，覆盖 AC 自动机 goto/fail 构建和多模式匹配过程 |
+| `ai/fine-tuning.html` | `ai` | `ai-fine-tuning` | C | 是 | 是 | C 类型系统流程页，覆盖 SFT 指令对齐、LoRA 低秩分解和参数高效微调流程 |
+| `ai/rlhf.html` | `ai` | `ai-rlhf` | C | 是 | 是 | C 类型系统流程页，覆盖奖励模型训练、PPO 策略更新和人类反馈对齐过程 |
+| `ai/quantization.html` | `ai` | `ai-quantization` | B | 否 | 是 | B 类型概念说明页，覆盖 INT8/INT4 量化方案、AWQ/GPTQ 和精度权衡 |
+| `ai/diffusion.html` | `ai` | `ai-diffusion` | C | 是 | 是 | C 类型系统流程页，覆盖前向加噪、逆向去噪和 DDPM 采样步骤动画 |
+| `ai/embedding.html` | `ai` | `ai-embedding` | B | 否 | 是 | B 类型概念说明页，覆盖对比学习、文本向量化原理和语义检索应用场景 |
+| `ai/prompt-engineering.html` | `ai` | `ai-prompt-eng` | B | 否 | 是 | B 类型概念说明页，覆盖 CoT、Few-shot、RAG vs Fine-tuning 选择策略 |
+| `linux/ipc.html` | `linux` | `linux-ipc` | C | 是 | 否 | C 类型系统流程页，覆盖管道/信号量/共享内存/消息队列对比流程和性能权衡 |
+| `linux/signal.html` | `linux` | `linux-signal` | A | 是 | 否 | A 类型过程/代码动画页，覆盖信号产生→传递→处理状态机和 Go 信号处理代码 |
+| `linux/network-stack.html` | `linux` | `linux-netstack` | C | 是 | 否 | C 类型系统流程页，覆盖 socket→sk_buff→网卡 DMA 的内核收发包完整路径 |
+| `db/replication.html` | `db` | `db-replication` | C | 是 | 否 | C 类型系统流程页，覆盖 Binlog 格式、GTID、半同步复制和复制延迟处理 |
+| `db/explain.html` | `db` | `db-explain` | B | 否 | 否 | B 类型概念说明页，覆盖 EXPLAIN 字段解读、执行计划分析和 SQL 优化实践 |
+| `db/connection-pool.html` | `db` | `db-conn-pool` | B | 否 | 否 | B 类型概念说明页，覆盖连接池设计原理、最大连接数配置和超时/泄漏检测 |
 
 新增页面登记规则：
 

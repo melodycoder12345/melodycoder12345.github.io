@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>信息流系统 - 系统设计</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#f59e0b;--blue:#38bdf8;--green:#4ade80;--red:#f87171;--purple:#c084fc;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 15%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:440px;display:flex;flex-direction:column;padding:18px}
+.stage{position:relative;flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:radial-gradient(circle at 50% 20%,rgba(255,255,255,.06),transparent 42%),rgba(15,23,42,.64);overflow:hidden}
+.node{position:absolute;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.055);display:flex;align-items:center;justify-content:center;text-align:center;color:var(--dim);font-weight:700;font-size:.78rem;padding:8px 12px;transition:all .25s;min-width:80px;min-height:48px}
+.node.active{border-color:var(--accent);color:var(--text);background:color-mix(in srgb,var(--accent) 16%,transparent);box-shadow:0 0 24px color-mix(in srgb,var(--accent) 25%,transparent)}
+.node.fail{border-color:var(--red);color:var(--text);box-shadow:0 0 24px rgba(248,113,113,.22)}
+.node.recover{border-color:var(--green);color:var(--text);box-shadow:0 0 24px rgba(74,222,128,.18)}
+.edge{position:absolute;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.18;transform-origin:left center;transition:opacity .25s,filter .25s;pointer-events:none}
+.edge.active{opacity:1;filter:drop-shadow(0 0 6px var(--accent))}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}
+.status p{color:var(--dim);font-size:.9rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.failure{border-color:var(--red);color:var(--red)}
+.badge.recovery{border-color:var(--green);color:var(--green)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+/* node positions */
+.n0{left:4%;top:38%}.n1{left:33%;top:5%}.n2{left:33%;top:43%}.n3{left:63%;top:5%}.n4{left:63%;top:43%}.n5{left:63%;top:75%}
+/* edges */
+.e0{left:10.7%;top:44%;width:34.8%;transform:rotate(-36deg)}
+.e1{left:10.7%;top:45%;width:29%;transform:rotate(3deg)}
+.e2{left:38.7%;top:12%;width:22%;transform:rotate(87deg)}
+.e3{left:38.7%;top:12%;width:30.3%;transform:rotate(0deg)}
+.e4{left:39.7%;top:49%;width:29.3%;transform:rotate(0deg)}
+.e5{left:69%;top:50%;width:20%;transform:rotate(88deg)}
+.e6{left:39.7%;top:49%;width:35.8%;transform:rotate(34deg)}
+.e7{left:69%;top:12%;width:22%;transform:rotate(88deg)}
+@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">系统设计 / Feed System / C 类型</div>
+      <h1>信息流系统</h1>
+      <p class="summary">信息流系统需要在低延迟和高吞吐之间权衡。推模式（写扩散）降低读延迟但写放大，拉模式（读扩散）减少写压力但读慢，混合模式用粉丝数阈值动态选择策略。</p>
+      <div class="tags"><span>推模式</span><span>拉模式</span><span>扇出</span><span>Timeline</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>Push（写扩散）</strong><span>写入时将内容推送到所有粉丝的 Feed Timeline，读取时 O(1) 但写放大 O(N followers)。</span></li>
+        <li><strong>Pull（读扩散）</strong><span>读取时从所有关注者的内容源聚合，避免写放大但读 O(M followings)。</span></li>
+        <li><strong>Timeline（时间线）</strong><span>用户的 Feed，通常存在 Redis sorted set，score=timestamp，按时间倒序读取。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">Step Timeline</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <div class="edge e0"></div>
+        <div class="edge e1"></div>
+        <div class="edge e2"></div>
+        <div class="edge e3"></div>
+        <div class="edge e4"></div>
+        <div class="edge e5"></div>
+        <div class="edge e6"></div>
+        <div class="edge e7"></div>
+        <div class="node n0">User<br><small style="font-weight:400;font-size:.7rem;color:inherit">发帖</small></div>
+        <div class="node n1">Kafka<br><small style="font-weight:400;font-size:.7rem;color:inherit">消息队列</small></div>
+        <div class="node n2">FanOut<br><small style="font-weight:400;font-size:.7rem;color:inherit">扇出服务</small></div>
+        <div class="node n3">Cold DB<br><small style="font-weight:400;font-size:.7rem;color:inherit">冷用户存储</small></div>
+        <div class="node n4">Hot Redis<br><small style="font-weight:400;font-size:.7rem;color:inherit">热用户缓存</small></div>
+        <div class="node n5">Feed TL<br><small style="font-weight:400;font-size:.7rem;color:inherit">用户 Timeline</small></div>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnReset">重置</button>
+        <button class="ctrl" id="btnPrev">上一步</button>
+        <button class="ctrl primary" id="btnPlay">播放</button>
+        <button class="ctrl" id="btnNext">下一步</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-hd">当前状态</div>
+      <div class="status">
+        <span class="badge" id="stateBadge">normal</span>
+        <h2 id="stepTitle">选择步骤开始</h2>
+        <p id="stepDesc">信息流系统核心是推拉模式权衡，点击步骤或播放查看完整流程。</p>
+        <p id="stepDetail" style="margin-top:8px;font-size:.82rem;color:var(--dim2)"></p>
+      </div>
+    </aside>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>背景与机制</h2>
+      <p>微博、Twitter、抖音的 Feed 核心挑战是写扩散和读放大的权衡。大 V 用户（粉丝数百万）如果用纯推模式，每发一条帖子就要写入数百万 sorted set，写放大严重。普通用户粉丝少，用推模式读 O(1) 性价比高。混合策略：粉丝数 &lt; 1000 用 Push，粉丝数 &gt; 1M 用 Pull，中间区间可动态决策。</p>
+    </section>
+    <section>
+      <h2>常见误区</h2>
+      <ul>
+        <li>纯推模式在大 V 场景写放大严重，Kafka 消费者来不及处理会导致延迟堆积。</li>
+        <li>纯拉模式在粉丝多时读聚合慢，需要合并排序 M 个关注者的最新 N 条，复杂度高。</li>
+        <li>Redis sorted set 并非无限大，需要设置 timeline 上限（如最近 1000 条），老数据 ZREMRANGEBYRANK 清除。</li>
+        <li>混合模式的阈值不是一成不变的，应结合实时流量动态调整。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>工程场景</h2>
+      <ul>
+        <li>Redis sorted set：ZADD feed:{uid} score postId，ZREVRANGE 读最新 N 条</li>
+        <li>Kafka：topic=post_created，FanoutService 按 partition 消费，控制并发度</li>
+        <li>MySQL：follow 表存粉丝关系，大表需要按 uid 分片</li>
+        <li>冷用户（长时间不登录）不写 Redis，登录时按需从 DB 构建 timeline</li>
+      </ul>
+    </section>
+    <section>
+      <h2>边界与恢复</h2>
+      <ul>
+        <li>大 V 阈值：一般设 1M~5M 粉丝为 Pull 策略分界点，可灰度测试</li>
+        <li>扇出并发度：限制每个任务最多并发写 1000 个粉丝 Redis，避免 Redis 热点</li>
+        <li>Timeline 容量上限：sorted set 保留最新 800~1000 条，老数据定期 trim</li>
+        <li>缓存穿透：冷用户 Redis 不存在时，加互斥锁回源 DB，避免雪崩</li>
+      </ul>
+    </section>
+  </section>
+</main>
+
+<script>
+const STEPS=[
+  {title:"用户发布内容",desc:"User 写入 UserPost DB，同时发布 Kafka 事件 post_created，包含 postId、userId、timestamp。",kind:"normal",active:[0],fail:[],recover:[],edges:[],detail:"写 DB 和发 Kafka 通常在同一个事务边界内，或用 outbox pattern 保证最终一致性。"},
+  {title:"扇出服务消费 Kafka",desc:"FanOutService 消费 post_created 事件，准备执行写扩散（Push）或读扩散（Pull）策略。",kind:"normal",active:[0,1,2],fail:[],recover:[],edges:[0,1],detail:"Kafka consumer group 保证每条消息被一个 FanOut 实例处理，分区数决定并发度。"},
+  {title:"查询粉丝列表",desc:"FanOutService 查询 follow 表，获取该 User 的粉丝 ID 列表，数量决定使用哪种策略。",kind:"normal",active:[2],fail:[],recover:[],edges:[2],detail:"MySQL: SELECT follower_id FROM follow WHERE followee_id=? LIMIT 5000，大 V 分批分页查询。"},
+  {title:"普通用户推模式（Push）",desc:"粉丝数 < 1000 的普通用户，FanOut 直接写入每个粉丝的 Redis sorted set，ZADD feed:{fid} ts postId。",kind:"normal",active:[2,4],fail:[],recover:[],edges:[4],detail:"写放大倍数 = 粉丝数，普通用户可接受。Redis pipeline 批量写入，减少 RTT。"},
+  {title:"大 V 拉模式（Pull）",desc:"粉丝数 > 1M 的大 V，FanOut 不做写扩散，只更新大 V 自己的 Post 索引，读取时由粉丝主动拉取。",kind:"normal",active:[0,2,3],fail:[],recover:[],edges:[1,3],detail:"大 V 的帖子存在独立索引中（如 sorted set by userId），读取时按关注的大 V 列表并发拉取并合并。"},
+  {title:"粉丝读取 Feed",desc:"粉丝登录后读 Redis ZREVRANGE feed:{uid} 0 49，O(log N) 获取最新 50 条 postId，再批量获取帖子内容。",kind:"normal",active:[4,5],fail:[],recover:[],edges:[5,7],detail:"帖子内容可存在另一层 Redis 缓存（post:{postId}），读取时 MGET 批量获取，减少 DB 压力。"},
+  {title:"混合模式合并排序",desc:"读取自己推模式的 timeline（Redis sorted set） + 关注的大 V 拉取内容，在内存中合并排序后返回。",kind:"normal",active:[2,3,4,5],fail:[],recover:[],edges:[3,4,5,6,7],detail:"合并排序复杂度 O(K log M)，K 是总帖子数，M 是大 V 数量。时间复杂度可接受，通常关注大 V 不超过 50 个。"},
+  {title:"缓存穿透（冷用户）",desc:"冷用户长时间未登录，Redis 中没有 Feed，回源 DB 构建 timeline，可能触发大量 DB 查询。",kind:"failure",active:[3,4],fail:[4],recover:[],edges:[3,7],detail:"防止方案：双重检查 + 互斥锁（Redis SETNX），只允许一个请求回源，其余等待。构建完成后写入 Redis 并设 TTL。"},
+  {title:"热点写风暴（大 V 发帖）",desc:"大 V 发帖触发大量 Kafka 消息消费，FanOut 写 Redis 并发度过高，Redis CPU 飙升。",kind:"failure",active:[0,1,2],fail:[2],recover:[],edges:[0,1],detail:"缓解方案：限流（令牌桶）、降级为纯 Pull、写入 Redis pipeline 批处理、增加 Kafka partition 并行消费。"},
+  {title:"Feed 数量上限（trim）",desc:"sorted set 只保留最新 800 条，FanOut 写入后执行 ZREMRANGEBYRANK 裁剪，旧数据自动清除。",kind:"recovery",active:[4,5],fail:[],recover:[4,5],edges:[5,7],detail:"trim 策略：ZADD 写入后，若 ZCARD > 1000 则执行 ZREMRANGEBYRANK feed:{uid} 0 -1001 删除最老的超出部分。"}
+];
+
+let idx=0,timer=null;
+const list=document.getElementById('stepList'),title=document.getElementById('stepTitle'),desc=document.getElementById('stepDesc'),detail=document.getElementById('stepDetail'),badge=document.getElementById('stateBadge'),play=document.getElementById('btnPlay');
+
+function drawList(){
+  list.innerHTML=STEPS.map((s,i)=>'<button class="step-btn'+(i===idx?' active':'')+'" data-i="'+i+'"><b>Step '+(i+1)+'</b>'+s.title+'</button>').join('');
+  list.querySelectorAll('button').forEach(b=>b.onclick=()=>{idx=Number(b.dataset.i);pause();render();});
+}
+
+function render(){
+  const s=STEPS[idx];
+  title.textContent=s.title;
+  desc.textContent=s.desc;
+  detail.textContent=s.detail;
+  badge.textContent=s.kind;
+  badge.className='badge '+s.kind;
+  document.querySelectorAll('.step-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  document.querySelectorAll('.node').forEach((n,i)=>{
+    n.classList.toggle('active',(s.active||[]).includes(i));
+    n.classList.toggle('fail',(s.fail||[]).includes(i));
+    n.classList.toggle('recover',(s.recover||[]).includes(i));
+  });
+  document.querySelectorAll('.edge').forEach((e,i)=>e.classList.toggle('active',(s.edges||[]).includes(i)));
+  document.getElementById('btnPrev').disabled=idx===0;
+  document.getElementById('btnNext').disabled=idx===STEPS.length-1;
+}
+
+function next(){idx=Math.min(STEPS.length-1,idx+1);render();if(idx===STEPS.length-1)pause();}
+function prev(){idx=Math.max(0,idx-1);render();}
+function reset(){idx=0;pause();render();}
+function pause(){if(timer)clearInterval(timer);timer=null;play.textContent='播放';}
+function toggle(){if(timer){pause();return;}play.textContent='暂停';timer=setInterval(next,1800);}
+
+document.getElementById('btnNext').onclick=next;
+document.getElementById('btnPrev').onclick=prev;
+document.getElementById('btnReset').onclick=reset;
+play.onclick=toggle;
+drawList();render();
+</script>
+<script>if(window.NavTracker)NavTracker.track('信息流系统',window.location.href,'📰','系统设计');</script>
+<script src="../footer.js"></script>
+</body>
+</html>

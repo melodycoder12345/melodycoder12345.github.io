@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Floyd-Warshall - 算法</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#38bdf8;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--purple:#c084fc;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.layout{flex:1;display:grid;grid-template-columns:260px 1fr 300px;min-height:0;overflow:hidden}
+
+/* Left */
+.left-panel{background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.lp-head{padding:16px 14px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
+.lp-title{font-size:.95rem;font-weight:700;color:var(--text);margin-bottom:4px}
+.lp-sub{font-size:.72rem;color:var(--dim2)}
+.badges{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.badge{font-size:.68rem;padding:3px 8px;border-radius:999px;font-family:monospace}
+.badge.time{background:rgba(251,191,36,.12);color:var(--warn)}
+.badge.space{background:rgba(192,132,252,.12);color:var(--purple)}
+.scene-tabs{display:flex;gap:4px;padding:10px 8px;border-bottom:1px solid var(--border);flex-shrink:0}
+.scene-tab{flex:1;padding:7px 4px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--dim);font-size:.74rem;cursor:pointer;text-align:center;transition:all .15s}
+.scene-tab:hover{color:var(--text);border-color:var(--dim)}
+.scene-tab.active{background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.4);color:var(--accent)}
+.step-list{flex:1;overflow-y:auto;padding:6px}
+.step-item{padding:8px 10px;border-radius:8px;margin-bottom:3px;cursor:pointer;border-left:2px solid transparent;transition:all .15s}
+.step-item:hover{background:rgba(255,255,255,.04)}
+.step-item.active{background:rgba(56,189,248,.07);border-left-color:var(--accent)}
+.step-num{font-size:.65rem;font-family:monospace;color:var(--accent);margin-bottom:2px}
+.step-text{font-size:.73rem;color:var(--dim);line-height:1.38}
+.lp-controls{padding:10px 8px;border-top:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;gap:8px}
+.ctrl-row{display:flex;gap:6px}
+.ctrl-btn{flex:1;padding:7px 4px;border-radius:7px;border:1px solid var(--border);background:rgba(255,255,255,.05);color:var(--text);font-size:.78rem;cursor:pointer;text-align:center;transition:all .15s}
+.ctrl-btn:hover{background:rgba(255,255,255,.1)}
+.ctrl-btn.primary{background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.35);color:var(--accent)}
+.ctrl-btn:disabled{opacity:.35;cursor:not-allowed}
+.speed-row{display:flex;align-items:center;gap:6px;font-size:.72rem;color:var(--dim2)}
+input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:var(--border);border-radius:2px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--accent);cursor:pointer}
+
+/* Center */
+.viz-panel{display:flex;flex-direction:column;overflow:hidden}
+.viz-canvas{flex:1;display:flex;flex-direction:row;align-items:stretch;overflow:hidden;gap:0}
+.graph-area{flex:0 0 300px;display:flex;flex-direction:column;padding:16px 8px 8px;align-items:center;justify-content:center;border-right:1px solid var(--border)}
+.graph-area h3{font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px}
+.matrix-area{flex:1;display:flex;flex-direction:column;padding:16px 12px 8px;align-items:center;justify-content:center}
+.matrix-area h3{font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;text-align:center}
+.matrix-wrap{display:flex;flex-direction:column;gap:4px}
+.matrix-row{display:flex;gap:4px;align-items:center}
+.matrix-row-header,.matrix-col-header{width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-family:monospace;color:var(--dim2)}
+.matrix-cell{width:54px;height:44px;border:1px solid var(--border);border-radius:6px;background:var(--panel2);display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:.84rem;font-weight:700;transition:all .25s;color:var(--text);cursor:default;user-select:none}
+.matrix-cell.hl-update{background:rgba(74,222,128,.18);border-color:var(--ok);color:var(--ok);box-shadow:0 0 10px rgba(74,222,128,.25)}
+.matrix-cell.hl-read{background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.4);color:var(--accent)}
+.matrix-cell.hl-k{background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.4);color:var(--warn)}
+.matrix-cell.hl-diag-bad{background:rgba(248,113,113,.18);border-color:var(--bad);color:var(--bad)}
+.matrix-cell.hl-final{background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.3)}
+.k-indicator{margin-top:10px;font-size:.78rem;color:var(--dim);text-align:center;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-family:monospace;min-width:200px}
+.step-desc-bar{padding:12px 20px;border-top:1px solid var(--border);flex-shrink:0;font-size:.84rem;color:var(--dim);display:flex;align-items:center;gap:12px}
+.step-ctr{margin-left:auto;font-size:.75rem;font-family:monospace;color:var(--dim2);white-space:nowrap}
+
+/* Right code */
+.code-panel{border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;background:#0d1117}
+.code-header{padding:10px 14px;border-bottom:1px solid var(--border);font-size:.8rem;color:var(--dim);display:flex;gap:6px;align-items:center;flex-shrink:0;background:var(--panel)}
+.code-dot{width:10px;height:10px;border-radius:50%}
+.code-body{flex:1;overflow-y:auto;padding:10px 0}
+.code-body::-webkit-scrollbar{width:5px}
+.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.code-line{display:flex;align-items:stretch;font-family:'JetBrains Mono',monospace;font-size:.77rem;line-height:1.65;transition:background .15s}
+.code-line.active{background:rgba(251,191,36,.1)}
+.ln{min-width:42px;padding:0 10px 0 14px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:.72rem}
+.code-line.active .ln{color:var(--warn)}
+.lc{padding:0 14px 0 4px;flex:1}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.op{color:#ff7b72}
+</style>
+</head>
+<body>
+<div class="layout">
+  <!-- Left -->
+  <div class="left-panel">
+    <div class="lp-head">
+      <div class="lp-title">Floyd-Warshall</div>
+      <div class="lp-sub">全源最短路 · DP 矩阵迭代</div>
+      <div class="badges">
+        <span class="badge time">时间 O(V³)</span>
+        <span class="badge space">空间 O(V²)</span>
+      </div>
+    </div>
+    <div class="scene-tabs">
+      <button class="scene-tab active" onclick="switchScene(0)">基本最短路</button>
+      <button class="scene-tab" onclick="switchScene(1)">负权环检测</button>
+    </div>
+    <div class="step-list" id="stepList"></div>
+    <div class="lp-controls">
+      <div class="ctrl-row">
+        <button class="ctrl-btn" id="btnReset" onclick="reset()">⏮</button>
+        <button class="ctrl-btn" id="btnPrev" onclick="prev()">◀</button>
+        <button class="ctrl-btn primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+        <button class="ctrl-btn" id="btnNext" onclick="next()">▶</button>
+      </div>
+      <div class="speed-row">
+        <span>慢</span>
+        <input type="range" id="speedRange" min="1" max="5" value="3">
+        <span>快</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Center -->
+  <div class="viz-panel">
+    <div class="viz-canvas">
+      <div class="graph-area">
+        <h3>有向图</h3>
+        <svg id="graphSvg" viewBox="0 0 280 320" width="240" height="280" style="overflow:visible"></svg>
+      </div>
+      <div class="matrix-area">
+        <h3>dist[i][j] 最短路矩阵</h3>
+        <div class="matrix-wrap">
+          <div class="matrix-row">
+            <div class="matrix-col-header"></div>
+            <div class="matrix-col-header">0</div>
+            <div class="matrix-col-header">1</div>
+            <div class="matrix-col-header">2</div>
+            <div class="matrix-col-header">3</div>
+          </div>
+          <div id="matrixRows"></div>
+        </div>
+        <div class="k-indicator" id="kIndicator">初始化 dist 矩阵</div>
+      </div>
+    </div>
+    <div class="step-desc-bar">
+      <span id="stepDesc">点击播放开始演示 Floyd-Warshall 全源最短路算法</span>
+      <span class="step-ctr" id="stepCtr">0 / 0</span>
+    </div>
+  </div>
+
+  <!-- Right code -->
+  <div class="code-panel">
+    <div class="code-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px">floyd_warshall.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+
+<script src="../footer.js"></script>
+<script>
+const INF = 9999;
+const N = 4;
+// Graph edges: [from, to, weight]
+const EDGES_BASIC = [[0,1,3],[0,3,7],[1,0,8],[1,2,2],[2,0,5],[2,3,1],[3,0,2]];
+const EDGES_NEG = [[0,1,3],[0,3,7],[1,0,8],[1,2,2],[2,0,5],[2,3,1],[3,0,2],[1,3,-4]];
+
+// Node positions in SVG (viewBox 0 0 280 320)
+const NODE_POS = [{x:70,y:100},{x:210,y:50},{x:210,y:220},{x:70,y:270}];
+const NODE_R = 20;
+
+// Code lines
+const CODE = [
+  {h:`<span class="kw">const</span> INF = <span class="num">1</span><<<span class="num">30</span>`},           // 0
+  {h:``},                                                                          // 1
+  {h:`<span class="kw">func</span> <span class="fn">floydWarshall</span>(n <span class="kw">int</span>, edges [][<span class="num">3</span>]<span class="kw">int</span>) [][]<span class="kw">int</span> {`},  // 2
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;dist := <span class="fn">make</span>([][]<span class="kw">int</span>, n)`},            // 3
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> i := <span class="kw">range</span> dist {`},           // 4
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;dist[i] = <span class="fn">make</span>([]<span class="kw">int</span>, n)`},  // 5
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> j := <span class="kw">range</span> dist[i] {`},  // 6
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> i == j { dist[i][j] = <span class="num">0</span> } <span class="kw">else</span> { dist[i][j] = INF }`},  // 7
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},                           // 8
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;}`},                               // 9
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> _, e := <span class="kw">range</span> edges {`},     // 10
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;dist[e[<span class="num">0</span>]][e[<span class="num">1</span>]] = e[<span class="num">2</span>]`},  // 11
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;}`},                               // 12
+  {h:``},                                                                          // 13
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 三层循环：k 为中间节点</span>`},          // 14
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> k := <span class="num">0</span>; k < n; k++ {`},   // 15
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> i := <span class="num">0</span>; i < n; i++ {`},  // 16
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> j := <span class="num">0</span>; j < n; j++ {`},// 17
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> dist[i][k] != INF && dist[k][j] != INF {`},// 18
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> dist[i][k]+dist[k][j] < dist[i][j] {`},       // 19
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;dist[i][j] = dist[i][k]+dist[k][j]`},              // 20
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},                                                       // 21
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},                                                           // 22
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},                                                               // 23
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},                                                                   // 24
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;}`},                                                                       // 25
+  {h:``},                                                                                            // 26
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 负权环检测：对角线出现负值</span>`},         // 27
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> i := <span class="num">0</span>; i < n; i++ {`},   // 28
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> dist[i][i] < <span class="num">0</span> {`},          // 29
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="kw">nil</span> <span class="cm">// 有负权环</span>`},    // 30
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},                           // 31
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;}`},                               // 32
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> dist`},                      // 33
+  {h:`}`},                                                                                            // 34
+];
+
+// ─── Scene definitions ─────────────────────────────────────────────
+function makeMatrix(vals) {
+  // vals is flat array [d00,d01,d02,d03, d10,d11,...]
+  const m = [];
+  for (let i=0;i<4;i++) { m.push([]); for (let j=0;j<4;j++) m[i].push(vals[i*4+j]); }
+  return m;
+}
+
+const M0 = makeMatrix([0,3,INF,7, 8,0,2,INF, 5,INF,0,1, 2,INF,INF,0]);
+const M1 = makeMatrix([0,3,INF,7, 8,0,2,15,  5,8,0,1,   2,5,INF,0]);
+const M2 = makeMatrix([0,3,5,7,   8,0,2,15,  5,8,0,1,   2,5,7,0]);
+const M3 = makeMatrix([0,3,5,6,   7,0,2,3,   5,8,0,1,   2,5,7,0]);
+const M4 = makeMatrix([0,3,5,6,   5,0,2,3,   3,6,0,1,   2,5,7,0]);
+// Negative cycle scene
+const MN0 = makeMatrix([0,3,INF,7, 8,0,2,-4, 5,INF,0,1, 2,INF,INF,0]);
+const MN1 = makeMatrix([0,3,INF,7, 8,0,2,-4, 5,8,0,1,   2,5,INF,0]);
+const MN2 = makeMatrix([0,3,5,7,   8,0,2,-4, 5,8,0,1,   2,5,7,0]);
+const MN3 = makeMatrix([0,3,5,4,   7,0,2,-4, 5,8,0,1,   2,5,7,0]);
+const MN4 = makeMatrix([0,3,5,4,   5,-1,2,-4, 3,6,0,1,  2,5,7,0]);
+
+const SCENES = [
+  {
+    label:'基本最短路', edges: EDGES_BASIC,
+    steps:[
+      { desc:'初始化 dist 矩阵：直接相连的边赋对应权重，不相连赋 INF，自身距离为 0', m:M0, hlCells:[], kNode:-1, kDesc:'初始化阶段', updCells:[], code:[3,4,5,6,7,8,9,10,11,12] },
+      { desc:'k=0：考虑以节点 0 为中间节点的所有路径 dist[i][0]+dist[0][j]', m:M0, hlCells:[[0,0],[0,1],[0,2],[0,3],[1,0],[2,0],[3,0]], kNode:0, kDesc:'k=0：中间节点为 0', updCells:[], code:[15] },
+      { desc:'k=0 更新 dist[1][3]：dist[1][0]+dist[0][3]=8+7=15 < INF，从 INF → 15', m:M1, hlCells:[[1,0],[0,3]], kNode:0, kDesc:'k=0：1→0→3 路径长度 15', updCells:[[1,3]], code:[18,19,20] },
+      { desc:'k=0 更新 dist[2][1]：dist[2][0]+dist[0][1]=5+3=8 < INF，从 INF → 8', m:M1, hlCells:[[2,0],[0,1]], kNode:0, kDesc:'k=0：2→0→1 路径长度 8', updCells:[[2,1]], code:[18,19,20] },
+      { desc:'k=0 更新 dist[3][1]：dist[3][0]+dist[0][1]=2+3=5 < INF，从 INF → 5。k=0 轮完成', m:M1, hlCells:[[3,0],[0,1]], kNode:0, kDesc:'k=0：3→0→1 路径长度 5', updCells:[[3,1]], code:[18,19,20] },
+      { desc:'k=1：考虑以节点 1 为中间节点的路径，可利用刚才 k=0 轮已更新的值', m:M1, hlCells:[[1,0],[1,1],[1,2],[1,3],[0,1],[2,1],[3,1]], kNode:1, kDesc:'k=1：中间节点为 1', updCells:[], code:[15] },
+      { desc:'k=1 更新 dist[0][2]：dist[0][1]+dist[1][2]=3+2=5 < INF，从 INF → 5', m:M2, hlCells:[[0,1],[1,2]], kNode:1, kDesc:'k=1：0→1→2 路径长度 5', updCells:[[0,2]], code:[18,19,20] },
+      { desc:'k=1 更新 dist[3][2]：dist[3][1]+dist[1][2]=5+2=7 < INF，从 INF → 7。k=1 轮完成', m:M2, hlCells:[[3,1],[1,2]], kNode:1, kDesc:'k=1：3→1→2 路径长度 7', updCells:[[3,2]], code:[18,19,20] },
+      { desc:'k=2：考虑以节点 2 为中间节点的路径，可经由 0→1→2→3 等复合路径', m:M2, hlCells:[[2,0],[2,1],[2,2],[2,3],[0,2],[1,2],[3,2]], kNode:2, kDesc:'k=2：中间节点为 2', updCells:[], code:[15] },
+      { desc:'k=2 更新 dist[0][3]：dist[0][2]+dist[2][3]=5+1=6 < 7，从 7 → 6', m:M3, hlCells:[[0,2],[2,3]], kNode:2, kDesc:'k=2：0→1→2→3 路径长度 6', updCells:[[0,3]], code:[18,19,20] },
+      { desc:'k=2 更新 dist[1][0]：dist[1][2]+dist[2][0]=2+5=7 < 8，从 8 → 7', m:M3, hlCells:[[1,2],[2,0]], kNode:2, kDesc:'k=2：1→2→0 路径长度 7', updCells:[[1,0]], code:[18,19,20] },
+      { desc:'k=2 更新 dist[1][3]：dist[1][2]+dist[2][3]=2+1=3 < 15，从 15 → 3。k=2 轮完成', m:M3, hlCells:[[1,2],[2,3]], kNode:2, kDesc:'k=2：1→2→3 路径长度 3', updCells:[[1,3]], code:[18,19,20] },
+      { desc:'k=3：最后一轮，以节点 3 为中间节点', m:M3, hlCells:[[3,0],[3,1],[3,2],[3,3],[0,3],[1,3],[2,3]], kNode:3, kDesc:'k=3：中间节点为 3', updCells:[], code:[15] },
+      { desc:'k=3 更新 dist[1][0]：dist[1][3]+dist[3][0]=3+2=5 < 7，从 7 → 5', m:M4, hlCells:[[1,3],[3,0]], kNode:3, kDesc:'k=3：1→2→3→0 路径长度 5', updCells:[[1,0]], code:[18,19,20] },
+      { desc:'k=3 更新 dist[2][0]：dist[2][3]+dist[3][0]=1+2=3 < 5，从 5 → 3，dist[2][1]：1+5=6 < 8，从 8 → 6', m:M4, hlCells:[[2,3],[3,0],[3,1]], kNode:3, kDesc:'k=3：2→3→0 路径 3，2→3→1 路径 6', updCells:[[2,0],[2,1]], code:[18,19,20] },
+      { desc:'所有 k 迭代完成。检查 dist[i][i]：若对角线出现负值则有负权环。当前无负权环 ✓', m:M4, hlCells:[[0,0],[1,1],[2,2],[3,3]], kNode:-1, kDesc:'完成！检查负权环：dist[i][i] >= 0 ✓', updCells:[], code:[27,28,29,33] },
+    ]
+  },
+  {
+    label:'负权环检测', edges: EDGES_NEG,
+    steps:[
+      { desc:'加入边 1→3 权重 -4（负权边）。负权边合法，负权环才是问题', m:MN0, hlCells:[], kNode:-1, kDesc:'含负权边：1→3=-4', updCells:[], code:[0,1,2] },
+      { desc:'初始化 dist：1→3 直接赋 -4，其余与基本场景相同', m:MN0, hlCells:[[1,3]], kNode:-1, kDesc:'dist[1][3] = -4（负权边）', updCells:[], code:[10,11] },
+      { desc:'k=0：经节点 0 更新，dist[2][1]=8，dist[3][1]=5', m:MN1, hlCells:[], kNode:0, kDesc:'k=0 完成', updCells:[[2,1],[3,1]], code:[15,19,20] },
+      { desc:'k=1：经节点 1 更新。dist[0][2]=3+2=5，dist[0][3]=3+(-4)=−1！dist[2][3]=8+(-4)=4→但原值1更小', m:MN2, hlCells:[[0,1],[1,2],[1,3]], kNode:1, kDesc:'k=1：出现负数路径长度 dist[0][3]=-1', updCells:[[0,2],[0,3]], code:[18,19,20] },
+      { desc:'k=2：经节点 2 更新。dist[0][3] 可通过 0→1→2→3 = 5+1=6，但-1更短。dist[1][0]=2+5=7', m:MN3, hlCells:[[2,3],[0,2]], kNode:2, kDesc:'k=2：dist[0][3] 已为 -1，无进一步更新', updCells:[], code:[18,19] },
+      { desc:'k=3：dist[1][0]=dist[1][3]+dist[3][0]=-4+2=-2 < 7，dist[1][1]=dist[1][3]+dist[3][1]=-4+5=1 > 0', m:MN4, hlCells:[[1,3],[3,0]], kNode:3, kDesc:'k=3：dist[1][0]=-2，出现异常！', updCells:[[1,0],[1,1]], code:[18,19,20] },
+      { desc:'检查对角线：dist[1][1]=-1 < 0！存在负权环（节点 1 可以通过负权回路回到自身，路径越走越短）', m:MN4, hlCells:[[1,1]], kNode:-1, kDesc:'发现负权环！dist[1][1] = -1 < 0', updCells:[], code:[27,28,29,30] },
+      { desc:'返回 nil 表示存在负权环，Floyd-Warshall 无法得出正确最短路（负权环导致无穷优化）', m:MN4, hlCells:[[0,0],[1,1],[2,2],[3,3]], kNode:-1, kDesc:'负权环检测：返回 nil ✗', updCells:[], code:[30] },
+    ]
+  }
+];
+
+let curScene = 0, curStep = 0, playing = false, timer = null;
+const SPEED = [900, 600, 380, 220, 100];
+
+// ─── Build DOM ─────────────────────────────────────────────────────
+function buildCode() {
+  const body = document.getElementById('codeBody');
+  body.innerHTML = CODE.map((l,i) =>
+    `<div class="code-line" data-ln="${i}"><span class="ln">${i+1}</span><span class="lc">${l.h||'&nbsp;'}</span></div>`
+  ).join('');
+}
+
+function buildMatrix() {
+  const rows = document.getElementById('matrixRows');
+  rows.innerHTML = '';
+  for (let i = 0; i < N; i++) {
+    const row = document.createElement('div');
+    row.className = 'matrix-row';
+    row.innerHTML = `<div class="matrix-row-header">${i}</div>`;
+    for (let j = 0; j < N; j++) {
+      row.innerHTML += `<div class="matrix-cell" id="m-${i}-${j}">∞</div>`;
+    }
+    rows.appendChild(row);
+  }
+}
+
+function buildGraph(edges) {
+  const svg = document.getElementById('graphSvg');
+  svg.innerHTML = `
+    <defs>
+      <marker id="arr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#64748b"/>
+      </marker>
+      <marker id="arr-hl" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#38bdf8"/>
+      </marker>
+    </defs>`;
+
+  // Check if edge a→b and b→a both exist
+  const edgeSet = new Set(edges.map(e => `${e[0]}-${e[1]}`));
+  const hasParallel = (a,b) => edgeSet.has(`${a}-${b}`) && edgeSet.has(`${b}-${a}`);
+
+  // Draw edges
+  edges.forEach(([from, to, w]) => {
+    const p1 = NODE_POS[from], p2 = NODE_POS[to];
+    const dx = p2.x - p1.x, dy = p2.y - p1.y;
+    const len = Math.sqrt(dx*dx + dy*dy);
+    const nx = -dy/len, ny = dx/len; // normal
+    const curve = hasParallel(from, to) ? 25 : 0;
+
+    // Shorten at endpoints to not overlap with circles
+    const ex = dx/len * NODE_R, ey = dy/len * NODE_R;
+    const sx = p1.x + dx/len * (NODE_R+2), sy = p1.y + dy/len * (NODE_R+2);
+    const ex2 = p2.x - dx/len * (NODE_R+8), ey2 = p2.y - dy/len * (NODE_R+8);
+    const mx = (sx+ex2)/2 + nx*curve, my = (sy+ey2)/2 + ny*curve;
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d', `M ${sx},${sy} Q ${mx},${my} ${ex2},${ey2}`);
+    path.setAttribute('stroke', '#475569');
+    path.setAttribute('stroke-width', '1.5');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('marker-end', 'url(#arr)');
+    path.setAttribute('id', `edge-${from}-${to}`);
+    svg.appendChild(path);
+
+    // Weight label at midpoint of bezier
+    const lx = 0.25*sx + 0.5*mx + 0.25*ex2;
+    const ly = 0.25*sy + 0.5*my + 0.25*ey2;
+    const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
+    txt.textContent = w;
+    txt.setAttribute('x', lx + nx*8);
+    txt.setAttribute('y', ly + ny*8 + 4);
+    txt.setAttribute('text-anchor', 'middle');
+    txt.setAttribute('font-size', '11');
+    txt.setAttribute('font-family', 'monospace');
+    txt.setAttribute('font-weight', '700');
+    txt.setAttribute('fill', '#94a3b8');
+    txt.setAttribute('id', `elabel-${from}-${to}`);
+    svg.appendChild(txt);
+  });
+
+  // Draw nodes
+  NODE_POS.forEach((pos, i) => {
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('id', `node-${i}`);
+    const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circle.setAttribute('cx', pos.x); circle.setAttribute('cy', pos.y);
+    circle.setAttribute('r', NODE_R);
+    circle.setAttribute('fill', '#1e293b'); circle.setAttribute('stroke', '#475569');
+    circle.setAttribute('stroke-width', '2');
+    const label = document.createElementNS('http://www.w3.org/2000/svg','text');
+    label.textContent = i;
+    label.setAttribute('x', pos.x); label.setAttribute('y', pos.y+5);
+    label.setAttribute('text-anchor', 'middle');
+    label.setAttribute('font-size', '14'); label.setAttribute('font-weight', '700');
+    label.setAttribute('font-family', 'monospace'); label.setAttribute('fill', '#e2e8f0');
+    g.appendChild(circle); g.appendChild(label);
+    svg.appendChild(g);
+  });
+}
+
+function buildStepList() {
+  const steps = SCENES[curScene].steps;
+  document.getElementById('stepList').innerHTML = steps.map((s,i) =>
+    `<div class="step-item${i===curStep?' active':''}" onclick="goStep(${i})">
+      <div class="step-num">步骤 ${i+1}</div>
+      <div class="step-text">${s.desc.slice(0,60)}…</div>
+    </div>`
+  ).join('');
+}
+
+// ─── Render ────────────────────────────────────────────────────────
+function fmtVal(v) { return v >= INF ? '∞' : v; }
+
+function render() {
+  const scene = SCENES[curScene];
+  const step = scene.steps[curStep];
+
+  // Matrix
+  for (let i=0;i<N;i++) for (let j=0;j<N;j++) {
+    const cell = document.getElementById(`m-${i}-${j}`);
+    if (!cell) continue;
+    cell.className = 'matrix-cell';
+    cell.textContent = fmtVal(step.m[i][j]);
+    if (step.m[i][j] < 0) cell.style.color = 'var(--bad)';
+    else cell.style.color = '';
+  }
+  // Highlight k row/col
+  if (step.kNode >= 0) {
+    for (let j=0;j<N;j++) {
+      const c = document.getElementById(`m-${step.kNode}-${j}`);
+      if (c) c.classList.add('hl-k');
+    }
+    for (let i=0;i<N;i++) {
+      const c = document.getElementById(`m-${i}-${step.kNode}`);
+      if (c && i !== step.kNode) c.classList.add('hl-k');
+    }
+  }
+  // Read cells
+  step.hlCells.forEach(([r,c]) => {
+    const el = document.getElementById(`m-${r}-${c}`);
+    if (el && !el.classList.contains('hl-k')) el.classList.add('hl-read');
+  });
+  // Updated cells
+  step.updCells.forEach(([r,c]) => {
+    const el = document.getElementById(`m-${r}-${c}`);
+    if (el) el.classList.add('hl-update');
+  });
+  // Negative diagonal
+  for (let i=0;i<N;i++) {
+    const el = document.getElementById(`m-${i}-${i}`);
+    if (el && step.m[i][i] < 0) { el.className='matrix-cell hl-diag-bad'; el.style.color=''; }
+  }
+  // If final
+  if (step.kNode === -1 && curStep > 0 && !step.updCells.length && scene.id !== 'neg') {
+    for (let i=0;i<N;i++) for (let j=0;j<N;j++) {
+      const el=document.getElementById(`m-${i}-${j}`);
+      if (el && !el.classList.contains('hl-diag-bad')) el.classList.add('hl-final');
+    }
+  }
+
+  // K indicator
+  document.getElementById('kIndicator').textContent = step.kDesc;
+
+  // Node highlights
+  NODE_POS.forEach((_,i) => {
+    const g = document.getElementById(`node-${i}`);
+    if (!g) return;
+    const c = g.querySelector('circle');
+    if (step.kNode === i) {
+      c.setAttribute('fill', 'rgba(251,191,36,.25)');
+      c.setAttribute('stroke', '#fbbf24');
+    } else {
+      c.setAttribute('fill', '#1e293b');
+      c.setAttribute('stroke', '#475569');
+    }
+  });
+
+  // Code
+  document.querySelectorAll('.code-line').forEach(el => el.classList.remove('active'));
+  step.code.forEach(ln => {
+    const el = document.querySelector(`.code-line[data-ln="${ln}"]`);
+    if (el) { el.classList.add('active'); el.scrollIntoView({block:'nearest'}); }
+  });
+
+  // Desc + counter
+  document.getElementById('stepDesc').textContent = step.desc;
+  document.getElementById('stepCtr').textContent = `${curStep+1} / ${scene.steps.length}`;
+  document.getElementById('btnPrev').disabled = curStep === 0;
+  document.getElementById('btnNext').disabled = curStep === scene.steps.length - 1;
+
+  buildStepList();
+}
+
+// ─── Controls ──────────────────────────────────────────────────────
+function switchScene(idx) {
+  curScene = idx; curStep = 0; pause();
+  document.querySelectorAll('.scene-tab').forEach((t,i) => t.classList.toggle('active', i===idx));
+  buildGraph(SCENES[idx].edges);
+  buildStepList(); render();
+}
+function goStep(i) { pause(); curStep = i; render(); }
+function reset() { pause(); curStep = 0; render(); }
+function prev() { pause(); if (curStep > 0) { curStep--; render(); } }
+function next() { pause(); if (curStep < SCENES[curScene].steps.length - 1) { curStep++; render(); } }
+function togglePlay() { if (playing) pause(); else { if (curStep >= SCENES[curScene].steps.length-1) curStep=0; play(); } }
+function play() { playing=true; document.getElementById('btnPlay').textContent='⏸ 暂停'; tick(); }
+function pause() { playing=false; clearTimeout(timer); document.getElementById('btnPlay').textContent='▶ 播放'; }
+function tick() {
+  if (!playing) return;
+  const spd = SPEED[parseInt(document.getElementById('speedRange').value)-1];
+  if (curStep < SCENES[curScene].steps.length-1) { curStep++; render(); timer=setTimeout(tick,spd); }
+  else pause();
+}
+
+// Init
+buildCode(); buildMatrix(); buildGraph(EDGES_BASIC); buildStepList(); render();
+</script>
+</body>
+</html>

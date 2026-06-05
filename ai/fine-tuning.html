@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>微调（Fine-tuning）- AI</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<link rel="stylesheet" href="ai.css">
+<script>window.PAGE_CONCEPTS=[
+  {"title":"SFT","body":"Supervised Fine-Tuning，用人工标注的指令-回答对训练模型，把预训练模型从"续写"能力转变为"指令跟随"能力。","tag":"term"},
+  {"title":"LoRA","body":"Low-Rank Adaptation，在原始权重矩阵旁插入低秩矩阵 A×B，只训练 A 和 B，参数量仅为原来的 0.1%-1%。","tag":"term"},
+  {"title":"PEFT","body":"参数高效微调，包含 LoRA、Prefix Tuning、P-Tuning 等方法，用小量可训练参数达到接近全量微调的效果。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="shell" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">AI / Fine-tuning / C 类型</div>
+      <h1>微调（Fine-tuning）</h1>
+      <p class="summary">微调让预训练模型适应特定任务或领域，而不是从头训练。SFT 用高质量指令数据对齐任务格式，LoRA 通过低秩分解只更新少量参数，大幅降低计算成本。</p>
+      <div class="tags"><span>SFT</span><span>LoRA</span><span>PEFT</span><span>指令数据</span></div>
+    </div>
+    <div class="card map">
+      <div class="eyebrow">核心术语</div>
+      <div class="term"><strong>SFT（Supervised Fine-Tuning）</strong><span>用人工标注的指令-回答对训练模型，把预训练模型从"续写"能力转变为"指令跟随"能力。训练时只计算 output 部分的 loss，系统提示和指令部分的 loss 被 mask 掉。</span></div>
+      <div class="term"><strong>LoRA（Low-Rank Adaptation）</strong><span>在原始权重矩阵 W 旁边插入低秩矩阵 A×B，只训练 A 和 B，参数量仅为原来的 0.1%-1%。推理时合并为 W_new = W + α×B×A，零额外延迟。</span></div>
+      <div class="term"><strong>PEFT（参数高效微调）</strong><span>包含 LoRA、Prefix Tuning、P-Tuning 等方法，用小量可训练参数达到接近全量微调的效果，核心思想是"冻结大部分权重，只调整少量参数"。</span></div>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <section class="panel viz"><div class="stage" id="aiStage"></div><div class="controls"><button class="ctrl" id="btnReset">重置</button><button class="ctrl" id="btnPrev">上一步</button><button class="ctrl primary" id="btnPlay">播放</button><button class="ctrl" id="btnNext">下一步</button></div></section>
+    <aside class="panel"><div class="panel-hd">当前状态</div><div class="status"><span class="badge" id="stateBadge">normal</span><h2 id="stepTitle"></h2><p id="stepDesc"></p><p id="stepDetail"></p><div class="metrics" id="metrics"></div><div class="codebox"><h3>关键代码</h3><pre id="codeBlock"></pre></div></div></aside>
+  </section>
+
+  <section class="grid">
+    <article class="section">
+      <h2>全量微调 vs LoRA</h2>
+      <p>全量微调更新模型所有参数，对 7B 模型需要约 40-80 GB GPU 显存（FP32 梯度+优化器状态），大多数团队无法承担。LoRA 只需训练 0.1%-1% 的参数，显存降低 4-8 倍，同时效果接近全量微调。</p>
+      <ul>
+        <li><strong>参数量对比</strong>：7B 全量 = 7×10⁹ 参数；LoRA rank=8 ≈ 400万参数</li>
+        <li><strong>显存对比</strong>：全量 7B 需要 ≥56GB；LoRA 可在 16GB 单卡运行</li>
+        <li><strong>效果对比</strong>：大多数任务 LoRA ≈ 全量，特殊领域适配略差</li>
+        <li><strong>QLoRA</strong>：用 4-bit 量化加载基础权重 + LoRA，进一步降低到 6-8GB</li>
+      </ul>
+    </article>
+    <article class="section">
+      <h2>LoRA 超参数选择</h2>
+      <p>LoRA 的三个核心超参：rank、alpha 和 target modules，直接影响微调效果和成本。</p>
+      <ul>
+        <li><strong>rank（r）</strong>：低秩矩阵的秩，常用 4、8、16、32。rank 越大，可学习容量越强，但显存越多。通常从 8 开始调。</li>
+        <li><strong>alpha（α）</strong>：缩放系数，实际更新量 = α/r × B×A。通常设 alpha=2×rank。</li>
+        <li><strong>target modules</strong>：通常微调注意力层的 q_proj、v_proj。复杂任务可以加 k_proj、o_proj 甚至 FFN 层。</li>
+      </ul>
+      <pre>from peft import LoraConfig, get_peft_model
+
+config = LoraConfig(
+    r=8, lora_alpha=16,
+    target_modules=["q_proj", "v_proj"],
+    lora_dropout=0.05, bias="none",
+    task_type="CAUSAL_LM"
+)
+model = get_peft_model(base_model, config)</pre>
+    </article>
+    <article class="section">
+      <h2>数据质量 &gt; 数据数量</h2>
+      <p>SFT 的核心原则：用 1000 条高质量指令数据往往优于 100万条低质量数据。数据构造的关键原则：</p>
+      <ul>
+        <li><strong>多样性</strong>：覆盖目标任务的各种子类型、难度和风格，避免分布偏差。</li>
+        <li><strong>格式一致性</strong>：系统提示、指令、输出的格式要统一，模型会学习模板本身。</li>
+        <li><strong>输出质量</strong>：宁可少但精，低质量回答会直接降低模型表现，比没有数据更坏。</li>
+        <li><strong>Alpaca 格式</strong>：<code>{"instruction": "...", "input": "...", "output": "..."}</code> 是常见的指令数据格式。</li>
+        <li><strong>去重和过滤</strong>：用相似度去重，过滤过短、过长或格式错误的样本。</li>
+      </ul>
+    </article>
+    <article class="section">
+      <h2>常见问题与解决方案</h2>
+      <ul>
+        <li><strong>灾难性遗忘</strong>：微调后模型丧失通用能力。缓解方法：混入通用数据、降低学习率、减少 epoch。</li>
+        <li><strong>过拟合</strong>：训练 loss 降低但验证集变差。监控验证集 loss，设 early stopping，数据增强。</li>
+        <li><strong>Domain Shift</strong>：微调数据分布和实际使用场景不一致，导致泛化差。需要构造更接近生产分布的数据。</li>
+        <li><strong>格式不稳定</strong>：模型在推理时不遵循输出格式。检查 prompt 模板一致性，增加格式错误的负例。</li>
+      </ul>
+      <div class="callout">调参顺序建议：先确保数据质量，再选择 LoRA 超参，最后调学习率和 epoch。不要在数据质量差的情况下大量调参。</div>
+    </article>
+  </section>
+</main>
+<script>
+window.AI_DEMO = {
+  title: '微调（Fine-tuning）流程',
+  viewBox: '0 0 640 360',
+  nodes: [
+    {id:'dataset',  label:'训练数据集',  sub:'instructions',  x:90,  y:70,  w:130, h:52},
+    {id:'tokenizer',label:'Tokenizer',   sub:'序列拼接',       x:290, y:70,  w:120, h:52},
+    {id:'base',     label:'预训练模型',   sub:'frozen weights', x:90,  y:220, w:140, h:62},
+    {id:'lora',     label:'LoRA A×B',    sub:'W + α·B·A',     x:420, y:145, w:130, h:62},
+    {id:'optim',    label:'优化器',       sub:'只更新A,B',       x:420, y:280, w:120, h:52},
+    {id:'finetuned',label:'微调后模型',   sub:'merged weights', x:570, y:200, w:130, h:62}
+  ],
+  edges: [
+    {id:'e1', x1:155, y1:70,  x2:230, y2:70},
+    {id:'e2', x1:350, y1:70,  x2:390, y2:130},
+    {id:'e3', x1:160, y1:215, x2:355, y2:160},
+    {id:'e4', x1:420, y1:176, x2:420, y2:254},
+    {id:'e5', x1:480, y1:285, x2:535, y2:220},
+    {id:'e6', x1:485, y1:145, x2:505, y2:175}
+  ],
+  code: '# SFT 数据格式\n{"instruction": "翻译为英文", "output": "Translate to English"}\n\n# LoRA 配置\nconfig = LoraConfig(r=8, lora_alpha=16,\n    target_modules=["q_proj","v_proj"])\n\n# 推理时合并\nmodel.merge_and_unload()  # W_new = W + α·B·A',
+  steps: [
+    {kicker:'data',    title:'准备指令数据集',         badge:'ingest',
+     nodes:['dataset'],
+     desc:'以 {"instruction": ..., "output": ...} 格式组织训练数据。数据质量比数量更重要，1000 条高质量数据优于 10万条低质量数据。',
+     metrics:[{label:'格式',value:'instruction-output'},{label:'质量优先',value:'✓'}]},
+
+    {kicker:'tokenize', title:'数据 Tokenize',          badge:'preprocess',
+     nodes:['dataset','tokenizer'], edges:['e1'],
+     desc:'将系统提示、指令、期望输出拼接成完整序列。训练时只对 output 部分计算 loss，指令和系统提示部分用 -100 mask 掉。',
+     code:'# 拼接格式\n<|system|>你是助手<|user|>{instruction}<|assistant|>{output}\n# loss mask: input_ids 中 instruction 部分填 -100'},
+
+    {kicker:'sft',     title:'SFT 训练循环开始',        badge:'training',
+     nodes:['tokenizer','base'], edges:['e2','e3'],
+     desc:'全量微调：更新模型所有参数。7B 模型需要约 56GB+ GPU 显存（含梯度和优化器状态），大多数团队无法承担这个成本。',
+     metrics:[{label:'7B 全量显存',value:'≥ 56 GB'},{label:'参数量',value:'7×10⁹'}]},
+
+    {kicker:'problem',  title:'全量微调的显存瓶颈',      badge:'bottleneck', tone:'warn',
+     nodes:['base'],
+     warnNodes:['base'],
+     desc:'FP16 权重 14GB + FP32 梯度 28GB + Adam 优化器状态 56GB = 约 98GB 峰值显存。即使 A100 80GB 也不够，需要多卡。',
+     detail:'解决方案：用 LoRA 只训练低秩矩阵，显存降低到 16GB 以内。',
+     metrics:[{label:'峰值显存',value:'~98 GB'},{label:'方案',value:'→ LoRA'}]},
+
+    {kicker:'lora-insert', title:'LoRA 插入结构',        badge:'PEFT',
+     nodes:['base','lora'], edges:['e3'],
+     desc:'在注意力层的 Q、V 矩阵旁插入 A(d×r) 和 B(r×d)，rank=8。原始权重 W 完全冻结，不参与梯度计算。',
+     code:'# LoRA forward pass\ndef forward(x):\n    return W(x) + lora_B(lora_A(x)) * (alpha/r)\n# W 冻结，只有 A 和 B 有梯度',
+     metrics:[{label:'rank',value:'8'},{label:'可训练参数',value:'~0.5%'}]},
+
+    {kicker:'train-lora', title:'只训练 A 和 B',         badge:'training',
+     nodes:['lora','optim'], edges:['e4'],
+     desc:'Adam 优化器只维护 A 和 B 的梯度和动量，显存从 98GB 降到约 16GB。学习率通常比全量微调高 2-5 倍。',
+     metrics:[{label:'显存',value:'~16 GB'},{label:'学习率',value:'2e-4'}]},
+
+    {kicker:'merge',   title:'推理时合并权重',           badge:'inference',
+     nodes:['lora','finetuned'], edges:['e6','e5'],
+     desc:'微调完成后，执行 merge_and_unload()，将 LoRA 矩阵合并回原始权重：W_new = W + α/r × B×A。推理时无额外延迟。',
+     code:'# 合并权重（无推理开销）\nW_new = W_orig + (alpha/r) * B @ A\n# shape 与原始 W 完全相同',
+     metrics:[{label:'推理延迟',value:'0 额外开销'},{label:'文件大小',value:'等同原模型'}]},
+
+    {kicker:'monitor', title:'损失下降，验证集评估',       badge:'monitoring',
+     goodNodes:['optim'],
+     nodes:['optim','lora'],
+     desc:'监控训练 loss 和验证集 loss，以及任务特定指标（BLEU、Accuracy 等）。正常情况下两者同步下降。',
+     metrics:[{label:'train loss',value:'↓ 下降'},{label:'val loss',value:'↓ 同步'}]},
+
+    {kicker:'overfit', title:'过拟合风险（failure case）', badge:'failure', tone:'bad',
+     badNodes:['optim'],
+     nodes:['optim'],
+     desc:'数据太少或训练 epoch 太多时，训练 loss 继续下降但验证集 loss 反升。模型开始"背诵"训练数据而非泛化。',
+     detail:'解决：early stopping、降低 epoch（通常 1-3 个 epoch 足够）、数据增强、降低学习率。',
+     metrics:[{label:'train loss',value:'↓ 继续降'},{label:'val loss',value:'↑ 反升！'}]},
+
+    {kicker:'done',    title:'微调完成，评估任务性能',      badge:'complete', tone:'good',
+     goodNodes:['finetuned','base'],
+     nodes:['finetuned'],
+     edges:['e5','e6'],
+     desc:'与 base 模型对比任务性能，同时和 few-shot prompting 基线对比。好的微调在特定任务上显著超过纯 prompting，且表现稳定。',
+     detail:'如果微调效果不如预期，优先检查数据质量，而不是调整模型超参。',
+     metrics:[{label:'vs base',value:'↑ 显著提升'},{label:'vs few-shot',value:'↑ 更稳定'}]}
+  ]
+};
+</script>
+<script src="ai.js"></script>
+<script src="../footer.js"></script>
+<script>if (window.NavTracker) NavTracker.track('微调 Fine-tuning', window.location.href, '🔧', 'AI');</script>
+</body>
+</html>

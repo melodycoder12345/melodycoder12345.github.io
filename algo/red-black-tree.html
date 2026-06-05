@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>红黑树 - 算法</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#38bdf8;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--purple:#c084fc;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.layout{flex:1;display:grid;grid-template-columns:260px 1fr 300px;min-height:0;overflow:hidden}
+
+.left-panel{background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.lp-head{padding:14px 14px 10px;border-bottom:1px solid var(--border);flex-shrink:0}
+.lp-title{font-size:.95rem;font-weight:700;margin-bottom:3px}
+.lp-sub{font-size:.7rem;color:var(--dim2)}
+.badges{display:flex;gap:5px;margin-top:7px;flex-wrap:wrap}
+.badge{font-size:.66rem;padding:2px 7px;border-radius:999px;font-family:monospace}
+.badge.time{background:rgba(251,191,36,.12);color:var(--warn)}
+.badge.space{background:rgba(192,132,252,.12);color:var(--purple)}
+.scene-tabs{display:flex;gap:3px;padding:8px;border-bottom:1px solid var(--border);flex-shrink:0}
+.scene-tab{flex:1;padding:6px 3px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--dim);font-size:.72rem;cursor:pointer;text-align:center;transition:all .15s}
+.scene-tab:hover{color:var(--text);border-color:var(--dim)}
+.scene-tab.active{background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.4);color:var(--accent)}
+.step-list{flex:1;overflow-y:auto;padding:5px}
+.step-item{padding:7px 9px;border-radius:7px;margin-bottom:3px;cursor:pointer;border-left:2px solid transparent;transition:all .15s}
+.step-item:hover{background:rgba(255,255,255,.04)}
+.step-item.active{background:rgba(56,189,248,.07);border-left-color:var(--accent)}
+.step-num{font-size:.63rem;font-family:monospace;color:var(--accent);margin-bottom:1px}
+.step-text{font-size:.72rem;color:var(--dim);line-height:1.38}
+.lp-rules{padding:8px;border-top:1px solid var(--border);flex-shrink:0}
+.rule-title{font-size:.65rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.rule{font-size:.68rem;color:var(--dim);line-height:1.5;display:flex;gap:5px;margin-bottom:3px}
+.rule-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:3px}
+.rule-dot.r{background:#ef4444}.rule-dot.b{background:#64748b}
+.lp-controls{padding:9px 8px;border-top:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;gap:7px}
+.ctrl-row{display:flex;gap:5px}
+.ctrl-btn{flex:1;padding:6px 3px;border-radius:7px;border:1px solid var(--border);background:rgba(255,255,255,.05);color:var(--text);font-size:.76rem;cursor:pointer;text-align:center;transition:all .15s}
+.ctrl-btn:hover{background:rgba(255,255,255,.1)}
+.ctrl-btn.primary{background:rgba(56,189,248,.12);border-color:rgba(56,189,248,.35);color:var(--accent)}
+.ctrl-btn:disabled{opacity:.35;cursor:not-allowed}
+.speed-row{display:flex;align-items:center;gap:5px;font-size:.7rem;color:var(--dim2)}
+input[type=range]{flex:1;-webkit-appearance:none;height:3px;background:var(--border);border-radius:2px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;background:var(--accent);cursor:pointer}
+
+.viz-panel{display:flex;flex-direction:column;overflow:hidden}
+.viz-canvas{flex:1;display:flex;align-items:center;justify-content:center;padding:12px;overflow:hidden}
+#rbtSvg{max-width:100%;max-height:100%}
+.step-desc-bar{padding:11px 18px;border-top:1px solid var(--border);flex-shrink:0;font-size:.83rem;color:var(--dim);display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.015)}
+.case-badge{padding:3px 9px;border-radius:5px;font-size:.7rem;font-weight:700;flex-shrink:0}
+.step-ctr{margin-left:auto;font-size:.74rem;font-family:monospace;color:var(--dim2);white-space:nowrap}
+
+.code-panel{border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;background:#0d1117}
+.code-header{padding:9px 13px;border-bottom:1px solid var(--border);font-size:.78rem;color:var(--dim);display:flex;gap:6px;align-items:center;flex-shrink:0;background:var(--panel)}
+.code-dot{width:10px;height:10px;border-radius:50%}
+.code-body{flex:1;overflow-y:auto;padding:8px 0}
+.code-body::-webkit-scrollbar{width:4px}
+.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.code-line{display:flex;align-items:stretch;font-family:'JetBrains Mono',monospace;font-size:.76rem;line-height:1.62;transition:background .15s}
+.code-line.active{background:rgba(251,191,36,.1)}
+.ln{min-width:38px;padding:0 8px 0 12px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:.7rem}
+.code-line.active .ln{color:var(--warn)}
+.lc{padding:0 12px 0 3px;flex:1}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.op{color:#ff7b72}
+</style>
+</head>
+<body>
+<div class="layout">
+  <div class="left-panel">
+    <div class="lp-head">
+      <div class="lp-title">红黑树 Red-Black Tree</div>
+      <div class="lp-sub">自平衡二叉搜索树</div>
+      <div class="badges">
+        <span class="badge time">插入 O(log n)</span>
+        <span class="badge space">查找 O(log n)</span>
+      </div>
+    </div>
+    <div class="scene-tabs">
+      <button class="scene-tab active" onclick="switchScene(0)">INSERT</button>
+      <button class="scene-tab" onclick="switchScene(1)">SEARCH</button>
+      <button class="scene-tab" onclick="switchScene(2)">DELETE</button>
+    </div>
+    <div class="step-list" id="stepList"></div>
+    <div class="lp-rules">
+      <div class="rule-title">红黑树性质</div>
+      <div class="rule"><div class="rule-dot r"></div><span>每个节点是红色或黑色</span></div>
+      <div class="rule"><div class="rule-dot b"></div><span>根节点必须是黑色</span></div>
+      <div class="rule"><div class="rule-dot r"></div><span>红节点的子节点必须是黑色</span></div>
+      <div class="rule"><div class="rule-dot b"></div><span>任意路径黑节点数相同</span></div>
+    </div>
+    <div class="lp-controls">
+      <div class="ctrl-row">
+        <button class="ctrl-btn" onclick="reset()">⏮</button>
+        <button class="ctrl-btn" onclick="prev()">◀</button>
+        <button class="ctrl-btn primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+        <button class="ctrl-btn" onclick="next()">▶</button>
+      </div>
+      <div class="speed-row">
+        <span>慢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>快</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="viz-panel">
+    <div class="viz-canvas">
+      <svg id="rbtSvg" viewBox="0 0 580 370" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <div class="step-desc-bar">
+      <span class="case-badge" id="caseBadge" style="display:none"></span>
+      <span id="stepDesc">点击播放开始红黑树演示</span>
+      <span class="step-ctr" id="stepCtr">0 / 0</span>
+    </div>
+  </div>
+
+  <div class="code-panel">
+    <div class="code-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px">rbtree.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+
+<script src="../footer.js"></script>
+<script>
+// ─── Code ─────────────────────────────────────────────────────────
+const CODE = [
+  {h:`<span class="kw">type</span> Color <span class="kw">bool</span>`},                                         // 0
+  {h:`<span class="kw">const</span> (Red Color = <span class="kw">true</span>; Black Color = <span class="kw">false</span>)`},  // 1
+  {h:``},                                                                           // 2
+  {h:`<span class="kw">type</span> Node <span class="kw">struct</span> {`},                                         // 3
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;Key   <span class="kw">int</span>`},                                              // 4
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;Color Color`},                                                        // 5
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;Left, Right, Parent *Node`},                                          // 6
+  {h:`}`},                                                                          // 7
+  {h:``},                                                                           // 8
+  {h:`<span class="kw">func</span> (t *RBTree) <span class="fn">insert</span>(key <span class="kw">int</span>) {`},         // 9
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 1. BST 插入，新节点着红色</span>`},                    // 10
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;n := &Node{Key: key, Color: Red}`},                               // 11
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;t.<span class="fn">bstInsert</span>(n)`},                                    // 12
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 2. 修复红黑树性质</span>`},                            // 13
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;t.<span class="fn">fixInsert</span>(n)`},                                   // 14
+  {h:`}`},                                                                          // 15
+  {h:``},                                                                           // 16
+  {h:`<span class="kw">func</span> (t *RBTree) <span class="fn">fixInsert</span>(n *Node) {`},          // 17
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> n.Parent != <span class="kw">nil</span> && n.Parent.Color == Red {`}, // 18
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;uncle := n.Parent.Parent.Right`},                  // 19
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> uncle != <span class="kw">nil</span> && uncle.Color == Red {`}, // 20
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// Case 1: 叔叔红色 → 颜色翻转</span>`}, // 21
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;n.Parent.Color = Black`},              // 22
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;uncle.Color = Black`},                 // 23
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;n.Parent.Parent.Color = Red`},         // 24
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;n = n.Parent.Parent`},                // 25
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;} <span class="kw">else</span> {`},                          // 26
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> n == n.Parent.Right {`},     // 27
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// Case 2: LR → 先左旋变LL</span>`}, // 28
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;n = n.Parent`},                  // 29
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;t.<span class="fn">leftRotate</span>(n)`},      // 30
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},                             // 31
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// Case 3: LL → 右旋+颜色翻转</span>`},// 32
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;n.Parent.Color = Black`},              // 33
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;n.Parent.Parent.Color = Red`},         // 34
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;t.<span class="fn">rightRotate</span>(n.Parent.Parent)`},  // 35
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},                                // 36
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;}`},                                    // 37
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;t.root.Color = Black`},                   // 38
+  {h:`}`},                                                                          // 39
+  {h:``},                                                                           // 40
+  {h:`<span class="kw">func</span> (t *RBTree) <span class="fn">leftRotate</span>(x *Node) {`},        // 41
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;y := x.Right`},                                        // 42
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;x.Right = y.Left`},                                    // 43
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> y.Left != <span class="kw">nil</span> { y.Left.Parent = x }`}, // 44
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;y.Parent = x.Parent`},                                // 45
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// ... link y to x's parent</span>`},             // 46
+  {h:`&nbsp;&nbsp;&nbsp;&nbsp;y.Left = x; x.Parent = y`},                            // 47
+  {h:`}`},                                                                          // 48
+];
+
+// ─── Scene data ───────────────────────────────────────────────────
+// Node: {id, key, color:'R'|'B', x, y}
+// Edge: [from_id, to_id]
+// Step: {nodes, edges, hl, dimHL, desc, code, caseLabel}
+
+function n(id, key, color, x, y) { return {id, key, color, x, y}; }
+
+// Positions for the 7-node tree
+const NP = { // name → [x, y]
+  r15:[290,45], r10:[155,135], r20:[425,135],
+  r8:[82,225],  r12:[228,225], r18:[355,225], r25:[498,225],
+  r7:[38,310],  r9:[126,310],  r11:[184,310], r13:[272,310]
+};
+
+const SCENES = [
+  {
+    label: 'INSERT',
+    steps: [
+      // Build from 3 nodes, demonstrate Case 1 and Case 3
+      { nodes:[n('a',10,'B',290,50),n('b',5,'R',155,140),n('c',15,'R',425,140)],
+        edges:[['a','b'],['a','c']], hl:[], desc:'初始状态：3节点树。红黑树规则：根黑，红节点子节点必须是黑色，所有路径黑色节点数相同', code:[0,1,3,4,5,6], caseLabel:'' },
+      { nodes:[n('a',10,'B',290,50),n('b',5,'R',155,140),n('c',15,'R',425,140),n('d',3,'R',80,230)],
+        edges:[['a','b'],['a','c'],['b','d']], hl:['d'], desc:'插入 3：BST 插入为红色节点，作为 5 的左子节点', code:[9,10,11,12], caseLabel:'BST Insert' },
+      { nodes:[n('a',10,'B',290,50),n('b',5,'R',155,140),n('c',15,'R',425,140),n('d',3,'R',80,230)],
+        edges:[['a','b'],['a','c'],['b','d']], hl:['d','b','c'], desc:'违规！3(R)→5(R) 连续红色。父节点 5 是红色，叔叔节点 15 也是红色 → Case 1：颜色翻转', code:[17,18,19,20], caseLabel:'Case 1 触发' },
+      { nodes:[n('a',10,'R',290,50),n('b',5,'B',155,140),n('c',15,'B',425,140),n('d',3,'R',80,230)],
+        edges:[['a','b'],['a','c'],['b','d']], hl:['a','b','c'], desc:'Case 1：父节点 5→黑，叔叔 15→黑，祖父 10→红。颜色翻转使两个子树黑色节点数相同', code:[21,22,23,24,25], caseLabel:'Case 1：颜色翻转' },
+      { nodes:[n('a',10,'B',290,50),n('b',5,'B',155,140),n('c',15,'B',425,140),n('d',3,'R',80,230)],
+        edges:[['a','b'],['a','c'],['b','d']], hl:['a'], desc:'根节点必须是黑色！10 是根节点，强制改回黑色。树恢复平衡', code:[38], caseLabel:'根节点→黑' },
+      { nodes:[n('a',10,'B',290,50),n('b',5,'B',155,140),n('c',15,'B',425,140),n('d',3,'R',80,230),n('e',7,'R',230,230)],
+        edges:[['a','b'],['a','c'],['b','d'],['b','e']], hl:['e'], desc:'插入 7 (BST 插入为红色，作为 5 的右子节点)。父节点 5(B) 是黑色 → 无违规，无需修复', code:[9,11,12,14], caseLabel:'无违规 ✓' },
+      { nodes:[n('a',10,'B',290,50),n('b',5,'B',155,140),n('c',15,'B',425,140),n('d',3,'R',80,230),n('e',7,'R',230,230),n('f',6,'R',175,310)],
+        edges:[['a','b'],['a','c'],['b','d'],['b','e'],['e','f']], hl:['f','e'], desc:'插入 6 (6 是 7(R) 的左子节点)。父节点 7(R) 是红色！叔叔=3(R) 也是红色 → Case 1 (LR方向)', code:[17,18,20], caseLabel:'Case 1 触发' },
+      { nodes:[n('a',10,'B',290,50),n('b',5,'R',155,140),n('c',15,'B',425,140),n('d',3,'B',80,230),n('e',7,'B',230,230),n('f',6,'R',175,310)],
+        edges:[['a','b'],['a','c'],['b','d'],['b','e'],['e','f']], hl:['b','d','e'], desc:'Case 1：3→黑，7→黑，5→红。检查 5：父节点 10(B) 是黑色，无需继续修复。树平衡 ✓', code:[22,23,24,25,37,38], caseLabel:'Case 1：颜色翻转' },
+    ]
+  },
+  {
+    label: 'SEARCH',
+    steps: [
+      { nodes:[n('a',15,'B',290,45),n('b',10,'R',155,135),n('c',20,'R',425,135),n('d',8,'B',82,225),n('e',12,'B',228,225),n('f',18,'B',355,225),n('g',25,'B',498,225)],
+        edges:[['a','b'],['a','c'],['b','d'],['b','e'],['c','f'],['c','g']], hl:[], desc:'查找目标值 18。从根节点 15 开始', code:[9,10], caseLabel:'SEARCH 18' },
+      { nodes:[n('a',15,'B',290,45),n('b',10,'R',155,135),n('c',20,'R',425,135),n('d',8,'B',82,225),n('e',12,'B',228,225),n('f',18,'B',355,225),n('g',25,'B',498,225)],
+        edges:[['a','b'],['a','c'],['b','d'],['b','e'],['c','f'],['c','g']], hl:['a'], desc:'访问根节点 15。18 > 15，向右子树继续搜索', code:[], caseLabel:'15 → 右' },
+      { nodes:[n('a',15,'B',290,45),n('b',10,'R',155,135),n('c',20,'R',425,135),n('d',8,'B',82,225),n('e',12,'B',228,225),n('f',18,'B',355,225),n('g',25,'B',498,225)],
+        edges:[['a','b'],['a','c'],['b','d'],['b','e'],['c','f'],['c','g']], hl:['a','c'], desc:'访问节点 20。18 < 20，向左子树继续搜索', code:[], caseLabel:'20 → 左' },
+      { nodes:[n('a',15,'B',290,45),n('b',10,'R',155,135),n('c',20,'R',425,135),n('d',8,'B',82,225),n('e',12,'B',228,225),n('f',18,'B',355,225),n('g',25,'B',498,225)],
+        edges:[['a','b'],['a','c'],['b','d'],['b','e'],['c','f'],['c','g']], hl:['a','c','f'], desc:'访问节点 18。18 == 18，找到目标！路径长度为 3（O(log n) = O(log 7) ≈ 3）', code:[], caseLabel:'✓ 找到 18' },
+      { nodes:[n('a',15,'B',290,45),n('b',10,'R',155,135),n('c',20,'R',425,135),n('d',8,'B',82,225),n('e',12,'B',228,225),n('f',18,'B',355,225),n('g',25,'B',498,225)],
+        edges:[['a','b'],['a','c'],['b','d'],['b','e'],['c','f'],['c','g']], hl:['f'], desc:'红黑树查找与普通 BST 相同，只需比较 key 值沿路径走。树高保持 O(log n)，查找效率稳定', code:[], caseLabel:'O(log n) 查找' },
+    ]
+  },
+  {
+    label: 'DELETE',
+    steps: [
+      { nodes:[n('a',15,'B',290,45),n('b',10,'R',155,135),n('c',20,'R',425,135),n('d',8,'B',82,225),n('e',12,'B',228,225),n('f',18,'B',355,225),n('g',25,'B',498,225)],
+        edges:[['a','b'],['a','c'],['b','d'],['b','e'],['c','f'],['c','g']], hl:[], desc:'删除操作目标：删除 10(R)。10 有两个子节点 8 和 12', code:[], caseLabel:'DELETE 10' },
+      { nodes:[n('a',15,'B',290,45),n('b',10,'R',155,135),n('c',20,'R',425,135),n('d',8,'B',82,225),n('e',12,'B',228,225),n('f',18,'B',355,225),n('g',25,'B',498,225)],
+        edges:[['a','b'],['a','c'],['b','d'],['b','e'],['c','f'],['c','g']], hl:['b','e'], desc:'双子节点删除策略：找 10 的中序后继节点（右子树最小值）= 12。将 12 的 key 复制到 10 的位置', code:[], caseLabel:'找中序后继 12' },
+      { nodes:[n('a',15,'B',290,45),n('b',12,'R',155,135),n('c',20,'R',425,135),n('d',8,'B',82,225),n('e',12,'B',228,225),n('f',18,'B',355,225),n('g',25,'B',498,225)],
+        edges:[['a','b'],['a','c'],['b','d'],['b','e'],['c','f'],['c','g']], hl:['b','e'], desc:'10 位置替换为 12（key 值复制）。现在真正要删除的是原来的 12(B) 节点（黑色无子节点）', code:[], caseLabel:'复制 key 值' },
+      { nodes:[n('a',15,'B',290,45),n('b',12,'R',155,135),n('c',20,'R',425,135),n('d',8,'B',82,225),n('f',18,'B',355,225),n('g',25,'B',498,225)],
+        edges:[['a','b'],['a','c'],['b','d'],['c','f'],['c','g']], hl:['b'], desc:'移除原 12(B) 节点（黑色叶节点）。删除黑色节点会破坏"黑高"，需要修复', code:[], caseLabel:'移除黑色节点' },
+      { nodes:[n('a',15,'B',290,45),n('b',12,'R',155,135),n('c',20,'R',425,135),n('d',8,'B',82,225),n('f',18,'B',355,225),n('g',25,'B',498,225)],
+        edges:[['a','b'],['a','c'],['b','d'],['c','f'],['c','g']], hl:['b','d'], desc:'兄弟节点 8(B) 是黑色且无红色子节点。父节点 12(R) 变黑，兄弟 8 变红，恢复黑高平衡', code:[], caseLabel:'修复黑高' },
+      { nodes:[n('a',15,'B',290,45),n('b',12,'B',155,135),n('c',20,'R',425,135),n('d',8,'R',82,225),n('f',18,'B',355,225),n('g',25,'B',498,225)],
+        edges:[['a','b'],['a','c'],['b','d'],['c','f'],['c','g']], hl:[], desc:'删除完成！12(B) 为黑色，8(R) 为红色。各路径黑高一致，所有红黑树性质满足 ✓', code:[], caseLabel:'删除完成 ✓' },
+    ]
+  }
+];
+
+const SPEED = [900, 600, 380, 220, 100];
+let curScene = 0, curStep = 0, playing = false, timer = null;
+
+// ─── SVG rendering ────────────────────────────────────────────────
+const NODE_R = 19;
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function el(tag, attrs) {
+  const e = document.createElementNS(SVG_NS, tag);
+  for (const [k,v] of Object.entries(attrs)) e.setAttribute(k, v);
+  return e;
+}
+
+function nodeById(nodes, id) { return nodes.find(n => n.id === id); }
+
+function drawEdge(svg, nodes, [fid, tid], hlSet, phase) {
+  const f = nodeById(nodes, fid), t = nodeById(nodes, tid);
+  if (!f || !t) return;
+  const dx = t.x - f.x, dy = t.y - f.y, len = Math.sqrt(dx*dx+dy*dy);
+  const sx = f.x + dx/len*NODE_R, sy = f.y + dy/len*NODE_R;
+  const ex = t.x - dx/len*(NODE_R+2), ey = t.y - dy/len*(NODE_R+2);
+  const isHL = hlSet.includes(fid) && hlSet.includes(tid);
+  const line = el('line', {x1:sx,y1:sy,x2:ex,y2:ey,
+    stroke: isHL ? '#38bdf8' : '#475569', 'stroke-width': isHL ? '2' : '1.5',
+    'stroke-linecap': 'round'
+  });
+  svg.appendChild(line);
+}
+
+function drawNode(svg, node, isHL, isPhase) {
+  const g = el('g', {});
+  // Drop shadow if highlighted
+  if (isHL) {
+    const sh = el('circle', {cx:node.x, cy:node.y, r:NODE_R+4,
+      fill: node.color==='R' ? 'rgba(239,68,68,.2)' : 'rgba(56,189,248,.15)'
+    });
+    g.appendChild(sh);
+  }
+  // Main circle
+  const fill = node.color==='R'
+    ? (isHL ? '#991b1b' : '#7f1d1d')
+    : (isHL ? '#1e3a5f' : '#1e293b');
+  const stroke = node.color==='R'
+    ? (isHL ? '#f87171' : '#ef4444')
+    : (isHL ? '#38bdf8' : '#64748b');
+  const circle = el('circle', {cx:node.x, cy:node.y, r:NODE_R,
+    fill, stroke, 'stroke-width':'2.5'
+  });
+  g.appendChild(circle);
+  // Key label
+  const txt = el('text', {x:node.x, y:node.y+5, 'text-anchor':'middle',
+    'font-size':'12', 'font-weight':'700', 'font-family':'monospace',
+    fill: isHL ? '#fff' : '#e2e8f0'
+  });
+  txt.textContent = node.key;
+  g.appendChild(txt);
+  // Color label (R/B)
+  const clabel = el('text', {x:node.x, y:node.y-NODE_R-4, 'text-anchor':'middle',
+    'font-size':'8', 'font-family':'monospace',
+    fill: node.color==='R' ? '#f87171' : '#94a3b8'
+  });
+  clabel.textContent = node.color==='R' ? 'R' : 'B';
+  g.appendChild(clabel);
+  svg.appendChild(g);
+}
+
+// ─── Render ───────────────────────────────────────────────────────
+function render() {
+  const scene = SCENES[curScene];
+  const step = scene.steps[curStep];
+  const svg = document.getElementById('rbtSvg');
+  svg.innerHTML = '';
+
+  // Draw edges first
+  step.edges.forEach(e => drawEdge(svg, step.nodes, e, step.hl));
+
+  // Draw nodes
+  step.nodes.forEach(n => drawNode(svg, n, step.hl.includes(n.id)));
+
+  // Case badge
+  const badge = document.getElementById('caseBadge');
+  if (step.caseLabel) {
+    badge.style.display = '';
+    badge.textContent = step.caseLabel;
+    if (step.caseLabel.includes('Case 1')) {
+      badge.style.background = 'rgba(251,191,36,.15)'; badge.style.color = '#fbbf24';
+    } else if (step.caseLabel.includes('Case 2') || step.caseLabel.includes('Case 3')) {
+      badge.style.background = 'rgba(192,132,252,.15)'; badge.style.color = '#c084fc';
+    } else if (step.caseLabel.includes('✓')) {
+      badge.style.background = 'rgba(74,222,128,.15)'; badge.style.color = '#4ade80';
+    } else if (step.caseLabel.includes('违规')) {
+      badge.style.background = 'rgba(248,113,113,.15)'; badge.style.color = '#f87171';
+    } else {
+      badge.style.background = 'rgba(56,189,248,.1)'; badge.style.color = '#38bdf8';
+    }
+  } else {
+    badge.style.display = 'none';
+  }
+
+  // Code
+  document.querySelectorAll('.code-line').forEach(el => el.classList.remove('active'));
+  step.code.forEach(ln => {
+    const el2 = document.querySelector(`.code-line[data-ln="${ln}"]`);
+    if (el2) { el2.classList.add('active'); el2.scrollIntoView({block:'nearest'}); }
+  });
+
+  document.getElementById('stepDesc').textContent = step.desc;
+  document.getElementById('stepCtr').textContent = `${curStep+1} / ${scene.steps.length}`;
+  document.getElementById('btnPlay').disabled = false;
+  buildStepList();
+}
+
+function buildStepList() {
+  const scene = SCENES[curScene];
+  document.getElementById('stepList').innerHTML = scene.steps.map((s,i) =>
+    `<div class="step-item${i===curStep?' active':''}" onclick="goStep(${i})">
+      <div class="step-num">步骤 ${i+1}</div>
+      <div class="step-text">${s.desc.slice(0,55)}${s.desc.length>55?'…':''}</div>
+    </div>`
+  ).join('');
+}
+
+function buildCode() {
+  document.getElementById('codeBody').innerHTML = CODE.map((l,i) =>
+    `<div class="code-line" data-ln="${i}"><span class="ln">${i+1}</span><span class="lc">${l.h||'&nbsp;'}</span></div>`
+  ).join('');
+}
+
+// ─── Controls ─────────────────────────────────────────────────────
+function switchScene(idx) {
+  curScene = idx; curStep = 0; pause();
+  document.querySelectorAll('.scene-tab').forEach((t,i) => t.classList.toggle('active', i===idx));
+  buildStepList(); render();
+}
+function goStep(i) { pause(); curStep = i; render(); }
+function reset() { pause(); curStep = 0; render(); }
+function prev() { pause(); if (curStep > 0) { curStep--; render(); } }
+function next() { pause(); if (curStep < SCENES[curScene].steps.length-1) { curStep++; render(); } }
+function togglePlay() { if (playing) pause(); else { if (curStep >= SCENES[curScene].steps.length-1) curStep=0; play(); } }
+function play() { playing=true; document.getElementById('btnPlay').textContent='⏸ 暂停'; tick(); }
+function pause() { playing=false; clearTimeout(timer); document.getElementById('btnPlay').textContent='▶ 播放'; }
+function tick() {
+  if (!playing) return;
+  const spd = SPEED[parseInt(document.getElementById('speedRange').value)-1];
+  if (curStep < SCENES[curScene].steps.length-1) { curStep++; render(); timer=setTimeout(tick,spd); }
+  else pause();
+}
+
+buildCode(); buildStepList(); render();
+</script>
+</body>
+</html>

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>对象存储系统 - 系统设计</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#f59e0b;--blue:#38bdf8;--green:#4ade80;--red:#f87171;--purple:#c084fc;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 15%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:440px;display:flex;flex-direction:column;padding:18px}
+.stage{position:relative;flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:radial-gradient(circle at 50% 20%,rgba(255,255,255,.06),transparent 42%),rgba(15,23,42,.64);overflow:hidden}
+.node{position:absolute;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.055);display:flex;align-items:center;justify-content:center;text-align:center;color:var(--dim);font-weight:700;font-size:.78rem;padding:8px 12px;transition:all .25s;min-width:80px;min-height:48px}
+.node.active{border-color:var(--accent);color:var(--text);background:color-mix(in srgb,var(--accent) 16%,transparent);box-shadow:0 0 24px color-mix(in srgb,var(--accent) 25%,transparent)}
+.node.fail{border-color:var(--red);color:var(--text);box-shadow:0 0 24px rgba(248,113,113,.22)}
+.node.recover{border-color:var(--green);color:var(--text);box-shadow:0 0 24px rgba(74,222,128,.18)}
+.edge{position:absolute;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.18;transform-origin:left center;transition:opacity .25s,filter .25s;pointer-events:none}
+.edge.active{opacity:1;filter:drop-shadow(0 0 6px var(--accent))}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}
+.status p{color:var(--dim);font-size:.9rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.failure{border-color:var(--red);color:var(--red)}
+.badge.recovery{border-color:var(--green);color:var(--green)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+/* 6 nodes: Client, APIGateway, MetadataSvc, DataNodes, BlockDB, GCService */
+.n0{left:3%;top:39%}.n1{left:22%;top:22%}.n2{left:43%;top:5%}.n3{left:63%;top:30%}.n4{left:43%;top:66%}.n5{left:76%;top:66%}
+/* edges */
+.e0{left:9%;top:46%;width:21%;transform:rotate(-22deg)}
+.e1{left:28%;top:29%;width:22%;transform:rotate(-22deg)}
+.e2{left:28%;top:30%;width:39%;transform:rotate(12deg)}
+.e3{left:49%;top:13%;width:21%;transform:rotate(28deg)}
+.e4{left:49%;top:13%;width:22%;transform:rotate(90deg)}
+.e5{left:69%;top:39%;width:22%;transform:rotate(62deg)}
+.e6{left:69%;top:74%;width:12%;transform:rotate(0deg)}
+@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">系统设计 / Object Storage / C 类型</div>
+      <h1>对象存储系统</h1>
+      <p class="summary">对象存储将文件以扁平命名空间存储，通过分块上传、纠删码副本和元数据分离实现高可靠、低成本存储，是云存储（S3、OSS）的核心模式。</p>
+      <div class="tags"><span>分块上传</span><span>纠删码</span><span>元数据</span><span>GC</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>Chunk（块）</strong><span>大文件分割成固定大小的块（如 64MB），分别上传和存储，支持断点续传，任意块失败只需重传该块。</span></li>
+        <li><strong>Erasure Coding（纠删码）</strong><span>RS(6,3) 将 6 个数据块编码为 9 块（3 个校验块），丢失任意 3 块可恢复，比三副本节省 50% 空间。</span></li>
+        <li><strong>Metadata（元数据）</strong><span>文件的命名空间、权限、版本和块映射，通常存在高性能数据库（TiKV/MySQL），与数据存储完全分离。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">Step Timeline</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <div class="edge e0"></div>
+        <div class="edge e1"></div>
+        <div class="edge e2"></div>
+        <div class="edge e3"></div>
+        <div class="edge e4"></div>
+        <div class="edge e5"></div>
+        <div class="edge e6"></div>
+        <div class="node n0">Client<br><small style="font-weight:400;font-size:.7rem;color:inherit">上传方</small></div>
+        <div class="node n1">API GW<br><small style="font-weight:400;font-size:.7rem;color:inherit">接入层</small></div>
+        <div class="node n2">Metadata<br><small style="font-weight:400;font-size:.7rem;color:inherit">元数据服务</small></div>
+        <div class="node n3">DataNodes<br><small style="font-weight:400;font-size:.7rem;color:inherit">数据节点集群</small></div>
+        <div class="node n4">Block DB<br><small style="font-weight:400;font-size:.7rem;color:inherit">块映射 DB</small></div>
+        <div class="node n5">GC Service<br><small style="font-weight:400;font-size:.7rem;color:inherit">垃圾回收</small></div>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnReset">重置</button>
+        <button class="ctrl" id="btnPrev">上一步</button>
+        <button class="ctrl primary" id="btnPlay">播放</button>
+        <button class="ctrl" id="btnNext">下一步</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-hd">当前状态</div>
+      <div class="status">
+        <span class="badge" id="stateBadge">normal</span>
+        <h2 id="stepTitle">选择步骤开始</h2>
+        <p id="stepDesc">对象存储核心是分块上传 + 纠删码 + 元数据分离，点击步骤查看完整链路。</p>
+        <p id="stepDetail" style="margin-top:8px;font-size:.82rem;color:var(--dim2)"></p>
+      </div>
+    </aside>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>背景与机制</h2>
+      <p>AWS S3、阿里 OSS、Google GCS 都采用元数据与数据分离的架构：元数据（bucket、key、大小、分块映射、权限）存高性能关系数据库；实际数据块分布在 DataNode 集群，使用纠删码（Erasure Coding）代替三副本，在同等可靠性下节省约 50% 存储成本。大文件必须分块，每块独立上传，支持并发和断点续传。</p>
+    </section>
+    <section>
+      <h2>常见误区</h2>
+      <ul>
+        <li>纠删码降低了存储开销，但读取需要合并多个块，读延迟高于三副本，适合冷数据场景。</li>
+        <li>元数据 DB 是单点热点，需要水平分片（按 bucket+key hash），不能用单机 MySQL。</li>
+        <li>分块上传的 ETag 必须对每块内容做 MD5，不能只算整体文件的 MD5，否则断点续传校验出错。</li>
+        <li>GC 不能在删除时立即清理数据块，因为可能有并发上传引用相同块（通过 content hash 去重）。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>工程场景</h2>
+      <ul>
+        <li>分块上传流程：InitiateMultipartUpload → UploadPart × N → CompleteMultipartUpload</li>
+        <li>纠删码：RS(6,3) 编码，DataNode 最多 3 个同时故障仍可恢复数据</li>
+        <li>元数据 DB 选型：TiKV（分布式 KV）或 MySQL 分片，存文件→块列表映射</li>
+        <li>Content-addressable storage：块按内容 hash 地址化，相同内容只存一份（去重）</li>
+      </ul>
+    </section>
+    <section>
+      <h2>边界与恢复</h2>
+      <ul>
+        <li>DataNode 宕机：纠删码允许丢失 3 个节点，后台 rebalancer 自动重新编码补全校验块</li>
+        <li>GC 策略：标记删除（soft delete）→ 24h 后实际 GC，扫描无引用块 → 批量清理</li>
+        <li>版本控制：每次 PUT 操作生成新版本，旧版本保留直到用户显式删除或 lifecycle 规则触发</li>
+        <li>CAP 取舍：对象存储通常选 AP（可用性 + 分区容忍），最终一致性，写后读可能看到旧版本</li>
+      </ul>
+    </section>
+  </section>
+</main>
+
+<script>
+const STEPS=[
+  {title:"客户端发起分块上传",desc:"Client 请求 API GW 初始化分块上传，获取 uploadId 和每块的预签名 URL，准备并行上传 N 个块。",kind:"normal",active:[0,1],fail:[],recover:[],edges:[0],detail:"InitiateMultipartUpload 返回 uploadId，后续每个 UploadPart 请求携带 uploadId 和 partNumber 标识块顺序。"},
+  {title:"文件分块（客户端侧）",desc:"客户端将大文件切成 N 个 64MB 固定大小的块，计算每块的 MD5 作为 ETag，准备并行上传。",kind:"normal",active:[0],fail:[],recover:[],edges:[],detail:"最后一块可以小于 64MB（余量）。ETag = MD5(chunk)，用于服务端完整性校验。"},
+  {title:"并行上传分块",desc:"每个分块并行 PUT 到 DataNode，DataNode 返回 ETag 确认，Client 汇总所有块的 ETag 列表。",kind:"normal",active:[0,1,3],fail:[],recover:[],edges:[0,2],detail:"并发度通常 4~8 个并行上传线程。失败的块自动重试最多 3 次，超时后标记为失败块需整块重传。"},
+  {title:"元数据更新",desc:"所有块上传完成后，Client 调用 CompleteMultipartUpload，API GW 通知 Metadata Service 记录文件→块映射。",kind:"normal",active:[1,2,4],fail:[],recover:[],edges:[1,3,4],detail:"Metadata Service 在 Block DB 写入：file_key → [block_id_1, block_id_2, ...block_id_N]，原子操作保证一致性。"},
+  {title:"纠删码编码存储",desc:"DataNode 对接收到的数据块执行 RS(6,3) 纠删码编码，生成 6 个数据块 + 3 个校验块，分散存储到 9 个节点。",kind:"normal",active:[3,4],fail:[],recover:[],edges:[4,5],detail:"RS(6,3)：6 个原始数据块，生成 3 个冗余校验块，总 9 块分布在不同机架，最多容忍 3 块同时故障。"},
+  {title:"下载请求",desc:"Client 请求下载文件，API GW 查询 Metadata Service 获取块列表，并行从 DataNode 集群拉取各块内容。",kind:"normal",active:[0,1,2,3],fail:[],recover:[],edges:[0,1,2,3],detail:"Metadata Service 返回块列表和 DataNode 地址，客户端并行拉取后合并，按 partNumber 顺序拼接完整文件。"},
+  {title:"DataNode 故障（纠删码恢复）",desc:"1 个 DataNode 宕机，丢失该节点上的数据块，从其他 8 个节点中的任意 6 块通过 RS 解码恢复丢失块。",kind:"failure",active:[2,3,4],fail:[3],recover:[],edges:[3,4],detail:"RS 解码：收集任意 6 块（数据块或校验块），用 Vandermonde 矩阵逆运算重建丢失块，恢复后写入新节点。"},
+  {title:"GC 清理孤立块",desc:"用户删除文件后，Metadata Service 软删除文件记录，GC Service 定期扫描 Block DB 找无引用块并清理。",kind:"recovery",active:[2,4,5],fail:[],recover:[4,5],edges:[4,6],detail:"GC 流程：标记删除 → 24h 后扫描 → 对比 Block DB 引用计数 → 引用=0 则物理删除数据，释放磁盘空间。"}
+];
+
+let idx=0,timer=null;
+const list=document.getElementById('stepList'),title=document.getElementById('stepTitle'),desc=document.getElementById('stepDesc'),detail=document.getElementById('stepDetail'),badge=document.getElementById('stateBadge'),play=document.getElementById('btnPlay');
+
+function drawList(){
+  list.innerHTML=STEPS.map((s,i)=>'<button class="step-btn'+(i===idx?' active':'')+'" data-i="'+i+'"><b>Step '+(i+1)+'</b>'+s.title+'</button>').join('');
+  list.querySelectorAll('button').forEach(b=>b.onclick=()=>{idx=Number(b.dataset.i);pause();render();});
+}
+
+function render(){
+  const s=STEPS[idx];
+  title.textContent=s.title;desc.textContent=s.desc;detail.textContent=s.detail;
+  badge.textContent=s.kind;badge.className='badge '+s.kind;
+  document.querySelectorAll('.step-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  document.querySelectorAll('.node').forEach((n,i)=>{
+    n.classList.toggle('active',(s.active||[]).includes(i));
+    n.classList.toggle('fail',(s.fail||[]).includes(i));
+    n.classList.toggle('recover',(s.recover||[]).includes(i));
+  });
+  document.querySelectorAll('.edge').forEach((e,i)=>e.classList.toggle('active',(s.edges||[]).includes(i)));
+  document.getElementById('btnPrev').disabled=idx===0;
+  document.getElementById('btnNext').disabled=idx===STEPS.length-1;
+}
+
+function next(){idx=Math.min(STEPS.length-1,idx+1);render();if(idx===STEPS.length-1)pause();}
+function prev(){idx=Math.max(0,idx-1);render();}
+function reset(){idx=0;pause();render();}
+function pause(){if(timer)clearInterval(timer);timer=null;play.textContent='播放';}
+function toggle(){if(timer){pause();return;}play.textContent='暂停';timer=setInterval(next,1800);}
+
+document.getElementById('btnNext').onclick=next;
+document.getElementById('btnPrev').onclick=prev;
+document.getElementById('btnReset').onclick=reset;
+play.onclick=toggle;
+drawList();render();
+</script>
+<script>if(window.NavTracker)NavTracker.track('对象存储系统',window.location.href,'🗄️','系统设计');</script>
+<script src="../footer.js"></script>
+</body>
+</html>

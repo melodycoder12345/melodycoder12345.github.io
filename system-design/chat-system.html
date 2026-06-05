@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>即时通讯系统 - 系统设计</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#f59e0b;--blue:#38bdf8;--green:#4ade80;--red:#f87171;--purple:#c084fc;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 15%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:440px;display:flex;flex-direction:column;padding:18px}
+.stage{position:relative;flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:radial-gradient(circle at 50% 20%,rgba(255,255,255,.06),transparent 42%),rgba(15,23,42,.64);overflow:hidden}
+.node{position:absolute;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.055);display:flex;align-items:center;justify-content:center;text-align:center;color:var(--dim);font-weight:700;font-size:.78rem;padding:8px 12px;transition:all .25s;min-width:80px;min-height:48px}
+.node.active{border-color:var(--accent);color:var(--text);background:color-mix(in srgb,var(--accent) 16%,transparent);box-shadow:0 0 24px color-mix(in srgb,var(--accent) 25%,transparent)}
+.node.fail{border-color:var(--red);color:var(--text);box-shadow:0 0 24px rgba(248,113,113,.22)}
+.node.recover{border-color:var(--green);color:var(--text);box-shadow:0 0 24px rgba(74,222,128,.18)}
+.edge{position:absolute;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.18;transform-origin:left center;transition:opacity .25s,filter .25s;pointer-events:none}
+.edge.active{opacity:1;filter:drop-shadow(0 0 6px var(--accent))}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}
+.status p{color:var(--dim);font-size:.9rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.failure{border-color:var(--red);color:var(--red)}
+.badge.recovery{border-color:var(--green);color:var(--green)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+/* 7 nodes: ClientA, WS GW, MsgRouter, MsgDB, ClientB, Inbox, Push */
+.n0{left:3%;top:38%}.n1{left:22%;top:13%}.n2{left:40%;top:38%}.n3{left:40%;top:68%}.n4{left:75%;top:13%}.n5{left:75%;top:43%}.n6{left:75%;top:73%}
+/* edges */
+.e0{left:9%;top:46%;width:21%;transform:rotate(-28deg)}
+.e1{left:9%;top:46%;width:33%;transform:rotate(0deg)}
+.e2{left:30%;top:22%;width:21%;transform:rotate(28deg)}
+.e3{left:46%;top:46%;width:22%;transform:rotate(-28deg)}
+.e4{left:46%;top:55%;width:31%;transform:rotate(28deg)}
+.e5{left:46%;top:46%;width:31%;transform:rotate(0deg)}
+.e6{left:81%;top:22%;width:22%;transform:rotate(90deg)}
+.e7{left:81%;top:52%;width:22%;transform:rotate(90deg)}
+@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">系统设计 / Chat System / C 类型</div>
+      <h1>即时通讯系统</h1>
+      <p class="summary">IM 系统的核心挑战是长连接管理、消息顺序和未读计数。理解连接层、存储层和消息路由的设计，是构建低延迟、高可靠聊天系统的基础。</p>
+      <div class="tags"><span>WebSocket</span><span>长连接</span><span>消息顺序</span><span>未读计数</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>Connection（长连接）</strong><span>每个在线用户持有一个 WebSocket 长连接，连接层需要处理海量并发连接，connId → userId 的路由映射存 Redis。</span></li>
+        <li><strong>Message Sequence（消息序）</strong><span>每条消息有全局或会话级单调递增 ID，保证排序和去重，Snowflake 或 Redis INCR 实现。</span></li>
+        <li><strong>Inbox（收件箱）</strong><span>每个用户有收件箱，支持未读计数、已读状态和跨设备同步，通常用 Redis + MySQL 双写。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">Step Timeline</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <div class="edge e0"></div>
+        <div class="edge e1"></div>
+        <div class="edge e2"></div>
+        <div class="edge e3"></div>
+        <div class="edge e4"></div>
+        <div class="edge e5"></div>
+        <div class="edge e6"></div>
+        <div class="edge e7"></div>
+        <div class="node n0">Client A<br><small style="font-weight:400;font-size:.7rem;color:inherit">发送方</small></div>
+        <div class="node n1">WS GW<br><small style="font-weight:400;font-size:.7rem;color:inherit">长连接网关</small></div>
+        <div class="node n2">Msg Router<br><small style="font-weight:400;font-size:.7rem;color:inherit">消息路由</small></div>
+        <div class="node n3">Msg DB<br><small style="font-weight:400;font-size:.7rem;color:inherit">消息存储</small></div>
+        <div class="node n4">Client B<br><small style="font-weight:400;font-size:.7rem;color:inherit">接收方</small></div>
+        <div class="node n5">Inbox<br><small style="font-weight:400;font-size:.7rem;color:inherit">收件箱服务</small></div>
+        <div class="node n6">Push<br><small style="font-weight:400;font-size:.7rem;color:inherit">离线推送</small></div>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnReset">重置</button>
+        <button class="ctrl" id="btnPrev">上一步</button>
+        <button class="ctrl primary" id="btnPlay">播放</button>
+        <button class="ctrl" id="btnNext">下一步</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-hd">当前状态</div>
+      <div class="status">
+        <span class="badge" id="stateBadge">normal</span>
+        <h2 id="stepTitle">选择步骤开始</h2>
+        <p id="stepDesc">IM 系统核心是长连接路由和消息可靠投递，点击步骤查看完整链路。</p>
+        <p id="stepDetail" style="margin-top:8px;font-size:.82rem;color:var(--dim2)"></p>
+      </div>
+    </aside>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>背景与机制</h2>
+      <p>微信、Slack、钉钉都面对同样的核心问题：海量长连接管理 + 消息可靠性。WS 网关负责维护连接状态（connId→userId 存 Redis），MsgRouter 负责找到对方的连接并推送。消息必须持久化到 DB，客户端 ACK 后才标记已投递。</p>
+    </section>
+    <section>
+      <h2>常见误区</h2>
+      <ul>
+        <li>WebSocket 不等于可靠投递，网络丢包或进程崩溃会导致消息丢失，必须有客户端 ACK + 服务端重试。</li>
+        <li>消息 ID 只用 DB 自增主键不够，分布式场景下 Snowflake 才能保证全局有序。</li>
+        <li>群消息不能同步扇出到所有成员，需要 Kafka 异步写各成员收件箱。</li>
+        <li>离线推送（APNs/FCM）到达率不保证 100%，用户重新上线需拉取未读消息。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>工程场景</h2>
+      <ul>
+        <li>Netty 长连接网关：一台机器可维持 10万+ WebSocket 连接，心跳 30s</li>
+        <li>Redis：HSET online:{userId} connId gateway_ip，快速查找目标用户在哪台 GW</li>
+        <li>HBase：按 conversation_id + msg_id 存消息历史，支持范围查询</li>
+        <li>MySQL：inbox 表存 userId、convId、lastMsgId、unreadCount</li>
+      </ul>
+    </section>
+    <section>
+      <h2>边界与恢复</h2>
+      <ul>
+        <li>断线重连：客户端重连后拉取 lastMsgId 之后的所有未读消息，补全消息序列</li>
+        <li>消息去重：客户端生成 clientMsgId，服务端幂等检查防止重发产生重复</li>
+        <li>顺序保证：同一会话的消息路由到同一 Kafka partition，保证消费顺序</li>
+        <li>大群优化：群成员 > 500 时，改用读扩散模式，避免写收件箱风暴</li>
+      </ul>
+    </section>
+  </section>
+</main>
+
+<script>
+const STEPS=[
+  {title:"UserA 建立 WebSocket 连接",desc:"Client A 与 WS GW 建立长连接，GW 维护 connId→userId 映射并写入 Redis，标记用户在线。",kind:"normal",active:[0,1],fail:[],recover:[],edges:[0],detail:"Redis: HSET online:{userId} connId=xxx gateway=gw-1。每台 GW 独立维护连接池，Redis 存路由信息。"},
+  {title:"UserA 发送消息",desc:"Client A 通过 WebSocket 帧发送消息，WS GW 接收后转发到 Msg Router 处理。",kind:"normal",active:[0,1,2],fail:[],recover:[],edges:[0,1],detail:"消息携带 clientMsgId（客户端生成的唯一 ID）用于去重，以及 toUserId 目标用户 ID。"},
+  {title:"分配消息 ID",desc:"Msg Router 调用 ID 生成器（Snowflake 或 Redis INCR）分配全局单调递增消息 ID，保证排序。",kind:"normal",active:[2],fail:[],recover:[],edges:[],detail:"Snowflake：64bit = 时间戳(41) + 机器ID(10) + 序列号(12)，每毫秒可生成 4096 个 ID，趋势递增。"},
+  {title:"持久化到 MsgDB",desc:"Msg Router 将消息写入 HBase/MySQL 消息存储，按 conversation_id 分片，保证同会话消息有序。",kind:"normal",active:[2,3],fail:[],recover:[],edges:[2],detail:"写入成功后才执行后续投递，保证消息不丢。分片键用 conversation_id，确保同对话路由到同 DB 分片。"},
+  {title:"路由到 UserB（在线）",desc:"Msg Router 查询 Redis 获取 UserB 的 connId 和 GW 地址，通过对应 WS GW 推送消息给 Client B。",kind:"normal",active:[2,4,5],fail:[],recover:[],edges:[3,5],detail:"若 UserB 在不同 GW，Msg Router 通过 RPC 调用目标 GW 推送消息，GW 找到 connId 发送 WS 帧。"},
+  {title:"UserB 接收并发送 ACK",desc:"Client B 收到消息后发送 ACK 帧，服务端更新投递状态，Inbox 更新已读游标。",kind:"normal",active:[2,4,5],fail:[],recover:[],edges:[3,5,6],detail:"ACK 机制：客户端回复 ack:{msgId}，服务端标记该消息为已投递，不再重推。"},
+  {title:"UserB 离线（投递失败）",desc:"查询 Redis 发现 UserB 无活跃连接，转交 Push Service 发送 APNs/FCM 离线推送通知。",kind:"failure",active:[2,5,6],fail:[4],recover:[],edges:[4,7],detail:"离线推送只发通知（title、badge），完整消息内容等用户重新上线后从 Inbox 拉取。"},
+  {title:"APNs/FCM 推送（不保证到达）",desc:"Push Service 调用 APNs（iOS）或 FCM（Android）发送推送，到达率约 95%~99%，不保证 100%。",kind:"failure",active:[6],fail:[6],recover:[],edges:[7],detail:"弥补措施：用户上线时强制拉取 lastSyncId 后的所有消息，确保消息最终一致性。"},
+  {title:"群消息扇出",desc:"一条群消息发给 1000 人的群，Msg Router 发布到 Kafka，消费者异步扇出写入每个成员的 Inbox。",kind:"normal",active:[2,3,5],fail:[],recover:[],edges:[2,4],detail:"大群（> 500 成员）改用读扩散：只写一份消息，成员读时从群消息表拉取，避免 Kafka 消息量爆炸。"},
+  {title:"未读计数更新",desc:"Inbox Service 维护 Redis unread:{userId} 计数器，每次写入收件箱时 INCR，已读时 DECL 归零。",kind:"recovery",active:[2,5],fail:[],recover:[2,5],edges:[4,5],detail:"跨设备同步：客户端上报已读 lastMsgId，服务端广播给用户其他在线设备，清除各设备未读计数。"}
+];
+
+let idx=0,timer=null;
+const list=document.getElementById('stepList'),title=document.getElementById('stepTitle'),desc=document.getElementById('stepDesc'),detail=document.getElementById('stepDetail'),badge=document.getElementById('stateBadge'),play=document.getElementById('btnPlay');
+
+function drawList(){
+  list.innerHTML=STEPS.map((s,i)=>'<button class="step-btn'+(i===idx?' active':'')+'" data-i="'+i+'"><b>Step '+(i+1)+'</b>'+s.title+'</button>').join('');
+  list.querySelectorAll('button').forEach(b=>b.onclick=()=>{idx=Number(b.dataset.i);pause();render();});
+}
+
+function render(){
+  const s=STEPS[idx];
+  title.textContent=s.title;desc.textContent=s.desc;detail.textContent=s.detail;
+  badge.textContent=s.kind;badge.className='badge '+s.kind;
+  document.querySelectorAll('.step-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  document.querySelectorAll('.node').forEach((n,i)=>{
+    n.classList.toggle('active',(s.active||[]).includes(i));
+    n.classList.toggle('fail',(s.fail||[]).includes(i));
+    n.classList.toggle('recover',(s.recover||[]).includes(i));
+  });
+  document.querySelectorAll('.edge').forEach((e,i)=>e.classList.toggle('active',(s.edges||[]).includes(i)));
+  document.getElementById('btnPrev').disabled=idx===0;
+  document.getElementById('btnNext').disabled=idx===STEPS.length-1;
+}
+
+function next(){idx=Math.min(STEPS.length-1,idx+1);render();if(idx===STEPS.length-1)pause();}
+function prev(){idx=Math.max(0,idx-1);render();}
+function reset(){idx=0;pause();render();}
+function pause(){if(timer)clearInterval(timer);timer=null;play.textContent='播放';}
+function toggle(){if(timer){pause();return;}play.textContent='暂停';timer=setInterval(next,1800);}
+
+document.getElementById('btnNext').onclick=next;
+document.getElementById('btnPrev').onclick=prev;
+document.getElementById('btnReset').onclick=reset;
+play.onclick=toggle;
+drawList();render();
+</script>
+<script>if(window.NavTracker)NavTracker.track('即时通讯系统',window.location.href,'💬','系统设计');</script>
+<script src="../footer.js"></script>
+</body>
+</html>

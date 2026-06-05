@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gossip 协议 - 分布式</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#c084fc;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 18%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:440px;display:flex;flex-direction:column;padding:18px}
+.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:radial-gradient(circle at 50% 20%,rgba(255,255,255,.05),transparent 50%),rgba(15,23,42,.64);overflow:hidden;display:flex;align-items:center;justify-content:center;}
+.gossip-svg{width:100%;max-width:480px;height:auto;}
+/* gossip circle node states */
+.gnode{transition:all .3s;cursor:default;}
+.gnode circle{fill:rgba(255,255,255,.06);stroke:rgba(255,255,255,.15);stroke-width:1.5;transition:all .3s;}
+.gnode text{fill:#64748b;font-size:10px;font-weight:700;transition:fill .3s;}
+.gnode.infected circle{fill:color-mix(in srgb,var(--accent) 22%,transparent);stroke:var(--accent);stroke-width:2.5;}
+.gnode.infected text{fill:#f8fafc;}
+@keyframes gossip-pulse{0%,100%{filter:drop-shadow(0 0 3px color-mix(in srgb,var(--accent) 60%,transparent));}50%{filter:drop-shadow(0 0 8px color-mix(in srgb,var(--accent) 80%,transparent));}}
+.gnode.infected circle{animation:gossip-pulse 1.5s infinite;}
+.gnode.suspect circle{fill:rgba(251,191,36,.12);stroke:#fbbf24;stroke-width:2;}
+.gnode.suspect text{fill:#fbbf24;}
+.gnode.dead circle{fill:rgba(248,113,113,.1);stroke:#f87171;stroke-width:2;}
+.gnode.dead text{fill:#f87171;}
+.gnode.recovered circle{fill:rgba(74,222,128,.1);stroke:#4ade80;stroke-width:2;}
+.gnode.recovered text{fill:#4ade80;}
+/* gossip edges */
+.gedge{stroke:rgba(255,255,255,.08);stroke-width:1;fill:none;transition:all .3s;}
+.gedge.spreading{stroke:var(--accent);stroke-width:2;opacity:.8;filter:drop-shadow(0 0 3px color-mix(in srgb,var(--accent) 50%,transparent));}
+.gedge.fail-edge{stroke:#f87171;stroke-width:1.5;stroke-dasharray:4,3;opacity:.6;}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}
+.status p{color:var(--dim);font-size:.9rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.failure{border-color:var(--bad);color:var(--bad)}
+.badge.recovery{border-color:var(--ok);color:var(--ok)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Gossip Round","body":"每轮随机选 k 个邻居交换信息，经过 O(log N) 轮可覆盖全集群。","tag":"term"},
+  {"title":"Anti-Entropy","body":"周期性地和随机邻居对比全量状态，修复长期不一致，但成本高。","tag":"term"},
+  {"title":"Infection（感染模型）","body":"每个节点是 Susceptible/Infected/Removed 状态，类比传染病传播，O(log N) 轮全覆盖。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">分布式 / Gossip / C 类型</div>
+      <h1>Gossip 协议</h1>
+      <p class="summary">Gossip 协议通过随机选取邻居传播信息，最终让全集群达到一致状态。它天然容错，但有传播延迟和消息冗余，广泛用于 Cassandra、Redis Cluster 和 Consul 等系统的成员状态同步。</p>
+      <div class="tags"><span>Push/Pull</span><span>最终一致性</span><span>容错</span><span>成员管理</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>Gossip Round（传播轮次）</strong><span>每轮随机选 k 个邻居交换信息，经过 O(log N) 轮可覆盖全集群。</span></li>
+        <li><strong>Anti-Entropy（反熵）</strong><span>周期性地和随机邻居对比全量状态，修复长期不一致，但成本高。</span></li>
+        <li><strong>Infection（感染模型）</strong><span>每个节点是 Susceptible/Infected/Removed 状态，类比传染病传播。</span></li>
+      </ul>
+    </div>
+  </section>
+  <section class="lab">
+    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <svg class="gossip-svg" viewBox="0 0 480 340" id="gossipSvg">
+          <defs>
+            <marker id="arrG" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#c084fc"/></marker>
+            <marker id="arrGF" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#f87171"/></marker>
+          </defs>
+
+          <!-- Static background edges (all possible gossip paths) -->
+          <!-- N1-N2 --> <line class="gedge" x1="240" y1="75" x2="120" y2="148"/>
+          <!-- N1-N3 --> <line class="gedge" x1="240" y1="75" x2="360" y2="148"/>
+          <!-- N1-N5 --> <line class="gedge" x1="240" y1="75" x2="198" y2="270"/>
+          <!-- N2-N4 --> <line class="gedge" x1="120" y1="148" x2="72" y2="248"/>
+          <!-- N2-N5 --> <line class="gedge" x1="120" y1="148" x2="198" y2="270"/>
+          <!-- N2-N6 --> <line class="gedge" x1="120" y1="148" x2="318" y2="262"/>
+          <!-- N3-N6 --> <line class="gedge" x1="360" y1="148" x2="318" y2="262"/>
+          <!-- N3-N7 --> <line class="gedge" x1="360" y1="148" x2="420" y2="210"/>
+          <!-- N4-N5 --> <line class="gedge" x1="72" y1="248" x2="198" y2="270"/>
+          <!-- N5-N6 --> <line class="gedge" x1="198" y1="270" x2="318" y2="262"/>
+          <!-- N6-N7 --> <line class="gedge" x1="318" y1="262" x2="420" y2="210"/>
+
+          <!-- Active spreading edges (dynamically shown) -->
+          <!-- s0: N1→N3 spread -->  <line id="s0" class="gedge" x1="240" y1="75" x2="360" y2="148" style="opacity:0"/>
+          <!-- s1: N1→N5 spread -->  <line id="s1" class="gedge" x1="240" y1="75" x2="198" y2="270" style="opacity:0"/>
+          <!-- s2: N3→N7 spread -->  <line id="s2" class="gedge" x1="360" y1="148" x2="420" y2="210" style="opacity:0"/>
+          <!-- s3: N3→N6 spread -->  <line id="s3" class="gedge" x1="360" y1="148" x2="318" y2="262" style="opacity:0"/>
+          <!-- s4: N5→N4 spread -->  <line id="s4" class="gedge" x1="198" y1="270" x2="72" y2="248" style="opacity:0"/>
+          <!-- s5: N5→N2 spread -->  <line id="s5" class="gedge" x1="198" y1="270" x2="120" y2="148" style="opacity:0"/>
+          <!-- s6: N4 fail -->  <line id="s6" class="gedge" x1="72" y1="248" x2="198" y2="270" style="opacity:0"/>
+
+          <!-- Round label -->
+          <text id="roundLabel" x="240" y="16" text-anchor="middle" font-size="10.5" font-weight="700" fill="#64748b">Round 0</text>
+          <!-- Infected count -->
+          <text id="infectLabel" x="240" y="30" text-anchor="middle" font-size="9" fill="#64748b">感染节点: 0/7</text>
+
+          <!-- Node N1 (top center, infection source) -->
+          <g id="n1" class="gnode">
+            <circle cx="240" cy="68" r="22"/>
+            <text x="240" y="65" text-anchor="middle">N1</text>
+            <text x="240" y="77" text-anchor="middle" font-size="8" fill="#64748b" id="n1sub">源节点</text>
+          </g>
+          <!-- Node N2 (upper left) -->
+          <g id="n2" class="gnode">
+            <circle cx="120" cy="148" r="20"/>
+            <text x="120" y="145" text-anchor="middle">N2</text>
+            <text x="120" y="157" text-anchor="middle" font-size="8" fill="#64748b" id="n2sub">待感染</text>
+          </g>
+          <!-- Node N3 (upper right) -->
+          <g id="n3" class="gnode">
+            <circle cx="360" cy="148" r="20"/>
+            <text x="360" y="145" text-anchor="middle">N3</text>
+            <text x="360" y="157" text-anchor="middle" font-size="8" fill="#64748b" id="n3sub">待感染</text>
+          </g>
+          <!-- Node N4 (left) -->
+          <g id="n4" class="gnode">
+            <circle cx="72" cy="248" r="20"/>
+            <text x="72" y="245" text-anchor="middle">N4</text>
+            <text x="72" y="257" text-anchor="middle" font-size="8" fill="#64748b" id="n4sub">待感染</text>
+          </g>
+          <!-- Node N5 (center-bottom-left) -->
+          <g id="n5" class="gnode">
+            <circle cx="198" cy="270" r="20"/>
+            <text x="198" y="267" text-anchor="middle">N5</text>
+            <text x="198" y="279" text-anchor="middle" font-size="8" fill="#64748b" id="n5sub">待感染</text>
+          </g>
+          <!-- Node N6 (center-bottom-right) -->
+          <g id="n6" class="gnode">
+            <circle cx="318" cy="262" r="20"/>
+            <text x="318" y="259" text-anchor="middle">N6</text>
+            <text x="318" y="271" text-anchor="middle" font-size="8" fill="#64748b" id="n6sub">待感染</text>
+          </g>
+          <!-- Node N7 (right) -->
+          <g id="n7" class="gnode">
+            <circle cx="420" cy="210" r="20"/>
+            <text x="420" y="207" text-anchor="middle">N7</text>
+            <text x="420" y="219" text-anchor="middle" font-size="8" fill="#64748b" id="n7sub">待感染</text>
+          </g>
+        </svg>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnReset">重置</button>
+        <button class="ctrl" id="btnPrev">上一步</button>
+        <button class="ctrl primary" id="btnPlay">播放</button>
+        <button class="ctrl" id="btnNext">下一步</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-hd">当前状态</div>
+      <div class="status">
+        <span class="badge" id="stateBadge">normal</span>
+        <h2 id="stepTitle"></h2>
+        <p id="stepDesc"></p>
+        <p id="stepDetail" style="margin-top:8px;font-size:.82rem;"></p>
+      </div>
+    </aside>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>背景与机制</h2>
+      <p>Gossip 协议模拟"八卦传播"：每个节点周期性地随机选 k 个邻居，将自己的状态推送（Push）给对方或向对方拉取（Pull）。经过 O(log N) 轮后，信息可以覆盖整个集群。与 ZooKeeper 强一致方案不同，Gossip 是最终一致的——节点不需要同步等待确认，天然容忍节点失联。</p>
+    </section>
+    <section>
+      <h2>常见误区</h2>
+      <ul>
+        <li>Gossip 不保证强一致性，不能用于需要顺序一致性的场景（如分布式锁）。</li>
+        <li>已感染节点继续传播会产生大量冗余消息，需要用计数器或 TTL 限制传播轮数。</li>
+        <li>Push vs Pull vs Push-Pull：Push-Pull 收敛最快，因为双方都能获得对方缺失的信息。</li>
+        <li>Gossip 的 suspect 机制是概率性的——误判可能暂时把健康节点标记为失联。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>工程场景</h2>
+      <ul>
+        <li>Redis Cluster：节点用 MEET/PING/PONG 消息进行 Gossip，维护集群成员视图和槽位映射。</li>
+        <li>Consul：基于 memberlist 库（HashiCorp 的 Gossip 实现）维护节点健康状态。</li>
+        <li>Cassandra：使用 Gossip 传播节点的 token、load 和状态信息，每个节点维护自己的成员视图。</li>
+        <li>Amazon Dynamo：使用 Gossip-based membership 检测节点失效，配合虚拟节点实现数据均衡。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>边界与恢复</h2>
+      <p>动画覆盖：① 感染源 N1 开始传播；② Round 1：指数扩散到 N3/N5；③ Round 2：N3→N7/N6，N5→N4/N2；④ Round 3 全覆盖（O(log 7) ≈ 3 轮）；⑤ N4 失联被标记为 suspect/dead；⑥ N4 恢复，通过 Anti-Entropy 追平状态；⑦ 已感染节点继续传播产生冗余。Anti-Entropy 作为补充机制，可修复长期不一致但消耗带宽。</p>
+    </section>
+  </section>
+</main>
+<script>
+/* Nodes: n1(0) n2(1) n3(2) n4(3) n5(4) n6(5) n7(6)
+   States per node: '' | 'infected' | 'suspect' | 'dead' | 'recovered'
+   Spreading edges: s0..s6
+*/
+
+const STEPS = [
+  {
+    title: "初始状态 — N1 收到新信息",
+    desc: "7 节点集群，N1 接收到一条新的集群状态更新（如成员变更或配置更新）。",
+    kind: "normal",
+    detail: "在 Gossip 协议中，信息的传播从单个节点开始，无需知道全局拓扑，只需知道部分邻居。",
+    round: "Round 0", infected: "1/7",
+    states: ['infected','','','','','',''],
+    subs: ['源节点','待感染','待感染','待感染','待感染','待感染','待感染'],
+    spreadEdges: [], failEdges: []
+  },
+  {
+    title: "Round 1: N1 随机选邻居 N3/N5 — Push 传播",
+    desc: "N1 随机选取 2 个邻居（N3/N5），将新信息 Push 给它们。N3/N5 成为感染状态。",
+    kind: "normal",
+    detail: "每轮每个感染节点随机选 k 个邻居传播（fanout k 通常为 3-5）。这个 round 感染节点从 1 增加到 3。",
+    round: "Round 1", infected: "3/7",
+    states: ['infected','','infected','','infected','',''],
+    subs: ['感染源','待感染','已感染','待感染','已感染','待感染','待感染'],
+    spreadEdges: [0,1], failEdges: []
+  },
+  {
+    title: "Round 2: N3→N7/N6，N5→N4/N2 — 指数扩散",
+    desc: "N3/N5 各自随机选邻居传播。N3 选了 N7/N6，N5 选了 N4/N2。共 7 个节点中 7 个已感染。",
+    kind: "normal",
+    detail: "指数扩散：每轮感染节点数约 ×2，log₂(7) ≈ 3 轮可达全覆盖。这是 O(log N) 收敛的直观来源。",
+    round: "Round 2", infected: "7/7",
+    states: ['infected','infected','infected','infected','infected','infected','infected'],
+    subs: ['感染源','已感染','已感染','已感染','已感染','已感染','已感染'],
+    spreadEdges: [2,3,4,5], failEdges: []
+  },
+  {
+    title: "Round 3: 全集群覆盖 — O(log N) 轮达到一致",
+    desc: "所有 7 个节点都已收到信息，集群状态收敛一致。整个传播过程只需约 log(7) ≈ 3 轮。",
+    kind: "normal",
+    detail: "注意：已感染节点仍在继续传播（冗余轮次），这会产生额外的网络开销。可以用计数器限制传播轮数（如 rumor mongering 的 Removed 状态）。",
+    round: "Round 3 — 收敛完成", infected: "7/7 ✓",
+    states: ['infected','infected','infected','infected','infected','infected','infected'],
+    subs: ['感染源','已同步','已同步','已同步','已同步','已同步','已同步'],
+    spreadEdges: [], failEdges: []
+  },
+  {
+    title: "⚡ N4 失联 — 其他节点标记为 Suspect",
+    desc: "N4 停止响应 PING 消息。邻居节点（N5）无法联系到它，将 N4 标记为 Suspect 状态，通过 Gossip 传播这个怀疑信息。",
+    kind: "failure",
+    detail: "Suspect 阶段提供了一个缓冲——N4 可能只是暂时过载或网络抖动，不应立即从成员列表移除。每个系统有自己的 suspect timeout。",
+    round: "检测失联中", infected: "6/7",
+    states: ['infected','infected','infected','suspect','infected','infected','infected'],
+    subs: ['正常','正常','正常','⚠ Suspect','正常','正常','正常'],
+    spreadEdges: [], failEdges: [6]
+  },
+  {
+    title: "⚡ Suspect → Dead — N4 从成员列表移除",
+    desc: "N4 在 suspect timeout 内仍未响应，被标记为 Dead，通过 Gossip 传播，所有节点从路由表中移除 N4。",
+    kind: "failure",
+    detail: "Dead 状态的传播也是 Gossip 的：N5 告诉 N2/N6，N2/N6 再传播，最终整个集群都知道 N4 已死亡。负责 N4 的数据会被重新分配（如 Cassandra 的 hinted handoff）。",
+    round: "N4 已移除", infected: "6/7",
+    states: ['infected','infected','infected','dead','infected','infected','infected'],
+    subs: ['正常','正常','正常','Dead ✗','正常','正常','正常'],
+    spreadEdges: [], failEdges: []
+  },
+  {
+    title: "N4 恢复 — 重新加入，Anti-Entropy 追平状态",
+    desc: "N4 重新上线，向邻居发送 PING，邻居通知其它节点 N4 已恢复。Anti-Entropy 机制帮助 N4 与随机邻居对比全量状态，补齐错过的更新。",
+    kind: "recovery",
+    detail: "Anti-Entropy 是 Gossip 的补充机制：周期性地与随机邻居做 merkle tree 比对，找到差异并同步。成本比普通 Gossip 高，但能修复长期不一致。",
+    round: "N4 恢复中", infected: "7/7",
+    states: ['infected','infected','infected','recovered','infected','infected','infected'],
+    subs: ['正常','正常','正常','恢复中 ↑','正常','正常','正常'],
+    spreadEdges: [4,5], failEdges: []
+  },
+  {
+    title: "消息冗余 — 已感染节点继续传播",
+    desc: "已经知道消息的节点仍然继续传播，产生冗余消息。这是 Gossip 的固有特性：用冗余换可靠性。",
+    kind: "normal",
+    detail: "解决冗余的策略：① Rumor Mongering：感染节点在传播几轮后随机以概率 1/k 停止（Removed 状态）；② 基于版本号/时间戳：接收方如果已有更新版本则忽略；③ 消息摘要：只传递增量变化。",
+    round: "冗余传播阶段", infected: "7/7",
+    states: ['infected','infected','infected','recovered','infected','infected','infected'],
+    subs: ['冗余传播','冗余传播','冗余传播','已同步','冗余传播','冗余传播','冗余传播'],
+    spreadEdges: [0,1,2,3], failEdges: []
+  }
+];
+
+const NODE_IDS = ['n1','n2','n3','n4','n5','n6','n7'];
+const SPREAD_IDS = ['s0','s1','s2','s3','s4','s5','s6'];
+
+let idx = 0, timer = null;
+const list    = document.getElementById('stepList');
+const titleEl = document.getElementById('stepTitle');
+const descEl  = document.getElementById('stepDesc');
+const detailEl= document.getElementById('stepDetail');
+const badge   = document.getElementById('stateBadge');
+const play    = document.getElementById('btnPlay');
+
+function render() {
+  const s = STEPS[idx];
+  titleEl.textContent  = s.title;
+  descEl.textContent   = s.desc;
+  detailEl.textContent = s.detail;
+  badge.textContent = s.kind;
+  badge.className   = 'badge ' + s.kind;
+
+  document.getElementById('roundLabel').textContent  = s.round;
+  document.getElementById('infectLabel').textContent = '感染节点: ' + s.infected;
+
+  document.querySelectorAll('.step-btn').forEach((b,i) => b.classList.toggle('active', i === idx));
+
+  // node states
+  NODE_IDS.forEach((id,i) => {
+    const el = document.getElementById(id);
+    el.classList.remove('infected','suspect','dead','recovered');
+    if (s.states[i]) el.classList.add(s.states[i]);
+    const subEl = document.getElementById(id + 'sub');
+    if (subEl) subEl.textContent = s.subs[i];
+  });
+
+  // spreading edges
+  SPREAD_IDS.forEach((id,i) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('spreading','fail-edge');
+    if (s.failEdges && s.failEdges.includes(i)) {
+      el.classList.add('fail-edge');
+      el.style.opacity = '1';
+      el.setAttribute('marker-end','url(#arrGF)');
+    } else if (s.spreadEdges.includes(i)) {
+      el.classList.add('spreading');
+      el.style.opacity = '1';
+      el.setAttribute('marker-end','url(#arrG)');
+    } else {
+      el.style.opacity = '0';
+      el.removeAttribute('marker-end');
+    }
+  });
+
+  document.getElementById('btnPrev').disabled = idx === 0;
+  document.getElementById('btnNext').disabled = idx === STEPS.length - 1;
+}
+
+function drawList() {
+  list.innerHTML = STEPS.map((s,i) =>
+    `<button class="step-btn" data-i="${i}"><b>Step ${i+1}</b>${s.title}</button>`
+  ).join('');
+  list.querySelectorAll('button').forEach(b => b.onclick = () => { idx = Number(b.dataset.i); pause(); render(); });
+}
+
+function next()  { idx = Math.min(STEPS.length-1, idx+1); render(); if (idx === STEPS.length-1) pause(); }
+function prev()  { idx = Math.max(0, idx-1); render(); }
+function reset() { idx = 0; pause(); render(); }
+function pause() { if (timer) clearInterval(timer); timer = null; play.textContent = '播放'; }
+function toggle(){ if (timer) { pause(); return; } play.textContent = '暂停'; timer = setInterval(next, 1900); }
+
+document.getElementById('btnNext').onclick  = next;
+document.getElementById('btnPrev').onclick  = prev;
+document.getElementById('btnReset').onclick = reset;
+play.onclick = toggle;
+drawList();
+render();
+</script>
+<script>if (window.NavTracker) NavTracker.track('Gossip 协议', window.location.href, '💬', '分布式');</script>
+<script src="../footer.js"></script>
+</body>
+</html>

@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>两阶段提交（2PC）- 分布式</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#c084fc;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 18%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:440px;display:flex;flex-direction:column;padding:18px}
+.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:radial-gradient(circle at 50% 20%,rgba(255,255,255,.05),transparent 50%),rgba(15,23,42,.64);overflow:hidden;display:flex;align-items:center;justify-content:center;}
+.pc-svg{width:100%;max-width:480px;height:auto;}
+.rnode{transition:all .3s;}
+.rnode rect{fill:rgba(255,255,255,.055);stroke:rgba(255,255,255,.12);stroke-width:1.5;transition:all .3s;}
+.rnode text{fill:#94a3b8;transition:fill .3s;}
+.rnode.active rect{fill:color-mix(in srgb,var(--accent) 16%,transparent);stroke:var(--accent);stroke-width:2;}
+.rnode.active text{fill:#f8fafc;}
+.rnode.fail rect{fill:rgba(248,113,113,.1);stroke:#f87171;stroke-width:2;}
+.rnode.fail text{fill:#f87171;}
+.rnode.recover rect{fill:rgba(74,222,128,.1);stroke:#4ade80;stroke-width:2;}
+.rnode.recover text{fill:#4ade80;}
+.rnode.coord-hi rect{fill:color-mix(in srgb,var(--accent) 22%,transparent);stroke:var(--accent);stroke-width:2.5;}
+.rnode.coord-hi text{fill:#f8fafc;}
+@keyframes coord-glow{0%,100%{filter:drop-shadow(0 0 4px color-mix(in srgb,var(--accent) 50%,transparent));}50%{filter:drop-shadow(0 0 10px color-mix(in srgb,var(--accent) 80%,transparent));}}
+.rnode.coord-hi rect{animation:coord-glow 2s infinite;}
+.redge{stroke:rgba(255,255,255,.15);stroke-width:1.5;fill:none;transition:all .3s;}
+.redge.active{stroke:var(--accent);stroke-width:2.5;filter:drop-shadow(0 0 4px color-mix(in srgb,var(--accent) 60%,transparent));}
+.redge.fail{stroke:#f87171;stroke-width:2;}
+.redge.ok{stroke:#4ade80;stroke-width:2;}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}
+.status p{color:var(--dim);font-size:.9rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.failure{border-color:var(--bad);color:var(--bad)}
+.badge.recovery{border-color:var(--ok);color:var(--ok)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Coordinator","body":"协调者，发起并协调两个阶段的中心节点，单点故障是 2PC 的主要问题。","tag":"term"},
+  {"title":"Participant","body":"参与者，收到 Prepare 后锁定资源等待，无法单方面中止或提交。","tag":"term"},
+  {"title":"Blocking","body":"协调者崩溃时，参与者锁定资源无限等待——2PC 不解决这个问题。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">分布式 / 2PC / C 类型</div>
+      <h1>两阶段提交<br>（2PC）</h1>
+      <p class="summary">两阶段提交通过协调者广播 Prepare/Commit，让多个参与者原子性地完成分布式事务，但协调者单点和阻塞问题是其核心局限。</p>
+      <div class="tags"><span>Prepare</span><span>Commit</span><span>协调者</span><span>阻塞</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>Coordinator（协调者）</strong><span>发起并协调两个阶段的中心节点，单点故障是 2PC 的主要问题。</span></li>
+        <li><strong>Participant（参与者）</strong><span>收到 Prepare 后锁定资源等待，无法单方面中止或提交。</span></li>
+        <li><strong>Blocking（阻塞）</strong><span>协调者崩溃时，参与者锁定资源无限等待——2PC 不解决这个问题。</span></li>
+      </ul>
+    </div>
+  </section>
+  <section class="lab">
+    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <svg class="pc-svg" viewBox="0 0 480 345" id="pcSvg">
+          <defs>
+            <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="rgba(255,255,255,.25)"/></marker>
+            <marker id="arrA" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#c084fc"/></marker>
+            <marker id="arrF" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#f87171"/></marker>
+            <marker id="arrOk" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#4ade80"/></marker>
+          </defs>
+          <!-- e0: Client→Coordinator -->
+          <line id="e0" class="redge" x1="86" y1="36" x2="148" y2="62" marker-end="url(#arr)"/>
+          <!-- e1: Coord→P1 (prepare/commit) -->
+          <line id="e1" class="redge" x1="212" y1="96" x2="110" y2="260" marker-end="url(#arr)"/>
+          <!-- e2: Coord→P2 (prepare/commit) -->
+          <line id="e2" class="redge" x1="238" y1="96" x2="236" y2="260" marker-end="url(#arr)"/>
+          <!-- e3: Coord→P3 (prepare/commit) -->
+          <line id="e3" class="redge" x1="268" y1="96" x2="368" y2="260" marker-end="url(#arr)"/>
+          <!-- e4: P1→Coord (reply) -->
+          <line id="e4" class="redge" x1="126" y1="260" x2="224" y2="96" marker-end="url(#arr)" style="opacity:0"/>
+          <!-- e5: P2→Coord (reply) -->
+          <line id="e5" class="redge" x1="252" y1="260" x2="254" y2="96" marker-end="url(#arr)" style="opacity:0"/>
+          <!-- e6: P3→Coord (reply) -->
+          <line id="e6" class="redge" x1="382" y1="260" x2="278" y2="96" marker-end="url(#arr)" style="opacity:0"/>
+          <!-- e7: Coord→Log -->
+          <line id="e7" class="redge" x1="332" y1="66" x2="358" y2="54" marker-end="url(#arr)" style="opacity:0"/>
+
+          <!-- Phase label (center) -->
+          <text id="phaseLabel" x="240" y="196" text-anchor="middle" font-size="11" fill="#64748b">——</text>
+
+          <!-- Node: Client (top-left) -->
+          <g id="n_client" class="rnode">
+            <rect x="4" y="14" width="82" height="44" rx="10"/>
+            <text x="45" y="32" text-anchor="middle" font-size="11" font-weight="700">Client</text>
+            <text x="45" y="48" text-anchor="middle" font-size="9" fill="#64748b" id="n_client_sub">请求方</text>
+          </g>
+
+          <!-- Node: Coordinator (top-center) -->
+          <g id="n_coord" class="rnode">
+            <rect x="148" y="44" width="184" height="52" rx="10"/>
+            <text x="240" y="63" text-anchor="middle" font-size="12" font-weight="700">Coordinator</text>
+            <text x="240" y="79" text-anchor="middle" font-size="9.5" id="n_coord_sub">协调者</text>
+          </g>
+
+          <!-- Node: Log area (top-right) -->
+          <g id="n_log" class="rnode">
+            <rect x="358" y="10" width="116" height="84" rx="10"/>
+            <text x="416" y="34" text-anchor="middle" font-size="10" font-weight="700">协调者日志</text>
+            <text x="416" y="54" text-anchor="middle" font-size="9" fill="#64748b" id="logStatus">——</text>
+            <text x="416" y="72" text-anchor="middle" font-size="11" font-weight="700" id="logDecision" fill="#64748b">——</text>
+          </g>
+
+          <!-- Node: P1 (bottom-left) -->
+          <g id="n_p1" class="rnode">
+            <rect x="28" y="260" width="108" height="52" rx="10"/>
+            <text x="82" y="279" text-anchor="middle" font-size="12" font-weight="700">P1</text>
+            <text x="82" y="296" text-anchor="middle" font-size="9.5" id="n_p1_sub">参与者</text>
+          </g>
+          <!-- Node: P2 (bottom-center) -->
+          <g id="n_p2" class="rnode">
+            <rect x="186" y="260" width="108" height="52" rx="10"/>
+            <text x="240" y="279" text-anchor="middle" font-size="12" font-weight="700">P2</text>
+            <text x="240" y="296" text-anchor="middle" font-size="9.5" id="n_p2_sub">参与者</text>
+          </g>
+          <!-- Node: P3 (bottom-right) -->
+          <g id="n_p3" class="rnode">
+            <rect x="344" y="260" width="108" height="52" rx="10"/>
+            <text x="398" y="279" text-anchor="middle" font-size="12" font-weight="700">P3</text>
+            <text x="398" y="296" text-anchor="middle" font-size="9.5" id="n_p3_sub">参与者</text>
+          </g>
+        </svg>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnReset">重置</button>
+        <button class="ctrl" id="btnPrev">上一步</button>
+        <button class="ctrl primary" id="btnPlay">播放</button>
+        <button class="ctrl" id="btnNext">下一步</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-hd">当前状态</div>
+      <div class="status">
+        <span class="badge" id="stateBadge">normal</span>
+        <h2 id="stepTitle"></h2>
+        <p id="stepDesc"></p>
+        <p id="stepDetail" style="margin-top:8px;font-size:.82rem;"></p>
+      </div>
+    </aside>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>背景与机制</h2>
+      <p>2PC 是解决跨节点原子提交的经典协议，确保"要么全提交，要么全回滚"。Phase 1（Prepare）协调者向所有参与者询问是否可以提交，参与者锁定资源并记录 undo log；Phase 2（Commit/Rollback）协调者根据投票结果广播最终决定。参与者只有在协调者明确指令后才能释放锁。</p>
+    </section>
+    <section>
+      <h2>常见误区</h2>
+      <ul>
+        <li>2PC 不是高可用协议——协调者崩溃后参与者会无限期持锁阻塞，直到协调者恢复。</li>
+        <li>网络分区下 2PC 无法保证可用性（CA 而非 AP），这是其最大局限。</li>
+        <li>参与者投 Yes 之后就失去了决策权，只能等待协调者的最终指令。</li>
+        <li>3PC 试图解决阻塞但引入了新复杂性，工业界更多采用 Saga/TCC 替代。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>工程场景</h2>
+      <ul>
+        <li>MySQL XA 事务（InnoDB 支持 XA/2PC），适合同一数据库内的分布式协调。</li>
+        <li>分布式数据库跨分片事务（TiDB、CockroachDB）内部使用类 2PC 协议。</li>
+        <li>Java JTA（javax.transaction）提供 2PC 的标准接口，XAResource 对应参与者。</li>
+        <li>现代微服务更多采用 Saga 模式或 TCC（Try-Confirm-Cancel）避免全局锁。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>边界与恢复</h2>
+      <p>动画覆盖四个场景：① 正常全票 Yes 提交路径；② 一票 No 触发全局回滚；③ 协调者在 Phase 2 前崩溃，参与者无限阻塞；④ 参与者超时后尝试互联查询（3PC 方向）。排查时关注协调者日志状态——已写 commit 则参与者应提交，未写则应回滚。</p>
+    </section>
+  </section>
+</main>
+<script>
+/* nodes: n_client(0), n_coord(1), n_log(2), n_p1(3), n_p2(4), n_p3(5)
+   edges: e0=Client→Coord, e1=Coord→P1, e2=Coord→P2, e3=Coord→P3,
+          e4=P1→Coord, e5=P2→Coord, e6=P3→Coord, e7=Coord→Log */
+
+const STEPS = [
+  {
+    title: "初始状态",
+    desc: "协调者和三个参与者就绪，等待客户端发起事务请求。",
+    kind: "normal",
+    detail: "每个参与者持有独立的本地资源，尚未加锁。协调者等待事务指令。",
+    phase: "等待事务",
+    coordSub: "就绪", logStatus: "空", logDecision: "——",
+    subs: ["等待", "等待", "等待"],
+    active: [], fail: [], recover: [], edges: [], failEdges: [], okEdges: []
+  },
+  {
+    title: "Phase 1: 协调者广播 Prepare",
+    desc: "协调者向 P1、P2、P3 发送 Prepare 消息，询问是否可以提交。",
+    kind: "normal",
+    detail: "参与者收到 Prepare 后开始检查本地条件，写入 undo log 保证可回滚，然后锁定相关资源。",
+    phase: "Phase 1: Prepare",
+    coordSub: "广播 Prepare", logStatus: "记录中", logDecision: "PREPARE",
+    subs: ["收到 Prepare", "收到 Prepare", "收到 Prepare"],
+    active: [1], fail: [], recover: [], edges: [1,2,3], failEdges: [], okEdges: []
+  },
+  {
+    title: "P1 加锁资源，回复 Yes",
+    desc: "P1 验证本地条件满足，锁定资源，写入 undo log，向协调者回复 Yes（Ready）。",
+    kind: "normal",
+    detail: "P1 此时已持锁，只等待协调者的最终决定——无法单方面提交或回滚。",
+    phase: "Phase 1: 投票中",
+    coordSub: "等待投票", logStatus: "记录中", logDecision: "PREPARE",
+    subs: ["回复 Yes ✓", "投票中…", "投票中…"],
+    active: [1,3], fail: [], recover: [], edges: [4], failEdges: [], okEdges: []
+  },
+  {
+    title: "P2 加锁资源，回复 Yes",
+    desc: "P2 同样验证通过，锁定资源，回复 Yes。",
+    kind: "normal",
+    detail: "P1/P2 都已持锁等待，系统的"阻塞窗口"开始形成。",
+    phase: "Phase 1: 投票中",
+    coordSub: "等待投票", logStatus: "记录中", logDecision: "PREPARE",
+    subs: ["已回复 Yes", "回复 Yes ✓", "投票中…"],
+    active: [1,4], fail: [], recover: [], edges: [5], failEdges: [], okEdges: []
+  },
+  {
+    title: "P3 加锁资源，回复 Yes",
+    desc: "P3 回复 Yes，协调者收到全部三票。",
+    kind: "normal",
+    detail: "全票 Yes，协调者可以做出提交决定。此刻所有参与者均处于 Prepared 状态。",
+    phase: "Phase 1: 全票 Yes",
+    coordSub: "收到全票 Yes", logStatus: "记录中", logDecision: "PREPARE",
+    subs: ["已回复 Yes", "已回复 Yes", "回复 Yes ✓"],
+    active: [1,5], fail: [], recover: [], edges: [6], failEdges: [], okEdges: []
+  },
+  {
+    title: "协调者决定提交，写入日志 COMMIT",
+    desc: "协调者收到全票 Yes，决定提交事务，将 COMMIT 记录写入本地持久化日志。",
+    kind: "normal",
+    detail: "写日志是关键节点：只要这条日志落盘，即使协调者后续崩溃，恢复后也知道该提交。",
+    phase: "决策：COMMIT",
+    coordSub: "写入 COMMIT 日志", logStatus: "已落盘", logDecision: "COMMIT ✓",
+    subs: ["等待提交", "等待提交", "等待提交"],
+    active: [1,2], fail: [], recover: [], edges: [7], failEdges: [], okEdges: []
+  },
+  {
+    title: "Phase 2: 协调者广播 Commit",
+    desc: "协调者向所有参与者发送 Commit 命令，通知正式提交并释放锁。",
+    kind: "normal",
+    detail: "参与者收到 Commit 后提交本地事务，释放所有锁，删除 undo log，向协调者 ACK。",
+    phase: "Phase 2: Commit",
+    coordSub: "广播 Commit", logStatus: "已落盘", logDecision: "COMMIT ✓",
+    subs: ["收到 Commit", "收到 Commit", "收到 Commit"],
+    active: [1], fail: [], recover: [], edges: [1,2,3], failEdges: [], okEdges: []
+  },
+  {
+    title: "所有参与者提交，释放锁 — 事务完成",
+    desc: "P1/P2/P3 完成本地提交，删除 undo log，释放资源锁，事务全局完成。",
+    kind: "normal",
+    detail: "2PC 正常路径结束。协调者收到全部 ACK 后事务完全结束，资源解锁。",
+    phase: "事务完成 ✓",
+    coordSub: "事务完成", logStatus: "已落盘", logDecision: "COMMIT ✓",
+    subs: ["已提交 ✓", "已提交 ✓", "已提交 ✓"],
+    active: [], fail: [], recover: [1,3,4,5], edges: [4,5,6], failEdges: [], okEdges: [4,5,6]
+  },
+  {
+    title: "⚡ 失败场景: P2 回复 No（Abort）",
+    desc: "P2 在 Phase 1 检查时发现无法满足条件（如唯一键冲突），回复 Abort。",
+    kind: "failure",
+    detail: "只要有一个参与者回复 No，协调者就必须触发全局回滚，所有参与者都要回滚。",
+    phase: "Phase 1: 收到 Abort",
+    coordSub: "收到 Abort！", logStatus: "记录中", logDecision: "ROLLBACK",
+    subs: ["已回复 Yes", "回复 No ✗", "回复 Yes"],
+    active: [1,3,5], fail: [4], recover: [], edges: [], failEdges: [5], okEdges: []
+  },
+  {
+    title: "⚡ 协调者广播 Rollback",
+    desc: "协调者收到 Abort 后，向所有参与者广播 Rollback 命令，所有人必须回滚。",
+    kind: "failure",
+    detail: "P1/P3 即使已经准备好，也必须执行 undo log 回滚并释放锁。资源锁浪费了整个 Phase 1 的时间。",
+    phase: "Phase 2: Rollback",
+    coordSub: "广播 Rollback", logStatus: "已落盘", logDecision: "ROLLBACK ✗",
+    subs: ["执行回滚", "执行回滚", "执行回滚"],
+    active: [1], fail: [4], recover: [], edges: [1,2,3], failEdges: [], okEdges: []
+  },
+  {
+    title: "⚡ 协调者崩溃 — 参与者无限阻塞",
+    desc: "Phase 2 发送前协调者宕机。P1/P2/P3 处于 Prepared 状态，持锁等待，无法前进。",
+    kind: "failure",
+    detail: "这是 2PC 最核心的缺陷：参与者不知道协调者决定了什么，只能无限等待。锁不能释放，其他事务全部阻塞。",
+    phase: "⚠ 协调者宕机",
+    coordSub: "已崩溃", logStatus: "未知", logDecision: "?",
+    subs: ["阻塞等待…", "阻塞等待…", "阻塞等待…"],
+    active: [3,4,5], fail: [1], recover: [], edges: [], failEdges: [], okEdges: []
+  },
+  {
+    title: "超时后 P1 尝试查询其他参与者（3PC 方向）",
+    desc: "等待超时后，P1 尝试联系 P2/P3 询问是否有人知道协调者的最终决定。",
+    kind: "recovery",
+    detail: "2PC 本身不提供这个机制——这是 3PC 的方向。即使 P2/P3 都是 Prepared，也无法确定协调者写没写 commit 日志。只有协调者恢复才能解决。",
+    phase: "超时查询（3PC 方向）",
+    coordSub: "等待恢复", logStatus: "未知", logDecision: "?",
+    subs: ["查询中…", "等待", "等待"],
+    active: [3], fail: [1], recover: [], edges: [], failEdges: [], okEdges: []
+  }
+];
+
+/* ---- render ---- */
+const NODE_IDS  = ['n_client','n_coord','n_log','n_p1','n_p2','n_p3'];
+const EDGE_IDS  = ['e0','e1','e2','e3','e4','e5','e6','e7'];
+const REPLY_EDGES = [4,5,6]; // edges that should be hidden by default
+
+let idx = 0, timer = null;
+const list    = document.getElementById('stepList');
+const titleEl = document.getElementById('stepTitle');
+const descEl  = document.getElementById('stepDesc');
+const detailEl= document.getElementById('stepDetail');
+const badge   = document.getElementById('stateBadge');
+const play    = document.getElementById('btnPlay');
+
+function render() {
+  const s = STEPS[idx];
+  titleEl.textContent  = s.title;
+  descEl.textContent   = s.desc;
+  detailEl.textContent = s.detail;
+  badge.textContent = s.kind;
+  badge.className   = 'badge ' + s.kind;
+
+  document.getElementById('phaseLabel').textContent = s.phase;
+
+  // sub-texts
+  document.getElementById('n_coord_sub').textContent = s.coordSub;
+  document.getElementById('logStatus').textContent   = s.logStatus;
+  document.getElementById('logDecision').textContent = s.logDecision;
+  const logDec = document.getElementById('logDecision');
+  logDec.setAttribute('fill', s.logDecision.includes('✓') ? '#4ade80' : s.logDecision.includes('✗') ? '#f87171' : '#64748b');
+  const subIds = ['n_p1_sub','n_p2_sub','n_p3_sub'];
+  s.subs.forEach((t,i) => { const el = document.getElementById(subIds[i]); if (el) el.textContent = t; });
+
+  // step list highlight
+  document.querySelectorAll('.step-btn').forEach((b,i) => b.classList.toggle('active', i === idx));
+
+  // node states
+  NODE_IDS.forEach((id,i) => {
+    const el = document.getElementById(id);
+    el.classList.remove('active','fail','recover','coord-hi');
+    if (s.fail.includes(i))    { el.classList.add('fail');    return; }
+    if (s.recover.includes(i)) { el.classList.add('recover'); return; }
+    if (s.active.includes(i))  {
+      el.classList.add(i === 1 ? 'coord-hi' : 'active');
+    }
+  });
+
+  // edges
+  EDGE_IDS.forEach((id,i) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('active','fail','ok');
+    const isReply = REPLY_EDGES.includes(i);
+    if (s.failEdges.includes(i)) {
+      el.classList.add('fail'); el.style.opacity='1'; el.setAttribute('marker-end','url(#arrF)');
+    } else if (s.okEdges && s.okEdges.includes(i)) {
+      el.classList.add('ok'); el.style.opacity='1'; el.setAttribute('marker-end','url(#arrOk)');
+    } else if (s.edges.includes(i)) {
+      el.classList.add('active'); el.style.opacity='1'; el.setAttribute('marker-end','url(#arrA)');
+    } else {
+      el.setAttribute('marker-end','url(#arr)');
+      el.style.opacity = isReply ? '0' : '1';
+    }
+  });
+
+  document.getElementById('btnPrev').disabled = idx === 0;
+  document.getElementById('btnNext').disabled = idx === STEPS.length - 1;
+}
+
+function drawList() {
+  list.innerHTML = STEPS.map((s,i) =>
+    `<button class="step-btn" data-i="${i}"><b>Step ${i+1}</b>${s.title}</button>`
+  ).join('');
+  list.querySelectorAll('button').forEach(b => b.onclick = () => { idx = Number(b.dataset.i); pause(); render(); });
+}
+
+function next()  { idx = Math.min(STEPS.length-1, idx+1); render(); if (idx === STEPS.length-1) pause(); }
+function prev()  { idx = Math.max(0, idx-1); render(); }
+function reset() { idx = 0; pause(); render(); }
+function pause() { if (timer) clearInterval(timer); timer = null; play.textContent = '播放'; }
+function toggle(){ if (timer) { pause(); return; } play.textContent = '暂停'; timer = setInterval(next, 1900); }
+
+document.getElementById('btnNext').onclick  = next;
+document.getElementById('btnPrev').onclick  = prev;
+document.getElementById('btnReset').onclick = reset;
+play.onclick = toggle;
+drawList();
+render();
+</script>
+<script>if (window.NavTracker) NavTracker.track('两阶段提交（2PC）', window.location.href, '🔄', '分布式');</script>
+<script src="../footer.js"></script>
+</body>
+</html>

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RLHF - AI</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<link rel="stylesheet" href="ai.css">
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Reward Model","body":"学习人类偏好评分的模型，输入是 (prompt, response) 对，输出标量分数。训练目标是 chosen 响应分数高于 rejected 响应。","tag":"term"},
+  {"title":"PPO","body":"近端策略优化（Proximal Policy Optimization），强化学习算法，用 clip 限制每次更新幅度，加 KL 惩罚防止偏离参考模型太远。","tag":"term"},
+  {"title":"KL Divergence","body":"KL 散度约束，防止模型在 PPO 训练中过度优化奖励（reward hacking），保持输出分布与 SFT 模型接近。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="shell" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">AI / RLHF / C 类型</div>
+      <h1>RLHF</h1>
+      <p class="summary">RLHF 通过人类偏好训练奖励模型，再用强化学习（PPO）优化语言模型，让输出更符合人类期望。这是 ChatGPT、Claude 等对齐模型的核心训练方法。</p>
+      <div class="tags"><span>奖励模型</span><span>PPO</span><span>偏好对比</span><span>对齐</span></div>
+    </div>
+    <div class="card map">
+      <div class="eyebrow">核心术语</div>
+      <div class="term"><strong>Reward Model（奖励模型）</strong><span>学习人类偏好评分的模型，输入是 (prompt, response) 对，输出一个标量分数。训练时最大化 chosen 响应与 rejected 响应的分数差。</span></div>
+      <div class="term"><strong>PPO（近端策略优化）</strong><span>强化学习算法，用来优化语言模型，使其最大化奖励模型分数，同时通过 clip 和 KL 惩罚防止偏离 SFT 模型太远，保证训练稳定。</span></div>
+      <div class="term"><strong>KL Divergence（KL 散度约束）</strong><span>防止模型在 PPO 训练中过度优化奖励导致偏离原始分布的约束项。总奖励 = RM 分数 - β × KL(π_RL || π_SFT)。</span></div>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <section class="panel viz"><div class="stage" id="aiStage"></div><div class="controls"><button class="ctrl" id="btnReset">重置</button><button class="ctrl" id="btnPrev">上一步</button><button class="ctrl primary" id="btnPlay">播放</button><button class="ctrl" id="btnNext">下一步</button></div></section>
+    <aside class="panel"><div class="panel-hd">当前状态</div><div class="status"><span class="badge" id="stateBadge">normal</span><h2 id="stepTitle"></h2><p id="stepDesc"></p><p id="stepDetail"></p><div class="metrics" id="metrics"></div><div class="codebox"><h3>关键代码</h3><pre id="codeBlock"></pre></div></div></aside>
+  </section>
+
+  <section class="grid">
+    <article class="section">
+      <h2>RLHF vs DPO</h2>
+      <p>DPO（Direct Preference Optimization）是 RLHF 的简化替代方案，不需要单独训练奖励模型，直接在偏好数据上优化策略模型。</p>
+      <ul>
+        <li><strong>RLHF</strong>：分三阶段（SFT→RM→PPO），训练复杂，但可以在线采样，适合强能力对齐。</li>
+        <li><strong>DPO</strong>：只需 SFT + 偏好数据，直接最大化 chosen 相对 rejected 的对数似然比，训练简单稳定。</li>
+        <li><strong>SimPO/ORPO</strong>：更新的变体，进一步简化或改进 DPO 的对齐目标。</li>
+        <li><strong>选择建议</strong>：工程团队通常优先尝试 DPO，效果不足再考虑 RLHF 的在线采样优势。</li>
+      </ul>
+    </article>
+    <article class="section">
+      <h2>PPO 的工程挑战</h2>
+      <p>PPO 训练语言模型的工程复杂度远超 SFT，是 RLHF 的主要门槛。</p>
+      <ul>
+        <li><strong>多模型并行</strong>：同时需要 Actor（策略模型）、Critic（价值函数）、Reference（参考模型）、Reward Model 四个模型。</li>
+        <li><strong>训练不稳定</strong>：奖励方差大、KL 系数难以调节，容易出现 reward 崩塌或 KL 爆炸。</li>
+        <li><strong>计算成本高</strong>：每个 PPO 步骤需要前向推理（采样响应）+ 后向传播，成本是 SFT 的 3-4 倍。</li>
+        <li><strong>DeepSpeed-Chat</strong>：微软开源了较完整的 RLHF 工程栈，可以作为参考实现。</li>
+      </ul>
+    </article>
+    <article class="section">
+      <h2>人类偏好数据的质量</h2>
+      <p>奖励模型的上限取决于偏好数据质量，这是 RLHF 效果的核心瓶颈。</p>
+      <ul>
+        <li><strong>标注一致性</strong>：不同标注者的偏好判断往往不一致，需要多人标注并计算一致性指标（Cohen's kappa）。</li>
+        <li><strong>偏见问题</strong>：标注者倾向于偏好更长、格式更好、听起来更自信的回答，不一定是更准确的。</li>
+        <li><strong>难例构造</strong>：相近质量的两个响应（hard pairs）比明显高低的容易对（easy pairs）更能训练出好的 RM。</li>
+        <li><strong>Constitutional AI</strong>：Anthropic 提出用 AI 自我批评替代部分人类标注，降低成本同时保持质量。</li>
+      </ul>
+    </article>
+    <article class="section">
+      <h2>对齐税（Alignment Tax）</h2>
+      <p>对齐（RLHF/RLAIF）有时会让模型在某些能力上略有退步，这被称为"对齐税"。</p>
+      <ul>
+        <li><strong>表现</strong>：编码、数学等需要精确推理的任务，对齐后模型可能比 SFT 模型稍差。</li>
+        <li><strong>原因</strong>：PPO 优化的是人类偏好分，而不是任务正确性；RM 的偏好可能与任务性能不完全一致。</li>
+        <li><strong>缓解</strong>：混入任务特定的 SFT 数据；使用 process reward model（PRM）对推理过程建模，而非只看最终回答。</li>
+      </ul>
+      <div class="callout">对齐是权衡，不是零成本。通用能力、安全边界和用户满意度三者很难同时最大化，需要根据产品目标取舍。</div>
+    </article>
+  </section>
+</main>
+<script>
+window.AI_DEMO = {
+  title: 'RLHF 训练流程',
+  viewBox: '0 0 640 360',
+  nodes: [
+    {id:'human',    label:'人类标注者',   sub:'preference pairs', x:90,  y:80,  w:130, h:52},
+    {id:'compdata', label:'对比数据集',   sub:'chosen/rejected',  x:300, y:80,  w:130, h:52},
+    {id:'rm',       label:'奖励模型 RM', sub:'reward score',     x:520, y:80,  w:130, h:52},
+    {id:'policy',   label:'策略模型',    sub:'LLM (SFT init)',   x:90,  y:260, w:130, h:52},
+    {id:'ppo',      label:'PPO 训练器', sub:'clip + KL 惩罚',   x:320, y:260, w:130, h:52},
+    {id:'aligned',  label:'对齐后模型', sub:'helpful & safe',   x:540, y:260, w:130, h:52}
+  ],
+  edges: [
+    {id:'e1', x1:155, y1:80,  x2:235, y2:80},
+    {id:'e2', x1:365, y1:80,  x2:455, y2:80},
+    {id:'e3', x1:155, y1:260, x2:255, y2:260},
+    {id:'e4', x1:520, y1:107, x2:395, y2:234},
+    {id:'e5', x1:385, y1:260, x2:475, y2:260},
+    {id:'e6', x1:145, y1:234, x2:250, y2:107}
+  ],
+  code: '# 奖励模型训练\nloss = -log(sigmoid(rm(prompt,chosen) - rm(prompt,rejected)))\n\n# PPO 总奖励（含 KL 惩罚）\nr_total = rm_score - β × KL(π_RL || π_SFT)\n\n# DPO 等价目标（无需 RM）\nloss = -log(σ(β·log(π_θ(y_w|x)/π_ref(y_w|x))\n         - β·log(π_θ(y_l|x)/π_ref(y_l|x))))',
+  steps: [
+    {kicker:'collect', title:'收集人类偏好数据',      badge:'annotation',
+     nodes:['human'],
+     desc:'标注者对同一个 prompt 的多个模型响应进行排序，标注哪个回答更好。这是 RLHF 的数据基础。',
+     metrics:[{label:'数据格式',value:'(prompt, A, B)'},{label:'标注维度',value:'helpfulness + safety'}]},
+
+    {kicker:'pairs',   title:'构建对比数据集',         badge:'preprocess',
+     nodes:['human','compdata'], edges:['e1'],
+     desc:'将排序结果转换为 (prompt, chosen, rejected) 三元组。chosen 是标注者更偏好的响应，rejected 是较差的响应。',
+     code:'dataset = [\n  {"prompt": "...",\n   "chosen": "好的回答...",\n   "rejected": "差的回答..."},\n  ...\n]'},
+
+    {kicker:'rm-train', title:'训练奖励模型',          badge:'RM training',
+     nodes:['compdata','rm'], edges:['e2'],
+     desc:'用 Bradley-Terry 模型目标训练 RM：最小化 -log(σ(r_chosen - r_rejected))。RM 通常从 SFT 模型初始化，末尾加线性层输出标量。',
+     code:'# Pairwise loss\nloss = -log(sigmoid(\n    rm(prompt, chosen) - rm(prompt, rejected)\n))',
+     metrics:[{label:'输入',value:'(prompt, response)'},{label:'输出',value:'标量分数'}]},
+
+    {kicker:'rm-eval',  title:'奖励模型验证',          badge:'validation',
+     goodNodes:['rm'],
+     nodes:['rm'],
+     desc:'在 holdout 集上检查 RM 一致性：chosen 响应的分数应显著高于 rejected。准确率通常需要 >70% 才能用于 PPO 训练。',
+     metrics:[{label:'一致性',value:'>70%'},{label:'RM 准确率',value:'checked'}]},
+
+    {kicker:'ppo-init', title:'PPO 训练开始',          badge:'RL training',
+     nodes:['policy','ppo'], edges:['e3'],
+     desc:'冻结奖励模型，以 SFT 模型初始化策略模型（Actor）。同时保留一份参考模型（Reference）用于计算 KL 散度。',
+     metrics:[{label:'Actor',value:'SFT 初始化'},{label:'Reference',value:'固定副本'}]},
+
+    {kicker:'sample',   title:'采样响应，奖励模型打分', badge:'inference',
+     nodes:['policy','rm'], edges:['e4'],
+     desc:'策略模型对 prompt 采样生成响应，奖励模型打分。这一步是在线生成，不需要预先准备好的数据。',
+     code:'response = policy.generate(prompt)\nreward = rm(prompt, response)',
+     metrics:[{label:'奖励来源',value:'RM 实时打分'},{label:'采样温度',value:'1.0'}]},
+
+    {kicker:'advantage', title:'计算优势函数',          badge:'PPO step',
+     nodes:['ppo'],
+     desc:'advantage = reward - baseline（通常用 Critic 网络估计的值函数）。减去基线可以降低梯度估计方差，使训练更稳定。',
+     code:'advantage = reward - critic(prompt, response)\n# KL 惩罚\nkl_penalty = β * kl_div(policy, reference)\ntotal_reward = reward - kl_penalty'},
+
+    {kicker:'update',   title:'PPO 参数更新',          badge:'gradient step',
+     nodes:['ppo','policy'], edges:['e3'],
+     desc:'用 clip 限制策略更新幅度（防止过激更新），加 KL 散度惩罚（防止偏离 SFT 模型太远），更新 Actor 参数。',
+     code:'# PPO clip 目标\nratio = π_θ(a|s) / π_old(a|s)\nL = min(ratio*A, clip(ratio, 1-ε, 1+ε)*A)',
+     metrics:[{label:'clip ε',value:'0.2'},{label:'KL β',value:'0.05'}]},
+
+    {kicker:'hack',     title:'奖励 Hacking（failure）', badge:'failure', tone:'bad',
+     badNodes:['ppo','aligned'],
+     nodes:['ppo'],
+     desc:'模型发现奖励模型的漏洞，生成能拿高分但实际质量差的响应：过长废话、重复肯定、听起来自信但内容错误。',
+     detail:'解决：降低 KL 惩罚系数、缩短训练步数、提高 RM 数据质量、引入 Constitutional AI 约束。',
+     metrics:[{label:'RM 分数',value:'↑ 虚高'},{label:'实际质量',value:'↓ 下降'}]},
+
+    {kicker:'converge', title:'收敛：对齐完成',          badge:'aligned', tone:'good',
+     goodNodes:['aligned','policy'],
+     nodes:['aligned'], edges:['e5'],
+     desc:'PPO 训练收敛，策略模型输出更安全、更有帮助、格式更好。对比 SFT 基线，在人类偏好评测中胜率显著提升。',
+     detail:'注意：对齐后某些精确推理任务（数学、代码）可能略有退步，这是对齐税，需要权衡。',
+     metrics:[{label:'人类偏好胜率',value:'↑ 提升'},{label:'安全拒绝',value:'↑ 改善'}]}
+  ]
+};
+</script>
+<script src="ai.js"></script>
+<script src="../footer.js"></script>
+<script>if (window.NavTracker) NavTracker.track('RLHF 强化学习对齐', window.location.href, '🎯', 'AI');</script>
+</body>
+</html>

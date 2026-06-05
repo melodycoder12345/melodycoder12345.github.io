@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>gRPC / Protobuf - 网络</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#10b981;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 18%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:420px;display:flex;flex-direction:column;padding:18px}
+.stage{position:relative;flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:radial-gradient(circle at 50% 20%,rgba(255,255,255,.06),transparent 42%),rgba(15,23,42,.64);overflow:hidden}
+.node{position:absolute;width:86px;height:86px;border-radius:24px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.055);display:flex;align-items:center;justify-content:center;text-align:center;color:var(--dim);font-weight:800;font-size:.74rem;transition:all .25s;line-height:1.3}
+.node.active{border-color:var(--accent);color:var(--text);background:color-mix(in srgb,var(--accent) 16%,transparent);box-shadow:0 0 30px color-mix(in srgb,var(--accent) 25%,transparent)}
+.node.fail{border-color:var(--bad);color:var(--text);background:color-mix(in srgb,var(--bad) 12%,transparent);box-shadow:0 0 28px rgba(248,113,113,.22)}
+.node.recover{border-color:var(--ok);color:var(--text);background:color-mix(in srgb,var(--ok) 12%,transparent);box-shadow:0 0 28px rgba(74,222,128,.18)}
+.n1{left:4%;top:38%}
+.n2{left:27%;top:7%}
+.n3{right:7%;top:7%}
+.n4{right:7%;top:47%}
+.n5{left:42%;top:52%}
+.n6{left:15%;bottom:7%}
+.edge{position:absolute;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.25;transform-origin:left center;transition:opacity .25s,filter .25s}
+.edge.active{opacity:1;filter:drop-shadow(0 0 8px var(--accent))}
+.e0{left:11%;top:42%;width:22%;transform:rotate(-44deg)}
+.e1{left:35%;top:17%;width:40%;transform:rotate(0deg)}
+.e2{left:82%;top:22%;width:26%;transform:rotate(86deg)}
+.e3{left:50%;top:57%;width:32%;transform:rotate(-7deg)}
+.e4{left:10%;top:52%;width:35%;transform:rotate(8deg)}
+.e5{left:8%;top:56%;width:16%;transform:rotate(74deg)}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}
+.status p{color:var(--dim);font-size:.9rem;line-height:1.75}
+.status .detail{margin-top:8px;font-size:.82rem;color:var(--dim2)}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.failure{border-color:var(--bad);color:var(--bad)}
+.badge.recovery{border-color:var(--ok);color:var(--ok)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit;transition:all .15s}
+.ctrl:hover{border-color:rgba(255,255,255,.22);background:rgba(255,255,255,.1)}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.deep code{font-family:monospace;color:var(--accent);font-size:.85em}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.node{width:76px;height:76px}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Protobuf","body":"Protocol Buffers：IDL 定义接口，字段有编号，序列化为紧凑二进制，向前向后兼容，比 JSON 小 3–5x。","tag":"term"},
+  {"title":"Streaming","body":"流式 RPC：服务端流、客户端流、双向流三种模式，底层复用 HTTP/2 stream，适合大数据/实时场景。","tag":"term"},
+  {"title":"Interceptor","body":"拦截器：类似 HTTP middleware，用于认证/监控/重试/限流等横切逻辑，可组成拦截器链。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">网络 / gRPC / C 类型</div>
+      <h1>gRPC / Protobuf</h1>
+      <p class="summary">gRPC 用 HTTP/2 做传输、Protobuf 做序列化，支持四种流模式。理解服务定义、序列化机制和四种 RPC 类型，是构建高性能微服务间通信的基础。</p>
+      <div class="tags"><span>HTTP/2</span><span>Protobuf</span><span>Streaming</span><span>IDL</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>Protobuf</strong><span>Protocol Buffers：IDL 定义接口，字段有编号，序列化为紧凑二进制，向前向后兼容，比 JSON 小 3–5x。</span></li>
+        <li><strong>Streaming</strong><span>流式 RPC：服务端流、客户端流、双向流三种模式，底层复用 HTTP/2 stream，适合大数据/实时场景。</span></li>
+        <li><strong>Interceptor</strong><span>拦截器：类似 HTTP middleware，用于认证/监控/重试/限流等横切逻辑，可组成拦截器链。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">Step Timeline</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <div class="edge e0"></div>
+        <div class="edge e1"></div>
+        <div class="edge e2"></div>
+        <div class="edge e3"></div>
+        <div class="edge e4"></div>
+        <div class="edge e5"></div>
+        <div class="node n1">Client</div>
+        <div class="node n2">Protobuf<br>编码</div>
+        <div class="node n3">HTTP/2<br>帧</div>
+        <div class="node n4">gRPC<br>服务</div>
+        <div class="node n5">响应<br>解码</div>
+        <div class="node n6">服务<br>发现</div>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnReset">重置</button>
+        <button class="ctrl" id="btnPrev">上一步</button>
+        <button class="ctrl primary" id="btnPlay">播放</button>
+        <button class="ctrl" id="btnNext">下一步</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-hd">当前状态</div>
+      <div class="status">
+        <span class="badge" id="stateBadge">normal</span>
+        <h2 id="stepTitle"></h2>
+        <p id="stepDesc"></p>
+        <p class="detail" id="stepDetail"></p>
+      </div>
+    </aside>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>背景与机制</h2>
+      <p>HTTP/1.1 + JSON 存在队头阻塞、文本解析开销大和接口无 schema 等问题。gRPC 选择 HTTP/2 解决多路复用和头部压缩，选择 Protobuf 解决序列化效率和接口契约。Protobuf 使用字段编号（field number）而非字段名，字段删除只需标记 reserved，不影响已有编码，实现向前向后兼容。</p>
+    </section>
+    <section>
+      <h2>常见误区</h2>
+      <ul>
+        <li>Protobuf 不能替代 JSON 的可读性——调试时需要 protoc 或 grpc_cli 解码，日志和 API 网关需要 JSON 转码层。</li>
+        <li>gRPC 的 HTTP/2 多路复用不能完全消除队头阻塞——TCP 层丢包仍会阻塞整个连接，HTTP/3 over QUIC 才真正解决。</li>
+        <li>截止时间（Deadline）要在 context 里传播，忘记设置会导致无限等待和资源泄漏。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>工程场景</h2>
+      <ul>
+        <li>微服务内部通信：etcd、TiKV、Kubernetes 的组件间通信都使用 gRPC。</li>
+        <li>流式场景：日志流、进度推送、大文件分片上传，使用 Server/Client/Bidirectional Streaming。</li>
+        <li>API 网关 gRPC-Gateway：自动生成 REST ↔ gRPC 转码，让前端也能用 HTTP/JSON 访问 gRPC 服务。</li>
+        <li>拦截器链：认证（JWT/mTLS）→ 限流 → 追踪（OpenTelemetry）→ 重试，全部通过 interceptor 组合。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>边界与恢复</h2>
+      <p>动画覆盖：Unary RPC 从编码到解码的完整路径；Server Streaming 服务端持续推送；截止时间传播（context deadline 从 client 传播到所有下游 RPC）；连接失败时的指数退避重试。排查工具：<code>grpc_cli ls/call</code>、<code>Evans</code> 交互式 REPL、Wireshark gRPC 解码插件。</p>
+    </section>
+  </section>
+</main>
+
+<script>
+const STEPS = [
+  {
+    title: ".proto 定义服务",
+    desc: "在 .proto 文件中用 IDL 定义 service 和 message，protoc 生成客户端 stub 和服务端骨架代码。",
+    kind: "normal",
+    active: [0, 1],
+    edges: [0],
+    detail: "proto3 语法：每个字段有唯一编号（field number），编号决定二进制编码位置，不能轻易修改。删除字段要用 reserved 声明，防止编号被复用导致数据错乱。生成代码覆盖 Go、Java、Python、C++ 等多种语言。"
+  },
+  {
+    title: "Unary RPC",
+    desc: "客户端调用 stub 方法，Protobuf 编码请求，通过 HTTP/2 stream 发往服务端，服务端返回单个响应。",
+    kind: "normal",
+    active: [0, 1, 2, 3],
+    edges: [0, 1, 2],
+    detail: "gRPC 请求映射到 HTTP/2 POST，path 为 /ServiceName/MethodName，content-type 为 application/grpc。响应携带 grpc-status 和 grpc-message trailer，0 表示成功，非 0 表示各类错误码（NOT_FOUND、DEADLINE_EXCEEDED 等）。"
+  },
+  {
+    title: "Protobuf 序列化",
+    desc: "字段编码为 field_number << 3 | wire_type，数字用 varint（小数字只占 1 字节），字符串用 length-delimited。",
+    kind: "normal",
+    active: [1, 2],
+    edges: [1],
+    detail: "Wire type：0=varint（int32/bool/enum），1=64-bit（fixed64/double），2=length-delimited（string/bytes/message），5=32-bit（fixed32/float）。同样的数据 Protobuf 比 JSON 小 3–5x，解析速度快 5–10x，适合高频内部调用。"
+  },
+  {
+    title: "HTTP/2 多路复用",
+    desc: "同一 TCP 连接上并发多个 RPC stream，每个 stream 独立编号，互不阻塞（应用层）。",
+    kind: "normal",
+    active: [2, 3],
+    edges: [2],
+    detail: "HTTP/2 stream 通过 HEADERS frame 开启，DATA frame 传输 payload，RST_STREAM 取消。gRPC 消息用 5 字节 length-prefixed 格式封装在 DATA frame 中（1 字节 compressed flag + 4 字节消息长度）。多路复用极大减少了连接数和握手开销。"
+  },
+  {
+    title: "Server Streaming",
+    desc: "服务端流：客户端发一个请求，服务端持续返回多个响应帧，适合日志流、进度推送、大数据分页。",
+    kind: "normal",
+    active: [0, 2, 3, 4],
+    edges: [2, 3],
+    detail: "服务端流在 .proto 中声明为 rpc GetLog(Req) returns (stream LogEntry)。服务端调用 stream.Send() 多次，最后 return nil 触发 END_STREAM。客户端通过 for { resp, err := stream.Recv() } 接收，io.EOF 表示流结束。"
+  },
+  {
+    title: "截止时间传播",
+    desc: "context.WithDeadline 设置截止时间，通过 grpc-timeout header 传播到所有下游 RPC，防止级联超时。",
+    kind: "normal",
+    active: [0, 3, 4],
+    edges: [2, 3, 4],
+    detail: "gRPC context 是截止时间传播的载体。调用链 A→B→C，B 应该将 A 传来的 context 继续传给 C，而不是创建新的 context.Background()。截止时间耗尽时 gRPC 返回 DEADLINE_EXCEEDED，让整个调用链快速失败，避免资源堆积。"
+  },
+  {
+    title: "连接失败重试",
+    desc: "连接断开或服务端返回 UNAVAILABLE，客户端按指数退避重试，最多重试 N 次。",
+    kind: "failure",
+    active: [0],
+    fail: [2, 3],
+    edges: [0, 1],
+    detail: "gRPC 内置重试策略（retryPolicy）可在 service config 中配置：maxAttempts（最多重试次数）、initialBackoff、maxBackoff、backoffMultiplier、retryableStatusCodes（如 UNAVAILABLE、RESOURCE_EXHAUSTED）。幂等操作才应配置重试，否则可能导致重复执行。"
+  },
+  {
+    title: "负载均衡与服务发现",
+    desc: "gRPC 在子连接（subchannel）粒度做负载均衡，每个后端一个子连接，L7 感知 RPC 粒度而非 TCP 连接粒度。",
+    kind: "recovery",
+    active: [0, 3, 5],
+    recover: [0, 5],
+    edges: [0, 2, 5],
+    detail: "gRPC 支持 round_robin、pick_first、xDS（基于 Envoy/Istio 的服务网格）等均衡策略。与 L4 负载均衡（如 AWS NLB）的区别：L4 只在 TCP 连接级别均衡，gRPC 长连接多路复用会导致流量不均；L7 的 gRPC 感知均衡器（如 grpc-go 内置）在每次 RPC 时选择子连接。"
+  }
+];
+
+let idx = 0, timer = null;
+const list = document.getElementById('stepList');
+const stepTitle = document.getElementById('stepTitle');
+const stepDesc = document.getElementById('stepDesc');
+const stepDetail = document.getElementById('stepDetail');
+const badge = document.getElementById('stateBadge');
+const play = document.getElementById('btnPlay');
+
+function drawList() {
+  list.innerHTML = STEPS.map((s, i) =>
+    '<button class="step-btn" data-i="' + i + '"><b>Step ' + (i + 1) + '</b>' + s.title + '</button>'
+  ).join('');
+  list.querySelectorAll('button').forEach(b => b.onclick = () => { idx = Number(b.dataset.i); pause(); render(); });
+}
+
+function render() {
+  const s = STEPS[idx];
+  stepTitle.textContent = s.title;
+  stepDesc.textContent = s.desc;
+  stepDetail.textContent = s.detail;
+  badge.textContent = s.kind;
+  badge.className = 'badge ' + s.kind;
+  document.querySelectorAll('.step-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
+  document.querySelectorAll('.node').forEach((n, i) => {
+    n.classList.toggle('active', (s.active || []).includes(i));
+    n.classList.toggle('fail', (s.fail || []).includes(i));
+    n.classList.toggle('recover', (s.recover || []).includes(i));
+  });
+  document.querySelectorAll('.edge').forEach((e, i) => e.classList.toggle('active', (s.edges || []).includes(i)));
+  document.getElementById('btnPrev').disabled = idx === 0;
+  document.getElementById('btnNext').disabled = idx === STEPS.length - 1;
+}
+
+function next() { idx = Math.min(STEPS.length - 1, idx + 1); render(); if (idx === STEPS.length - 1) pause(); }
+function prev() { idx = Math.max(0, idx - 1); render(); }
+function reset() { idx = 0; pause(); render(); }
+function pause() { if (timer) clearInterval(timer); timer = null; play.textContent = '播放'; }
+function toggle() {
+  if (timer) { pause(); return; }
+  play.textContent = '暂停';
+  timer = setInterval(next, 1800);
+}
+
+document.getElementById('btnNext').onclick = next;
+document.getElementById('btnPrev').onclick = prev;
+document.getElementById('btnReset').onclick = reset;
+play.onclick = toggle;
+drawList();
+render();
+</script>
+<script>if (window.NavTracker) NavTracker.track('gRPC / Protobuf', window.location.href, '⚡', '网络');</script>
+<script src="../footer.js"></script>
+</body>
+</html>

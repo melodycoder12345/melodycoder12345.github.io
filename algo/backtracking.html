@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>回溯算法 - 算法</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#38bdf8;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--purple:#c084fc;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 20% 0%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1160px;margin:0 auto;padding:44px clamp(20px,4vw,58px) 76px}
+.hero{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr);gap:22px;align-items:stretch;margin-bottom:22px}
+.card,.section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.72);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.28)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.1rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.map{display:grid;grid-template-columns:1fr;gap:10px}
+.term{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.term strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.term span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.section h2{font-size:.9rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:13px}
+.section p,.section li{color:var(--dim);font-size:.92rem;line-height:1.85}
+.section ul{padding-left:18px;display:flex;flex-direction:column;gap:9px}
+.callout{margin-top:18px;border-left:3px solid var(--accent);padding:13px 15px;background:color-mix(in srgb,var(--accent) 10%,transparent);border-radius:0 12px 12px 0;color:var(--dim);line-height:1.75;font-size:.9rem}
+.back-row{margin-top:24px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04);font-size:.88rem}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+pre{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.78rem;line-height:1.7;margin:12px 0;color:#e2e8f0}
+code{font-family:'JetBrains Mono','Fira Code',monospace;font-size:.82em;color:var(--accent)}
+.pitfall{border:1px solid rgba(255,255,255,.08);border-radius:16px;margin-bottom:14px;overflow:hidden}
+.pitfall-hd{padding:10px 14px;font-size:.82rem;font-weight:700}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr}
+.pitfall-col{padding:12px 14px}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border)}
+.pitfall-col pre{font-size:.72rem}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px}
+.full{grid-column:1/-1}
+@media(max-width:900px){.hero,.grid{grid-template-columns:1fr}.content{padding:30px 16px 58px}.pitfall-body{grid-template-columns:1fr}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border)}}
+</style>
+</head>
+<body>
+<main class="content" data-page-type="B">
+
+<section class="hero">
+  <div class="card">
+    <div class="eyebrow">算法 / backtracking / B 类型</div>
+    <h1>回溯算法</h1>
+    <p class="summary">回溯是系统地枚举所有可能解的通用算法模板。通过递归"做出选择→递归→撤销选择"的三步结构，加上剪枝条件，高效地遍历解空间树。</p>
+    <div class="tags"><span>DFS</span><span>解空间树</span><span>剪枝</span><span>组合</span><span>排列</span><span>子集</span></div>
+  </div>
+  <div class="card map">
+    <div class="eyebrow">核心术语</div>
+    <div class="term"><strong>解空间树</strong><span>所有可能解构成的树形结构，回溯是对其做 DFS 遍历，每条根到叶子的路径是一个候选解。</span></div>
+    <div class="term"><strong>剪枝</strong><span>在搜索过程中提前排除不可能产生合法解的分支，减少搜索量，是回溯高效的核心。</span></div>
+    <div class="term"><strong>撤销选择</strong><span>从子问题返回后，恢复选择前的状态，确保下一个分支从同一起点出发，是回溯的标志性操作。</span></div>
+  </div>
+</section>
+
+<section class="grid">
+
+<article class="section">
+<h2>什么是回溯？</h2>
+<p>回溯（Backtracking）本质是<strong>带约束的 DFS</strong>：在解空间树上深度优先搜索，遇到不满足条件的节点立即返回（剪枝），避免继续向下展开无效分支。</p>
+<p>与<strong>暴力枚举</strong>的区别：暴力先生成所有候选，再逐一检验；回溯在<em>生成过程中</em>就淘汰非法分支，避免不必要的展开。</p>
+<p>与<strong>普通 DFS</strong> 的区别：回溯强调"做选择→递归→撤销选择"的三步结构，在返回时恢复状态，使每个分支独立；普通 DFS 不一定有撤销步骤。</p>
+<ul>
+<li><strong>适用场景</strong>：组合、排列、子集、棋盘类（N 皇后、数独）、单词搜索</li>
+<li><strong>时间复杂度</strong>：通常指数级 O(k^n) 或 O(n!)，但剪枝可大幅降低实际搜索量</li>
+<li><strong>空间复杂度</strong>：O(n)——递归栈深度 + path 数组大小</li>
+</ul>
+<div class="callout">核心思路：不是"先生成全部再过滤"，而是"边生成边剪枝，找到一条合法路就记录"。回溯 = 解空间树上的深度优先 + 剪枝。</div>
+</article>
+
+<article class="section">
+<h2>通用模板</h2>
+<p>所有回溯问题都能套用以下框架，三步结构严格对称：</p>
+<pre>func backtrack(path []int, choices []int) {
+    // 终止条件：路径满足目标时记录结果
+    if meetEnd(path) {
+        result = append(result,
+            append([]int{}, path...)) // 必须深拷贝！
+        return
+    }
+    for _, choice := range choices {
+        // 剪枝：不合法的选择直接跳过，不进入递归
+        if !isValid(path, choice) { continue }
+
+        // 做选择（修改状态）
+        path = append(path, choice)
+
+        // 递归进入下一层
+        backtrack(path, nextChoices(choices, choice))
+
+        // 撤销选择（恢复状态），严格对称
+        path = path[:len(path)-1]
+    }
+}</pre>
+<p><strong>三个关键问题</strong>：</p>
+<ul>
+<li><strong>终止条件</strong>：路径长度达到 k？总和满足条件？棋盘放满？</li>
+<li><strong>选择列表</strong>：当前节点有哪些合法的下一步选择？</li>
+<li><strong>剪枝时机</strong>：在"做选择"之前检查，哪些分支可以提前排除？</li>
+</ul>
+</article>
+
+<article class="section">
+<h2>组合问题 C(n, k)</h2>
+<p>从 n 个数中选 k 个，不考虑顺序。关键：用 <code>start</code> 参数控制起始位置，使 [1,2] 和 [2,1] 视为同一组合，避免重复。</p>
+<pre>func combine(n, k int) [][]int {
+    var result [][]int
+    var bt func(start int, path []int)
+    bt = func(start int, path []int) {
+        if len(path) == k {
+            result = append(result,
+                append([]int{}, path...))
+            return
+        }
+        // 剪枝：剩余元素不足 k-len(path) 个时停止
+        // 最多选到 n-(k-len(path))+1
+        for i := start; i <= n-(k-len(path))+1; i++ {
+            path = append(path, i)
+            bt(i+1, path)
+            path = path[:len(path)-1]
+        }
+    }
+    bt(1, nil)
+    return result
+}
+// combine(4, 2) →
+// [[1,2],[1,3],[1,4],[2,3],[2,4],[3,4]]</pre>
+<p><strong>剪枝</strong>：当 <code>i &gt; n-(k-len(path))+1</code> 时，剩余元素已不足以凑够 k 个，直接停止循环。这个剪枝在 n 较大时效果显著。</p>
+</article>
+
+<article class="section">
+<h2>排列问题</h2>
+<p>全排列：n 个不同数的所有有序排列。与组合不同，顺序有意义，需用 <code>used</code> 数组标记已用元素，不用 <code>start</code>。</p>
+<pre>func permute(nums []int) [][]int {
+    var result [][]int
+    used := make([]bool, len(nums))
+    var bt func(path []int)
+    bt = func(path []int) {
+        if len(path) == len(nums) {
+            result = append(result,
+                append([]int{}, path...))
+            return
+        }
+        for i, num := range nums {
+            if used[i] { continue } // 已使用，跳过
+            used[i] = true
+            path = append(path, num)
+            bt(path)
+            path = path[:len(path)-1]
+            used[i] = false
+        }
+    }
+    bt(nil)
+    return result
+}
+// permute([1,2,3]) →
+// [[1,2,3],[1,3,2],[2,1,3],[2,3,1],[3,1,2],[3,2,1]]</pre>
+<p><strong>有重复元素的排列</strong>：先排序，再加条件 <code>i &gt; 0 &amp;&amp; nums[i] == nums[i-1] &amp;&amp; !used[i-1]</code> 跳过同层重复分支。</p>
+</article>
+
+<article class="section">
+<h2>子集问题</h2>
+<p>求所有子集（幂集 2^n 个），包括空集。与组合的区别：每个递归节点都是合法结果，不只在叶子节点记录。</p>
+<pre>func subsets(nums []int) [][]int {
+    var result [][]int
+    var bt func(start int, path []int)
+    bt = func(start int, path []int) {
+        // 每个节点都是合法子集，包括空集
+        result = append(result,
+            append([]int{}, path...))
+        for i := start; i < len(nums); i++ {
+            path = append(path, nums[i])
+            bt(i+1, path)
+            path = path[:len(path)-1]
+        }
+    }
+    bt(0, nil)
+    return result
+}
+// subsets([1,2,3]) → 8 个子集：
+// [],[1],[1,2],[1,2,3],[1,3],[2],[2,3],[3]</pre>
+<p><strong>对比三类问题</strong>：</p>
+<ul>
+<li><strong>子集</strong>：每个节点都记录，不用终止条件（或在函数开头直接记录）</li>
+<li><strong>组合</strong>：只在路径长度 == k 时记录（叶子节点）</li>
+<li><strong>排列</strong>：只在路径包含所有元素时记录，每层从头遍历用 used 去重</li>
+</ul>
+</article>
+
+<article class="section">
+<h2>经典应用：N 皇后</h2>
+<p>在 n×n 棋盘上放 n 个皇后，任意两个皇后不能在同行、列、对角线上。N 皇后是回溯 + 多维剪枝的标准示范。</p>
+<pre>func solveNQueens(n int) [][]string {
+    var result [][]string
+    board := make([]int, n) // board[row] = col
+    cols := make([]bool, n)
+    diag1 := make([]bool, 2*n) // 主对角线 row-col+n
+    diag2 := make([]bool, 2*n) // 副对角线 row+col
+
+    var bt func(row int)
+    bt = func(row int) {
+        if row == n {
+            result = append(result, buildBoard(board, n))
+            return
+        }
+        for col := 0; col < n; col++ {
+            // 剪枝：检查列和两条对角线冲突
+            if cols[col] || diag1[row-col+n] || diag2[row+col] {
+                continue
+            }
+            board[row], cols[col] = col, true
+            diag1[row-col+n], diag2[row+col] = true, true
+            bt(row + 1)
+            cols[col] = false
+            diag1[row-col+n], diag2[row+col] = false, false
+        }
+    }
+    bt(0)
+    return result
+}
+// n=4 → 2 个解；n=8 → 92 个解</pre>
+<p>每行只放一个皇后（天然排除行冲突）；列和对角线用 bool 数组 O(1) 判断，剪枝极为有效。</p>
+</article>
+
+<article class="section full">
+<h2>误区与陷阱</h2>
+
+<div class="pitfall">
+<div class="pitfall-hd bad">误区 1：忘记深拷贝 path，记录了引用而非值</div>
+<div class="pitfall-body">
+<div class="pitfall-col">
+<pre>// 错误：直接追加 path slice
+result = append(result, path)
+// path 后续被修改，result 中的
+// 值会跟着变化，全部错误</pre>
+<p>Go 的 slice 是引用类型，直接追加追加的是底层数组的引用，后续修改会污染已记录的结果。</p>
+</div>
+<div class="pitfall-col">
+<pre>// 正确：必须深拷贝一份
+result = append(result,
+    append([]int{}, path...))
+// 或
+tmp := make([]int, len(path))
+copy(tmp, path)
+result = append(result, tmp)</pre>
+<p>每次记录结果前必须深拷贝，确保 result 中各切片互相独立、不受后续修改影响。</p>
+</div>
+</div>
+</div>
+
+<div class="pitfall">
+<div class="pitfall-hd bad">误区 2：撤销操作不对称，漏掉部分状态恢复</div>
+<div class="pitfall-body">
+<div class="pitfall-col">
+<pre>// 错误：做选择时修改了多个状态
+// 但撤销时只恢复了一个
+used[i] = true
+count++ // 全局计数器
+bt(...)
+used[i] = false
+// 忘记 count-- → 状态泄露到其他分支</pre>
+<p>所有在"做选择"时修改的状态都必须在"撤销"时完整对应恢复，遗漏任何一个都会导致后续分支状态错误。</p>
+</div>
+<div class="pitfall-col">
+<pre>// 正确：做选择和撤销选择严格对称
+used[i] = true
+count++
+board[row] = col
+bt(...)
+board[row] = -1
+count--
+used[i] = false</pre>
+<p>将"做选择"和"撤销选择"的代码对齐排列，逐行检查对称性，是 debug 回溯的有效方法。</p>
+</div>
+</div>
+</div>
+
+<div class="pitfall">
+<div class="pitfall-hd bad">误区 3：剪枝位置放在做选择之后，而非之前</div>
+<div class="pitfall-body">
+<div class="pitfall-col">
+<pre>// 错误：做了选择才检查
+path = append(path, choice)
+if !isValid(path) {
+    path = path[:len(path)-1]
+    continue // 仍然进行了 append，开销浪费
+}</pre>
+<p>延迟剪枝让非法选择进入了状态修改阶段，产生额外的 append/slice 操作，不必要地增加开销。</p>
+</div>
+<div class="pitfall-col">
+<pre>// 正确：选择之前先剪枝
+if !isValid(path, choice) {
+    continue // 直接跳过，不修改任何状态
+}
+path = append(path, choice)
+bt(path, ...)
+path = path[:len(path)-1]</pre>
+<p>在修改状态之前完成合法性检查，非法分支不进入状态修改，剪枝效果最大化。</p>
+</div>
+</div>
+</div>
+
+<div class="pitfall">
+<div class="pitfall-hd bad">误区 4：回溯和 DFS 概念混淆</div>
+<div class="pitfall-body">
+<div class="pitfall-col">
+<pre>// 以为回溯只是 DFS 换了个名字
+func dfs(node int) {
+    visit(node)
+    for _, next := range graph[node] {
+        if !visited[next] {
+            dfs(next) // 没有撤销步骤
+        }
+    }
+}
+// 图遍历 DFS 不需要撤销</pre>
+<p>图遍历 DFS 只需标记访问过不重复进入，不需要在递归返回时恢复状态，因为问题本身不要求枚举所有路径。</p>
+</div>
+<div class="pitfall-col">
+<pre>// 回溯必须在返回时撤销状态
+func bt(path []int) {
+    // 记录结果...
+    for _, choice := range choices {
+        path = append(path, choice)
+        bt(path) // 递归
+        path = path[:len(path)-1] // 撤销！
+    }
+}
+// 解空间树的每条路径都必须独立探索</pre>
+<p>回溯要枚举解空间树的所有路径，每个分支必须从相同起点出发，因此撤销是必须的。本质区分：回溯 = DFS + 状态恢复。</p>
+</div>
+</div>
+</div>
+</article>
+
+</section>
+
+<article class="section">
+<h2>复杂度与剪枝效果</h2>
+<ul>
+<li><strong>组合 C(n,k)</strong>：无剪枝 O(n^k)，有剪枝 O(C(n,k)×k)；n=20,k=10 时减少约 10x 搜索量</li>
+<li><strong>全排列 P(n,n)</strong>：O(n!×n)——共 n! 个排列，每个需 O(n) 深拷贝；n=12 时约 4.8 亿次操作</li>
+<li><strong>子集</strong>：O(2^n×n)——共 2^n 个子集，每个 O(n) 深拷贝；n=20 约 2000 万次</li>
+<li><strong>N 皇后</strong>：实际搜索量远小于 n!；n=8 只探索 ~2000 个节点得到 92 个解（剪掉 >99%）</li>
+</ul>
+<p>剪枝有效性是回溯性能的核心。好的剪枝条件越早排除越多分支，可将实际复杂度从指数级压缩到多项式级。</p>
+</article>
+</main>
+<script src="../footer.js"></script>
+</body>
+</html>

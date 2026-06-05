@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Embedding 模型 - AI</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<link rel="stylesheet" href="ai.css">
+<script>window.PAGE_CONCEPTS=[
+  {"title":"对比学习","body":"通过拉近正样本对（语义相关）、推远负样本对（语义无关）来训练 Embedding 模型，InfoNCE loss 是最主流的对比学习目标。","tag":"term"},
+  {"title":"Bi-Encoder","body":"双塔结构，query 和 document 独立编码成向量，支持离线预计算和 ANN 检索，是语义搜索的主流架构。","tag":"term"},
+  {"title":"ANN","body":"Approximate Nearest Neighbor，近似最近邻搜索，用 HNSW/IVF 等索引结构在亿级向量中毫秒级找到最相近的向量。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="shell" data-page-type="B">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">AI / Embedding / B 类型</div>
+      <h1>Embedding 模型</h1>
+      <p class="summary">Embedding 将文本、图像等离散对象映射到连续向量空间，使语义相似的内容距离相近。理解对比学习、向量化应用场景和局限性，是构建语义搜索和 RAG 系统的基础。</p>
+      <div class="tags"><span>对比学习</span><span>语义相似度</span><span>向量检索</span><span>Bi-Encoder</span></div>
+    </div>
+    <div class="card map">
+      <div class="eyebrow">核心权衡</div>
+      <div class="term"><strong>语义 vs 词汇匹配</strong><span>Embedding 捕获语义相似性，"汽车"和"轿车"距离近，但精确词汇匹配（如代码、ID）需要 BM25 等词汇模型补充。</span></div>
+      <div class="term"><strong>Bi-Encoder vs Cross-Encoder</strong><span>Bi-Encoder 速度快（独立编码），适合大规模检索；Cross-Encoder 精度高（联合编码），适合 rerank 精排阶段。</span></div>
+      <div class="term"><strong>领域泛化 vs 领域专用</strong><span>通用 Embedding（如 text-embedding-3）开箱即用，但在垂直领域（医疗、法律、代码）通常不如领域微调的专用模型。</span></div>
+    </div>
+  </section>
+
+  <section class="grid">
+    <article class="section">
+      <h2>什么是 Embedding？</h2>
+      <p>Embedding 是将高维离散对象（文本、图像、商品）映射到低维连续向量空间的函数。核心目标：语义相近的对象在向量空间中距离相近。</p>
+      <ul>
+        <li><strong>几何直觉</strong>：词向量空间中，"国王" - "男人" + "女人" ≈ "女王"。这说明向量空间能编码语义关系，不只是标签。</li>
+        <li><strong>相似度度量</strong>：通常用余弦相似度（cosine similarity）衡量两个向量的语义接近程度，不受向量模长影响。</li>
+        <li><strong>维度</strong>：常见 Embedding 维度是 384、768、1024、1536，维度越高表达能力越强，但存储和计算成本越高。</li>
+        <li><strong>归一化</strong>：语义搜索中，通常对向量 L2 归一化，使余弦相似度等价于内积，便于 ANN 索引加速。</li>
+      </ul>
+      <div class="callout">不要把 Embedding 理解为"特征提取"的黑盒。理解它的训练目标（对比学习）和相似度定义（余弦距离），才能理解为什么它有时失效。</div>
+    </article>
+    <article class="section">
+      <h2>对比学习训练</h2>
+      <p>现代文本 Embedding 模型通常用对比学习训练：正样本对（语义相关）在向量空间中被拉近，负样本对被推远。</p>
+      <pre>import torch
+import torch.nn.functional as F
+
+def contrastive_loss(anchor, positive, negatives, temp=0.07):
+    """InfoNCE loss: 把 positive 从 negatives 中区分出来"""
+    # anchor, positive: [d]  negatives: [N, d]
+    anchor = F.normalize(anchor, dim=-1)
+    positive = F.normalize(positive, dim=-1)
+    negatives = F.normalize(negatives, dim=-1)
+
+    sim_pos = (anchor @ positive) / temp           # 正样本相似度
+    sim_neg = (anchor @ negatives.T) / temp        # 负样本相似度 [N]
+
+    # 交叉熵：把 positive 排到最高
+    logits = torch.cat([sim_pos.unsqueeze(0), sim_neg])
+    loss = -torch.log_softmax(logits, dim=0)[0]
+    return loss</pre>
+      <ul>
+        <li><strong>正样本来源</strong>：同一文档的不同段落；问题-答案对；翻译对；数据增强（随机删词、同义替换）。</li>
+        <li><strong>难负例挖掘</strong>：随机负例太容易，需要挖掘"难负例"（语义相近但不相关），例如 BM25 召回的非相关文档。</li>
+        <li><strong>SimCSE</strong>：只用同一句子的两次 dropout 得到正样本对，batch 内其他句子作为负样本，简单高效。</li>
+      </ul>
+    </article>
+    <article class="section">
+      <h2>Bi-Encoder vs Cross-Encoder</h2>
+      <p>两种架构在检索系统中承担不同角色，通常串联使用（Bi-Encoder 召回 + Cross-Encoder 精排）。</p>
+      <ul>
+        <li><strong>Bi-Encoder（双塔）</strong>：query 和 document 独立通过 encoder 得到向量，相似度 = cosine(q, d)。document 向量可离线预计算，支持毫秒级 ANN 检索，适合大规模召回（top-100）。</li>
+        <li><strong>Cross-Encoder（交叉编码）</strong>：query 和 document 拼接后一起过 encoder，最后一层输出相关性分数。精度高（捕获 query-document 交互），但无法预计算，只适合小规模 rerank（top-100 → top-5）。</li>
+      </ul>
+      <pre># Bi-Encoder（离线计算 doc 向量）
+doc_embs = model.encode(all_documents)  # 提前计算
+q_emb = model.encode(query)             # 在线
+scores = cos_sim(q_emb, doc_embs)       # 毫秒级
+
+# Cross-Encoder（在线 rerank）
+pairs = [(query, doc) for doc in candidates]
+scores = cross_encoder.predict(pairs)   # 精确但慢</pre>
+    </article>
+    <article class="section">
+      <h2>向量数据库和 ANN 索引</h2>
+      <p>当向量库达到百万级，暴力搜索（brute-force cosine）不再可行，需要 ANN 索引在精度和延迟之间取得平衡。</p>
+      <ul>
+        <li><strong>HNSW（Hierarchical Navigable Small World）</strong>：图结构索引，查询精度高（recall ~99%），插入快，适合实时更新，是 Milvus/Weaviate/Qdrant 的默认索引。</li>
+        <li><strong>IVF（倒排向量）</strong>：先 K-Means 聚类，查询时只搜最近的几个 cluster，速度快但需要离线建索引，适合静态大规模数据集（FAISS 场景）。</li>
+        <li><strong>PQ（乘积量化）</strong>：压缩向量到极小尺寸（32 bytes），牺牲部分精度换取超低内存，适合超大规模（10亿+）场景。</li>
+        <li><strong>向量数据库选择</strong>：Milvus（企业大规模）、Qdrant（Rust，性能强）、Weaviate（支持 hybrid search）、pgvector（PostGres 扩展，已有 PG 用户的最简选择）。</li>
+      </ul>
+    </article>
+    <article class="section">
+      <h2>多模态 Embedding</h2>
+      <p>CLIP 将图像和文本映射到同一向量空间，使跨模态检索成为可能。</p>
+      <ul>
+        <li><strong>CLIP 训练</strong>：对 4 亿图文对做对比学习，正样本是配对的图文，负样本是 batch 内其他图文。训练后，"一只猫的照片"和猫的图片向量距离很近。</li>
+        <li><strong>应用场景</strong>：以文搜图（输入 prompt 找图）、以图搜图（输入图片找相似）、图文排序（排序图文相关性）。</li>
+        <li><strong>CLIP 的局限</strong>：对空间关系（左边、右边）、数量（三只苹果）、细粒度属性（深红色 vs 浅红色）理解较弱。</li>
+        <li><strong>多模态检索系统</strong>：CLIP 做初步召回，再用更精准的 VQA 或 Cross-Encoder 重排结果。</li>
+      </ul>
+    </article>
+    <article class="section">
+      <h2>局限性与常见误区</h2>
+      <ul>
+        <li><strong>语义搜索 ≠ 精确匹配</strong>：Embedding 擅长模糊语义召回，但对精确字符串（产品 ID、版本号、专有名词）召回差。应用中常用 hybrid search：向量搜索 + BM25 关键词搜索融合（RRF 排名融合）。</li>
+        <li><strong>领域外泛化差</strong>：通用 Embedding 在医学、法律、代码等垂直领域表现显著下降。需要用领域数据微调或使用专用模型（如 CodeBERT for code）。</li>
+        <li><strong>维度诅咒</strong>：高维空间中随机向量的余弦相似度趋向于 0，大量无关内容的相似度过于集中，导致召回区分度降低。解法：适当降维（PCA）或用 Matryoshka Embedding（可裁剪维度）。</li>
+        <li><strong>Embedding 不捕获事实</strong>：相似不等于正确。两段关于同一主题的文章，哪怕一段内容有误，Embedding 也会判断它们相关。RAG 系统仍需 LLM 判断信息的正确性。</li>
+      </ul>
+      <div class="callout">Embedding 是检索的工具，不是知识验证的工具。"语义接近"和"事实正确"是两个不同的维度。</div>
+    </article>
+  </section>
+</main>
+<script src="../footer.js"></script>
+<script>if (window.NavTracker) NavTracker.track('Embedding 模型', window.location.href, '🔢', 'AI');</script>
+</body>
+</html>

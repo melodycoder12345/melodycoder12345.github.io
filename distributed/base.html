@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BASE 理论 - 分布式</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#c084fc;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 18%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1100px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:22px;align-items:stretch;margin-bottom:28px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(1.8rem,3.5vw,3.5rem);line-height:1.08;letter-spacing:-.05em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:.95rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:5px 10px;font-size:.75rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.87rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.81rem;line-height:1.65}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:28px}
+.article-card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.6);border-radius:18px;padding:22px;display:flex;flex-direction:column;gap:12px}
+.article-card h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px}
+.article-card p{color:var(--dim);font-size:.88rem;line-height:1.82}
+.article-card ul{display:flex;flex-direction:column;gap:7px;padding-left:18px}
+.article-card li{color:var(--dim);font-size:.87rem;line-height:1.75}
+.article-card strong{color:var(--text)}
+pre{background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.75rem;line-height:1.7;margin-top:10px}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;background:rgba(192,132,252,.1);padding:1px 4px;border-radius:4px;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.cm{color:#8b949e}.st{color:#a5d6ff}.num{color:#79c0ff}
+.table-wrap{overflow-x:auto;margin-top:10px}
+table{width:100%;border-collapse:collapse;font-size:.81rem}
+th{background:color-mix(in srgb,var(--accent) 8%,transparent);color:var(--accent);padding:8px 12px;text-align:left;border:1px solid rgba(255,255,255,.08);font-size:.76rem}
+td{padding:7px 12px;border:1px solid rgba(255,255,255,.07);color:var(--dim)}
+tr:hover td{background:rgba(255,255,255,.02)}
+td.good{color:var(--ok)}
+td.bad{color:var(--bad)}
+td.mid{color:var(--warn)}
+.pill{display:inline-flex;border-radius:999px;padding:2px 8px;font-size:.68rem;font-family:monospace;border:1px solid;vertical-align:middle}
+.pill-base{border-color:var(--accent);color:var(--accent)}
+.pill-acid{border-color:var(--ok);color:var(--ok)}
+.pill-bad{border-color:var(--bad);color:var(--bad)}
+/* Decision flow styles */
+.decision-flow{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.decision-row{display:flex;align-items:center;gap:10px;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);border-radius:10px;padding:10px 12px}
+.decision-icon{font-size:1.1rem;flex-shrink:0}
+.decision-text{font-size:.83rem;color:var(--dim);line-height:1.6}
+.decision-text strong{color:var(--text);display:block;margin-bottom:2px}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:900px){.hero,.grid{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+</head>
+<body>
+<main class="content" data-page-type="B">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">分布式 / BASE / B 类型</div>
+      <h1>BASE 理论</h1>
+      <p class="summary">BASE（Basically Available, Soft State, Eventually Consistent）是 ACID 的对立面，也是分布式 AP 系统的设计哲学。理解 BASE 是选择数据库、设计一致性策略和容忍短暂不一致的思维基础。</p>
+      <div class="tags"><span>最终一致性</span><span>可用性</span><span>Soft State</span><span>AP 系统</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">BASE 三要素</div>
+      <ul class="concept-list">
+        <li><strong>Basically Available（基本可用）</strong><span>即使部分节点失败，系统仍能响应，但可能降级——延迟变高、返回部分数据或旧数据。</span></li>
+        <li><strong>Soft State（软状态）</strong><span>系统的中间状态可能随时间变化，即使没有新的输入（副本同步正在进行）。</span></li>
+        <li><strong>Eventually Consistent（最终一致性）</strong><span>如果停止写入并等待足够长的时间，所有副本最终会收敛到相同状态。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="grid">
+    <!-- 文章1: BASE vs ACID 对比表 -->
+    <article class="article-card">
+      <h2>BASE vs ACID 完整对比</h2>
+      <p>ACID 和 BASE 是两种截然不同的设计哲学，理解它们的区别是架构选型的基础。</p>
+      <div class="table-wrap">
+        <table>
+          <tr><th>维度</th><th><span class="pill pill-acid">ACID</span></th><th><span class="pill pill-base">BASE</span></th></tr>
+          <tr><td>原子性</td><td class="good">全或无，事务要么全部成功</td><td class="mid">按步骤执行，部分成功可能可见</td></tr>
+          <tr><td>一致性</td><td class="good">事务后系统处于有效状态</td><td class="bad">中间状态可能不满足约束</td></tr>
+          <tr><td>隔离性</td><td class="good">并发事务互不干扰</td><td class="bad">并发写入可能相互可见</td></tr>
+          <tr><td>持久性</td><td class="good">提交后数据永久保存</td><td class="mid">最终持久化，短期可能未同步</td></tr>
+          <tr><td>可用性</td><td class="mid">分区时可能拒绝服务</td><td class="good">分区时仍继续服务（有损）</td></tr>
+          <tr><td>性能</td><td class="bad">锁竞争、协调开销大</td><td class="good">无全局锁，写吞吐高</td></tr>
+          <tr><td>水平扩展</td><td class="bad">跨分片事务极复杂</td><td class="good">天然适合水平分片</td></tr>
+          <tr><td>典型系统</td><td>MySQL, PostgreSQL, Oracle</td><td>Cassandra, DynamoDB, Redis</td></tr>
+        </table>
+      </div>
+    </article>
+
+    <!-- 文章2: Basically Available -->
+    <article class="article-card">
+      <h2>Basically Available — 基本可用</h2>
+      <p><strong>不是"完全可用"</strong>：基本可用不等于系统总是正常工作，而是允许"有损的可用性"——在异常情况下，系统会以降级的方式继续响应，而不是直接不可用。</p>
+      <p><strong>常见的有损降级模式：</strong></p>
+      <ul>
+        <li><strong>延迟降级</strong>：正常情况响应 50ms，降级时响应 500ms，但不返回错误。</li>
+        <li><strong>功能降级</strong>：搜索服务故障时返回缓存的默认推荐，而非 500。</li>
+        <li><strong>数据降级</strong>：读取副本可能返回几秒前的数据（stale read），但不拒绝服务。</li>
+        <li><strong>分区降级</strong>：部分节点失联时，系统仅用存活节点提供服务（降低吞吐量但保持可用）。</li>
+      </ul>
+      <p><strong>CAP 定理的背景</strong>：AP 系统选择了 Availability + Partition Tolerance，牺牲了 Consistency。BASE 是对这个选择的系统化描述——不是"不要一致性"，而是"接受最终一致性换取更高可用性"。</p>
+    </article>
+
+    <!-- 文章3: Soft State -->
+    <article class="article-card">
+      <h2>Soft State — 软状态</h2>
+      <p><strong>软状态的含义</strong>：系统状态可能在没有新用户输入的情况下自发改变。这是因为后台的副本同步、TTL 过期、缓存失效等机制在持续运行。</p>
+      <p><strong>具体场景：</strong></p>
+      <ul>
+        <li>你在两个数据中心的数据库写入了一条记录，同步需要 100ms——这 100ms 内系统处于"软状态"（DC1 有，DC2 没有）。</li>
+        <li>Redis 缓存中的数据过期被逐出——没有用户操作，状态自动变化。</li>
+        <li>Cassandra 的 hinted handoff：目标节点失联时，写入暂存在其他节点，目标节点恢复后自动应用——中间阶段就是软状态。</li>
+      </ul>
+      <p><strong>软状态 vs 脏状态</strong>：软状态不意味着数据会丢失或损坏，而是"正在向最终状态收敛"的中间过程。这与 ACID 中"事务提交后立即一致"形成对比。</p>
+    </article>
+
+    <!-- 文章4: Eventually Consistent + 代码示例 -->
+    <article class="article-card">
+      <h2>Eventually Consistent — 最终一致性</h2>
+      <p>如果停止所有写入，并等待足够长的时间，所有副本最终会收敛到相同的状态。"足够长的时间"是关键——这个时间窗口内存在不一致。</p>
+      <p><strong>最终一致性的变体：</strong></p>
+      <ul>
+        <li><strong>单调读一致性</strong>：用户 A 读到了版本 v2，后续读取不会看到 v1。</li>
+        <li><strong>读己所写一致性</strong>：用户写入后，自己的读取能看到自己的写入。</li>
+        <li><strong>因果一致性</strong>：如果操作 A 在 B 之前（因果关系），所有节点都先看到 A 再看到 B。</li>
+      </ul>
+      <pre><span class="cm">// DynamoDB 最终一致性读（默认，低延迟）</span>
+<span class="kw">const</span> result = <span class="kw">await</span> client.<span class="fn">get</span>({
+  TableName: <span class="st">'users'</span>,
+  Key: { userId: <span class="st">'123'</span> },
+  ConsistentRead: <span class="kw">false</span> <span class="cm">// 最终一致性，可能读旧数据</span>
+});
+
+<span class="cm">// 强一致性读（更高延迟，消耗 2× 读容量）</span>
+<span class="kw">const</span> result = <span class="kw">await</span> client.<span class="fn">get</span>({
+  TableName: <span class="st">'users'</span>,
+  Key: { userId: <span class="st">'123'</span> },
+  ConsistentRead: <span class="kw">true</span>  <span class="cm">// 强一致性读</span>
+});</pre>
+    </article>
+
+    <!-- 文章5: BASE 的工程选择 -->
+    <article class="article-card">
+      <h2>工程选择：何时用 ACID，何时用 BASE</h2>
+      <div class="decision-flow">
+        <div class="decision-row">
+          <div class="decision-icon">🏦</div>
+          <div class="decision-text">
+            <strong>选 ACID（强一致性）</strong>
+            金融交易、银行转账、库存扣减（不能超卖）、订单状态变更——任何"要么全成功要么全失败"的场景，且对一致性要求高于可用性。
+          </div>
+        </div>
+        <div class="decision-row">
+          <div class="decision-icon">📊</div>
+          <div class="decision-text">
+            <strong>选 BASE（最终一致性）</strong>
+            用户行为日志、社交媒体点赞/评论数、商品浏览量、购物车（允许短暂不一致）、推荐系统——读多写多、可以容忍短暂不一致的场景。
+          </div>
+        </div>
+        <div class="decision-row">
+          <div class="decision-icon">⚖️</div>
+          <div class="decision-text">
+            <strong>混合策略（常见于大型系统）</strong>
+            核心交易用 ACID（MySQL/PostgreSQL），日志/分析用 BASE（Kafka/ClickHouse），缓存层用 BASE（Redis），搜索用 BASE（Elasticsearch）。
+          </div>
+        </div>
+        <div class="decision-row">
+          <div class="decision-icon">🔧</div>
+          <div class="decision-text">
+            <strong>可调一致性（Tunable Consistency）</strong>
+            Cassandra 通过 Quorum 设置（W + R &gt; N）支持在 AP 和 CP 之间灵活切换：写 ALL 读 ALL = 强一致，写 ONE 读 ONE = 最终一致。
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <!-- 文章6: 误区 -->
+    <article class="article-card">
+      <h2>误区与边界条件</h2>
+      <p><strong>误区 1：BASE = "随便不一致"</strong><br>BASE 不是放弃一致性，而是在严格定义的边界内接受短暂不一致，并有明确的收敛机制。你需要知道：不一致窗口有多长？用哪种策略解决冲突？</p>
+      <p><strong>误区 2：最终一致性不需要冲突解决</strong><br>当两个副本同时接受不同的写入时，"最终收敛"需要定义冲突解决策略：LWW（Last Write Wins，可能丢数据）、多版本合并（Vector Clock + 应用层决策）、CRDT（自动合并）。</p>
+      <p><strong>误区 3：BASE 系统没有事务</strong><br>Cassandra 有轻量级事务（LWT / Paxos）用于部分场景，DynamoDB 支持跨 item 事务，MongoDB 支持多文档事务——但这些事务的代价是降低性能，且仍不能跨分片。</p>
+      <p><strong>误区 4：选了 AP 就无法保证任何一致性</strong><br>AP 系统可以提供更弱但仍有用的一致性模型：读己所写、单调读、因果一致性——这些比"最终一致性"强，比"强一致性"弱，是工程实践中的常见选择。</p>
+    </article>
+  </section>
+</main>
+<script>if (window.NavTracker) NavTracker.track('BASE 理论', window.location.href, '⚖️', '分布式');</script>
+<script src="../footer.js"></script>
+</body>
+</html>

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prompt Engineering - AI</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<link rel="stylesheet" href="ai.css">
+<script>window.PAGE_CONCEPTS=[
+  {"title":"CoT","body":"Chain-of-Thought，思维链提示，让模型在给出最终答案前先写出推理步骤，显著提升复杂推理任务的准确率。","tag":"term"},
+  {"title":"Few-shot","body":"在 prompt 中提供少量示例（输入→输出对），让模型通过类比理解任务格式和期望行为，无需微调。","tag":"term"},
+  {"title":"系统提示","body":"System Prompt，在对话开始前注入的角色、规则和格式约束，是控制模型行为的最基础工具，优先级高于用户消息。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="shell" data-page-type="B">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">AI / Prompt Engineering / B 类型</div>
+      <h1>Prompt Engineering</h1>
+      <p class="summary">Prompt Engineering 通过设计高质量的输入来引导 LLM 输出期望结果。理解 CoT、Few-shot、角色设定等技巧，以及何时选择 RAG vs Fine-tuning，是提升模型应用效果的工程手段。</p>
+      <div class="tags"><span>CoT</span><span>Few-shot</span><span>RAG</span><span>系统提示</span></div>
+    </div>
+    <div class="card map">
+      <div class="eyebrow">核心术语</div>
+      <div class="term"><strong>Zero-shot vs Few-shot</strong><span>Zero-shot 直接描述任务，依赖模型预训练能力；Few-shot 在 prompt 中给出示例对，通过类比学习任务格式，对新格式任务效果更稳定。</span></div>
+      <div class="term"><strong>CoT（思维链）</strong><span>让模型先写推理步骤再给结论。简单加"Let's think step by step"即可激活，对数学、逻辑推理类任务提升显著。</span></div>
+      <div class="term"><strong>Temperature vs Top-p</strong><span>Temperature 控制输出多样性（低→确定，高→随机）；Top-p 控制词汇采样范围。创意任务用高 temperature，精确任务用低 temperature。</span></div>
+    </div>
+  </section>
+
+  <section class="grid">
+    <article class="section">
+      <h2>什么是 Prompt Engineering？</h2>
+      <p>Prompt Engineering 是通过精心设计输入文本，引导 LLM 产生期望输出的工程实践。它不是"魔法咒语"——不存在通用的万能 prompt，而是关于如何为模型提供清晰的上下文、约束和示例。</p>
+      <ul>
+        <li><strong>本质</strong>：LLM 是条件语言模型，prompt 定义了条件分布。更清晰的条件 → 更集中的输出分布 → 更可预期的结果。</li>
+        <li><strong>边界</strong>：Prompt Engineering 无法弥补模型本身缺少的知识（用 RAG）、无法稳定地改变模型行为偏好（用 Fine-tuning），只能在模型已有能力范围内更好地激活。</li>
+        <li><strong>可测试性</strong>：好的 Prompt 要有评测闭环——写 eval 数据集，量化测量效果，而不是靠直觉判断"感觉更好"。</li>
+      </ul>
+    </article>
+    <article class="section">
+      <h2>核心技巧</h2>
+      <p>从简单到复杂，四种最基础的 prompting 技术：</p>
+      <pre># Zero-shot：直接描述任务
+"将以下文本的情感分类为正面/负面/中性：\n{text}"
+
+# Few-shot：提供示例
+"根据示例进行情感分类：
+输入：这个产品很棒！ → 正面
+输入：差劲，完全不值 → 负面
+输入：{text} →"
+
+# CoT：要求逐步推理
+"解答以下数学题，先分步骤推理，再给出最终答案：\n{problem}"
+
+# System Prompt：设定角色和约束
+[system]: 你是一个专业的代码审查员。
+用中文回答，只关注安全漏洞，不讨论代码风格。
+回答格式：{ 风险等级, 位置, 描述, 修复建议 }</pre>
+      <ul>
+        <li><strong>格式指定</strong>：明确要求 JSON/Markdown/列表格式，减少后处理解析成本。</li>
+        <li><strong>负面约束</strong>："不要..." 比不说更有效。如"不要道歉，不要说'当然'"。</li>
+        <li><strong>角色设定</strong>：<code>你是一个专业的X</code> 可以改变回答风格，但对模型不具备的能力无效。</li>
+      </ul>
+    </article>
+    <article class="section">
+      <h2>CoT 深入：思维链为什么有效？</h2>
+      <p>CoT 的有效性有理论支撑：生成推理步骤等于在 token 层面分配了更多计算（更多前向传播步骤），给模型"工作空间"处理复杂问题。</p>
+      <pre># CoT 示例：直接回答 vs 逐步推理
+
+# 直接回答（错误率高）
+Q: 停车场有 3 层，每层 40 个车位，已停 1/4，还剩几个？
+A: 30 个
+
+# CoT（准确率显著提升）
+Q: 停车场有 3 层...请逐步计算。
+A: 第一步：总车位 = 3 × 40 = 120 个
+   第二步：已停 = 120 × 1/4 = 30 个
+   第三步：剩余 = 120 - 30 = 90 个
+   答：还剩 90 个车位</pre>
+      <ul>
+        <li><strong>Self-consistency</strong>：对同一问题用高 temperature 采样多个 CoT 路径，取多数答案投票，进一步提升准确率（代价是 inference 成本增加 N 倍）。</li>
+        <li><strong>Tree-of-Thought（ToT）</strong>：让模型生成多条推理分支，用 LLM 评估每条分支的质量，选最优路径，适合需要规划的复杂任务。</li>
+        <li><strong>限制</strong>：CoT 对知识密集型任务效果有限，模型不具备的事实知识不会因为"请逐步推理"而凭空出现。</li>
+      </ul>
+    </article>
+    <article class="section">
+      <h2>RAG vs Fine-tuning vs 纯 Prompting</h2>
+      <p>三种方案适用于不同问题，决策取决于知识来源、任务类型和成本约束：</p>
+      <ul>
+        <li><strong>纯 Prompting</strong> → 适合：通用任务、模型已有能力足够、快速原型。不适合：需要最新知识、需要稳定输出格式。</li>
+        <li><strong>RAG（检索增强）</strong> → 适合：需要引用最新或私有知识、知识库会更新、需要来源可追溯。不适合：知识库极小（不如直接塞进上下文）、任务与格式强相关。</li>
+        <li><strong>Fine-tuning</strong> → 适合：需要稳定的输出格式/风格、领域专用知识难以检索、prompting 成本（token）过高。不适合：知识实时变化、缺乏高质量训练数据。</li>
+      </ul>
+      <div class="callout">决策顺序：先尝试纯 prompting + few-shot。如果需要最新/私有知识，加 RAG。如果格式/风格不稳定、prompting 成本过高，考虑 fine-tuning。</div>
+    </article>
+    <article class="section">
+      <h2>结构化输出</h2>
+      <p>让模型输出可编程处理的结构是工程化 LLM 应用的关键，有三种主要方式：</p>
+      <pre># 方式一：Prompt 约束（最简单，但不保证可靠）
+"以 JSON 格式回答，字段：name, age, city。不要输出任何其他内容。"
+
+# 方式二：JSON Mode / Structured Output（API 层保证）
+response = openai.chat.completions.create(
+    model="gpt-4o",
+    response_format={"type": "json_object"},  # 强制 JSON
+    messages=[...]
+)
+
+# 方式三：Function Calling（最可靠，schema 严格）
+tools = [{
+    "name": "get_weather",
+    "parameters": {
+        "type": "object",
+        "properties": {"location": {"type": "string"}},
+        "required": ["location"]
+    }
+}]
+response = openai.chat.completions.create(
+    model="gpt-4o", tools=tools, messages=[...]
+)</pre>
+      <p>工程实践中优先选择 Function Calling 或 Structured Output API，不要在 prompt 里靠"请输出 JSON"来保证格式，这在边缘情况下会失败。</p>
+    </article>
+    <article class="section">
+      <h2>常见误区</h2>
+      <ul>
+        <li><strong>Prompt 不是代码</strong>：Prompt 没有类型系统、没有单元测试、没有稳定的依赖管理。任何 prompt 变更都需要评测集验证，不能凭直觉判断效果。</li>
+        <li><strong>更长的 Prompt 不一定更好</strong>：过长的系统提示会稀释关键约束。实验表明，模型对 prompt 末尾的内容注意力更强，重要约束应放在最后。</li>
+        <li><strong>不要过度依赖角色扮演</strong>："假装你是专业医生"不能让模型获得医学知识，只会改变语气。角色设定是风格控制，不是能力提升。</li>
+        <li><strong>CoT 不万能</strong>：对于依赖最新事实的问题，让模型"逐步推理"后得出的仍是错误事实的推理链。CoT 放大已有能力，不创造新能力。</li>
+        <li><strong>忽视采样参数</strong>：同一个 prompt 在 temperature=0.0 和 temperature=1.0 下表现可能差异巨大。精确任务（代码、JSON）用 0；创意任务用 0.7-1.0。</li>
+      </ul>
+    </article>
+  </section>
+</main>
+<script src="../footer.js"></script>
+<script>if (window.NavTracker) NavTracker.track('Prompt Engineering', window.location.href, '💬', 'AI');</script>
+</body>
+</html>

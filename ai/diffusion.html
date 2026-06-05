@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>扩散模型 - AI</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<link rel="stylesheet" href="ai.css">
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Forward Process","body":"前向扩散过程，对数据逐步添加高斯噪声，T步后变为纯噪声。这个过程是固定的、无需学习的马尔可夫链。","tag":"term"},
+  {"title":"Denoising","body":"去噪网络学习预测每步添加的噪声 ε，从 x_t 预测 x_{t-1}，是扩散模型唯一需要训练的部分，通常用 UNet 实现。","tag":"term"},
+  {"title":"CFG","body":"Classifier-Free Guidance，同时训练条件和无条件去噪器，推理时以权重 w 增强条件信号：ε̂ = ε_uncond + w·(ε_cond - ε_uncond)。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="shell" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">AI / 扩散模型 / C 类型</div>
+      <h1>扩散模型</h1>
+      <p class="summary">扩散模型通过逐步加噪（前向过程）和学习去噪（逆向过程）来生成图像。DDPM 奠定理论基础，DDIM 加速采样，Stable Diffusion 结合 CLIP 文本引导实现文生图。</p>
+      <div class="tags"><span>DDPM</span><span>前向扩散</span><span>去噪</span><span>Classifier-Free Guidance</span></div>
+    </div>
+    <div class="card map">
+      <div class="eyebrow">核心术语</div>
+      <div class="term"><strong>Forward Process（前向扩散）</strong><span>对数据 x₀ 逐步添加高斯噪声，经过 T 步后变为纯噪声 x_T ~ N(0, I)。这个过程是固定的、无需学习的马尔可夫链：q(x_t|x_{t-1}) = N(x_t; √(1-β_t)·x_{t-1}, β_t·I)。</span></div>
+      <div class="term"><strong>Denoising（去噪网络）</strong><span>神经网络 ε_θ(x_t, t) 学习预测每步添加的噪声 ε，训练目标是最小化 ||ε - ε_θ(x_t, t)||²。推理时从 x_T 开始，反复去噪直到 x₀。</span></div>
+      <div class="term"><strong>CFG（Classifier-Free Guidance）</strong><span>推理时混合条件和无条件去噪：ε̂ = ε_uncond + w·(ε_cond - ε_uncond)。w=1 是无引导，w=7.5 是常用默认值，越大文本控制越强但多样性降低。</span></div>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <section class="panel viz"><div class="stage" id="aiStage"></div><div class="controls"><button class="ctrl" id="btnReset">重置</button><button class="ctrl" id="btnPrev">上一步</button><button class="ctrl primary" id="btnPlay">播放</button><button class="ctrl" id="btnNext">下一步</button></div></section>
+    <aside class="panel"><div class="panel-hd">当前状态</div><div class="status"><span class="badge" id="stateBadge">normal</span><h2 id="stepTitle"></h2><p id="stepDesc"></p><p id="stepDetail"></p><div class="metrics" id="metrics"></div><div class="codebox"><h3>关键公式/代码</h3><pre id="codeBlock"></pre></div></div></aside>
+  </section>
+
+  <section class="grid">
+    <article class="section">
+      <h2>DDPM vs DDIM</h2>
+      <p>DDIM 是对 DDPM 采样过程的重要改进，将采样步数从 1000 步降低到 50 步甚至更少，同时保持生成质量。</p>
+      <ul>
+        <li><strong>DDPM</strong>：随机采样，每步加入随机噪声，需要完整 T=1000 步，不可复现。每次生成结果不同。</li>
+        <li><strong>DDIM</strong>：确定性采样（η=0），跳过大量中间步，50 步即可达到接近 DDPM 的质量，相同种子可复现。</li>
+        <li><strong>速度对比</strong>：DDIM 50 步 ≈ DDPM 1000 步质量，速度快 20 倍。</li>
+        <li><strong>图像插值</strong>：DDIM 的确定性编码让图像空间插值成为可能：encode A → encode B → 插值 latent → decode。</li>
+      </ul>
+    </article>
+    <article class="section">
+      <h2>Latent Diffusion（潜在扩散）</h2>
+      <p>在像素空间做扩散成本极高（512×512 图像有 786K 像素）。Stable Diffusion 的核心创新是把扩散过程移到 VAE 压缩的低维潜在空间。</p>
+      <ul>
+        <li><strong>VAE 编码器</strong>：将 512×512×3 图像压缩到 64×64×4 的 latent（压缩比 48×），大幅减少 UNet 的计算量。</li>
+        <li><strong>在 Latent 空间扩散</strong>：前向加噪和逆向去噪都在 64×64×4 空间进行，而非原图空间。</li>
+        <li><strong>VAE 解码器</strong>：生成完成后，用 VAE 解码器将 latent 还原为完整像素图像。</li>
+        <li><strong>效果</strong>：计算成本降低 48 倍，同时生成质量几乎不损失，是大规模文生图的基础。</li>
+      </ul>
+    </article>
+    <article class="section">
+      <h2>Stable Diffusion 架构</h2>
+      <p>Stable Diffusion 将三个组件组合成完整的文生图管线：</p>
+      <ul>
+        <li><strong>CLIP 文本编码器</strong>：将文本 prompt 编码为 token embedding 序列，通过交叉注意力（Cross-Attention）注入 UNet 的每个层。</li>
+        <li><strong>VAE</strong>：编码器压缩图像到 latent，解码器还原 latent 到像素。训练时用真实图像，推理时只用解码器。</li>
+        <li><strong>UNet 去噪网络</strong>：以噪声 latent 和时间步 t 为输入，通过残差块+注意力层+交叉注意力，预测噪声 ε，是模型中唯一在推理时运行的神经网络。</li>
+      </ul>
+      <pre># Stable Diffusion 推理伪代码
+text_emb = clip_encoder(prompt)           # CLIP 文本编码
+latent = torch.randn(1, 4, 64, 64)       # 随机初始 latent
+for t in reversed(range(T)):             # DDIM 逆向
+    noise_pred = unet(latent, t, text_emb)  # 预测噪声
+    latent = ddim_step(latent, noise_pred, t)
+image = vae_decoder(latent)               # 解码为像素</pre>
+    </article>
+    <article class="section">
+      <h2>采样器选择</h2>
+      <p>采样器（Scheduler）决定了去噪的具体更新规则，直接影响生成速度和质量。</p>
+      <ul>
+        <li><strong>DDIM</strong>：经典确定性采样，50 步质量稳定，适合需要可复现结果的场景。</li>
+        <li><strong>DPM-Solver++</strong>：多步 ODE 求解器，20-30 步即可达到高质量，目前 Stable Diffusion WebUI 的主流默认。</li>
+        <li><strong>PNDM</strong>：拟牛顿方法，比 DDIM 快但偶有质量不稳定问题。</li>
+        <li><strong>Euler/Euler a</strong>：最简单快速，30-40 步，适合快速预览；Euler a（ancestral，随机）每次结果不同，Euler 确定性。</li>
+        <li><strong>LCM/SDXL-Turbo</strong>：蒸馏后的超快采样，1-4 步即可生成，代价是细节和一致性略差。</li>
+      </ul>
+      <div class="callout">没有绝对最好的采样器。DPM-Solver++ 2M 在速度和质量的综合表现上目前最均衡，建议从它开始调试。</div>
+    </article>
+  </section>
+</main>
+<script>
+window.AI_DEMO = {
+  title: '扩散模型：前向加噪 + 逆向去噪',
+  viewBox: '0 0 640 360',
+  nodes: [
+    {id:'clean',   label:'原始图像 x₀', sub:'clean image',    x:70,  y:120, w:110, h:56},
+    {id:'noisy1',  label:'轻度噪声',    sub:'t = T/4',        x:210, y:120, w:100, h:56},
+    {id:'noisy2',  label:'中度噪声',    sub:'t = T/2',        x:340, y:120, w:100, h:56},
+    {id:'pnoise',  label:'纯噪声 x_T', sub:'gaussian N(0,I)', x:475, y:120, w:115, h:56},
+    {id:'unet',    label:'UNet 去噪',  sub:'ε_θ(x_t, t)',    x:340, y:270, w:130, h:56},
+    {id:'text',    label:'文本条件',    sub:'CLIP embedding',  x:100, y:270, w:120, h:56}
+  ],
+  edges: [
+    {id:'e1', x1:125, y1:120, x2:160, y2:120},
+    {id:'e2', x1:260, y1:120, x2:290, y2:120},
+    {id:'e3', x1:390, y1:120, x2:418, y2:120},
+    {id:'e4', x1:475, y1:148, x2:405, y2:242},
+    {id:'e5', x1:275, y1:270, x2:160, y2:270},
+    {id:'e6', x1:275, y1:258, x2:130, y2:148}
+  ],
+  code: '# 训练目标（预测噪声）\nε ~ N(0, I)\nx_t = √ᾱ_t · x₀ + √(1-ᾱ_t) · ε\nL = ||ε - ε_θ(x_t, t)||²\n\n# DDIM 采样（无随机）\nx_{t-1} = √ᾱ_{t-1}·(x_t - √(1-ᾱ_t)·ε_θ)/√ᾱ_t\n        + √(1-ᾱ_{t-1})·ε_θ',
+  steps: [
+    {kicker:'start',   title:'初始状态：原始图像 x₀',    badge:'x₀',
+     nodes:['clean'],
+     desc:'原始清晰图像 x₀，是扩散过程的起点。前向过程将对它逐步添加高斯噪声，直到完全变成随机噪声。',
+     metrics:[{label:'步骤',value:'t = 0'},{label:'状态',value:'clean'}]},
+
+    {kicker:'noise1',  title:'t=T/4：加入少量高斯噪声',  badge:'加噪 t=T/4',
+     nodes:['clean','noisy1'], edges:['e1'],
+     desc:'根据噪声调度表 β_t，向图像加入少量高斯噪声。此时图像仍清晰可辨，只有轻微颗粒感。',
+     code:'# 一步加噪（可解析）\nx_t = √ᾱ_t · x₀ + √(1-ᾱ_t) · ε\n# 不需要逐步迭代，直接从 x₀ 采样 x_t',
+     metrics:[{label:'信噪比',value:'高'},{label:'ᾱ_t',value:'≈ 0.7'}]},
+
+    {kicker:'noise2',  title:'t=T/2：图像开始模糊',       badge:'加噪 t=T/2',
+     nodes:['noisy1','noisy2'], edges:['e2'],
+     desc:'噪声累积，图像细节大量丢失，轮廓仍隐约可见，颜色开始失真。去噪网络在此阶段学习恢复中层结构。',
+     metrics:[{label:'信噪比',value:'中'},{label:'ᾱ_t',value:'≈ 0.3'}]},
+
+    {kicker:'noise3',  title:'t=T：完全变为纯噪声 x_T',   badge:'纯噪声',
+     nodes:['noisy2','pnoise'], edges:['e3'],
+     desc:'经过 T 步加噪，图像完全变为标准高斯噪声 N(0, I)，与原始图像内容无关。这是前向过程的终点，也是生成的起点。',
+     metrics:[{label:'ᾱ_T',value:'≈ 0.0001'},{label:'分布',value:'N(0, I)'}]},
+
+    {kicker:'rev-start', title:'逆向开始：UNet 预测噪声', badge:'去噪开始',
+     nodes:['pnoise','unet'], edges:['e4'],
+     desc:'从纯噪声 x_T 开始逆向过程。UNet 以 x_T 和时间步 t=T 为输入，预测这一步加入的噪声 ε，然后从 x_T 减去预测噪声得到 x_{T-1}。',
+     code:'# UNet 预测噪声\nε_pred = unet(x_T, t=T, text_emb)\n# 用 DDIM 更新规则求 x_{T-1}\nx_{T-1} = ddim_step(x_T, ε_pred, T)'},
+
+    {kicker:'denoise1', title:'逐步去噪，结构浮现',        badge:'去噪中',
+     nodes:['unet','noisy2'], edges:['e4'],
+     desc:'逐步执行去噪，UNet 对每个时间步预测噪声并更新 latent。随着 t 减小，图像结构逐渐浮现：先是整体构图，再是细节纹理。',
+     metrics:[{label:'当前步',value:'T→T/2'},{label:'可见内容',value:'轮廓浮现'}]},
+
+    {kicker:'cfg',      title:'文本引导（CFG）注入',       badge:'条件引导',
+     nodes:['text','unet'], edges:['e5'],
+     desc:'CLIP 将 prompt 编码为 embedding，通过 UNet 的交叉注意力层引导去噪方向。CFG 混合有条件和无条件预测：ε̂ = ε_uncond + w·(ε_cond - ε_uncond)。',
+     code:'# Classifier-Free Guidance\nε_cond   = unet(x_t, t, text_emb)    # 有条件\nε_uncond = unet(x_t, t, null_emb)   # 无条件\nε_guided = ε_uncond + w*(ε_cond - ε_uncond)\n# w=7.5 是 Stable Diffusion 默认值',
+     metrics:[{label:'CFG scale',value:'7.5'},{label:'影响',value:'文本控制强度'}]},
+
+    {kicker:'detail',   title:'细节浮现，采样收敛',        badge:'细节恢复',
+     nodes:['unet','noisy1'],
+     desc:'去噪进行到后半段（t 较小），UNet 开始处理高频细节：纹理、边缘、光影。此阶段 CFG scale 的影响更明显，过高会造成过饱和。',
+     metrics:[{label:'当前步',value:'T/2→T/4'},{label:'可见内容',value:'纹理细节'}]},
+
+    {kicker:'final',    title:'x₀ 生成：完整清晰图像',     badge:'complete', tone:'good',
+     goodNodes:['clean','unet'],
+     nodes:['clean'], edges:['e6'],
+     desc:'经过完整去噪，latent 还原为清晰的 x₀，由 VAE 解码器还原为像素图像。文本 prompt 中描述的内容已被正确生成。',
+     detail:'Stable Diffusion 在 latent 空间（64×64×4）去噪，最后才用 VAE 解码成 512×512×3 像素图像。',
+     metrics:[{label:'总步数',value:'50步 (DDIM)'},{label:'vs DDPM',value:'20× 加速'}]},
+
+    {kicker:'latent-sd', title:'Latent Diffusion 的优势',  badge:'LDM insight',
+     goodNodes:['unet','text'],
+     nodes:['unet','text'],
+     desc:'Stable Diffusion 将扩散过程移到 VAE 压缩的潜在空间，64×64×4 比像素空间（512×512×3）小 48 倍，使高分辨率文生图在消费级 GPU 上成为可能。',
+     metrics:[{label:'Latent 尺寸',value:'64×64×4'},{label:'压缩比',value:'48×'}]}
+  ]
+};
+</script>
+<script src="ai.js"></script>
+<script src="../footer.js"></script>
+<script>if (window.NavTracker) NavTracker.track('扩散模型', window.location.href, '🎨', 'AI');</script>
+</body>
+</html>

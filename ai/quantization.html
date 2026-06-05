@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>模型量化 - AI</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<link rel="stylesheet" href="ai.css">
+<script>window.PAGE_CONCEPTS=[
+  {"title":"PTQ","body":"Post-Training Quantization，训练后量化，不需要重新训练，直接对已有权重做量化，成本低但精度损失相对大。","tag":"term"},
+  {"title":"QAT","body":"Quantization-Aware Training，量化感知训练，在训练时模拟量化误差，模型能学会在量化约束下保持精度，效果最好但成本最高。","tag":"term"},
+  {"title":"GPTQ","body":"基于最优权重量化（OBQ）的逐层 PTQ 方法，通过 Hessian 信息最小化量化误差，是目前最主流的 LLM INT4 量化方法之一。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="shell" data-page-type="B">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">AI / 量化 / B 类型</div>
+      <h1>模型量化</h1>
+      <p class="summary">量化将模型权重和激活从 FP32/BF16 降低到 INT8/INT4，大幅减少显存占用和推理延迟。理解量化粒度、校准方法和精度损失，是在资源受限环境部署大模型的关键。</p>
+      <div class="tags"><span>INT8</span><span>INT4</span><span>AWQ</span><span>GPTQ</span><span>QAT</span></div>
+    </div>
+    <div class="card map">
+      <div class="eyebrow">核心权衡</div>
+      <div class="term"><strong>精度 vs 显存</strong><span>FP32 权重每个参数 4 字节；INT8 降为 1 字节（节省 75%）；INT4 只需 0.5 字节（节省 87.5%）。精度依次降低，但对大多数任务可接受。</span></div>
+      <div class="term"><strong>PTQ vs QAT</strong><span>PTQ 无需重训练，几分钟完成，精度损失较大；QAT 在训练中模拟量化，精度接近 FP16，但成本与微调相当。</span></div>
+      <div class="term"><strong>权重量化 vs 激活量化</strong><span>权重量化（W-only）静态，无需运行时信息，几乎无精度损失；激活量化需要校准集估计分布，且动态范围难以预测。</span></div>
+    </div>
+  </section>
+
+  <section class="grid">
+    <article class="section">
+      <h2>为什么要量化？</h2>
+      <p>推理成本和可访问性是量化的主要动机。以 LLaMA-3 7B 为例，不同精度的显存需求对比：</p>
+      <ul>
+        <li><strong>FP32</strong>：7B × 4 bytes = <strong>28 GB</strong> 显存，需要 A100 40GB 或更高</li>
+        <li><strong>BF16/FP16</strong>：7B × 2 bytes = <strong>14 GB</strong> 显存，RTX 3090/4090 可运行</li>
+        <li><strong>INT8</strong>：7B × 1 byte = <strong>7 GB</strong> 显存，RTX 3080 可运行</li>
+        <li><strong>INT4</strong>：7B × 0.5 bytes = <strong>3.5 GB</strong> 显存，笔记本 GPU 也能跑</li>
+      </ul>
+      <p>除显存外，INT8/INT4 指令在现代 GPU 上的吞吐量比 FP16 高 2-4 倍，推理延迟相应降低。</p>
+    </article>
+    <article class="section">
+      <h2>量化原理</h2>
+      <p>量化的核心是用有限精度整数近似表示浮点权重，本质是一种有损压缩。</p>
+      <pre># INT8 对称量化（逐张量）
+scale = max(abs(W)) / 127
+W_q = round(W / scale).clamp(-128, 127)
+
+# 反量化（推理时还原）
+W_deq = W_q * scale
+
+# INT8 非对称量化（逐张量）
+scale = (max(W) - min(W)) / 255
+zero_point = round(-min(W) / scale)
+W_q = round(W / scale + zero_point).clamp(0, 255)
+W_deq = (W_q - zero_point) * scale</pre>
+      <div class="callout">量化误差 = W - W_deq，这个误差在权重分布不均匀时会很大。这就是为什么逐层、逐通道量化比逐张量量化精度更高。</div>
+    </article>
+    <article class="section">
+      <h2>PTQ vs QAT 对比</h2>
+      <p>两种量化方法在成本、精度和适用场景上有显著差异：</p>
+      <ul>
+        <li><strong>PTQ（训练后量化）</strong>：
+          <ul>
+            <li>时间：几分钟到几小时（需要校准集）</li>
+            <li>精度损失：INT8 约 0.5-1%；INT4 约 2-5%</li>
+            <li>适用场景：资源受限，快速部署，不需要重新训练</li>
+          </ul>
+        </li>
+        <li><strong>QAT（量化感知训练）</strong>：
+          <ul>
+            <li>时间：与微调相当，需要完整训练循环</li>
+            <li>精度：接近 FP16 基线，几乎无损</li>
+            <li>适用场景：对精度要求极高，有训练资源</li>
+          </ul>
+        </li>
+      </ul>
+      <div class="callout">工程实践中，LLM 通常使用 PTQ（GPTQ/AWQ），因为 QAT 的成本对 7B+ 模型来说过高。</div>
+    </article>
+    <article class="section">
+      <h2>GPTQ 和 AWQ</h2>
+      <p>这两种方法是目前最主流的 LLM INT4 量化算法，大幅提升了 PTQ 的精度上限。</p>
+      <ul>
+        <li><strong>GPTQ</strong>：基于 Hessian 信息的逐层最优量化，在量化每个权重后用 Hessian 逆矩阵补偿相邻权重的误差传播，将量化误差最小化。典型效果：LLaMA-2 7B INT4 GPTQ 的精度损失 &lt; 1%。</li>
+        <li><strong>AWQ（Activation-Aware Weight Quantization）</strong>：观察到不是所有权重对精度的贡献相同——激活值（activation）大的通道对应的权重更重要。AWQ 对这些"显著权重"保持更高精度或放大 scale，其他权重正常量化。</li>
+      </ul>
+      <pre># AWQ 核心思路：per-channel scaling
+# 找激活值大的通道 → 这些权重更重要
+channel_scale = act_percentile(calib_data)  # 每通道激活统计
+# 对重要通道 scale up，量化后 scale down，等效提升这些通道精度
+W_scaled = W / channel_scale  # 对称变换
+W_q = quantize(W_scaled, bits=4)  # INT4 量化</pre>
+    </article>
+    <article class="section">
+      <h2>量化粒度</h2>
+      <p>量化粒度决定了 scale 参数的共享范围，粒度越细精度越高，但开销越大。</p>
+      <ul>
+        <li><strong>逐张量（per-tensor）</strong>：整个权重矩阵共享一个 scale。最简单，精度最差。适合激活量化的快速实验。</li>
+        <li><strong>逐通道（per-channel/per-row）</strong>：每行或每列独立 scale。精度显著提升，几乎无运行时开销。是权重量化的主流选择。</li>
+        <li><strong>逐组（group quantization）</strong>：每 G 个元素（g=64/128）共享一个 scale。精度接近 FP16，但 scale 参数增加约 1/G 的开销。GPTQ/AWQ 默认 g=128。</li>
+      </ul>
+      <div class="callout">实践中：权重用逐通道或逐组量化；激活用逐张量（静态校准）或动态量化（每次推理计算 scale）。</div>
+    </article>
+    <article class="section">
+      <h2>实践选择指南</h2>
+      <p>根据场景选择合适的量化工具和精度：</p>
+      <ul>
+        <li><strong>本地推理（llama.cpp）</strong>：支持 Q2_K 到 Q8_0 多种 INT4/INT8 格式，CPU 和 GPU 混合推理，是最易上手的本地部署方案。</li>
+        <li><strong>Python 生态（bitsandbytes）</strong>：与 HuggingFace Transformers 深度集成，<code>load_in_8bit=True</code> 或 <code>load_in_4bit=True</code> 一行代码启用，支持与 LoRA 结合（QLoRA）。</li>
+        <li><strong>离线量化（AutoGPTQ / AutoAWQ）</strong>：预量化模型存成 GPTQ/AWQ 格式，上传 HuggingFace Hub 分发，用户下载即用，是推荐的生产分发方式。</li>
+        <li><strong>推理框架集成</strong>：vLLM 原生支持 AWQ/GPTQ；TensorRT-LLM 支持多种量化格式；Ollama 基于 llama.cpp，适合消费级硬件。</li>
+      </ul>
+      <pre># bitsandbytes 4-bit 加载（最简单）
+from transformers import AutoModelForCausalLM, BitsAndBytesConfig
+
+bnb_config = BitsAndBytesConfig(
+    load_in_4bit=True,
+    bnb_4bit_quant_type="nf4",       # NormalFloat4
+    bnb_4bit_compute_dtype=torch.bfloat16,
+    bnb_4bit_use_double_quant=True,  # 二次量化 scale
+)
+model = AutoModelForCausalLM.from_pretrained(
+    "meta-llama/Meta-Llama-3-8B",
+    quantization_config=bnb_config,
+    device_map="auto"
+)</pre>
+    </article>
+  </section>
+</main>
+<script src="../footer.js"></script>
+<script>if (window.NavTracker) NavTracker.track('模型量化', window.location.href, '⚡', 'AI');</script>
+</body>
+</html>
