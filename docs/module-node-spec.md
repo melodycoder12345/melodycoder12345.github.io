@@ -412,6 +412,13 @@
 | `golang/go-assembly.html` | `golang` | `go-assembly` | B | 否 | 是 | B 类型概念页，Plan 9 汇编语法、寄存器传参 ABI、栈帧结构、伪寄存器 FP/SP/PC/SB，理解编译器输出 |
 | `cs/gpu-architecture.html` | `cs` | `cs-gpu-arch` | C | 是 | 是 | C 类型动画页，4 场景：SIMT 并行/Warp 分叉效率下降/HBM 显存带宽瓶颈/CPU-GPU PCIe 流水线传输 |
 | `db/nosql.html` | `db` | `db-nosql` | B | 否 | 否 | B 类型概念页，文档/宽列/KV/图四类 NoSQL 数据模型、CAP 定位、典型系统选型矩阵和工程误区 |
+| `testing/index.html` | `testing` | `testing` | - | 否 | 否 | 模块首页，含测试六主题学习路径卡片和专题分组，B 类型徽标标注各页面类型 |
+| `testing/test-pyramid.html` | `testing` | `test-pyramid` | B | 否 | 否 | B 类型概念页，单元/集成/E2E 三层金字塔策略、覆盖率意义与误区、冰淇淋甜筒反模式、分布式系统测试边界调整 |
+| `testing/mock-stub.html` | `testing` | `test-mock` | B | 否 | 否 | B 类型概念页，Test Doubles 五种类型对比、接口驱动 Mock 设计、gomock 代码生成与使用、testify/mock 手写 Mock、过度 Mock 反模式 |
+| `testing/load-testing.html` | `testing` | `test-load` | C | 是 | 否 | C 类型动画页，4 场景：正常负载基线/压力峰值断裂点/线程池耗尽队列积压/限流触发保护服务，含 P50/P99 延迟百分位柱状图和指标监控面板 |
+| `testing/contract-testing.html` | `testing` | `test-contract` | B | 否 | 否 | B 类型概念页，Consumer-Driven Contract 原理、Pact 框架 Consumer 侧定义与 Provider 侧验证代码示例、CI/CD 集成工作流、与集成测试对比和局限性 |
+| `testing/fuzz-testing.html` | `testing` | `test-fuzz` | B | 否 | 否 | B 类型概念页，Coverage-guided fuzzing 循环机制、Go 原生 go test -fuzz 语法、Seed Corpus 管理、往返测试和 Parser 安全验证示例、适用场景矩阵 |
+| `testing/tdd.html` | `testing` | `test-tdd` | B | 否 | 否 | B 类型概念页，Red-Green-Refactor 三步循环、FizzBuzz TDD 完整示例、测试先行如何驱动接口设计、BDD Given/When/Then 语言、Ginkgo 框架示例和工程权衡矩阵 |
 
 新增页面登记规则：
 

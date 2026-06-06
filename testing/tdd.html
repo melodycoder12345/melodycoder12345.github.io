@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="TDD/BDD 方法论：Red-Green-Refactor 循环驱动设计，测试先行减少过度设计，BDD Given/When/Then 连接业务语义。">
+<link rel="canonical" href="https://melodycoder12345.github.io/testing/tdd.html">
+<meta property="og:title" content="TDD / BDD — 码海拾贝">
+<meta property="og:description" content="TDD/BDD 方法论：Red-Green-Refactor 循环驱动设计，测试先行减少过度设计，BDD Given/When/Then 连接业务语义。">
+<meta property="og:url" content="https://melodycoder12345.github.io/testing/tdd.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="TDD / BDD — 码海拾贝">
+<meta name="twitter:description" content="TDD/BDD 方法论：Red-Green-Refactor 循环驱动设计，测试先行减少过度设计，BDD Given/When/Then 连接业务语义。">
+<title>TDD / BDD - Testing 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#4ade80;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:44px;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:116px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.side-nav a.active{color:var(--accent);background:rgba(74,222,128,.08);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(74,222,128,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(74,222,128,.12);color:var(--accent);border:1px solid rgba(74,222,128,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.badge-warn{background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(74,222,128,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(74,222,128,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+/* RGR Cycle */
+.rgr-cycle{display:flex;justify-content:center;gap:24px;margin:16px 0;flex-wrap:wrap;}
+.rgr-step{border-radius:50%;width:110px;height:110px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;border:3px solid;text-align:center;}
+.rgr-red{border-color:#f87171;background:rgba(248,113,113,.1);color:#f87171;}
+.rgr-green{border-color:#4ade80;background:rgba(74,222,128,.1);color:#4ade80;}
+.rgr-refactor{border-color:#38bdf8;background:rgba(56,189,248,.1);color:#38bdf8;}
+.rgr-step small{font-size:.68rem;font-weight:400;color:var(--dim);margin-top:4px;}
+.rgr-arrow{align-self:center;color:var(--dim2);font-size:1.4rem;}
+.compare-table{width:100%;border-collapse:collapse;font-size:.82rem;margin:10px 0;}
+.compare-table th{padding:8px 12px;background:rgba(74,222,128,.06);color:var(--accent);font-weight:700;text-align:left;border-bottom:1px solid var(--border2);}
+.compare-table td{padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--dim);}
+.compare-table tr:last-child td{border-bottom:none;}
+.compare-table td:first-child{color:var(--text);font-weight:600;}
+.bdd-card{border:1px solid rgba(56,189,248,.2);background:rgba(56,189,248,.04);border-radius:10px;padding:14px 16px;margin:10px 0;font-size:.84rem;color:var(--dim);line-height:1.7;}
+.bdd-card strong{color:#38bdf8;}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}.rgr-cycle{flex-direction:column;align-items:center;}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">🔁 TDD / BDD</span>
+  <div class="nav-tags">
+    <span class="ntag">Red-Green-Refactor</span>
+    <span class="ntag">BDD</span>
+    <span class="ntag">Given/When/Then</span>
+    <span class="ntag">design</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <nav class="side-nav">
+    <ul>
+      <li><a href="#tdd-concept">TDD 核心</a></li>
+      <li><a href="#rgr">三步循环</a></li>
+      <li><a href="#tdd-design">测试驱动设计</a></li>
+      <li><a href="#bdd">BDD</a></li>
+      <li><a href="#tradeoffs">权衡</a></li>
+      <li><a href="#antipatterns">陷阱</a></li>
+      <li><a href="#qa">面试问答</a></li>
+    </ul>
+  </nav>
+  <main class="main-content">
+
+    <div class="section" id="tdd-concept">
+      <div class="section-title"><div class="title-bar"></div><h2>TDD 核心思想</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>测试先行：先写测试，再写实现</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>测试驱动开发（TDD，Test-Driven Development）由 Kent Beck 在极限编程（XP）中推广，核心规则只有两条：</p>
+          <ul>
+            <li><strong>只有在测试失败时，才写新的生产代码</strong></li>
+            <li><strong>只写让测试通过的最少代码</strong></li>
+          </ul>
+          <p>TDD 的本质是一种<strong>设计工具</strong>，而不只是测试工具。"先写测试"迫使你在实现前思考：这个函数的接口应该是什么？调用方怎么使用它？边界情况是什么？</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="rgr">
+      <div class="section-title"><div class="title-bar"></div><h2>Red → Green → Refactor 循环</h2></div>
+      <div class="rgr-cycle">
+        <div class="rgr-step rgr-red">🔴 Red<small>写一个失败的测试</small></div>
+        <div class="rgr-arrow">→</div>
+        <div class="rgr-step rgr-green">🟢 Green<small>写最少代码通过测试</small></div>
+        <div class="rgr-arrow">→</div>
+        <div class="rgr-step rgr-refactor">🔵 Refactor<small>重构，保持测试通过</small></div>
+        <div class="rgr-arrow">↩</div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>三步详解</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <ul>
+            <li><strong>🔴 Red（写失败的测试）</strong>：首先写一个测试，描述你希望代码实现的行为。运行测试，确认它失败（如果通过，说明测试写错了或功能已存在）。</li>
+            <li><strong>🟢 Green（最少代码通过）</strong>：写最快让测试通过的代码，哪怕是硬编码返回值也行。目标是让测试通过，不要试图在这步写出"漂亮"的代码。</li>
+            <li><strong>🔵 Refactor（重构）</strong>：在所有测试通过的前提下，改善代码结构（消除重复、提取函数、清晰命名）。测试是安全网，确保重构不破坏行为。</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>完整示例：用 TDD 实现 FizzBuzz</h3></div>
+        <div class="card-body">
+<pre><span class="cm">// Step 1: Red — 写失败的测试</span>
+<span class="kw">func</span> <span class="fn">TestFizzBuzz</span>(t *testing.T) {
+    <span class="fn">assert.Equal</span>(t, <span class="st">"1"</span>, <span class="fn">FizzBuzz</span>(<span class="num">1</span>))  <span class="cm">// FizzBuzz 不存在，编译失败 ✗</span>
+}
+
+<span class="cm">// Step 2: Green — 最少代码通过</span>
+<span class="kw">func</span> <span class="fn">FizzBuzz</span>(n <span class="pkg">int</span>) <span class="pkg">string</span> {
+    <span class="kw">return</span> <span class="st">"1"</span>  <span class="cm">// 硬编码，只为通过当前测试 ✓</span>
+}
+
+<span class="cm">// Step 3: Red — 加新测试，强迫真实实现</span>
+<span class="kw">func</span> <span class="fn">TestFizzBuzz</span>(t *testing.T) {
+    <span class="fn">assert.Equal</span>(t, <span class="st">"1"</span>,    <span class="fn">FizzBuzz</span>(<span class="num">1</span>))
+    <span class="fn">assert.Equal</span>(t, <span class="st">"2"</span>,    <span class="fn">FizzBuzz</span>(<span class="num">2</span>))     <span class="cm">// 失败 ✗</span>
+    <span class="fn">assert.Equal</span>(t, <span class="st">"Fizz"</span>, <span class="fn">FizzBuzz</span>(<span class="num">3</span>))   <span class="cm">// 失败 ✗</span>
+    <span class="fn">assert.Equal</span>(t, <span class="st">"Buzz"</span>, <span class="fn">FizzBuzz</span>(<span class="num">5</span>))   <span class="cm">// 失败 ✗</span>
+    <span class="fn">assert.Equal</span>(t, <span class="st">"FizzBuzz"</span>, <span class="fn">FizzBuzz</span>(<span class="num">15</span>)) <span class="cm">// 失败 ✗</span>
+}
+
+<span class="cm">// Step 4: Green — 真实实现</span>
+<span class="kw">func</span> <span class="fn">FizzBuzz</span>(n <span class="pkg">int</span>) <span class="pkg">string</span> {
+    <span class="kw">switch</span> {
+    <span class="kw">case</span> n%<span class="num">15</span> == <span class="num">0</span>: <span class="kw">return</span> <span class="st">"FizzBuzz"</span>
+    <span class="kw">case</span> n%<span class="num">3</span> == <span class="num">0</span>:  <span class="kw">return</span> <span class="st">"Fizz"</span>
+    <span class="kw">case</span> n%<span class="num">5</span> == <span class="num">0</span>:  <span class="kw">return</span> <span class="st">"Buzz"</span>
+    <span class="kw">default</span>:          <span class="kw">return</span> strconv.<span class="fn">Itoa</span>(n)
+    }
+} <span class="cm">// ✓ 全部通过，可以 Refactor</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="tdd-design">
+      <div class="section-title"><div class="title-bar"></div><h2>TDD 如何驱动设计</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>测试先行迫使接口思考</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>当你先写测试时，你站在调用方的角度思考 API：</p>
+          <ul>
+            <li><strong>接口大小</strong>：测试需要 Mock 的依赖越多，说明这个函数职责越多，需要拆分</li>
+            <li><strong>命名</strong>：测试代码是第一个"文档读者"，迫使你用清晰的名字</li>
+            <li><strong>错误处理</strong>：先写测试时就必须想清楚：这个函数什么情况下会失败？如何传达错误？</li>
+            <li><strong>避免过度设计</strong>：测试只写当前需要的功能，不提前实现"将来可能用到"的特性（YAGNI）</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>难以测试 = 设计信号</h3><span class="badge badge-adv">[进阶]</span></div>
+        <div class="card-body">
+          <p>如果一个函数很难测试，通常不是测试的问题，而是设计的问题：</p>
+          <ul>
+            <li>需要 Mock 很多依赖 → 函数做了太多事（Single Responsibility 违反）</li>
+            <li>必须在特定顺序调用才能测试 → 隐含的状态机，需要显式化</li>
+            <li>测试需要控制时间/随机数 → 这些应该作为参数注入</li>
+            <li>测试难以 assert → 返回值设计有问题，或副作用过多</li>
+          </ul>
+          <p>TDD 实践者认为：<strong>难以测试的代码是坏代码</strong>，这是 TDD 最宝贵的设计反馈。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="bdd">
+      <div class="section-title"><div class="title-bar"></div><h2>BDD：行为驱动开发</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>BDD 是 TDD 的演进</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>BDD（Behavior-Driven Development）由 Dan North 在 TDD 基础上发展，核心创新是用<strong>自然语言描述行为</strong>，连接业务方和开发方。</p>
+          <p>BDD 测试使用 <strong>Given / When / Then</strong> 结构：</p>
+          <div class="bdd-card">
+            <strong>Given</strong> 系统处于某个初始状态<br>
+            <strong>When</strong> 用户执行某个操作<br>
+            <strong>Then</strong> 系统应该处于某个期望状态
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>BDD 测试示例</h3></div>
+        <div class="card-body">
+<pre><span class="cm">// 用 testify 写 BDD 风格测试</span>
+<span class="kw">func</span> <span class="fn">TestTransfer_BDD</span>(t *testing.T) {
+    <span class="cm">// Given：两个账户，A 有 1000 元</span>
+    accountA := <span class="fn">NewAccount</span>(<span class="st">"A"</span>, <span class="num">1000</span>)
+    accountB := <span class="fn">NewAccount</span>(<span class="st">"B"</span>, <span class="num">0</span>)
+    service := <span class="fn">NewTransferService</span>(accountA, accountB)
+
+    <span class="cm">// When：A 转账 300 给 B</span>
+    err := service.<span class="fn">Transfer</span>(<span class="st">"A"</span>, <span class="st">"B"</span>, <span class="num">300</span>)
+
+    <span class="cm">// Then：转账成功，余额正确</span>
+    assert.<span class="fn">NoError</span>(t, err)
+    assert.<span class="fn">Equal</span>(t, <span class="num">700</span>, accountA.<span class="fn">Balance</span>())
+    assert.<span class="fn">Equal</span>(t, <span class="num">300</span>, accountB.<span class="fn">Balance</span>())
+}
+
+<span class="kw">func</span> <span class="fn">TestTransfer_InsufficientFunds</span>(t *testing.T) {
+    <span class="cm">// Given：A 只有 100 元</span>
+    accountA := <span class="fn">NewAccount</span>(<span class="st">"A"</span>, <span class="num">100</span>)
+    accountB := <span class="fn">NewAccount</span>(<span class="st">"B"</span>, <span class="num">0</span>)
+    service := <span class="fn">NewTransferService</span>(accountA, accountB)
+
+    <span class="cm">// When：尝试转账 500（超过余额）</span>
+    err := service.<span class="fn">Transfer</span>(<span class="st">"A"</span>, <span class="st">"B"</span>, <span class="num">500</span>)
+
+    <span class="cm">// Then：返回余额不足错误，余额不变</span>
+    assert.<span class="fn">ErrorIs</span>(t, err, ErrInsufficientFunds)
+    assert.<span class="fn">Equal</span>(t, <span class="num">100</span>, accountA.<span class="fn">Balance</span>()) <span class="cm">// 未变化</span>
+    assert.<span class="fn">Equal</span>(t, <span class="num">0</span>, accountB.<span class="fn">Balance</span>())   <span class="cm">// 未变化</span>
+}</pre>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>Ginkgo / Gomega：Go BDD 框架</h3></div>
+        <div class="card-body">
+<pre><span class="cm">// Ginkgo BDD 框架示例</span>
+<span class="kw">var</span> _ = Describe(<span class="st">"TransferService"</span>, <span class="kw">func</span>() {
+    Context(<span class="st">"当余额充足时"</span>, <span class="kw">func</span>() {
+        It(<span class="st">"应该成功转账并更新余额"</span>, <span class="kw">func</span>() {
+            <span class="cm">// Given</span>
+            accountA := <span class="fn">NewAccount</span>(<span class="st">"A"</span>, <span class="num">1000</span>)
+            accountB := <span class="fn">NewAccount</span>(<span class="st">"B"</span>, <span class="num">0</span>)
+            <span class="cm">// When</span>
+            err := service.<span class="fn">Transfer</span>(<span class="st">"A"</span>, <span class="st">"B"</span>, <span class="num">300</span>)
+            <span class="cm">// Then</span>
+            <span class="fn">Expect</span>(err).<span class="fn">NotTo</span>(<span class="fn">HaveOccurred</span>())
+            <span class="fn">Expect</span>(accountA.<span class="fn">Balance</span>()).<span class="fn">To</span>(<span class="fn">Equal</span>(<span class="num">700</span>))
+        })
+    })
+    Context(<span class="st">"当余额不足时"</span>, <span class="kw">func</span>() {
+        It(<span class="st">"应该返回 ErrInsufficientFunds"</span>, <span class="kw">func</span>() {
+            <span class="fn">Expect</span>(service.<span class="fn">Transfer</span>(<span class="st">"A"</span>, <span class="st">"B"</span>, <span class="num">9999</span>)).<span class="fn">To</span>(<span class="fn">MatchError</span>(ErrInsufficientFunds))
+        })
+    })
+})</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="tradeoffs">
+      <div class="section-title"><div class="title-bar"></div><h2>TDD 的工程权衡</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>何时适合 TDD</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <table class="compare-table">
+            <tr><th>维度</th><th>适合 TDD</th><th>不适合 TDD</th></tr>
+            <tr><td>代码性质</td><td>业务逻辑、算法、核心领域</td><td>UI 布局、胶水代码</td></tr>
+            <tr><td>需求稳定性</td><td>需求明确，变化少</td><td>探索性开发，需求快速变化</td></tr>
+            <tr><td>团队经验</td><td>熟悉 TDD 节奏</td><td>团队初次引入，学习曲线陡</td></tr>
+            <tr><td>时间压力</td><td>中长期项目，维护成本重要</td><td>极端 deadline，快速验证原型</td></tr>
+            <tr><td>测试难度</td><td>可测试的业务函数</td><td>底层驱动、系统调用、硬件交互</td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>常见误解</h3><span class="badge badge-warn">[陷阱]</span></div>
+        <div class="card-body">
+          <ul>
+            <li><strong>"TDD 让开发变慢"</strong>：短期可能慢，长期通过减少调试时间和重构代价提升效率</li>
+            <li><strong>"TDD 要 100% 覆盖率"</strong>：不是。TDD 是开发方法，不是覆盖率工具</li>
+            <li><strong>"TDD 适合所有代码"</strong>：不是。UI、数据库 migration、CLI 工具等场景 TDD 价值有限</li>
+            <li><strong>"先写测试等于 TDD"</strong>：TDD 的核心是用测试驱动设计，写完测试就固定实现的测试先行不是 TDD</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="antipatterns">
+      <div class="section-title"><div class="title-bar"></div><h2>常见陷阱</h2></div>
+      <div class="pitfall">
+        <div class="pitfall-hd bad">⚠ 陷阱：Green 阶段过度实现</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// 错误：Green 阶段就实现了所有功能</span>
+<span class="kw">func</span> <span class="fn">TestAdd</span>(t *testing.T) {
+    assert.<span class="fn">Equal</span>(t, <span class="num">3</span>, <span class="fn">Add</span>(<span class="num">1</span>, <span class="num">2</span>)) <span class="cm">// 第一个测试</span>
+}
+
+<span class="cm">// Green 阶段一次性写出了通用实现</span>
+<span class="kw">func</span> <span class="fn">Add</span>(a, b <span class="pkg">int</span>) <span class="pkg">int</span> {
+    <span class="kw">return</span> a + b
+    <span class="cm">// 不够"最少"，但也没问题</span>
+}</pre>
+            <p>这不是 TDD 的硬错误，但在复杂场景下，过度实现会绕过 TDD 帮助发现设计问题的机制。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 正确：Green 阶段只写最少代码</span>
+<span class="kw">func</span> <span class="fn">Add</span>(a, b <span class="pkg">int</span>) <span class="pkg">int</span> {
+    <span class="kw">return</span> <span class="num">3</span>  <span class="cm">// 硬编码，让测试通过</span>
+}
+<span class="cm">// 然后加第二个测试：</span>
+<span class="cm">// assert.Equal(t, 5, Add(2, 3))</span>
+<span class="cm">// 这才强迫写出真实实现</span></pre>
+            <p>对于简单函数，这显得多余；对于复杂业务逻辑，逐步驱动出正确实现非常有价值。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="qa">
+      <div class="section-title"><div class="title-bar"></div><h2>面试问答</h2></div>
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this)">TDD 和先写测试后写实现有什么区别？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">TDD（测试驱动开发）是一种增量设计方法：每次只写一个失败的测试，写最少代码通过，然后重构，不断重复。它的核心是让测试<strong>驱动设计</strong>，每个测试都是对设计决策的探索。"先写测试后写实现"（Test-First）是在实现前写完所有测试，然后一次性实现。两者都比传统的"先写实现再补测试"好，但 TDD 的小步迭代能更好地通过测试反馈发现设计问题，Test-First 在需求明确时也是很好的实践。</div>
+      </div>
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this)">TDD 和 BDD 的关系是什么？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">BDD 是在 TDD 基础上演进的。TDD 关注的是技术层面：函数/方法的输入输出是否正确。BDD 关注的是行为层面：从用户/业务角度描述系统应该做什么。BDD 引入 Given/When/Then 语言，让测试更接近业务需求描述，可以作为活文档（Living Documentation）供非技术人员理解。两者不互斥：你可以在底层单元测试用 TDD 驱动，在上层业务场景测试用 BDD 风格描述行为。</div>
+      </div>
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this)">如何说服团队引入 TDD？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">不要强制推广，而是从高价值场景开始展示效果：1) 复杂业务逻辑（如折扣计算、规则引擎）——用 TDD 写出来的代码通常接口更清晰；2) Bug 修复——先写一个复现 Bug 的测试，再修 Bug，修复后测试通过；3) 代码重构——TDD 产生的测试套件让重构更安全。关键是展示 TDD 如何帮助思考设计和减少调试时间，而不是以"要写更多测试"的角度推广。可以先在个人层面实践几周，收集具体的收益数据，再分享给团队。</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+<script>
+function toggleQA(el){el.parentElement.classList.toggle('open');}
+NavTracker.track({name:'TDD / BDD',href:'testing/tdd.html',icon:'🔁',cat:'测试工程'});
+</script>
+</body>
+</html>

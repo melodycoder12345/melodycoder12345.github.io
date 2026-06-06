@@ -15,7 +15,8 @@
     'system-design': { label: '系统设计', color: '#f59e0b' },
     'cloud-native': { label: '云原生', color: '#38bdf8' },
     observability: { label: '可观测性', color: '#fb923c' },
-    security: { label: '安全基础', color: '#f87171' }
+    security: { label: '安全基础', color: '#f87171' },
+    testing: { label: '测试工程', color: '#4ade80' }
   };
 
   window.GRAPH_NODES = [
@@ -333,7 +334,15 @@
     // CS 模块新增
     {id:'cs-gpu-arch', label:'GPU 架构', module:'cs', type:'page', href:'cs/gpu-architecture.html', desc:'SM/Warp/SIMT 并行执行模型，显存层次 L1/L2/HBM 带宽差异，Warp 分叉导致效率下降，CPU-GPU 通过 PCIe 协作，是深度学习推理的算力底座。'},
     // DB 模块新增
-    {id:'db-nosql', label:'NoSQL 分类', module:'db', type:'page', href:'db/nosql.html', desc:'文档型（MongoDB）/宽列型（Cassandra）/KV 型（DynamoDB）/图型（Neo4j）四类 NoSQL 的数据模型、CAP 选择、典型场景和关系型数据库选型矩阵。'}
+    {id:'db-nosql', label:'NoSQL 分类', module:'db', type:'page', href:'db/nosql.html', desc:'文档型（MongoDB）/宽列型（Cassandra）/KV 型（DynamoDB）/图型（Neo4j）四类 NoSQL 的数据模型、CAP 选择、典型场景和关系型数据库选型矩阵。'},
+    // 测试工程模块
+    {id:'testing', label:'测试工程', module:'testing', type:'module', href:'testing/index.html', desc:'从测试金字塔到负载测试、Mock 技术、契约测试和模糊测试，构建系统性的工程质量体系。'},
+    {id:'test-pyramid', label:'测试金字塔', module:'testing', type:'page', href:'testing/test-pyramid.html', desc:'单元/集成/E2E 三层金字塔策略，测试覆盖率原则，隔离边界划分和分布式系统测试挑战。'},
+    {id:'test-mock', label:'Mock / Stub / Spy', module:'testing', type:'page', href:'testing/mock-stub.html', desc:'Test Doubles 五种类型对比，接口驱动 Mock 设计，gomock/testify 工程实践和过度 Mock 反模式。'},
+    {id:'test-load', label:'负载与压力测试', module:'testing', type:'page', href:'testing/load-testing.html', desc:'并发用户模型、延迟百分位（P50/P95/P99）、吞吐与延迟权衡，k6/wrk 压测工具和瓶颈识别方法论。'},
+    {id:'test-contract', label:'契约测试', module:'testing', type:'page', href:'testing/contract-testing.html', desc:'Consumer-Driven Contract 以消费者期望约束 Provider 接口，Pact 框架实现微服务解耦测试，避免集成环境依赖。'},
+    {id:'test-fuzz', label:'模糊测试', module:'testing', type:'page', href:'testing/fuzz-testing.html', desc:'Coverage-guided fuzzing 自动探索边界输入，Go 原生 go test -fuzz 用法，Corpus 语料库管理和工程价值。'},
+    {id:'test-tdd', label:'TDD / BDD', module:'testing', type:'page', href:'testing/tdd.html', desc:'Red-Green-Refactor 循环驱动设计，测试先行减少过度设计，BDD 行为描述连接业务语义和代码实现。'}
   ];
 
   window.GRAPH_EDGES = [
@@ -511,6 +520,14 @@
     // CS 新增
     ['cs-gpu-arch','cpu-pipeline'],['cs-gpu-arch','cache-hierarchy'],['cs-gpu-arch','cs-numa'],['cs-gpu-arch','ai-llm-serving'],
     // DB 新增
-    ['db-nosql','distributed-db'],['db-nosql','db-sharding'],['db-nosql','db-graph-db']
+    ['db-nosql','distributed-db'],['db-nosql','db-sharding'],['db-nosql','db-graph-db'],
+    // Testing 模块边
+    ['testing','go-testing'],['testing','obs-chaos'],['testing','ai-eval-deploy'],
+    ['test-pyramid','go-testing'],['test-pyramid','test-mock'],['test-pyramid','test-tdd'],
+    ['test-mock','go-testing'],['test-mock','go-interface'],
+    ['test-load','obs-prometheus'],['test-load','sd-rate-limiter'],['test-load','network-cdn'],
+    ['test-contract','grpc'],['test-contract','test-pyramid'],
+    ['test-fuzz','go-testing'],['test-fuzz','test-pyramid'],
+    ['test-tdd','go-testing'],['test-tdd','go-error']
   ];
 })();

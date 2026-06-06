@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="测试金字塔三层策略：单元测试速度快、集成测试验连接、E2E 测试验业务，覆盖率指标与分布式测试边界。">
+<link rel="canonical" href="https://melodycoder12345.github.io/testing/test-pyramid.html">
+<meta property="og:title" content="测试金字塔 — 码海拾贝">
+<meta property="og:description" content="测试金字塔三层策略：单元测试速度快、集成测试验连接、E2E 测试验业务，覆盖率指标与分布式测试边界。">
+<meta property="og:url" content="https://melodycoder12345.github.io/testing/test-pyramid.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="测试金字塔 — 码海拾贝">
+<meta name="twitter:description" content="测试金字塔三层策略：单元测试速度快、集成测试验连接、E2E 测试验业务，覆盖率指标与分布式测试边界。">
+<title>测试金字塔 - Testing 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#4ade80;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:44px;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:116px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.side-nav a.active{color:var(--accent);background:rgba(74,222,128,.08);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(74,222,128,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(74,222,128,.12);color:var(--accent);border:1px solid rgba(74,222,128,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.badge-warn{background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(74,222,128,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(74,222,128,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+/* 金字塔图 */
+.pyramid-wrap{display:flex;justify-content:center;margin:20px 0;}
+.pyramid{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;max-width:560px;}
+.pyr-layer{display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:.84rem;font-weight:700;color:#fff;cursor:default;transition:filter .15s;}
+.pyr-layer:hover{filter:brightness(1.15);}
+.pyr-e2e{width:30%;min-height:56px;background:linear-gradient(135deg,#f87171,#dc2626);border:1px solid rgba(248,113,113,.4);}
+.pyr-int{width:60%;min-height:56px;background:linear-gradient(135deg,#fbbf24,#d97706);border:1px solid rgba(251,191,36,.4);}
+.pyr-unit{width:100%;min-height:64px;background:linear-gradient(135deg,#4ade80,#16a34a);border:1px solid rgba(74,222,128,.4);}
+.pyr-labels{display:flex;justify-content:space-around;width:100%;margin-top:8px;}
+.pyr-label{font-size:.72rem;color:var(--dim);text-align:center;}
+.compare-table{width:100%;border-collapse:collapse;font-size:.82rem;margin:10px 0;}
+.compare-table th{padding:8px 12px;background:rgba(74,222,128,.06);color:var(--accent);font-weight:700;text-align:left;border-bottom:1px solid var(--border2);}
+.compare-table td{padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--dim);}
+.compare-table tr:last-child td{border-bottom:none;}
+.compare-table td:first-child{color:var(--text);font-weight:600;}
+.tag-good{color:#4ade80;font-size:.72rem;}
+.tag-bad{color:#f87171;font-size:.72rem;}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">🔺 测试金字塔</span>
+  <div class="nav-tags">
+    <span class="ntag">unit</span>
+    <span class="ntag">integration</span>
+    <span class="ntag">E2E</span>
+    <span class="ntag">coverage</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <nav class="side-nav">
+    <ul>
+      <li><a href="#overview">金字塔概念</a></li>
+      <li><a href="#layers">三层详解</a></li>
+      <li><a href="#coverage">覆盖率</a></li>
+      <li><a href="#distributed">分布式挑战</a></li>
+      <li><a href="#antipatterns">反模式</a></li>
+      <li><a href="#qa">面试问答</a></li>
+    </ul>
+  </nav>
+  <main class="main-content">
+
+    <div class="section" id="overview">
+      <div class="section-title"><div class="title-bar"></div><h2>测试金字塔概念</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>为什么需要分层测试策略</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>测试金字塔由 Mike Cohn 在《Succeeding with Agile》中提出，核心思想是：<strong>不同层级的测试有不同的成本和价值，合理分配才能最大化质量收益</strong>。</p>
+          <p>越靠近金字塔底部的测试：执行越快（毫秒级）、成本越低、维护越容易、反馈越即时。越靠近顶部：越贴近真实用户行为，但越慢（分钟级）、越脆弱、维护成本越高。</p>
+        </div>
+      </div>
+      <div class="pyramid-wrap">
+        <div class="pyramid">
+          <div class="pyr-layer pyr-e2e">E2E 测试</div>
+          <div class="pyr-layer pyr-int">集成测试</div>
+          <div class="pyr-layer pyr-unit">单元测试（最多）</div>
+          <div class="pyr-labels">
+            <span class="pyr-label">慢 · 脆弱 · 昂贵 ↑</span>
+            <span class="pyr-label">快 · 稳定 · 廉价 ↓</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="layers">
+      <div class="section-title"><div class="title-bar"></div><h2>三层详解</h2></div>
+
+      <div class="card">
+        <div class="card-hd"><h3>单元测试（Unit Test）</h3><span class="badge badge-core">[底层 · 最多]</span></div>
+        <div class="card-body">
+          <p>测试最小可测单元（函数/方法），隔离所有外部依赖（数据库、HTTP、文件系统）。每个测试独立执行，无共享状态。</p>
+          <ul>
+            <li><strong>目标</strong>：验证单个函数的业务逻辑正确性</li>
+            <li><strong>速度</strong>：毫秒级，可在提交时全量运行</li>
+            <li><strong>隔离方式</strong>：用 Mock/Stub 替代真实依赖</li>
+            <li><strong>比例建议</strong>：占所有测试的 70%+</li>
+          </ul>
+<pre><span class="cm">// Go 单元测试示例：隔离 DB 依赖</span>
+<span class="kw">func</span> <span class="fn">TestCalculateTotal</span>(t *testing.T) {
+    tests := []<span class="kw">struct</span>{
+        name  <span class="pkg">string</span>
+        items []<span class="pkg">Item</span>
+        want  <span class="pkg">float64</span>
+    }{
+        {<span class="st">"空订单"</span>, []<span class="pkg">Item</span>{}, <span class="num">0</span>},
+        {<span class="st">"单商品"</span>, []<span class="pkg">Item</span>{{Price: <span class="num">9.9</span>}}, <span class="num">9.9</span>},
+        {<span class="st">"多商品"</span>, []<span class="pkg">Item</span>{{Price: <span class="num">9.9</span>},{Price: <span class="num">20.1</span>}}, <span class="num">30.0</span>},
+    }
+    <span class="kw">for</span> _, tt := <span class="kw">range</span> tests {
+        t.Run(tt.name, <span class="kw">func</span>(t *testing.T) {
+            got := <span class="fn">CalculateTotal</span>(tt.items)
+            <span class="kw">if</span> got != tt.want {
+                t.Errorf(<span class="st">"got %v, want %v"</span>, got, tt.want)
+            }
+        })
+    }
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h3>集成测试（Integration Test）</h3><span class="badge badge-adv">[中层 · 适量]</span></div>
+        <div class="card-body">
+          <p>测试多个组件协作：服务层 + 真实数据库、HTTP Handler + 路由、缓存与 DB 的联动。不再 Mock 基础设施层，而是使用真实（或内存版本）的依赖。</p>
+          <ul>
+            <li><strong>目标</strong>：验证组件边界和集成点是否正确连接</li>
+            <li><strong>速度</strong>：秒级，通常在 CI 中运行</li>
+            <li><strong>工具</strong>：testcontainers（Docker 启动真实 PostgreSQL/Redis）、httptest</li>
+            <li><strong>比例建议</strong>：占所有测试的 20%</li>
+          </ul>
+<pre><span class="cm">// 使用 testcontainers 启动真实 Postgres 做集成测试</span>
+<span class="kw">func</span> <span class="fn">TestUserRepository_Create</span>(t *testing.T) {
+    ctx := context.Background()
+    pg, _ := postgres.RunContainer(ctx,
+        testcontainers.WithImage(<span class="st">"postgres:16-alpine"</span>),
+        postgres.WithDatabase(<span class="st">"testdb"</span>),
+    )
+    <span class="kw">defer</span> pg.Terminate(ctx)
+
+    dsn, _ := pg.ConnectionString(ctx)
+    repo := <span class="fn">NewUserRepository</span>(dsn)
+
+    user := &User{Name: <span class="st">"alice"</span>, Email: <span class="st">"alice@example.com"</span>}
+    err := repo.Create(ctx, user)
+    <span class="fn">assert.NoError</span>(t, err)
+    <span class="fn">assert.NotZero</span>(t, user.ID)
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h3>E2E 测试（End-to-End Test）</h3><span class="badge badge-warn">[顶层 · 最少]</span></div>
+        <div class="card-body">
+          <p>从用户视角验证完整业务流程：模拟真实用户操作（HTTP 请求、浏览器点击），覆盖从前端到数据库的全链路。</p>
+          <ul>
+            <li><strong>目标</strong>：验证关键业务路径端到端可用</li>
+            <li><strong>速度</strong>：分钟级，通常在发布前/夜间运行</li>
+            <li><strong>工具</strong>：Playwright、Cypress（浏览器）、Newman（API）</li>
+            <li><strong>比例建议</strong>：占所有测试的 10%，只覆盖关键路径</li>
+            <li><strong>注意</strong>：E2E 测试脆弱，依赖环境稳定性，不要用它覆盖所有业务逻辑</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h3>三层对比</h3></div>
+        <div class="card-body">
+          <table class="compare-table">
+            <tr><th>维度</th><th>单元测试</th><th>集成测试</th><th>E2E 测试</th></tr>
+            <tr><td>执行速度</td><td><span class="tag-good">毫秒级</span></td><td>秒级</td><td><span class="tag-bad">分钟级</span></td></tr>
+            <tr><td>维护成本</td><td><span class="tag-good">低</span></td><td>中</td><td><span class="tag-bad">高</span></td></tr>
+            <tr><td>测试范围</td><td>单函数</td><td>组件间连接</td><td>全链路业务</td></tr>
+            <tr><td>依赖隔离</td><td>完全 Mock</td><td>真实基础设施</td><td>完整部署</td></tr>
+            <tr><td>失败定位</td><td><span class="tag-good">精准</span></td><td>较精准</td><td><span class="tag-bad">模糊</span></td></tr>
+            <tr><td>推荐比例</td><td>70%+</td><td>~20%</td><td>~10%</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="coverage">
+      <div class="section-title"><div class="title-bar"></div><h2>测试覆盖率</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>覆盖率的意义与局限</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>覆盖率（Coverage）度量被测试执行到的代码比例。Go 提供语句覆盖率：<code>go test -cover ./...</code>。</p>
+          <ul>
+            <li><strong>行覆盖（Statement Coverage）</strong>：每行代码至少被执行一次</li>
+            <li><strong>分支覆盖（Branch Coverage）</strong>：每个 if/else 分支都被执行</li>
+            <li><strong>路径覆盖（Path Coverage）</strong>：所有可能的执行路径（通常不可穷举）</li>
+          </ul>
+<pre><span class="cm">// 查看覆盖率 HTML 报告</span>
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out -o coverage.html
+
+<span class="cm">// 覆盖率阈值检查（常用于 CI）</span>
+go test -coverprofile=coverage.out ./...
+coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | tr -d '%')
+<span class="kw">if</span> [ "$coverage" -lt "80" ]; <span class="kw">then</span>
+    echo <span class="st">"Coverage ${coverage}% below threshold 80%"</span>; exit 1
+<span class="kw">fi</span></pre>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>覆盖率的误区</h3><span class="badge badge-warn">[陷阱]</span></div>
+        <div class="card-body">
+          <ul>
+            <li><strong>高覆盖率 ≠ 高质量</strong>：测试可以执行代码但不做任何断言，100% 覆盖率的测试可以完全没有价值</li>
+            <li><strong>追求覆盖率导致测试膨胀</strong>：为覆盖而写的测试通常验证实现细节而非行为，重构时大量失败</li>
+            <li><strong>80% 是经验阈值而非规律</strong>：核心业务逻辑要接近 100%，工具类代码可以宽松</li>
+            <li><strong>不覆盖的代码同样重要</strong>：错误处理路径、边界条件往往更容易有 Bug，却也最难被覆盖</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="distributed">
+      <div class="section-title"><div class="title-bar"></div><h2>分布式系统测试挑战</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>传统金字塔在微服务下的变形</h3><span class="badge badge-adv">[进阶]</span></div>
+        <div class="card-body">
+          <p>微服务架构下，服务边界将集成测试拆散，传统的"集成测试验连接"变成了跨服务的 API 契约问题。</p>
+          <ul>
+            <li><strong>服务内</strong>：仍然适用金字塔，单元测试覆盖业务逻辑，集成测试验证 DB 访问</li>
+            <li><strong>服务间</strong>：契约测试（Consumer-Driven Contract）替代依赖真实下游的集成测试</li>
+            <li><strong>全链路</strong>：E2E 测试数量应更少，测试的是关键业务路径，而非排列组合</li>
+            <li><strong>混沌工程</strong>：在生产级别注入故障，验证系统在真实故障场景下的行为（超出传统金字塔）</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>测试环境隔离策略</h3></div>
+        <div class="card-body">
+          <ul>
+            <li><strong>Test Doubles（本地 Mock）</strong>：最快，适合单元测试</li>
+            <li><strong>In-process 内存实现</strong>：如 SQLite 替代 PostgreSQL，速度快但行为有差异</li>
+            <li><strong>Testcontainers</strong>：Docker 启动真实依赖，行为一致但启动慢（10-30s）</li>
+            <li><strong>Dedicated Test Env</strong>：共享测试环境，适合集成/E2E，但有并发冲突问题</li>
+            <li><strong>Production Traffic（Shadow Testing）</strong>：复制生产流量到新版本，最真实但有副作用风险</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="antipatterns">
+      <div class="section-title"><div class="title-bar"></div><h2>反模式</h2></div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">⚠ 反模式：冰淇淋甜筒（Ice Cream Cone）</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <p><strong>问题</strong>：大量 E2E 测试，少量集成测试，极少单元测试。金字塔倒过来。</p>
+            <p><strong>症状</strong>：CI 跑 30 分钟、测试随机失败、难以定位根因、开发者不愿等待。</p>
+            <p><strong>根因</strong>：团队认为"只有跑完整才算真正测试"，或者缺乏 TDD 意识导致代码难以单元测试。</p>
+          </div>
+          <div class="pitfall-col">
+            <p><strong>修复</strong>：识别哪些 E2E 测试在测试业务逻辑（应该下沉为单元测试），哪些在测试集成点（可以下沉为集成测试）。</p>
+            <p><strong>目标</strong>：E2E 测试只覆盖 Happy Path 的几个关键业务流程，其他全部下沉。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">⚠ 反模式：测试私有实现</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// 错误：测试内部实现细节</span>
+<span class="kw">func</span> <span class="fn">Test_sortedInsert</span>(t *testing.T) {
+    s := &service{cache: []<span class="pkg">string</span>{}}
+    s.<span class="fn">sortedInsert</span>(<span class="st">"b"</span>)   <span class="cm">// 私有方法</span>
+    s.<span class="fn">sortedInsert</span>(<span class="st">"a"</span>)
+    <span class="cm">// 内部结构变化就全部失败</span>
+    assert.Equal(t, []<span class="pkg">string</span>{<span class="st">"a"</span>,<span class="st">"b"</span>}, s.cache)
+}</pre>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 正确：测试公开行为</span>
+<span class="kw">func</span> <span class="fn">TestService_Add</span>(t *testing.T) {
+    s := <span class="fn">NewService</span>()
+    s.<span class="fn">Add</span>(<span class="st">"b"</span>)
+    s.<span class="fn">Add</span>(<span class="st">"a"</span>)
+    items := s.<span class="fn">List</span>()  <span class="cm">// 公开接口</span>
+    <span class="cm">// 重构内部结构不影响此测试</span>
+    assert.Equal(t, []<span class="pkg">string</span>{<span class="st">"a"</span>,<span class="st">"b"</span>}, items)
+}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="qa">
+      <div class="section-title"><div class="title-bar"></div><h2>面试问答</h2></div>
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this)">测试金字塔中，为什么单元测试要占最多比例？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">单元测试执行最快（毫秒级）、反馈最即时、维护成本最低，且可以精确定位 Bug 到函数级别。高比例的单元测试意味着大多数 Bug 可以在提交时被立即发现，而不是等 E2E 流水线跑完。E2E 测试慢且脆弱，如果大量使用会严重拖慢 CI 速度。</div>
+      </div>
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this)">80% 测试覆盖率是否足够？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">80% 是一个经验参考值，但并不绝对。更重要的是：核心业务逻辑和关键路径要接近 100% 覆盖；错误处理路径（通常最容易有 Bug）必须覆盖；边界条件（空输入、最大值、并发）要专门测试。纯粹追求覆盖率数字会导致写无断言的空测试，反而有害。应该关注"有价值的覆盖"而非数字。</div>
+      </div>
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this)">集成测试和 E2E 测试的边界在哪里？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">集成测试验证的是组件之间的连接：你的代码能否正确调用数据库、Redis、外部 API？使用真实依赖（或 Testcontainers），但测试范围仍限定在服务内部。E2E 测试从最终用户视角出发，模拟真实请求穿越整个系统（包括前端→API→DB），验证业务流程是否正确。E2E 不关心内部实现，只关心"用户能否完成任务"。</div>
+      </div>
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this)">微服务架构下测试金字塔如何调整？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">微服务引入了服务边界，传统集成测试的"验连接"需要拆分：服务内部仍然适用金字塔；服务间的 API 兼容性用契约测试（Consumer-Driven Contract / Pact）替代跨服务集成测试；全链路 E2E 只覆盖最关键的业务路径，数量极少。这样可以避免需要维护一个共享的集成测试环境，各服务独立测试独立发布。</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+<script>
+function toggleQA(el){el.parentElement.classList.toggle('open');}
+NavTracker.track({name:'测试金字塔',href:'testing/test-pyramid.html',icon:'🔺',cat:'测试工程'});
+</script>
+</body>
+</html>

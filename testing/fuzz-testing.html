@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="模糊测试：Coverage-guided fuzzing 自动生成变异输入，Go 原生 go test -fuzz，Corpus 语料库管理，发现边界 Panic 和安全漏洞。">
+<link rel="canonical" href="https://melodycoder12345.github.io/testing/fuzz-testing.html">
+<meta property="og:title" content="模糊测试 — 码海拾贝">
+<meta property="og:description" content="模糊测试：Coverage-guided fuzzing 自动生成变异输入，Go 原生 go test -fuzz，Corpus 语料库管理，发现边界 Panic 和安全漏洞。">
+<meta property="og:url" content="https://melodycoder12345.github.io/testing/fuzz-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="模糊测试 — 码海拾贝">
+<meta name="twitter:description" content="模糊测试：Coverage-guided fuzzing 自动生成变异输入，Go 原生 go test -fuzz，Corpus 语料库管理，发现边界 Panic 和安全漏洞。">
+<title>模糊测试 - Testing 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#4ade80;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:44px;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:116px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.side-nav a.active{color:var(--accent);background:rgba(74,222,128,.08);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(74,222,128,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(74,222,128,.12);color:var(--accent);border:1px solid rgba(74,222,128,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.badge-warn{background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(74,222,128,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(74,222,128,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+.fuzzing-loop{display:flex;align-items:center;justify-content:center;gap:0;margin:16px 0;flex-wrap:wrap;}
+.loop-step{border:1px solid var(--border2);border-radius:10px;padding:12px 14px;background:rgba(30,41,59,.5);text-align:center;min-width:110px;}
+.loop-step h4{font-size:.8rem;font-weight:700;margin-bottom:4px;color:var(--accent);}
+.loop-step p{font-size:.72rem;color:var(--dim);}
+.loop-arrow{padding:0 8px;color:var(--dim2);font-size:1.1rem;}
+.compare-table{width:100%;border-collapse:collapse;font-size:.82rem;margin:10px 0;}
+.compare-table th{padding:8px 12px;background:rgba(74,222,128,.06);color:var(--accent);font-weight:700;text-align:left;border-bottom:1px solid var(--border2);}
+.compare-table td{padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--dim);}
+.compare-table tr:last-child td{border-bottom:none;}
+.compare-table td:first-child{color:var(--text);font-weight:600;}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}.fuzzing-loop{flex-direction:column;align-items:center;}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">🔀 模糊测试</span>
+  <div class="nav-tags">
+    <span class="ntag">go test -fuzz</span>
+    <span class="ntag">corpus</span>
+    <span class="ntag">coverage-guided</span>
+    <span class="ntag">mutation</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <nav class="side-nav">
+    <ul>
+      <li><a href="#concept">什么是 Fuzzing</a></li>
+      <li><a href="#coverage-guided">覆盖率引导</a></li>
+      <li><a href="#go-fuzz">Go Fuzzing</a></li>
+      <li><a href="#corpus">Corpus 管理</a></li>
+      <li><a href="#examples">实战示例</a></li>
+      <li><a href="#scenarios">适用场景</a></li>
+      <li><a href="#qa">面试问答</a></li>
+    </ul>
+  </nav>
+  <main class="main-content">
+
+    <div class="section" id="concept">
+      <div class="section-title"><div class="title-bar"></div><h2>什么是模糊测试</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>自动化的边界输入生成</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>模糊测试（Fuzzing）是一种自动化测试技术：<strong>通过随机或变异的方式生成大量输入，喂给被测函数，观察是否触发崩溃、Panic、数据竞争或其他异常行为</strong>。</p>
+          <p>传统单元测试的局限：开发者手写的测试用例受思维定势限制，往往覆盖不到"意想不到"的边界输入（空字节、超长字符串、特殊 Unicode、递归结构等）。Fuzzer 可以机械地探索这些边界。</p>
+          <ul>
+            <li><strong>发现 Parser 漏洞</strong>：JSON、XML、Protobuf 解析中的 Panic</li>
+            <li><strong>发现安全漏洞</strong>：缓冲区溢出、整数溢出、SQL 注入路径</li>
+            <li><strong>发现语义错误</strong>：编码/解码往返不一致（encode→decode 不等于原始值）</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="coverage-guided">
+      <div class="section-title"><div class="title-bar"></div><h2>Coverage-Guided Fuzzing</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>为什么"覆盖率引导"更高效</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>早期 Fuzzer（如纯随机输入）效率极低，大多数输入无法通过基础的输入验证，浪费大量时间。Coverage-guided fuzzing（覆盖率引导）通过代码覆盖率反馈选择"有价值"的变异输入：</p>
+        </div>
+      </div>
+      <div class="fuzzing-loop">
+        <div class="loop-step"><h4>Seed Corpus</h4><p>初始输入集合</p></div>
+        <div class="loop-arrow">→</div>
+        <div class="loop-step"><h4>运行</h4><p>执行被测函数</p></div>
+        <div class="loop-arrow">→</div>
+        <div class="loop-step"><h4>覆盖率收集</h4><p>记录新增代码路径</p></div>
+        <div class="loop-arrow">→</div>
+        <div class="loop-step"><h4>变异</h4><p>修改触发新路径的输入</p></div>
+        <div class="loop-arrow">→</div>
+        <div class="loop-step"><h4>选择</h4><p>保留覆盖新路径的变体</p></div>
+        <div class="loop-arrow">↩</div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>变异策略</h3></div>
+        <div class="card-body">
+          <ul>
+            <li><strong>位翻转（Bit Flip）</strong>：随机翻转字节中的位</li>
+            <li><strong>字节替换</strong>：用边界值替换字节（0x00, 0xFF, 0x7F）</li>
+            <li><strong>插入/删除</strong>：在随机位置插入或删除字节</li>
+            <li><strong>字典词替换</strong>：用有意义的关键字替换（如 HTTP 方法名、SQL 关键字）</li>
+            <li><strong>结构感知变异</strong>：理解输入格式（如 JSON）并在有效结构内变异</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="go-fuzz">
+      <div class="section-title"><div class="title-bar"></div><h2>Go 原生 Fuzzing（Go 1.18+）</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>Fuzz 函数语法</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>Go 1.18 内置了 fuzzing 支持，无需额外依赖。Fuzz 函数和普通测试在同一文件中，使用 <code>*testing.F</code> 类型。</p>
+<pre><span class="cm">// 模糊测试：发现 ParseURL 的边界 Panic</span>
+<span class="kw">func</span> <span class="fn">FuzzParseURL</span>(f *testing.F) {
+    <span class="cm">// Seed corpus：初始有意义的输入（必须！）</span>
+    f.<span class="fn">Add</span>(<span class="st">"https://example.com/path?q=1"</span>)
+    f.<span class="fn">Add</span>(<span class="st">"http://user:pass@host:8080/path"</span>)
+    f.<span class="fn">Add</span>(<span class="st">""</span>)    <span class="cm">// 空字符串边界</span>
+
+    <span class="cm">// Fuzz 目标：必须没有 panic，且解析结果可回滚</span>
+    f.<span class="fn">Fuzz</span>(<span class="kw">func</span>(t *testing.T, rawURL <span class="pkg">string</span>) {
+        u, err := url.<span class="fn">Parse</span>(rawURL)
+        <span class="kw">if</span> err != <span class="kw">nil</span> {
+            <span class="kw">return</span>  <span class="cm">// 解析错误是允许的，但不能 panic</span>
+        }
+        <span class="cm">// 往返测试：解析后再序列化应得到等价结果</span>
+        roundTripped, _ := url.<span class="fn">Parse</span>(u.<span class="fn">String</span>())
+        <span class="kw">if</span> u.<span class="fn">String</span>() != roundTripped.<span class="fn">String</span>() {
+            t.<span class="fn">Errorf</span>(<span class="st">"round-trip failed: %q → %q → %q"</span>,
+                rawURL, u.<span class="fn">String</span>(), roundTripped.<span class="fn">String</span>())
+        }
+    })
+}</pre>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>运行命令</h3></div>
+        <div class="card-body">
+<pre><span class="cm"># 运行普通模式（只跑 seed corpus，当作普通测试）</span>
+go test ./...
+
+<span class="cm"># 运行 fuzzing 模式（持续变异，直到找到 Bug 或手动停止）</span>
+go test -fuzz FuzzParseURL ./pkg/parser/
+
+<span class="cm"># 限制运行时间（CI 中常用）</span>
+go test -fuzz FuzzParseURL -fuzztime 30s ./...
+
+<span class="cm"># 找到 failing input 后，验证修复</span>
+go test -run FuzzParseURL/testdata/fuzz/FuzzParseURL/abc123 ./...
+
+<span class="cm"># 查看 corpus 目录</span>
+ls testdata/fuzz/FuzzParseURL/</pre>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>支持的 Fuzz 输入类型</h3></div>
+        <div class="card-body">
+          <p>Go fuzzer 支持以下基础类型作为 <code>f.Fuzz</code> 的参数（<code>t *testing.T</code> 必须是第一个参数）：</p>
+          <ul>
+            <li><code>string</code>, <code>[]byte</code> — 最常用，适合字符串解析</li>
+            <li><code>int</code>, <code>int8</code>, <code>int16</code>, <code>int32</code>, <code>int64</code></li>
+            <li><code>uint</code>, <code>uint8</code>, <code>uint16</code>, <code>uint32</code>, <code>uint64</code></li>
+            <li><code>float32</code>, <code>float64</code></li>
+            <li><code>bool</code>, <code>rune</code>, <code>byte</code></li>
+          </ul>
+          <p>不支持 struct、slice（除了 <code>[]byte</code>）、map 等复合类型。复杂输入需要先序列化为 <code>[]byte</code>，在 Fuzz 函数内反序列化。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="corpus">
+      <div class="section-title"><div class="title-bar"></div><h2>Corpus 管理</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>Seed Corpus vs Generated Corpus</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>Go fuzzing 有两类 corpus：</p>
+          <ul>
+            <li><strong>Seed Corpus（种子语料库）</strong>：开发者通过 <code>f.Add()</code> 提供的初始有意义输入，也可以放在 <code>testdata/fuzz/FuzzXxx/</code> 目录下的文件。每次 <code>go test</code>（非 fuzz 模式）都会执行 seed corpus，相当于普通测试用例。</li>
+            <li><strong>Generated Corpus（生成语料库）</strong>：fuzzer 运行期间发现的能覆盖新代码路径的输入，存储在 <code>$GOCACHE/fuzz/</code> 目录。在不同机器间不共享，只在本地累积。</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>发现 Bug 后的 Corpus 文件</h3></div>
+        <div class="card-body">
+          <p>当 fuzzer 找到导致 Panic 或测试失败的输入时，会将该输入自动写入 <code>testdata/fuzz/FuzzXxx/</code> 目录，并提示如何重现：</p>
+<pre><span class="cm">--- FAIL: FuzzParseURL (0.42s)</span>
+    fuzzing process hung or failed to return an error:
+    <span class="cm">Failing input written to testdata/fuzz/FuzzParseURL/a3b8c9d2</span>
+    <span class="st">To re-run:</span> go test -run=FuzzParseURL/a3b8c9d2
+
+<span class="cm"># 文件内容（corpus file 格式）</span>
+go test fuzz v1
+string("http://\x00\x01\x02")</pre>
+          <p>这个文件会提交到 git 仓库，成为永久的回归测试用例，防止同样的 Bug 再次出现。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="examples">
+      <div class="section-title"><div class="title-bar"></div><h2>实战示例</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>示例 1：往返测试（Encode/Decode）</h3><span class="badge badge-core">[代码]</span></div>
+        <div class="card-body">
+          <p>最经典的 fuzz 模式：确保 encode(input) 后 decode 结果等于 input。适合 JSON、Base64、Protobuf、压缩算法等。</p>
+<pre><span class="kw">func</span> <span class="fn">FuzzJSONRoundTrip</span>(f *testing.F) {
+    f.<span class="fn">Add</span>([]<span class="pkg">byte</span>(`{"name":"alice","age":30}`))
+    f.<span class="fn">Add</span>([]<span class="pkg">byte</span>(`null`))
+    f.<span class="fn">Add</span>([]<span class="pkg">byte</span>(`"hello"`))
+
+    f.<span class="fn">Fuzz</span>(<span class="kw">func</span>(t *testing.T, data []<span class="pkg">byte</span>) {
+        <span class="kw">var</span> v <span class="kw">interface</span>{}
+        <span class="kw">if</span> err := json.<span class="fn">Unmarshal</span>(data, &v); err != <span class="kw">nil</span> {
+            <span class="kw">return</span>  <span class="cm">// 非法 JSON，忽略</span>
+        }
+        re, err := json.<span class="fn">Marshal</span>(v)
+        <span class="kw">if</span> err != <span class="kw">nil</span> {
+            t.<span class="fn">Errorf</span>(<span class="st">"Marshal failed for valid JSON: %v"</span>, err)
+            <span class="kw">return</span>
+        }
+        <span class="kw">var</span> v2 <span class="kw">interface</span>{}
+        <span class="kw">if</span> err := json.<span class="fn">Unmarshal</span>(re, &v2); err != <span class="kw">nil</span> {
+            t.<span class="fn">Errorf</span>(<span class="st">"double Unmarshal failed: %v"</span>, err)
+        }
+    })
+}</pre>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>示例 2：Parser 安全验证</h3></div>
+        <div class="card-body">
+<pre><span class="cm">// 验证自定义 Parser 不会 panic 且有完整错误处理</span>
+<span class="kw">func</span> <span class="fn">FuzzParseConfig</span>(f *testing.F) {
+    f.<span class="fn">Add</span>(<span class="st">"[server]\nhost=localhost\nport=8080"</span>)
+
+    f.<span class="fn">Fuzz</span>(<span class="kw">func</span>(t *testing.T, input <span class="pkg">string</span>) {
+        <span class="cm">// 不要 panic：无论输入如何，都应返回错误而非崩溃</span>
+        cfg, err := <span class="fn">ParseConfig</span>(input)
+        <span class="kw">if</span> err != <span class="kw">nil</span> {
+            <span class="kw">return</span>
+        }
+        <span class="cm">// 有效配置必须满足不变量</span>
+        <span class="kw">if</span> cfg.Port &lt; <span class="num">0</span> || cfg.Port > <span class="num">65535</span> {
+            t.<span class="fn">Errorf</span>(<span class="st">"invalid port: %d"</span>, cfg.Port)
+        }
+    })
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="scenarios">
+      <div class="section-title"><div class="title-bar"></div><h2>适用场景与局限</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>最适合 Fuzzing 的场景</h3><span class="badge badge-core">[工程实践]</span></div>
+        <div class="card-body">
+          <table class="compare-table">
+            <tr><th>场景</th><th>为什么适合</th><th>示例</th></tr>
+            <tr><td>数据格式解析</td><td>输入空间大，边界多</td><td>JSON、YAML、Protobuf、图片格式</td></tr>
+            <tr><td>编解码往返</td><td>简单不变量：decode(encode(x)) == x</td><td>Base64、URL encoding、gzip</td></tr>
+            <tr><td>协议实现</td><td>报文格式复杂，实现易错</td><td>HTTP 头解析、TLS 握手</td></tr>
+            <tr><td>密码学代码</td><td>输入微小变化导致完全不同结果</td><td>Hash 函数、签名验证</td></tr>
+            <tr><td>用户输入处理</td><td>攻击者可控，需要健壮性</td><td>搜索框、文件上传解析</td></tr>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>局限性</h3><span class="badge badge-warn">[注意]</span></div>
+        <div class="card-body">
+          <ul>
+            <li><strong>无法验证业务逻辑正确性</strong>：Fuzzing 只能发现 Panic、崩溃、超时，无法验证"转账后余额是否正确"</li>
+            <li><strong>需要好的 Seed Corpus</strong>：如果 seed corpus 太简单，fuzzer 难以突破输入验证层探索深层代码路径</li>
+            <li><strong>不适合有状态操作</strong>：每次 fuzz 调用应该是无副作用的（不写 DB、不修改全局状态）</li>
+            <li><strong>长尾 Bug</strong>：发现复杂的多步骤漏洞需要非常长的运行时间</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="qa">
+      <div class="section-title"><div class="title-bar"></div><h2>面试问答</h2></div>
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this)">Coverage-guided fuzzing 和随机 fuzzing 的区别？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">随机 fuzzing 直接生成完全随机的输入，大部分输入无法通过基础验证（如输入不是合法 JSON），浪费大量时间探索无效路径。Coverage-guided fuzzing（如 libFuzzer、Go fuzzing）在每次执行后收集代码覆盖率，保留那些触发了新代码路径的输入进行变异，优先探索未覆盖的代码区域。这样 fuzzer 可以"学习"输入格式，逐步穿透验证层，发现深层 Bug。效率比纯随机高 100-1000 倍。</div>
+      </div>
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this)">Seed Corpus 的质量为什么重要？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">Seed corpus 是 fuzzer 的起点，质量决定了 fuzzer 能探索多深。好的 seed corpus 应该：1) 包含能触发各种代码分支的有效输入；2) 包含边界值（空输入、最大值、特殊字符）；3) 包含以前发现过的 Bug 对应的输入（防回归）。Seed corpus 太简单会让 fuzzer 卡在输入验证层外面。例如对 HTTP parser fuzzing，seed corpus 应包含各种合法的 HTTP 请求格式。在 CI 中（<code>go test</code> 不带 -fuzz），只运行 seed corpus，起到普通单元测试的作用。</div>
+      </div>
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this)">在 CI 中如何集成模糊测试？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">两种常见策略：1) 在 CI 中运行 seed corpus（<code>go test ./...</code>，不带 -fuzz），把发现的崩溃输入文件提交到 <code>testdata/fuzz/</code> 目录，作为普通回归测试持续运行；2) 在 CI 中运行有时间限制的 fuzz（<code>go test -fuzz FuzzXxx -fuzztime 60s</code>），适合在 PR 时快速探索新代码路径。长时间的 fuzz 通常放在专门的 fuzz farm（持续运行的服务器，如 OSS-Fuzz）上，而不是普通 CI 流水线，因为真正有价值的 Bug 可能需要运行数小时才能发现。</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+<script>
+function toggleQA(el){el.parentElement.classList.toggle('open');}
+NavTracker.track({name:'模糊测试',href:'testing/fuzz-testing.html',icon:'🔀',cat:'测试工程'});
+</script>
+</body>
+</html>

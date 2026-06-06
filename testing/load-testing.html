@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="负载与压力测试：并发用户模型、P99 延迟百分位、吞吐量曲线，k6/wrk 工具和瓶颈识别方法论。">
+<link rel="canonical" href="https://melodycoder12345.github.io/testing/load-testing.html">
+<meta property="og:title" content="负载与压力测试 — 码海拾贝">
+<meta property="og:description" content="负载与压力测试：并发用户模型、P99 延迟百分位、吞吐量曲线，k6/wrk 工具和瓶颈识别方法论。">
+<meta property="og:url" content="https://melodycoder12345.github.io/testing/load-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="负载与压力测试 — 码海拾贝">
+<meta name="twitter:description" content="负载与压力测试：并发用户模型、P99 延迟百分位、吞吐量曲线，k6/wrk 工具和瓶颈识别方法论。">
+<title>负载与压力测试 - Testing 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#4ade80;--ok:#4ade80;--warn:#fbbf24;--err:#f87171;--blue:#38bdf8;--purple:#c084fc;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:radial-gradient(circle at 20% 0%,rgba(74,222,128,.08),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1300px;margin:0 auto;padding:40px 32px 80px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--dim2);margin-bottom:24px}
+.breadcrumb a{color:var(--dim2)}.breadcrumb a:hover{color:var(--text)}
+.page-title{font-size:clamp(1.6rem,3.5vw,2.8rem);letter-spacing:-.04em;margin-bottom:6px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{color:var(--dim);font-size:.95rem;margin-bottom:28px;max-width:680px;line-height:1.75}
+.layout{display:grid;grid-template-columns:240px 1fr;gap:20px;margin-bottom:40px}
+.left-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:18px;align-self:start;position:sticky;top:110px;}
+.left-panel h3{font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px}
+.tab-group{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.tab-btn{border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);color:var(--dim);border-radius:10px;padding:9px 12px;cursor:pointer;font-size:.8rem;text-align:left;transition:.15s;}
+.tab-btn:hover{border-color:rgba(74,222,128,.3);color:var(--text)}
+.tab-btn.active{background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.45);color:var(--text)}
+.tab-num{display:inline-block;width:18px;height:18px;border-radius:50%;background:rgba(74,222,128,.15);color:var(--accent);font-size:.65rem;font-weight:700;text-align:center;line-height:18px;margin-right:6px}
+.step-list{display:flex;flex-direction:column;gap:4px;margin-top:10px}
+.step-btn{width:100%;text-align:left;border:1px solid transparent;background:none;color:var(--dim);padding:8px 10px;border-radius:8px;cursor:pointer;font-size:.78rem;line-height:1.45;transition:.15s}
+.step-btn:hover{border-color:rgba(74,222,128,.25);color:var(--text)}
+.step-btn.active{background:rgba(74,222,128,.08);border-color:rgba(74,222,128,.35);color:var(--text)}
+.ctrl{display:flex;gap:7px;margin-top:14px;flex-wrap:wrap}
+.ctrl button{flex:1;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:9px;padding:8px 4px;cursor:pointer;font-size:.74rem;transition:.15s;min-width:0}
+.ctrl button:hover{border-color:var(--accent);color:var(--text)}
+.center-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:24px;display:flex;flex-direction:column;gap:16px;min-height:600px}
+.step-msg{border-left:3px solid var(--accent);background:rgba(74,222,128,.05);border-radius:0 10px 10px 0;padding:10px 14px;font-size:.86rem;color:var(--text);line-height:1.7}
+/* Viz */
+.viz-area{position:relative;height:280px;border:1px solid rgba(255,255,255,.06);border-radius:12px;background:rgba(15,23,42,.5);overflow:hidden}
+svg.viz-svg{width:100%;height:100%}
+/* Metrics row */
+.metrics-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.metric-card{border:1px solid rgba(255,255,255,.07);background:rgba(30,41,59,.5);border-radius:10px;padding:10px 12px;text-align:center;transition:all .4s}
+.metric-label{font-size:.66rem;color:var(--dim2);margin-bottom:4px}
+.metric-value{font-size:1.3rem;font-weight:700;font-family:monospace;transition:color .4s}
+.metric-sub{font-size:.62rem;color:var(--dim2);margin-top:2px}
+.metric-card.ok .metric-value{color:var(--ok)}
+.metric-card.warn .metric-value{color:var(--warn)}
+.metric-card.err .metric-value{color:var(--err)}
+/* Percentile bars */
+.perc-bars{display:flex;flex-direction:column;gap:6px}
+.perc-row{display:flex;align-items:center;gap:8px;font-size:.76rem}
+.perc-label{width:38px;color:var(--dim);font-family:monospace;flex-shrink:0}
+.perc-track{flex:1;height:14px;background:rgba(255,255,255,.05);border-radius:4px;overflow:hidden}
+.perc-fill{height:100%;border-radius:4px;transition:width .6s ease,background .6s}
+.perc-val{width:52px;text-align:right;font-family:monospace;color:var(--dim);font-size:.76rem;flex-shrink:0}
+/* Concept cards */
+.concept-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:16px 0}
+.concept-card{border:1px solid rgba(255,255,255,.07);background:rgba(30,41,59,.4);border-radius:12px;padding:16px}
+.concept-card h4{font-size:.9rem;font-weight:700;margin-bottom:8px;color:var(--text)}
+.concept-card p{font-size:.8rem;color:var(--dim);line-height:1.65}
+pre{background:#0d1117;border:1px solid #334155;border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.75rem;line-height:1.65;margin:10px 0}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.pkg{color:#ffa657}
+.section-hd{font-size:1.1rem;font-weight:700;margin:28px 0 14px;border-left:3px solid var(--accent);padding-left:10px}
+.info-table{width:100%;border-collapse:collapse;font-size:.82rem;margin:10px 0}
+.info-table th{padding:8px 12px;background:rgba(74,222,128,.06);color:var(--accent);text-align:left;border-bottom:1px solid #334155}
+.info-table td{padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--dim)}
+.info-table td:first-child{color:var(--text);font-weight:600}
+@media(max-width:900px){.layout{grid-template-columns:1fr}.left-panel{position:static}.metrics-row{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">测试工程</a><span>/</span>负载与压力测试</div>
+  <h1 class="page-title">⚡ 负载与压力测试</h1>
+  <p class="subtitle">通过模拟真实并发流量发现系统容量极限。负载测试确认正常流量下的性能基线；压力测试把系统推向极限，观察何处先断裂；浸泡测试验证系统在持续负载下的稳定性。</p>
+
+  <div class="layout">
+    <div class="left-panel">
+      <h3>场景</h3>
+      <div class="tab-group">
+        <button class="tab-btn active" onclick="switchTab(0)"><span class="tab-num">1</span>正常负载</button>
+        <button class="tab-btn" onclick="switchTab(1)"><span class="tab-num">2</span>压力峰值</button>
+        <button class="tab-btn" onclick="switchTab(2)"><span class="tab-num">3</span>线程池耗尽</button>
+        <button class="tab-btn" onclick="switchTab(3)"><span class="tab-num">4</span>限流触发</button>
+      </div>
+      <h3>步骤</h3>
+      <div class="step-list" id="stepList"></div>
+      <div class="ctrl">
+        <button onclick="prev()">◀ 上一步</button>
+        <button onclick="next()">下一步 ▶</button>
+        <button onclick="resetAnim()">↺ 重置</button>
+        <button id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      </div>
+    </div>
+
+    <div class="center-panel">
+      <div class="step-msg" id="stepMsg">选择场景，点击"下一步"观察负载测试过程。</div>
+      <div class="viz-area">
+        <svg class="viz-svg" id="vizSvg" viewBox="0 0 700 260"></svg>
+      </div>
+      <div class="metrics-row" id="metricsRow">
+        <div class="metric-card ok" id="m-rps"><div class="metric-label">RPS</div><div class="metric-value" id="v-rps">0</div><div class="metric-sub">req/s</div></div>
+        <div class="metric-card ok" id="m-p50"><div class="metric-label">P50 延迟</div><div class="metric-value" id="v-p50">—</div><div class="metric-sub">ms</div></div>
+        <div class="metric-card ok" id="m-p99"><div class="metric-label">P99 延迟</div><div class="metric-value" id="v-p99">—</div><div class="metric-sub">ms</div></div>
+        <div class="metric-card ok" id="m-err"><div class="metric-label">错误率</div><div class="metric-value" id="v-err">0%</div><div class="metric-sub"></div></div>
+        <div class="metric-card ok" id="m-queue"><div class="metric-label">队列深度</div><div class="metric-value" id="v-queue">0</div><div class="metric-sub"></div></div>
+      </div>
+      <div class="perc-bars" id="percBars">
+        <div class="perc-row"><span class="perc-label">P50</span><div class="perc-track"><div class="perc-fill" id="pf50" style="width:0%;background:var(--ok)"></div></div><span class="perc-val" id="pv50">—</span></div>
+        <div class="perc-row"><span class="perc-label">P75</span><div class="perc-track"><div class="perc-fill" id="pf75" style="width:0%;background:var(--ok)"></div></div><span class="perc-val" id="pv75">—</span></div>
+        <div class="perc-row"><span class="perc-label">P95</span><div class="perc-track"><div class="perc-fill" id="pf95" style="width:0%;background:var(--ok)"></div></div><span class="perc-val" id="pv95">—</span></div>
+        <div class="perc-row"><span class="perc-label">P99</span><div class="perc-track"><div class="perc-fill" id="pf99" style="width:0%;background:var(--ok)"></div></div><span class="perc-val" id="pv99">—</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Concept Section -->
+  <div class="section-hd">测试类型区别</div>
+  <div class="concept-grid">
+    <div class="concept-card">
+      <h4>负载测试（Load Test）</h4>
+      <p>在<strong>预期正常流量</strong>下运行，验证系统达到性能目标（P99 &lt; 200ms，错误率 &lt; 0.1%）。确立基线，证明系统在日常场景下表现良好。</p>
+    </div>
+    <div class="concept-card">
+      <h4>压力测试（Stress Test）</h4>
+      <p>持续<strong>增加负载直至系统降级</strong>，找到断裂点（breaking point）。关注问题：哪里先崩溃？是 CPU、内存、连接池还是数据库？</p>
+    </div>
+    <div class="concept-card">
+      <h4>浸泡测试（Soak Test）</h4>
+      <p>在<strong>中等负载下运行数小时到数天</strong>，发现缓慢内存泄漏、连接泄漏、日志文件积累等随时间累积的问题。</p>
+    </div>
+    <div class="concept-card">
+      <h4>峰值测试（Spike Test）</h4>
+      <p>模拟<strong>突然爆发的流量洪峰</strong>（秒杀、热点事件），验证系统能否快速扩容、降级和恢复，而不是崩溃。</p>
+    </div>
+  </div>
+
+  <div class="section-hd">延迟百分位（Percentiles）</div>
+  <div class="concept-grid">
+    <div class="concept-card">
+      <h4>为什么不用平均延迟？</h4>
+      <p>平均值会被少量极端慢请求稀释。假设 99 个请求 10ms，1 个请求 10000ms，平均值是 110ms，但 99% 的用户体验是 10ms，1% 的用户感知到 10s。</p>
+    </div>
+    <div class="concept-card">
+      <h4>P99 的含义</h4>
+      <p>P99 = 第 99 百分位延迟：100 个请求中最慢的那 1 个的耗时。P99 &lt; 500ms 意味着 99% 的请求都在 500ms 内完成。SLO 通常用 P99 而非平均值定义。</p>
+    </div>
+    <div class="concept-card">
+      <h4>长尾延迟（Long Tail）</h4>
+      <p>在微服务调用链中，多个服务的 P99 会<strong>累乘</strong>：10 个服务各有 1% 慢请求，串行调用时约有 10% 的请求会遇到至少一个慢服务，使得整体 P99 恶化。</p>
+    </div>
+  </div>
+
+  <div class="section-hd">k6 测试脚本</div>
+<pre><span class="cm">// k6 负载测试脚本示例</span>
+<span class="kw">import</span> http <span class="kw">from</span> <span class="st">'k6/http'</span>;
+<span class="kw">import</span> { sleep, check } <span class="kw">from</span> <span class="st">'k6'</span>;
+<span class="kw">import</span> { Rate } <span class="kw">from</span> <span class="st">'k6/metrics'</span>;
+
+<span class="kw">const</span> errorRate = <span class="kw">new</span> <span class="fn">Rate</span>(<span class="st">'errors'</span>);
+
+<span class="cm">// 负载阶段：ramp up → 稳定 → ramp down</span>
+<span class="kw">export const</span> options = {
+  stages: [
+    { duration: <span class="st">'2m'</span>, target: <span class="num">100</span> },   <span class="cm">// 爬坡到 100 VU</span>
+    { duration: <span class="st">'5m'</span>, target: <span class="num">100</span> },   <span class="cm">// 稳定 5 分钟</span>
+    { duration: <span class="st">'1m'</span>, target: <span class="num">0</span>   },   <span class="cm">// 缩减到 0</span>
+  ],
+  thresholds: {
+    http_req_duration: [<span class="st">'p(99)&lt;500'</span>],   <span class="cm">// P99 必须 &lt; 500ms</span>
+    errors:            [<span class="st">'rate&lt;0.01'</span>],    <span class="cm">// 错误率 &lt; 1%</span>
+  },
+};
+
+<span class="kw">export default function</span>() {
+  <span class="kw">const</span> res = http.<span class="fn">get</span>(<span class="st">'https://api.example.com/users'</span>);
+  <span class="fn">check</span>(res, {
+    <span class="st">'status 200'</span>: (r) => r.status === <span class="num">200</span>,
+    <span class="st">'latency ok'</span>: (r) => r.timings.duration &lt; <span class="num">500</span>,
+  }) || errorRate.<span class="fn">add</span>(<span class="num">1</span>);
+  <span class="fn">sleep</span>(<span class="num">1</span>);  <span class="cm">// 模拟真实用户思考时间</span>
+}</pre>
+
+  <div class="section-hd">瓶颈识别方法论</div>
+  <table class="info-table">
+    <tr><th>现象</th><th>可能瓶颈</th><th>验证方法</th></tr>
+    <tr><td>CPU 100%，延迟线性增长</td><td>计算密集型代码或序列化</td><td>pprof CPU Profile，看热点函数</td></tr>
+    <tr><td>延迟不规律，时好时坏</td><td>GC 停顿 / 锁竞争</td><td>pprof GC trace，mutex profile</td></tr>
+    <tr><td>连接拒绝 / 超时</td><td>连接池耗尽（DB/Redis）</td><td>监控连接池 active/idle 计数</td></tr>
+    <tr><td>内存持续增长</td><td>泄漏（goroutine/连接/缓存）</td><td>pprof heap profile，goleak</td></tr>
+    <tr><td>P99 飙升但 P50 正常</td><td>长尾请求（锁等待/慢查询）</td><td>慢查询日志，分布式追踪</td></tr>
+    <tr><td>下游超时串联</td><td>级联雪崩（无熔断器）</td><td>检查 timeout 配置，补充熔断器</td></tr>
+  </table>
+</main>
+
+<script>
+const TABS = [
+  {
+    name: '正常负载',
+    steps: [
+      { msg: '启动 k6：设置 50 个虚拟用户（VU），模拟正常业务流量。每个 VU 持续发送 GET /api/users 请求。', rps: 250, p50: 18, p75: 28, p95: 45, p99: 72, err: '0%', queue: 0, phase: 'normal' },
+      { msg: '请求到达服务器。Worker 线程池有 100 个线程，当前使用 50 个，还有大量余量。请求直接被处理。', rps: 280, p50: 20, p75: 30, p95: 48, p99: 75, err: '0%', queue: 0, phase: 'normal' },
+      { msg: '负载稳定运行 5 分钟。延迟百分位非常稳定：P50=20ms，P99=75ms。全部在 SLO 阈值（P99<200ms）以内。', rps: 300, p50: 22, p75: 32, p95: 50, p99: 78, err: '0%', queue: 0, phase: 'normal' },
+      { msg: '✅ 正常负载测试通过。系统在 50 VU 下 P99=78ms，错误率 0%，完全满足性能目标。这是系统的性能基线。', rps: 300, p50: 22, p75: 32, p95: 50, p99: 78, err: '0%', queue: 0, phase: 'normal' }
+    ]
+  },
+  {
+    name: '压力峰值',
+    steps: [
+      { msg: '压力测试开始：VU 从 50 快速爬坡到 500。请求量显著增加，系统开始承压。', rps: 800, p50: 35, p75: 65, p95: 150, p99: 280, err: '0.2%', queue: 5, phase: 'stress' },
+      { msg: 'VU 达到 500，RPS 超过 1200。延迟开始上升：P99 突破 400ms，队列深度开始累积。CPU 使用率 78%。', rps: 1200, p50: 55, p75: 110, p95: 320, p99: 480, err: '0.8%', queue: 18, phase: 'stress' },
+      { msg: '⚠ VU 继续增加到 800。P99 突破 SLO 阈值（>500ms）。队列不断堆积，部分请求超时，错误率上升到 3%。', rps: 1400, p50: 95, p75: 220, p95: 580, p99: 920, err: '3.2%', queue: 45, phase: 'warn' },
+      { msg: '🔴 系统达到断裂点（Breaking Point）：P99=2100ms，错误率 18%。数据库连接池耗尽，请求被拒绝。需要扩容或增加连接池大小。', rps: 1100, p50: 180, p75: 450, p95: 1400, p99: 2100, err: '18%', queue: 120, phase: 'error' }
+    ]
+  },
+  {
+    name: '线程池耗尽',
+    steps: [
+      { msg: '服务配置了 HTTP 处理 Goroutine 池上限。初始状态：50 个活跃 goroutine，300 个 goroutine 空闲。请求正常处理。', rps: 400, p50: 25, p75: 40, p95: 70, p99: 110, err: '0%', queue: 2, phase: 'normal' },
+      { msg: '请求突然激增，活跃 goroutine 快速上升到 200。服务器内存开始增加，延迟略有上升。', rps: 700, p50: 45, p75: 90, p95: 200, p99: 380, err: '0.1%', queue: 30, phase: 'stress' },
+      { msg: '⚠ Goroutine 数量达到上限（10000）。新请求开始进入等待队列。队列深度超过 200，等待时间加入到总延迟中，P99 急剧上升。', rps: 500, p50: 220, p75: 480, p95: 1200, p99: 2800, err: '5%', queue: 280, phase: 'warn' },
+      { msg: '🔴 队列溢出。当队列达到上限，服务器开始直接返回 503 Service Unavailable。修复：增大 goroutine 池、添加背压机制、限制入口流量。', rps: 300, p50: 400, p75: 800, p95: 2000, p99: 5000, err: '42%', queue: 500, phase: 'error' }
+    ]
+  },
+  {
+    name: '限流触发',
+    steps: [
+      { msg: '系统配置了基于令牌桶的限流器：每秒允许 500 个请求。当前 RPS=200，令牌充足，全部请求通过。', rps: 200, p50: 22, p75: 35, p95: 58, p99: 90, err: '0%', queue: 0, phase: 'normal' },
+      { msg: '流量激增到 800 RPS，超过限流阈值（500 RPS）。限流器开始拦截超量请求，返回 429 Too Many Requests。', rps: 500, p50: 22, p75: 35, p95: 60, p99: 95, err: '37%', queue: 0, phase: 'warn' },
+      { msg: '✅ 被限流的请求立即得到 429 响应（&lt;1ms），不占用服务资源。被允许通过的 500 RPS 延迟完全正常。限流器保护了系统稳定性。', rps: 500, p50: 22, p75: 36, p95: 62, p99: 98, err: '37%', queue: 0, phase: 'limit' },
+      { msg: '流量恢复到正常水平。令牌桶重新填满。✅ 关键结论：正确的限流设计下，P50/P99 延迟完全不受超量流量影响，只有超额请求快速失败（Fail Fast）。', rps: 210, p50: 20, p75: 32, p95: 55, p99: 88, err: '0%', queue: 0, phase: 'normal' }
+    ]
+  }
+];
+
+let curTab = 0, curStep = 0, playing = false, timer = null;
+
+function switchTab(t) {
+  curTab = t; curStep = 0;
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i===t));
+  renderStepList(); applyStep(0);
+}
+
+function renderStepList() {
+  const list = document.getElementById('stepList');
+  list.innerHTML = '';
+  TABS[curTab].steps.forEach((s,i) => {
+    const b = document.createElement('button');
+    b.className = 'step-btn' + (i===curStep ? ' active' : '');
+    b.textContent = `${i+1}. ${s.msg.substring(0,30)}...`;
+    b.onclick = () => { curStep=i; renderStepList(); applyStep(i); };
+    list.appendChild(b);
+  });
+}
+
+function applyStep(idx) {
+  const s = TABS[curTab].steps[idx];
+  document.getElementById('stepMsg').textContent = s.msg;
+  setMetric('rps', s.rps, s.phase);
+  setMetric('p50', s.p50+'ms', s.phase);
+  setMetric('p99', s.p99+'ms', s.phase==='error'?'err':s.phase==='warn'?'warn':'ok');
+  setMetric('err', s.err, s.err==='0%'?'ok':parseFloat(s.err)>5?'err':'warn');
+  setMetric('queue', s.queue, s.queue===0?'ok':s.queue>100?'err':'warn');
+  setPercentiles(s);
+  drawViz(s);
+  document.querySelectorAll('.step-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+}
+
+function setMetric(id, val, phase) {
+  const card = document.getElementById('m-'+id);
+  const valEl = document.getElementById('v-'+id);
+  card.className = 'metric-card ' + (phase==='error'||phase==='err'?'err':phase==='warn'||phase==='limit'?'warn':'ok');
+  valEl.textContent = val;
+}
+
+function setPercentiles(s) {
+  const max = Math.max(s.p99, 200);
+  const items = [{id:'50',v:s.p50},{id:'75',v:s.p75},{id:'95',v:s.p95},{id:'99',v:s.p99}];
+  items.forEach(item => {
+    const pct = Math.min(100, item.v / max * 100);
+    const fill = document.getElementById('pf'+item.id);
+    const val  = document.getElementById('pv'+item.id);
+    fill.style.width = pct + '%';
+    const color = item.v > 1000 ? 'var(--err)' : item.v > 300 ? 'var(--warn)' : 'var(--ok)';
+    fill.style.background = color;
+    val.textContent = item.v + 'ms';
+    val.style.color = color;
+  });
+}
+
+function drawViz(s) {
+  const svg = document.getElementById('vizSvg');
+  svg.innerHTML = '';
+  const W=700, H=260;
+
+  // Background grid
+  for(let x=50;x<W;x+=80){line(svg,x,0,x,H,'rgba(255,255,255,.04)')}
+  for(let y=40;y<H;y+=60){line(svg,0,y,W,y,'rgba(255,255,255,.04)')}
+
+  // Draw server box
+  const sX=310, sY=90, sW=80, sH=80;
+  rect(svg, sX, sY, sW, sH, 'rgba(30,41,59,.9)', 'rgba(74,222,128,.5)', 8);
+  text(svg, sX+sW/2, sY+sH/2-8, '🖥', 20, '#fff', 'middle');
+  text(svg, sX+sW/2, sY+sH/2+14, 'Server', 11, '#94a3b8', 'middle');
+
+  // CPU bar
+  const cpuPct = Math.min(95, s.rps / 20);
+  const cpuColor = cpuPct > 80 ? '#f87171' : cpuPct > 60 ? '#fbbf24' : '#4ade80';
+  rect(svg, sX+4, sY+sH+6, sW-8, 10, 'rgba(255,255,255,.06)', 'none', 3);
+  rect(svg, sX+4, sY+sH+6, Math.max(2,(sW-8)*cpuPct/100), 10, cpuColor, 'none', 3);
+  text(svg, sX+sW/2, sY+sH+22, `CPU ${Math.round(cpuPct)}%`, 9, '#94a3b8', 'middle');
+
+  // Incoming requests (left side)
+  const numReqs = Math.min(12, Math.ceil(s.rps / 100));
+  const colors = s.phase==='error'?['#f87171','#fbbf24']:s.phase==='warn'?['#fbbf24','#4ade80']:['#4ade80','#38bdf8'];
+  for(let i=0;i<numReqs;i++){
+    const y = 30 + i*(200/numReqs);
+    const xOff = (i%3) * 8;
+    const clr = colors[i%2];
+    circle(svg, 80+xOff, y, 7, clr, 'rgba(0,0,0,.3)');
+    arrowLine(svg, 95+xOff, y, sX-4, 90+((i/numReqs)*80), clr, 0.5);
+  }
+  text(svg, 50, 140, `${s.rps} RPS`, 12, '#94a3b8', 'middle');
+  text(svg, 50, 155, '→ 请求', 11, '#64748b', 'middle');
+
+  // Queue visualization
+  const queueLen = Math.min(8, Math.ceil(s.queue / 40));
+  if(s.queue > 0){
+    text(svg, sX+sW/2, sY-20, `队列: ${s.queue}`, 10, s.queue>100?'#f87171':'#fbbf24', 'middle');
+    for(let i=0;i<queueLen;i++){
+      rect(svg, sX+sW+6+(i*12), sY+20, 10, 10, s.queue>100?'rgba(248,113,113,.3)':'rgba(251,191,36,.3)',
+           s.queue>100?'#f87171':'#fbbf24', 2);
+    }
+  }
+
+  // Response arrows (right side)
+  const numResp = s.phase==='error' ? Math.ceil(numReqs*0.4) : s.phase==='warn' ? Math.ceil(numReqs*0.75) : numReqs;
+  const respClr = s.phase==='error'?'#f87171':s.phase==='warn'?'#fbbf24':'#4ade80';
+  for(let i=0;i<numResp;i++){
+    const y = 35 + i*(190/Math.max(1,numResp));
+    arrowLine(svg, sX+sW+4, 90+(i*80/(numResp)), 610, y, respClr, 0.5);
+    circle(svg, 620, y, 5, respClr, 'rgba(0,0,0,.3)');
+  }
+  // Error responses
+  const numErrs = numReqs - numResp;
+  for(let i=0;i<numErrs;i++){
+    const y = 40 + i*30;
+    text(svg, 615, 50+i*35, '429/503', 9, '#f87171', 'middle');
+  }
+  const latLabel = s.phase==='error'?`P99: ${s.p99}ms ⚠`:s.phase==='warn'?`P99: ${s.p99}ms`:(`P99: ${s.p99}ms ✓`);
+  const latColor = s.phase==='error'?'#f87171':s.phase==='warn'?'#fbbf24':'#4ade80';
+  text(svg, 640, 140, latLabel, 11, latColor, 'middle');
+  text(svg, 640, 155, '← 响应', 11, '#64748b', 'middle');
+}
+
+function line(svg,x1,y1,x2,y2,stroke){const el=document.createElementNS('http://www.w3.org/2000/svg','line');el.setAttribute('x1',x1);el.setAttribute('y1',y1);el.setAttribute('x2',x2);el.setAttribute('y2',y2);el.setAttribute('stroke',stroke);el.setAttribute('stroke-width','1');svg.appendChild(el);}
+function rect(svg,x,y,w,h,fill,stroke,rx){const el=document.createElementNS('http://www.w3.org/2000/svg','rect');el.setAttribute('x',x);el.setAttribute('y',y);el.setAttribute('width',w);el.setAttribute('height',h);el.setAttribute('fill',fill);el.setAttribute('stroke',stroke||'none');el.setAttribute('rx',rx||0);svg.appendChild(el);}
+function circle(svg,cx,cy,r,fill,stroke){const el=document.createElementNS('http://www.w3.org/2000/svg','circle');el.setAttribute('cx',cx);el.setAttribute('cy',cy);el.setAttribute('r',r);el.setAttribute('fill',fill);el.setAttribute('stroke',stroke||'none');el.setAttribute('stroke-width','1');svg.appendChild(el);}
+function text(svg,x,y,t,size,fill,anchor){const el=document.createElementNS('http://www.w3.org/2000/svg','text');el.setAttribute('x',x);el.setAttribute('y',y);el.setAttribute('font-size',size);el.setAttribute('fill',fill);el.setAttribute('text-anchor',anchor||'start');el.setAttribute('font-family','monospace');el.textContent=t;svg.appendChild(el);}
+function arrowLine(svg,x1,y1,x2,y2,color,opacity){const el=document.createElementNS('http://www.w3.org/2000/svg','line');el.setAttribute('x1',x1);el.setAttribute('y1',y1);el.setAttribute('x2',x2);el.setAttribute('y2',y2);el.setAttribute('stroke',color);el.setAttribute('stroke-width','1.5');el.setAttribute('opacity',opacity||1);svg.appendChild(el);}
+
+function next(){ if(curStep<TABS[curTab].steps.length-1){curStep++;renderStepList();applyStep(curStep);} }
+function prev(){ if(curStep>0){curStep--;renderStepList();applyStep(curStep);} }
+function resetAnim(){ curStep=0;renderStepList();applyStep(0);stopPlay(); }
+function togglePlay(){
+  if(playing){stopPlay();}
+  else{
+    playing=true;document.getElementById('playBtn').textContent='⏸ 暂停';
+    timer=setInterval(()=>{
+      if(curStep<TABS[curTab].steps.length-1){next();}
+      else{stopPlay();}
+    },2200);
+  }
+}
+function stopPlay(){playing=false;if(timer)clearInterval(timer);document.getElementById('playBtn').textContent='▶ 播放';}
+
+renderStepList();
+applyStep(0);
+NavTracker.track({name:'负载与压力测试',href:'testing/load-testing.html',icon:'⚡',cat:'测试工程'});
+</script>
+</body>
+</html>

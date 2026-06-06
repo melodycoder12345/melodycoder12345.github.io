@@ -6,7 +6,7 @@
 
   const H = 44;
   const RKEY = 'recentPages_v2';
-  const MODULE_RE = '(algo|db|kafka|redis|linux|network|cs|golang|distributed|ai|system-design|cloud-native|observability|security)';
+  const MODULE_RE = '(algo|db|kafka|redis|linux|network|cs|golang|distributed|ai|system-design|cloud-native|observability|security|testing)';
   const MODULE_PATH_RE = new RegExp('/' + MODULE_RE + '/');
   const HOME = MODULE_PATH_RE.test(window.location.pathname) ? '../index.html' : 'index.html';
   const ROOT = HOME.replace(/index\.html$/, '');
@@ -219,7 +219,7 @@ body.sn-legacy-wrapped .sn-legacy-code{width:390px;min-width:390px;overflow:auto
       list.appendChild(empty);
       return;
     }
-    const cc = { '算法': '#38bdf8', '数据库': '#fbbf24', 'Kafka': '#ff6b35', 'Redis': '#ef4444', 'Linux': '#6ee7b7', '网络': '#10b981', '组成原理': '#a78bfa', 'Golang': '#00add8', '分布式': '#c084fc', 'AI 系统': '#8b5cf6', '系统设计': '#f59e0b', '概念': '#c084fc' };
+    const cc = { '算法': '#38bdf8', '数据库': '#fbbf24', 'Kafka': '#ff6b35', 'Redis': '#ef4444', 'Linux': '#6ee7b7', '网络': '#10b981', '组成原理': '#a78bfa', 'Golang': '#00add8', '分布式': '#c084fc', 'AI 系统': '#8b5cf6', '系统设计': '#f59e0b', '概念': '#c084fc', '测试工程': '#4ade80' };
     items.forEach(function (r) {
       const item = d.createElement('a');
       item.className = 'sn-item';
@@ -429,7 +429,8 @@ body.sn-legacy-wrapped .sn-legacy-code{width:390px;min-width:390px;overflow:auto
       'system-design': { label: '系统设计', href: 'index.html' },
       'cloud-native': { label: '云原生', href: 'index.html' },
       observability: { label: '可观测性', href: 'index.html' },
-      security: { label: '安全基础', href: 'index.html' }
+      security: { label: '安全基础', href: 'index.html' },
+      testing: { label: '测试工程', href: 'index.html' }
     };
     return match ? map[match[1]] : null;
   }

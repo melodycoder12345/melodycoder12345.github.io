@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Test Doubles 五种类型：Dummy/Stub/Fake/Spy/Mock 的精确区别，接口驱动 Mock 设计，gomock 和 testify 工程实践。">
+<link rel="canonical" href="https://melodycoder12345.github.io/testing/mock-stub.html">
+<meta property="og:title" content="Mock / Stub / Spy — 码海拾贝">
+<meta property="og:description" content="Test Doubles 五种类型：Dummy/Stub/Fake/Spy/Mock 的精确区别，接口驱动 Mock 设计，gomock 和 testify 工程实践。">
+<meta property="og:url" content="https://melodycoder12345.github.io/testing/mock-stub.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Mock / Stub / Spy — 码海拾贝">
+<meta name="twitter:description" content="Test Doubles 五种类型：Dummy/Stub/Fake/Spy/Mock 的精确区别，接口驱动 Mock 设计，gomock 和 testify 工程实践。">
+<title>Mock / Stub / Spy - Testing 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#4ade80;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:44px;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:116px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.side-nav a.active{color:var(--accent);background:rgba(74,222,128,.08);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(74,222,128,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(74,222,128,.12);color:var(--accent);border:1px solid rgba(74,222,128,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.badge-warn{background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(74,222,128,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(74,222,128,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+.doubles-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:14px 0;}
+.double-card{border:1px solid var(--border2);border-radius:10px;padding:14px;background:rgba(255,255,255,.02);}
+.double-card h4{font-size:.88rem;font-weight:700;margin-bottom:6px;}
+.double-card p{font-size:.78rem;color:var(--dim);line-height:1.6;}
+.double-dummy h4{color:#94a3b8;}
+.double-stub h4{color:#38bdf8;}
+.double-fake h4{color:#fbbf24;}
+.double-spy h4{color:#c084fc;}
+.double-mock h4{color:#4ade80;}
+.compare-table{width:100%;border-collapse:collapse;font-size:.82rem;margin:10px 0;}
+.compare-table th{padding:8px 12px;background:rgba(74,222,128,.06);color:var(--accent);font-weight:700;text-align:left;border-bottom:1px solid var(--border2);}
+.compare-table td{padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--dim);}
+.compare-table tr:last-child td{border-bottom:none;}
+.compare-table td:first-child{color:var(--text);font-weight:600;}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}.doubles-grid{grid-template-columns:1fr 1fr;}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">🎭 Mock / Stub / Spy</span>
+  <div class="nav-tags">
+    <span class="ntag">test doubles</span>
+    <span class="ntag">gomock</span>
+    <span class="ntag">testify</span>
+    <span class="ntag">interface</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <nav class="side-nav">
+    <ul>
+      <li><a href="#concept">Test Doubles</a></li>
+      <li><a href="#five-types">五种类型</a></li>
+      <li><a href="#interface">接口设计</a></li>
+      <li><a href="#gomock">gomock</a></li>
+      <li><a href="#testify">testify</a></li>
+      <li><a href="#antipatterns">过度 Mock</a></li>
+      <li><a href="#qa">面试问答</a></li>
+    </ul>
+  </nav>
+  <main class="main-content">
+
+    <div class="section" id="concept">
+      <div class="section-title"><div class="title-bar"></div><h2>什么是 Test Doubles</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>替身的本质</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>Test Double 是 Gerard Meszaros 在《xUnit Test Patterns》中定义的术语，指代替生产代码中真实依赖的所有测试用替代品。就像电影中的"替身演员"（stunt double）。</p>
+          <p>使用 Test Doubles 的核心原因：<strong>外部依赖（数据库、HTTP 服务、时钟）让单元测试变慢、不稳定、难以控制</strong>。通过替身，我们可以：</p>
+          <ul>
+            <li>隔离被测代码，让测试只验证它自己的逻辑</li>
+            <li>控制依赖的返回值，覆盖难以触发的错误路径</li>
+            <li>让测试在毫秒级内完成，不依赖外部状态</li>
+            <li>验证被测代码如何与依赖交互（调用次数、参数）</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="five-types">
+      <div class="section-title"><div class="title-bar"></div><h2>五种 Test Doubles 类型</h2></div>
+      <div class="doubles-grid">
+        <div class="double-card double-dummy">
+          <h4>Dummy</h4>
+          <p>只是传递，从不使用。填充方法签名中必须的参数，但测试不会触发它。</p>
+        </div>
+        <div class="double-card double-stub">
+          <h4>Stub</h4>
+          <p>提供预设返回值。不关心调用方式，只返回固定答案供被测代码消费。</p>
+        </div>
+        <div class="double-card double-fake">
+          <h4>Fake</h4>
+          <p>有真实可工作的实现，但走捷径。例如内存数据库替代真实 DB，行为正确但不生产级。</p>
+        </div>
+        <div class="double-card double-spy">
+          <h4>Spy</h4>
+          <p>记录调用信息（参数、次数）供事后验证，可以有部分真实实现。</p>
+        </div>
+        <div class="double-card double-mock">
+          <h4>Mock</h4>
+          <p>预先设定期望（expect），如果调用不符合预期则测试立即失败。最严格的替身。</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h3>五种类型对比</h3></div>
+        <div class="card-body">
+          <table class="compare-table">
+            <tr><th>类型</th><th>有实现逻辑</th><th>预设返回值</th><th>验证调用</th><th>典型用途</th></tr>
+            <tr><td>Dummy</td><td>无</td><td>无</td><td>无</td><td>填充必须参数（日志器、无用上下文）</td></tr>
+            <tr><td>Stub</td><td>最小</td><td>是（固定）</td><td>无</td><td>控制 HTTP 响应、DB 查询结果</td></tr>
+            <tr><td>Fake</td><td>完整可用</td><td>动态</td><td>无</td><td>内存 DB、内存消息队列</td></tr>
+            <tr><td>Spy</td><td>可选</td><td>可选</td><td>事后检查</td><td>验证邮件服务被调用了几次</td></tr>
+            <tr><td>Mock</td><td>无</td><td>是（预设）</td><td>预先期望</td><td>严格验证交互协议</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd"><h3>代码示例：五种类型的 Go 实现</h3></div>
+        <div class="card-body">
+<pre><span class="kw">type</span> <span class="pkg">EmailSender</span> <span class="kw">interface</span> {
+    <span class="fn">Send</span>(to, subject, body <span class="pkg">string</span>) <span class="pkg">error</span>
+}
+
+<span class="cm">// Dummy：从不被调用，只是满足接口</span>
+<span class="kw">type</span> <span class="pkg">DummyEmailSender</span> <span class="kw">struct</span>{}
+<span class="kw">func</span> (d *<span class="pkg">DummyEmailSender</span>) <span class="fn">Send</span>(to, subject, body <span class="pkg">string</span>) <span class="pkg">error</span> { <span class="kw">return nil</span> }
+
+<span class="cm">// Stub：永远返回固定值</span>
+<span class="kw">type</span> <span class="pkg">StubEmailSender</span> <span class="kw">struct</span>{ err <span class="pkg">error</span> }
+<span class="kw">func</span> (s *<span class="pkg">StubEmailSender</span>) <span class="fn">Send</span>(to, subject, body <span class="pkg">string</span>) <span class="pkg">error</span> { <span class="kw">return</span> s.err }
+
+<span class="cm">// Fake：内存实现，行为真实但不持久化</span>
+<span class="kw">type</span> <span class="pkg">FakeEmailSender</span> <span class="kw">struct</span>{ Sent []<span class="pkg">string</span> }
+<span class="kw">func</span> (f *<span class="pkg">FakeEmailSender</span>) <span class="fn">Send</span>(to, subject, body <span class="pkg">string</span>) <span class="pkg">error</span> {
+    f.Sent = <span class="fn">append</span>(f.Sent, to)
+    <span class="kw">return nil</span>
+}
+
+<span class="cm">// Spy：记录调用，事后可检查</span>
+<span class="kw">type</span> <span class="pkg">SpyEmailSender</span> <span class="kw">struct</span>{
+    calls <span class="pkg">int</span>
+    lastTo <span class="pkg">string</span>
+}
+<span class="kw">func</span> (s *<span class="pkg">SpyEmailSender</span>) <span class="fn">Send</span>(to, subject, body <span class="pkg">string</span>) <span class="pkg">error</span> {
+    s.calls++
+    s.lastTo = to
+    <span class="kw">return nil</span>
+}
+
+<span class="cm">// Mock：由框架生成，预设期望，不符则立即失败</span>
+<span class="cm">// mockEmailSender.EXPECT().Send("alice@x.com", gomock.Any(), gomock.Any()).Return(nil).Times(1)</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="interface">
+      <div class="section-title"><div class="title-bar"></div><h2>接口驱动设计 —— 让 Mock 成为可能</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>依赖接口而非实现</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>Go 中 Mock 的前提是：<strong>被测代码依赖接口而非具体类型</strong>。如果 Service 直接持有 <code>*sql.DB</code>，则无法替换；如果依赖 <code>UserRepository</code> 接口，则可以注入任意实现。</p>
+<pre><span class="cm">// 错误：直接依赖具体实现，无法 Mock</span>
+<span class="kw">type</span> <span class="pkg">UserService</span> <span class="kw">struct</span> {
+    db *sql.DB  <span class="cm">// 具体类型，无法替换</span>
+}
+
+<span class="cm">// 正确：依赖接口，可注入任意实现</span>
+<span class="kw">type</span> <span class="pkg">UserRepository</span> <span class="kw">interface</span> {
+    <span class="fn">FindByID</span>(ctx <span class="pkg">context.Context</span>, id <span class="pkg">int64</span>) (*<span class="pkg">User</span>, <span class="pkg">error</span>)
+    <span class="fn">Save</span>(ctx <span class="pkg">context.Context</span>, u *<span class="pkg">User</span>) <span class="pkg">error</span>
+}
+
+<span class="kw">type</span> <span class="pkg">UserService</span> <span class="kw">struct</span> {
+    repo <span class="pkg">UserRepository</span>  <span class="cm">// 接口，测试时可替换</span>
+}
+
+<span class="cm">// 生产：注入真实实现</span>
+svc := &<span class="pkg">UserService</span>{repo: <span class="fn">NewSQLUserRepository</span>(db)}
+
+<span class="cm">// 测试：注入 Mock/Fake</span>
+svc := &<span class="pkg">UserService</span>{repo: <span class="fn">NewMockUserRepository</span>(ctrl)}</pre>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>Go 接口设计原则</h3></div>
+        <div class="card-body">
+          <ul>
+            <li><strong>接口应该小</strong>：每个接口只包含调用方需要的方法（接口隔离原则）。一个 2-3 方法的接口比包含 20 个方法的大接口更容易 Mock</li>
+            <li><strong>在消费方定义接口</strong>：Go 惯例是接口在使用它的包中定义，而不是在实现的包中定义</li>
+            <li><strong>测试包揭示设计问题</strong>：如果一个对象难以测试，通常是因为设计问题（耦合过强、职责过多）</li>
+          </ul>
+<pre><span class="cm">// 接口在消费方定义（Go 惯例）</span>
+<span class="kw">package</span> <span class="pkg">service</span>
+
+<span class="cm">// 这里定义接口，而不是在 repository 包</span>
+<span class="kw">type</span> <span class="pkg">userRepo</span> <span class="kw">interface</span> {
+    <span class="fn">FindByID</span>(ctx <span class="pkg">context.Context</span>, id <span class="pkg">int64</span>) (*<span class="pkg">User</span>, <span class="pkg">error</span>)
+}
+<span class="cm">// 只包含 service 实际需要的方法，不是 repository 全部方法</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="gomock">
+      <div class="section-title"><div class="title-bar"></div><h2>gomock 工程实践</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>安装与生成</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>gomock 是 Google 维护的 Go Mock 框架，通过代码生成创建类型安全的 Mock。</p>
+<pre><span class="cm"># 安装 mockgen 工具</span>
+go install go.uber.org/mock/mockgen@latest
+
+<span class="cm"># 为接口生成 Mock（source 模式）</span>
+mockgen -source=internal/service/user.go -destination=internal/mocks/mock_user_repo.go -package=mocks
+
+<span class="cm"># 或使用 reflect 模式（无需修改源文件）</span>
+mockgen -destination=mocks/mock_repo.go -package=mocks \
+    github.com/yourapp/internal/service UserRepository</pre>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>gomock 使用示例</h3></div>
+        <div class="card-body">
+<pre><span class="kw">func</span> <span class="fn">TestUserService_GetUser</span>(t *testing.T) {
+    ctrl := gomock.<span class="fn">NewController</span>(t)
+    <span class="cm">// ctrl.Finish() 会验证所有期望都被满足（Go 1.14+ 自动调用）</span>
+
+    mockRepo := mocks.<span class="fn">NewMockUserRepository</span>(ctrl)
+
+    <span class="cm">// 设置期望：FindByID 被调用一次，参数是 42，返回 user</span>
+    mockRepo.EXPECT().
+        <span class="fn">FindByID</span>(gomock.Any(), <span class="pkg">int64</span>(<span class="num">42</span>)).
+        <span class="fn">Return</span>(&<span class="pkg">User</span>{ID: <span class="num">42</span>, Name: <span class="st">"alice"</span>}, <span class="kw">nil</span>).
+        <span class="fn">Times</span>(<span class="num">1</span>)
+
+    svc := <span class="fn">NewUserService</span>(mockRepo)
+    user, err := svc.<span class="fn">GetUser</span>(context.Background(), <span class="num">42</span>)
+
+    assert.<span class="fn">NoError</span>(t, err)
+    assert.<span class="fn">Equal</span>(t, <span class="st">"alice"</span>, user.Name)
+    <span class="cm">// ctrl 自动验证：FindByID 确实被调用了 1 次</span>
+}
+
+<span class="cm">// 测试错误路径：模拟 DB 不可用</span>
+<span class="kw">func</span> <span class="fn">TestUserService_GetUser_DBError</span>(t *testing.T) {
+    ctrl := gomock.<span class="fn">NewController</span>(t)
+    mockRepo := mocks.<span class="fn">NewMockUserRepository</span>(ctrl)
+
+    dbErr := errors.<span class="fn">New</span>(<span class="st">"connection refused"</span>)
+    mockRepo.EXPECT().
+        <span class="fn">FindByID</span>(gomock.Any(), gomock.Any()).
+        <span class="fn">Return</span>(<span class="kw">nil</span>, dbErr)
+
+    svc := <span class="fn">NewUserService</span>(mockRepo)
+    _, err := svc.<span class="fn">GetUser</span>(context.Background(), <span class="num">1</span>)
+    assert.<span class="fn">ErrorIs</span>(t, err, dbErr)
+}</pre>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>常用 Matcher</h3></div>
+        <div class="card-body">
+          <ul>
+            <li><code>gomock.Any()</code> — 匹配任意参数值</li>
+            <li><code>gomock.Eq(v)</code> — 精确匹配（等于默认，可省略）</li>
+            <li><code>gomock.Not(m)</code> — 不匹配 m</li>
+            <li><code>gomock.InAnyOrder(s)</code> — 切片内容相同但顺序任意</li>
+            <li><code>gomock.AssignableToTypeOf(v)</code> — 类型断言</li>
+            <li>自定义：实现 <code>gomock.Matcher</code> 接口（<code>Matches(x interface{}) bool</code>）</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="testify">
+      <div class="section-title"><div class="title-bar"></div><h2>testify/mock 工程实践</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>手写 Mock（无需代码生成）</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>testify/mock 不需要代码生成，通过嵌入 <code>mock.Mock</code> 手写 Mock 结构体，更灵活但需要手动维护。</p>
+<pre><span class="kw">import</span> <span class="st">"github.com/stretchr/testify/mock"</span>
+
+<span class="cm">// 手写 Mock 结构体</span>
+<span class="kw">type</span> <span class="pkg">MockUserRepository</span> <span class="kw">struct</span> {
+    mock.Mock
+}
+
+<span class="kw">func</span> (m *<span class="pkg">MockUserRepository</span>) <span class="fn">FindByID</span>(ctx <span class="pkg">context.Context</span>, id <span class="pkg">int64</span>) (*<span class="pkg">User</span>, <span class="pkg">error</span>) {
+    args := m.<span class="fn">Called</span>(ctx, id)
+    <span class="kw">if</span> args.<span class="fn">Get</span>(<span class="num">0</span>) == <span class="kw">nil</span> {
+        <span class="kw">return nil</span>, args.<span class="fn">Error</span>(<span class="num">1</span>)
+    }
+    <span class="kw">return</span> args.<span class="fn">Get</span>(<span class="num">0</span>).(*<span class="pkg">User</span>), args.<span class="fn">Error</span>(<span class="num">1</span>)
+}
+
+<span class="cm">// 测试中使用</span>
+<span class="kw">func</span> <span class="fn">TestGetUser</span>(t *testing.T) {
+    mockRepo := &<span class="pkg">MockUserRepository</span>{}
+    mockRepo.<span class="fn">On</span>(<span class="st">"FindByID"</span>, mock.Anything, <span class="pkg">int64</span>(<span class="num">42</span>)).
+        <span class="fn">Return</span>(&<span class="pkg">User</span>{ID: <span class="num">42</span>, Name: <span class="st">"alice"</span>}, <span class="kw">nil</span>)
+
+    svc := <span class="fn">NewUserService</span>(mockRepo)
+    user, err := svc.<span class="fn">GetUser</span>(context.Background(), <span class="num">42</span>)
+    assert.<span class="fn">NoError</span>(t, err)
+    assert.<span class="fn">Equal</span>(t, <span class="st">"alice"</span>, user.Name)
+
+    mockRepo.<span class="fn">AssertExpectations</span>(t) <span class="cm">// 验证所有 On 都被调用</span>
+}</pre>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>gomock vs testify/mock 选择</h3></div>
+        <div class="card-body">
+          <table class="compare-table">
+            <tr><th>维度</th><th>gomock</th><th>testify/mock</th></tr>
+            <tr><td>代码生成</td><td>需要（mockgen）</td><td>不需要</td></tr>
+            <tr><td>类型安全</td><td>编译时检查</td><td>运行时检查</td></tr>
+            <tr><td>期望声明</td><td>EXPECT().Method()</td><td>.On("Method", args)</td></tr>
+            <tr><td>维护成本</td><td>自动生成，低</td><td>手写，有重构负担</td></tr>
+            <tr><td>适用场景</td><td>大型项目，接口稳定</td><td>小项目，快速迭代</td></tr>
+            <tr><td>社区</td><td>Google 维护（go.uber.org/mock）</td><td>testify 生态</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="antipatterns">
+      <div class="section-title"><div class="title-bar"></div><h2>过度 Mock 的反模式</h2></div>
+      <div class="pitfall">
+        <div class="pitfall-hd bad">⚠ 反模式：Mock 过深，测试与实现耦合</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// 过度 Mock：测试每个方法调用顺序</span>
+mockRepo.EXPECT().<span class="fn">Begin</span>().Times(<span class="num">1</span>)
+mockRepo.EXPECT().<span class="fn">FindUser</span>(id).Times(<span class="num">1</span>)
+mockRepo.EXPECT().<span class="fn">UpdateBalance</span>(id, amount).Times(<span class="num">1</span>)
+mockRepo.EXPECT().<span class="fn">LogAudit</span>(id).Times(<span class="num">1</span>)
+mockRepo.EXPECT().<span class="fn">Commit</span>().Times(<span class="num">1</span>)
+<span class="cm">// 重构内部实现顺序 → 所有测试失败</span></pre>
+            <p>测试验证的是实现细节（调用顺序），而非行为（转账后余额正确）。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 正确：只验证重要的行为结果</span>
+mockRepo.EXPECT().
+    <span class="fn">Transfer</span>(fromID, toID, amount).
+    <span class="fn">Return</span>(<span class="kw">nil</span>).
+    <span class="fn">Times</span>(<span class="num">1</span>)
+
+<span class="cm">// 用 Fake 替代细粒度 Mock</span>
+fakeRepo := <span class="fn">NewFakeAccountRepo</span>()
+fakeRepo.<span class="fn">SetBalance</span>(fromID, <span class="num">1000</span>)
+svc.<span class="fn">Transfer</span>(fromID, toID, <span class="num">100</span>)
+assert.Equal(t, <span class="num">900</span>, fakeRepo.<span class="fn">GetBalance</span>(fromID))</pre>
+            <p>用 Fake 验证最终状态，重构内部实现不影响测试。</p>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>选择合适的 Test Double</h3></div>
+        <div class="card-body">
+          <ul>
+            <li><strong>外部 IO（DB、HTTP、文件）</strong>：优先用 Fake（内存实现），其次用 Stub</li>
+            <li><strong>需要验证副作用（邮件是否发送）</strong>：用 Spy 或 Mock</li>
+            <li><strong>复杂数据初始化</strong>：用 Fake，它比一堆 Stub 设置更清晰</li>
+            <li><strong>第三方库（无法接口化）</strong>：用 Wrapper 包一层接口再 Mock</li>
+            <li><strong>时间、随机数</strong>：将 <code>time.Now</code>、<code>rand.Int</code> 注入为函数类型，测试时替换</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="qa">
+      <div class="section-title"><div class="title-bar"></div><h2>面试问答</h2></div>
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this)">Mock 和 Stub 有什么区别？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">Stub 提供预设的返回值，不关心如何被调用，只是"回答问题"。Mock 预先设定期望（这个方法应该以什么参数被调用几次），如果调用不符合预期则测试立即失败。Stub 关注状态（返回什么），Mock 关注行为（如何交互）。实际开发中两者常被混用，但概念上有明确区分。</div>
+      </div>
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this)">什么情况下用 Fake 而不是 Mock？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">当被测代码和依赖之间有复杂的双向交互时，用 Fake 更合适。例如测试缓存逻辑时，Fake Cache 有真实的读写行为，可以验证"第一次查询 DB，第二次命中缓存"。如果用 Mock，需要预设每次方法调用的参数和返回值，非常脆弱。Fake 关注最终状态，Mock 关注调用协议。对于稳定的外部 API（如支付接口），用 Stub/Mock；对于内部可替换的基础设施（如缓存、Repository），用 Fake。</div>
+      </div>
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this)">如何让 Go 代码可测试？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">核心是依赖注入 + 接口化。1) 所有外部依赖（DB、Redis、HTTP Client、时间、文件）通过接口注入，不在函数内直接创建；2) 接口定义在消费方（调用者包），只包含需要的方法；3) 避免全局状态和 init() 中的副作用；4) 将时间相关逻辑（time.Now）注入为函数参数或接口，方便测试固定时间点；5) 将随机数生成注入，测试可以使用确定性的 Seed。如果一个函数很难测试，通常是信号：它的职责过多或依赖过强，需要重构。</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+<script>
+function toggleQA(el){el.parentElement.classList.toggle('open');}
+NavTracker.track({name:'Mock / Stub / Spy',href:'testing/mock-stub.html',icon:'🎭',cat:'测试工程'});
+</script>
+</body>
+</html>

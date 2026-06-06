@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Consumer-Driven Contract 测试：Pact 框架让消费者定义期望，Provider 在 CI 中自动验证，微服务独立演进的护栏。">
+<link rel="canonical" href="https://melodycoder12345.github.io/testing/contract-testing.html">
+<meta property="og:title" content="契约测试 — 码海拾贝">
+<meta property="og:description" content="Consumer-Driven Contract 测试：Pact 框架让消费者定义期望，Provider 在 CI 中自动验证，微服务独立演进的护栏。">
+<meta property="og:url" content="https://melodycoder12345.github.io/testing/contract-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="契约测试 — 码海拾贝">
+<meta name="twitter:description" content="Consumer-Driven Contract 测试：Pact 框架让消费者定义期望，Provider 在 CI 中自动验证，微服务独立演进的护栏。">
+<title>契约测试 - Testing 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#4ade80;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:44px;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:116px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.side-nav a.active{color:var(--accent);background:rgba(74,222,128,.08);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(74,222,128,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(74,222,128,.12);color:var(--accent);border:1px solid rgba(74,222,128,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.badge-warn{background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(74,222,128,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(74,222,128,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+/* Flow diagram */
+.flow-diagram{display:flex;align-items:center;gap:0;margin:16px 0;overflow-x:auto;padding:4px 0;}
+.flow-box{border:1px solid var(--border2);border-radius:10px;padding:12px 16px;background:rgba(30,41,59,.5);min-width:120px;text-align:center;}
+.flow-box.consumer{border-color:rgba(74,222,128,.4);background:rgba(74,222,128,.06);}
+.flow-box.pact{border-color:rgba(56,189,248,.4);background:rgba(56,189,248,.06);}
+.flow-box.provider{border-color:rgba(192,132,252,.4);background:rgba(192,132,252,.06);}
+.flow-box h4{font-size:.82rem;font-weight:700;margin-bottom:4px;}
+.flow-box p{font-size:.72rem;color:var(--dim);}
+.flow-arrow{padding:0 10px;font-size:1.2rem;color:var(--dim2);flex-shrink:0;}
+.compare-table{width:100%;border-collapse:collapse;font-size:.82rem;margin:10px 0;}
+.compare-table th{padding:8px 12px;background:rgba(74,222,128,.06);color:var(--accent);font-weight:700;text-align:left;border-bottom:1px solid var(--border2);}
+.compare-table td{padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--dim);}
+.compare-table tr:last-child td{border-bottom:none;}
+.compare-table td:first-child{color:var(--text);font-weight:600;}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.flow-diagram{flex-direction:column;align-items:flex-start;}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">📋 契约测试</span>
+  <div class="nav-tags">
+    <span class="ntag">Pact</span>
+    <span class="ntag">CDC</span>
+    <span class="ntag">Consumer-Driven</span>
+    <span class="ntag">microservices</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <nav class="side-nav">
+    <ul>
+      <li><a href="#problem">为什么需要</a></li>
+      <li><a href="#concept">核心概念</a></li>
+      <li><a href="#pact">Pact 框架</a></li>
+      <li><a href="#consumer-side">Consumer 侧</a></li>
+      <li><a href="#provider-side">Provider 侧</a></li>
+      <li><a href="#ci">CI 集成</a></li>
+      <li><a href="#qa">面试问答</a></li>
+    </ul>
+  </nav>
+  <main class="main-content">
+
+    <div class="section" id="problem">
+      <div class="section-title"><div class="title-bar"></div><h2>为什么需要契约测试</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>微服务集成测试的痛点</h3><span class="badge badge-core">[背景]</span></div>
+        <div class="card-body">
+          <p>在微服务架构中，服务之间通过 API 调用交互。传统做法是建立一个共享的集成测试环境，同时部署多个服务验证它们能协作。这带来了严重问题：</p>
+          <ul>
+            <li><strong>环境稳定性</strong>：任意一个依赖服务不可用，所有测试失败</li>
+            <li><strong>数据竞争</strong>：多个测试并发修改同一环境的数据，结果不可重现</li>
+            <li><strong>部署耦合</strong>：服务 A 要测试，必须先把依赖的服务 B、C、D 部署到测试环境</li>
+            <li><strong>破坏性变更发现晚</strong>：Provider 修改了 API 字段，Consumer 只有在集成测试时才发现</li>
+            <li><strong>反馈周期长</strong>：等待集成环境部署完成需要分钟甚至小时</li>
+          </ul>
+          <p>契约测试的目标是：<strong>让每个服务在本地独立测试，无需依赖真实的下游服务环境</strong>。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="concept">
+      <div class="section-title"><div class="title-bar"></div><h2>Consumer-Driven Contract 核心概念</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>契约的本质</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p><strong>契约（Contract）</strong>是消费者（Consumer）对提供者（Provider）的 API 的期望集合，记录为文件。核心思想是：</p>
+          <ul>
+            <li><strong>Consumer 定义契约</strong>：描述它需要什么（哪些字段、哪种格式）</li>
+            <li><strong>Provider 验证契约</strong>：证明自己能满足消费者的所有期望</li>
+            <li>契约文件存储在中央仓库（Pact Broker），双方通过它解耦</li>
+          </ul>
+        </div>
+      </div>
+      <div class="flow-diagram">
+        <div class="flow-box consumer"><h4>Consumer</h4><p>订单服务<br>定义期望</p></div>
+        <div class="flow-arrow">→契约→</div>
+        <div class="flow-box pact"><h4>Pact Broker</h4><p>契约中央仓库<br>版本管理</p></div>
+        <div class="flow-arrow">→验证→</div>
+        <div class="flow-box provider"><h4>Provider</h4><p>用户服务<br>证明满足</p></div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>三个关键词</h3></div>
+        <div class="card-body">
+          <ul>
+            <li><strong>Consumer（消费者）</strong>：调用 API 的一方（如订单服务调用用户服务）</li>
+            <li><strong>Provider（提供者）</strong>：实现 API 的一方（如用户服务）</li>
+            <li><strong>Pact（契约文件）</strong>：JSON 格式，记录请求/响应的期望，包含交互（Interaction）列表</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>与集成测试的对比</h3></div>
+        <div class="card-body">
+          <table class="compare-table">
+            <tr><th>维度</th><th>传统集成测试</th><th>契约测试</th></tr>
+            <tr><td>环境依赖</td><td>需要真实 Provider 运行</td><td>Consumer 侧使用 Mock Server</td></tr>
+            <tr><td>反馈速度</td><td>分钟级（等部署）</td><td>秒级（本地运行）</td></tr>
+            <tr><td>维护成本</td><td>共享环境数据冲突，不稳定</td><td>各自 CI 独立验证</td></tr>
+            <tr><td>破坏发现时机</td><td>集成测试运行时</td><td>Provider CI 提交时立即发现</td></tr>
+            <tr><td>覆盖范围</td><td>完整业务流程</td><td>API 接口兼容性</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="pact">
+      <div class="section-title"><div class="title-bar"></div><h2>Pact 框架概述</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>Pact 生态</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p>Pact 是最流行的契约测试框架，支持多语言（Go、Java、Ruby、JavaScript、Python 等）。核心组件：</p>
+          <ul>
+            <li><strong>Pact DSL</strong>：消费者测试 SDK，用于描述期望和生成契约文件</li>
+            <li><strong>Mock Server</strong>：Consumer 测试期间替代真实 Provider 的本地 HTTP Server</li>
+            <li><strong>Verifier</strong>：Provider 侧工具，回放契约中的请求到真实代码，验证响应匹配</li>
+            <li><strong>Pact Broker</strong>：契约文件的中央存储和版本管理服务（可以用 pactflow.io SaaS 或自托管）</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="consumer-side">
+      <div class="section-title"><div class="title-bar"></div><h2>Consumer 侧：定义契约</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>Go Consumer 测试示例</h3><span class="badge badge-core">[代码]</span></div>
+        <div class="card-body">
+          <p>Consumer 测试不调用真实 Provider，而是通过 Pact Mock Server 拦截请求，验证 Consumer 代码能正确构造请求并解析响应。</p>
+<pre><span class="cm">// consumer/user_client_test.go</span>
+<span class="kw">package</span> <span class="pkg">consumer_test</span>
+
+<span class="kw">import</span> (
+    pact <span class="st">"github.com/pact-foundation/pact-go/v2"</span>
+    <span class="st">"testing"</span>
+)
+
+<span class="kw">func</span> <span class="fn">TestGetUser_Pact</span>(t *testing.T) {
+    p, _ := pact.<span class="fn">NewPact</span>(pact.MockHTTPProviderConfig{
+        Consumer: <span class="st">"order-service"</span>,
+        Provider: <span class="st">"user-service"</span>,
+    })
+
+    <span class="cm">// 描述期望：当收到 GET /users/42 时，返回什么</span>
+    p.<span class="fn">AddInteraction</span>().
+        <span class="fn">Given</span>(<span class="st">"user 42 exists"</span>).
+        <span class="fn">UponReceiving</span>(<span class="st">"a request to get user 42"</span>).
+        <span class="fn">WithRequest</span>(<span class="st">"GET"</span>, <span class="st">"/users/42"</span>).
+        <span class="fn">WillRespondWith</span>(<span class="num">200</span>, map[<span class="pkg">string</span>]<span class="kw">interface</span>{}{
+            <span class="st">"id"</span>:    pact.<span class="fn">Integer</span>(<span class="num">42</span>),       <span class="cm">// 类型匹配，不限具体值</span>
+            <span class="st">"name"</span>:  pact.<span class="fn">String</span>(<span class="st">"Alice"</span>), <span class="cm">// 字符串类型即可</span>
+            <span class="st">"email"</span>: pact.<span class="fn">Regex</span>(<span class="st">"[^@]+@[^@]+"</span>, <span class="st">"alice@example.com"</span>),
+        })
+
+    <span class="cm">// 在 Mock Server 中运行实际的 Consumer 代码</span>
+    p.<span class="fn">ExecuteTest</span>(t, <span class="kw">func</span>(config pact.MockServerConfig) <span class="pkg">error</span> {
+        client := <span class="fn">NewUserClient</span>(config.Host, config.Port)
+        user, err := client.<span class="fn">GetUser</span>(<span class="num">42</span>)
+        <span class="fn">require.NoError</span>(t, err)
+        assert.<span class="fn">Equal</span>(t, <span class="st">"Alice"</span>, user.Name)
+        <span class="kw">return nil</span>
+    })
+    <span class="cm">// 测试通过后，自动生成 pacts/order-service-user-service.json</span>
+}</pre>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>生成的契约文件（Pact JSON）</h3></div>
+        <div class="card-body">
+<pre>{
+  <span class="st">"consumer"</span>: { <span class="st">"name"</span>: <span class="st">"order-service"</span> },
+  <span class="st">"provider"</span>: { <span class="st">"name"</span>: <span class="st">"user-service"</span> },
+  <span class="st">"interactions"</span>: [{
+    <span class="st">"description"</span>: <span class="st">"a request to get user 42"</span>,
+    <span class="st">"providerState"</span>: <span class="st">"user 42 exists"</span>,
+    <span class="st">"request"</span>: { <span class="st">"method"</span>: <span class="st">"GET"</span>, <span class="st">"path"</span>: <span class="st">"/users/42"</span> },
+    <span class="st">"response"</span>: {
+      <span class="st">"status"</span>: <span class="num">200</span>,
+      <span class="st">"matchingRules"</span>: {  <span class="cm">// 类型匹配规则</span>
+        <span class="st">"$.body.id"</span>:    { <span class="st">"match"</span>: <span class="st">"type"</span> },
+        <span class="st">"$.body.name"</span>:  { <span class="st">"match"</span>: <span class="st">"type"</span> },
+        <span class="st">"$.body.email"</span>: { <span class="st">"match"</span>: <span class="st">"regex"</span>, <span class="st">"regex"</span>: <span class="st">"[^@]+@[^@]+"</span> }
+      }
+    }
+  }]
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="provider-side">
+      <div class="section-title"><div class="title-bar"></div><h2>Provider 侧：验证契约</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>Provider 验证</h3><span class="badge badge-core">[代码]</span></div>
+        <div class="card-body">
+          <p>Provider 从 Pact Broker 拉取契约，启动自己的服务，Verifier 回放每个 Interaction 的请求，检查响应是否匹配。</p>
+<pre><span class="cm">// provider/user_pact_test.go</span>
+<span class="kw">func</span> <span class="fn">TestUserService_PactProvider</span>(t *testing.T) {
+    <span class="cm">// 启动真实的 Provider 服务（或测试版本）</span>
+    server := <span class="fn">startTestServer</span>(t)
+    <span class="kw">defer</span> server.Close()
+
+    verifier := pact.<span class="pkg">HTTPVerifier</span>{}
+    verifier.<span class="fn">VerifyProvider</span>(t, pact.VerifyRequest{
+        ProviderBaseURL: server.URL,
+        <span class="cm">// 从 Pact Broker 获取所有 Consumer 的契约</span>
+        BrokerURL: <span class="st">"https://pact-broker.example.com"</span>,
+        ProviderName: <span class="st">"user-service"</span>,
+        <span class="cm">// Provider State 处理器：设置测试数据</span>
+        StateHandlers: pact.StateHandlers{
+            <span class="st">"user 42 exists"</span>: <span class="kw">func</span>(setup <span class="pkg">bool</span>, s pact.ProviderStateV3) (<span class="pkg">map[string]interface{}</span>, <span class="pkg">error</span>) {
+                <span class="cm">// 在数据库中插入测试用户</span>
+                testDB.<span class="fn">InsertUser</span>(<span class="num">42</span>, <span class="st">"Alice"</span>, <span class="st">"alice@example.com"</span>)
+                <span class="kw">return nil</span>, <span class="kw">nil</span>
+            },
+        },
+    })
+    <span class="cm">// 验证失败 → Provider 破坏了 Consumer 的期望</span>
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="ci">
+      <div class="section-title"><div class="title-bar"></div><h2>CI/CD 集成工作流</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>典型 CI 流程</h3><span class="badge badge-adv">[工程实践]</span></div>
+        <div class="card-body">
+          <ul>
+            <li><strong>Consumer CI</strong>：运行契约测试 → 生成 Pact JSON → 推送到 Pact Broker → 发布消费者版本</li>
+            <li><strong>Provider CI</strong>：从 Broker 拉取所有消费者契约 → 运行 Verifier 验证 → 如果通过则允许 Provider 发布</li>
+            <li><strong>Can I Deploy</strong>：Pact Broker 提供 <code>can-i-deploy</code> 命令，查询"这个版本的 Provider 和所有 Consumer 兼容吗？"</li>
+          </ul>
+<pre><span class="cm"># CI 流程示例</span>
+<span class="cm"># 1. Consumer 发布契约</span>
+pact-broker publish ./pacts \
+  --broker-base-url https://broker.example.com \
+  --consumer-app-version $COMMIT_SHA
+
+<span class="cm"># 2. Provider 验证后，检查是否可以部署</span>
+pact-broker can-i-deploy \
+  --pacticipant user-service \
+  --version $COMMIT_SHA \
+  --to-environment production</pre>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>契约测试的局限性</h3><span class="badge badge-warn">[注意]</span></div>
+        <div class="card-body">
+          <ul>
+            <li><strong>不验证业务逻辑</strong>：契约只验证接口格式兼容，不验证业务规则（如余额不足时的行为）</li>
+            <li><strong>不替代 E2E 测试</strong>：契约测试保证服务间能通信，但不验证它们组合后的业务流程正确</li>
+            <li><strong>Provider State 维护成本</strong>：需要为每个场景维护测试数据设置逻辑，Provider 变更时需同步更新</li>
+            <li><strong>适用 REST/HTTP</strong>：Pact 主要针对 HTTP API，gRPC 支持有限（可用 protobuf schema 做静态契约）</li>
+            <li><strong>消费者主导</strong>：消费者定义契约，可能遗漏 Provider 的合法变更通知</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="qa">
+      <div class="section-title"><div class="title-bar"></div><h2>面试问答</h2></div>
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this)">契约测试和集成测试有什么区别？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">集成测试需要多个服务同时运行在真实（或接近真实）的环境中，验证它们能协作完成业务流程。需要共享测试环境，稳定性差、反馈慢。契约测试每个服务独立验证：Consumer 通过 Mock Server 验证自己能正确发起请求；Provider 通过回放契约请求验证自己能正确响应。双方无需同时运行，各自在 CI 中独立验证，反馈快且稳定。但契约测试只保证接口格式兼容，不保证业务流程正确，所以不能完全替代 E2E 测试。</div>
+      </div>
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this)">什么是 Consumer-Driven Contract，为什么是"消费者驱动"？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">传统做法是 Provider 定义 API 文档，Consumer 按文档实现。问题是 Provider 可能删除 Consumer 不知道的废弃字段，或者新增必填字段破坏 Consumer。CDC（Consumer-Driven Contract）反转这个关系：Consumer 明确声明它需要哪些字段、哪些格式，Provider 必须持续满足所有 Consumer 的期望才能发布。这样 Provider 就不会"无意中"破坏 Consumer——任何破坏 Consumer 期望的 Provider 变更，都会在 Provider 的 CI 中立即失败。</div>
+      </div>
+      <div class="qa-card">
+        <div class="qa-q" onclick="toggleQA(this)">Pact 的 Provider State 是什么，为什么需要？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">Provider State 描述 Provider 需要处于什么状态才能响应特定请求。例如测试"获取用户 42"，Provider 必须先在数据库中有这个用户。Provider State 就是前置条件的描述（字符串），对应一段 Provider 测试代码，负责准备测试数据。没有 Provider State，Provider 验证时会因为数据不存在而失败，导致误报。正确设置 Provider State 处理器，可以让 Provider 验证在干净环境中可靠运行。</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+<script>
+function toggleQA(el){el.parentElement.classList.toggle('open');}
+NavTracker.track({name:'契约测试',href:'testing/contract-testing.html',icon:'📋',cat:'测试工程'});
+</script>
+</body>
+</html>
