@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Tarjan 算法求强连通分量（SCC）的交互式可视化，覆盖 disc/low 标记与栈弹出过程。">
+<link rel="canonical" href="https://melodycoder12345.github.io/algo/tarjan-scc.html">
+<meta property="og:title" content="Tarjan 强连通分量 — 码海拾贝">
+<meta property="og:description" content="Tarjan 算法求强连通分量（SCC）的交互式可视化，覆盖 disc/low 标记与栈弹出过程。">
+<meta property="og:url" content="https://melodycoder12345.github.io/algo/tarjan-scc.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Tarjan 强连通分量 — 码海拾贝">
+<meta name="twitter:description" content="Tarjan 算法求强连通分量（SCC）的交互式可视化，覆盖 disc/low 标记与栈弹出过程。">
+<title>Tarjan 强连通分量 - 算法可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.badge.time{background:rgba(251,191,36,0.15);color:var(--yellow);}.badge.space{background:rgba(56,189,248,0.15);color:var(--blue);}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.op-row{display:flex;gap:8px;padding:10px 24px;border-bottom:1px solid var(--border);align-items:center;flex-wrap:wrap;}
+.start-label{font-size:0.82rem;color:var(--dim);}
+.start-btns{display:flex;gap:4px;}
+.start-btn{background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:5px;cursor:pointer;font-size:0.8rem;font-family:monospace;font-weight:600;transition:all 0.15s;}
+.start-btn:hover{background:rgba(255,255,255,0.1);}.start-btn.active-start{background:rgba(251,191,36,0.15);border-color:var(--yellow);color:var(--yellow);}
+.viz-area{flex:1;overflow:hidden;position:relative;}
+svg#graphSvg{width:100%;height:100%;}
+.desc-box{padding:10px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.9rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;font-style:italic;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.3);color:var(--yellow);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--yellow);cursor:pointer;}
+.legend{display:flex;gap:12px;margin-left:auto;}.leg{display:flex;align-items:center;gap:4px;font-size:0.72rem;color:var(--dim);}
+.leg-dot{width:10px;height:10px;border-radius:50%;}
+</style>
+<script src="../nav.js"></script>
+<script src="../lang.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>Tarjan 强连通分量</h1>
+  <div class="complexity">
+    <span class="badge time">O(V+E)</span>
+    <span class="badge space">O(V)</span>
+  </div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="op-row">
+      <span class="start-label">场景：</span>
+      <div class="start-btns" id="sceneBtns">
+        <button class="start-btn active-start" data-scene="1">① 两个 SCC</button>
+        <button class="start-btn" data-scene="2">② 单节点 SCC</button>
+        <button class="start-btn" data-scene="3">③ 复杂环形图</button>
+      </div>
+      <div class="legend">
+        <div class="leg"><div class="leg-dot" style="background:#475569"></div>未访问</div>
+        <div class="leg"><div class="leg-dot" style="background:#38bdf8"></div>栈中</div>
+        <div class="leg"><div class="leg-dot" style="background:#4ade80"></div>SCC₀</div>
+        <div class="leg"><div class="leg-dot" style="background:#fb923c"></div>SCC₁</div>
+        <div class="leg"><div class="leg-dot" style="background:#c084fc"></div>SCC₂</div>
+      </div>
+    </div>
+    <div class="viz-area">
+      <svg id="graphSvg"></svg>
+    </div>
+    <div class="desc-box">
+      <span id="descText">选择场景开始动画</span>
+      <span class="step-counter" id="stepCounter"></span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px">tarjan_scc.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+// ── Code Lines ──
+const CODE_LINES = [
+  {html:`<span class="kw">var</span> (`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;disc, low   []<span class="kw">int</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;stackMem    []<span class="kw">bool</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;stk         []<span class="kw">int</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;timer, sccID <span class="kw">int</span>`},
+  {html:`)`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">scc</span>(u <span class="kw">int</span>, adj [][]<span class="kw">int</span>) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;disc[u] = timer; low[u] = timer; timer++`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;stk = <span class="fn">append</span>(stk, u)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;stackMem[u] = <span class="kw">true</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> _, v := <span class="kw">range</span> adj[u] {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> disc[v] == -<span class="num">1</span> { <span class="cm">// 未访问，树边</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">scc</span>(v, adj)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;low[u] = <span class="fn">min</span>(low[u], low[v])`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;} <span class="kw">else if</span> stackMem[v] { <span class="cm">// 回边</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;low[u] = <span class="fn">min</span>(low[u], disc[v])`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> low[u] == disc[u] { <span class="cm">// SCC 根节点</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;w := stk[<span class="fn">len</span>(stk)-<span class="num">1</span>]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;stk = stk[:<span class="fn">len</span>(stk)-<span class="num">1</span>]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;stackMem[w] = <span class="kw">false</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 记录 w 属于 sccID</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> w == u { <span class="kw">break</span> }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;sccID++`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`}`},
+];
+
+// ── Graph Scene Configs ──
+// Node state helpers
+const U  = ()     => ({disc:-1, low:-1, state:'unvisited', sccId:null});
+const I  = (d,l)  => ({disc:d, low:l, state:'instack', sccId:null});
+const D  = (d,l,s)=> ({disc:d, low:l, state:'done', sccId:s});
+
+// Scene 1: edges 0→1,1→2,2→0,2→3,3→4,4→5,5→3 — SCCs:{0,1,2},{3,4,5}
+const S1_EDGES = [[0,1],[1,2],[2,0],[2,3],[3,4],[4,5],[5,3]];
+const S1_POS = [
+  {x:0.20,y:0.22}, // 0
+  {x:0.08,y:0.55}, // 1
+  {x:0.32,y:0.55}, // 2
+  {x:0.62,y:0.55}, // 3
+  {x:0.80,y:0.22}, // 4
+  {x:0.55,y:0.22}, // 5
+];
+
+// Scene 2: 0→1→2→3 (DAG) — each node its own SCC
+const S2_EDGES = [[0,1],[1,2],[2,3]];
+const S2_POS = [
+  {x:0.12,y:0.50}, // 0
+  {x:0.37,y:0.50}, // 1
+  {x:0.62,y:0.50}, // 2
+  {x:0.87,y:0.50}, // 3
+];
+
+// Scene 3: 0→1,1→2,2→3,3→1,0→4,4→5,5→4,3→5 — SCCs:{0},{1,2,3},{4,5}
+const S3_EDGES = [[0,1],[1,2],[2,3],[3,1],[0,4],[4,5],[5,4],[3,5]];
+const S3_POS = [
+  {x:0.12,y:0.40}, // 0
+  {x:0.36,y:0.22}, // 1
+  {x:0.60,y:0.22}, // 2
+  {x:0.68,y:0.50}, // 3
+  {x:0.36,y:0.72}, // 4
+  {x:0.60,y:0.72}, // 5
+];
+
+// ── Step Generators ──
+function makeScene1Steps() {
+  const steps = [];
+  const add = (ns, stk, edge, desc, lines) =>
+    steps.push({scene:1, edges:S1_EDGES, pos:S1_POS, nodeStates:ns, stack:stk, activeEdge:edge, description:desc, highlightLines:lines});
+
+  add([U(),U(),U(),U(),U(),U()], [], null,
+    '初始化：6 个节点全部 disc=-1，未访问（灰色），从节点 0 开始 DFS', [0,1,2,3,4,5,6]);
+  add([I(0,0),U(),U(),U(),U(),U()], [0], null,
+    '访问节点 0：disc[0]=low[0]=0，入栈', [7,8,9,10]);
+  add([I(0,0),I(1,1),U(),U(),U(),U()], [0,1], [0,1],
+    '从 0→1：disc[1]=low[1]=1，入栈', [11,12,13,14]);
+  add([I(0,0),I(1,1),I(2,2),U(),U(),U()], [0,1,2], [1,2],
+    '从 1→2：disc[2]=low[2]=2，入栈', [11,12,13,14]);
+  add([I(0,0),I(1,1),I(2,0),U(),U(),U()], [0,1,2], [2,0],
+    '发现回边 2→0（0 在栈中），low[2]=min(2,disc[0])=min(2,0)=0', [15,16,17]);
+  add([I(0,0),I(1,1),I(2,0),I(3,3),U(),U()], [0,1,2,3], [2,3],
+    '从 2→3（树边）：disc[3]=low[3]=3，入栈', [11,12,13,14]);
+  add([I(0,0),I(1,1),I(2,0),I(3,3),I(4,4),U()], [0,1,2,3,4], [3,4],
+    '从 3→4：disc[4]=low[4]=4，入栈', [11,12,13,14]);
+  add([I(0,0),I(1,1),I(2,0),I(3,3),I(4,4),I(5,5)], [0,1,2,3,4,5], [4,5],
+    '从 4→5：disc[5]=low[5]=5，入栈', [11,12,13,14]);
+  add([I(0,0),I(1,1),I(2,0),I(3,3),I(4,4),I(5,3)], [0,1,2,3,4,5], [5,3],
+    '发现回边 5→3（3 在栈中），low[5]=min(5,disc[3])=min(5,3)=3', [15,16,17]);
+  add([I(0,0),I(1,1),I(2,0),I(3,3),I(4,3),I(5,3)], [0,1,2,3,4,5], null,
+    '回溯到 4：low[4]=min(4,low[5])=min(4,3)=3，low[4]≠disc[4]，非根', [14,18,19]);
+  add([I(0,0),I(1,1),I(2,0),I(3,3),I(4,3),I(5,3)], [0,1,2,3,4,5], null,
+    '回溯到 3：low[3]=min(3,3)=3=disc[3]，3 是 SCC 根！弹出 5,4,3', [19,20,21,22,23,24,25,26]);
+  add([I(0,0),I(1,1),I(2,0),D(3,3,1),D(4,3,1),D(5,3,1)], [0,1,2], null,
+    'SCC₁ = {3, 4, 5} 识别完成（橙色）', [27,28,29]);
+  add([I(0,0),I(1,0),I(2,0),D(3,3,1),D(4,3,1),D(5,3,1)], [0,1,2], null,
+    '回溯到 2,1：low[1]=min(1,low[2])=min(1,0)=0，低于 disc，非根', [14,18,19]);
+  add([I(0,0),I(1,0),I(2,0),D(3,3,1),D(4,3,1),D(5,3,1)], [0,1,2], null,
+    '回溯到 0：low[0]=min(0,0)=0=disc[0]，0 是 SCC 根！弹出 2,1,0', [19,20,21,22,23,24,25,26]);
+  add([D(0,0,0),D(1,0,0),D(2,0,0),D(3,3,1),D(4,3,1),D(5,3,1)], [], null,
+    'SCC₀ = {0, 1, 2} 识别完成（绿色）；算法结束，共 2 个 SCC', [27,28,29]);
+  return steps;
+}
+
+function makeScene2Steps() {
+  const steps = [];
+  const add = (ns, stk, edge, desc, lines) =>
+    steps.push({scene:2, edges:S2_EDGES, pos:S2_POS, nodeStates:ns, stack:stk, activeEdge:edge, description:desc, highlightLines:lines});
+
+  add([U(),U(),U(),U()], [], null,
+    '初始化：4 个节点，无环，每个节点是独立 SCC（0→1→2→3）', [0,1,2,3,4,5,6]);
+  add([I(0,0),U(),U(),U()], [0], null,
+    '访问节点 0：disc[0]=low[0]=0，入栈', [7,8,9,10]);
+  add([I(0,0),I(1,1),U(),U()], [0,1], [0,1],
+    '从 0→1：disc[1]=low[1]=1，入栈', [11,12,13,14]);
+  add([I(0,0),I(1,1),I(2,2),U()], [0,1,2], [1,2],
+    '从 1→2：disc[2]=low[2]=2，入栈', [11,12,13,14]);
+  add([I(0,0),I(1,1),I(2,2),I(3,3)], [0,1,2,3], [2,3],
+    '从 2→3：disc[3]=low[3]=3，入栈；3 无后继', [11,12,13,14]);
+  add([I(0,0),I(1,1),I(2,2),D(3,3,0)], [0,1,2], null,
+    'low[3]=disc[3]=3，3 是 SCC 根，弹出 → SCC₀ = {3}', [19,20,21,22,23,24,25,26,27]);
+  add([I(0,0),I(1,1),D(2,2,1),D(3,3,0)], [0,1], null,
+    '回溯到 2：low[2]=min(2,3)=2=disc[2]，SCC 根，弹出 → SCC₁ = {2}', [14,19,20,21,22,23,24,25,26,27]);
+  add([I(0,0),D(1,1,2),D(2,2,1),D(3,3,0)], [0], null,
+    '回溯到 1：low[1]=min(1,2)=1=disc[1]，SCC 根，弹出 → SCC₂ = {1}', [14,19,20,21,22,23,24,25,26,27]);
+  add([D(0,0,3),D(1,1,2),D(2,2,1),D(3,3,0)], [], null,
+    '回溯到 0：low[0]=min(0,1)=0=disc[0]，SCC 根，弹出 → SCC₃ = {0}；共 4 个 SCC', [14,19,20,21,22,23,24,25,26,27]);
+  return steps;
+}
+
+function makeScene3Steps() {
+  const steps = [];
+  const add = (ns, stk, edge, desc, lines) =>
+    steps.push({scene:3, edges:S3_EDGES, pos:S3_POS, nodeStates:ns, stack:stk, activeEdge:edge, description:desc, highlightLines:lines});
+
+  add([U(),U(),U(),U(),U(),U()], [], null,
+    '图含两个环：1→2→3→1 和 4→5→4，预期 SCC：{0},{1,2,3},{4,5}', [0,1,2,3,4,5,6]);
+  add([I(0,0),U(),U(),U(),U(),U()], [0], null,
+    '访问节点 0：disc[0]=low[0]=0，入栈', [7,8,9,10]);
+  add([I(0,0),I(1,1),U(),U(),U(),U()], [0,1], [0,1],
+    '从 0→1：disc[1]=low[1]=1，入栈', [11,12,13,14]);
+  add([I(0,0),I(1,1),I(2,2),U(),U(),U()], [0,1,2], [1,2],
+    '从 1→2：disc[2]=low[2]=2，入栈', [11,12,13,14]);
+  add([I(0,0),I(1,1),I(2,2),I(3,3),U(),U()], [0,1,2,3], [2,3],
+    '从 2→3：disc[3]=low[3]=3，入栈', [11,12,13,14]);
+  add([I(0,0),I(1,1),I(2,2),I(3,1),U(),U()], [0,1,2,3], [3,1],
+    '发现回边 3→1（1 在栈中），low[3]=min(3,disc[1])=min(3,1)=1', [15,16,17]);
+  // From 3→5 (tree edge)
+  add([I(0,0),I(1,1),I(2,2),I(3,1),U(),I(4,4)], [0,1,2,3,5], [3,5],
+    '从 3→5（树边）：disc[5]=4（timer），low[5]=4，入栈', [11,12,13,14]);
+  add([I(0,0),I(1,1),I(2,2),I(3,1),I(5,5),I(4,4)], [0,1,2,3,5,4], [5,4],
+    '从 5→4（树边）：disc[4]=5，low[4]=5，入栈', [11,12,13,14]);
+  add([I(0,0),I(1,1),I(2,2),I(3,1),I(5,4),I(4,4)], [0,1,2,3,5,4], [4,5],
+    '发现回边 4→5（5 在栈中），low[4]=min(5,disc[5])=min(5,4)=4', [15,16,17]);
+  add([I(0,0),I(1,1),I(2,2),I(3,1),I(5,4),I(4,4)], [0,1,2,3,5], null,
+    '回溯到 5：low[5]=min(4,low[4])=min(4,4)=4=disc[5]，5 是 SCC 根！弹出 4,5', [14,19,20,21,22,23,24,25,26,27]);
+  add([I(0,0),I(1,1),I(2,2),I(3,1),D(5,4,0),D(4,4,0)], [0,1,2,3], null,
+    'SCC₀ = {4, 5} 识别完成（绿色）', [27,28,29]);
+  add([I(0,0),I(1,1),I(2,1),I(3,1),D(5,4,0),D(4,4,0)], [0,1,2,3], null,
+    '回溯到 3：low[3]=min(1,low[5])=min(1,4)=1；回溯到 2：low[2]=min(2,low[3])=1', [14,18,19]);
+  add([I(0,0),I(1,1),I(2,1),I(3,1),D(5,4,0),D(4,4,0)], [0,1,2,3], null,
+    '回溯到 1：low[1]=min(1,low[2])=1=disc[1]，1 是 SCC 根！弹出 3,2,1', [19,20,21,22,23,24,25,26,27]);
+  add([I(0,0),D(1,1,1),D(2,1,1),D(3,1,1),D(5,4,0),D(4,4,0)], [0], null,
+    'SCC₁ = {1, 2, 3} 识别完成（橙色）', [27,28,29]);
+  add([D(0,0,2),D(1,1,1),D(2,1,1),D(3,1,1),D(5,4,0),D(4,4,0)], [], null,
+    '回溯到 0：low[0]=min(0,1)=0=disc[0]，SCC 根，弹出 → SCC₂ = {0}（紫色）；算法完成', [19,20,21,22,23,24,25,26,27,28,29]);
+  return steps;
+}
+
+const ALL_SCENES = {
+  1: makeScene1Steps(),
+  2: makeScene2Steps(),
+  3: makeScene3Steps(),
+};
+
+// ── SVG Utilities ──
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs, text) {
+  const e = document.createElementNS(SVG_NS, tag);
+  if (attrs) Object.entries(attrs).forEach(([k,v]) => e.setAttribute(k, String(v)));
+  if (text != null) e.textContent = String(text);
+  return e;
+}
+
+// SCC color palettes
+const SCC_FILL   = ['rgba(74,222,128,0.2)',  'rgba(251,146,60,0.2)',  'rgba(192,132,252,0.2)'];
+const SCC_STROKE = ['#4ade80',               '#fb923c',               '#c084fc'];
+const SCC_TEXT   = ['#4ade80',               '#fb923c',               '#c084fc'];
+
+const graphSvg = document.getElementById('graphSvg');
+
+function draw(step) {
+  graphSvg.innerHTML = '';
+  if (!step) return;
+  const r = graphSvg.getBoundingClientRect();
+  const W = r.width || 600, H = r.height || 340;
+  drawGraph(step, W, H);
+}
+
+function drawGraph(step, W, H) {
+  const {edges, pos, nodeStates, stack, activeEdge} = step;
+  const n = nodeStates.length;
+  const NR = Math.min(22, H * 0.07);
+
+  // Reserve right side for stack panel
+  const graphW = W - 130;
+
+  // Pixel coords
+  const px = i => pos[i].x * graphW + NR;
+  const py = i => pos[i].y * (H - NR*2) + NR;
+
+  // Inject defs (arrowhead markers + glow)
+  const defs = svgEl('defs', {});
+  defs.innerHTML = `
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
+    </marker>
+    <marker id="arr-tree" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#fbbf24"/>
+    </marker>
+    <marker id="arr-back" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#fb923c"/>
+    </marker>
+    <filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>`;
+  graphSvg.appendChild(defs);
+
+  // Draw edges
+  edges.forEach(([a,b]) => {
+    const isActive = activeEdge && activeEdge[0] === a && activeEdge[1] === b;
+    const isBackEdge = isActive && nodeStates[b].state !== 'unvisited';
+    const dx = px(b) - px(a), dy = py(b) - py(a);
+    const len = Math.sqrt(dx*dx + dy*dy);
+    if (len < 1) return;
+    const ux = dx/len, uy = dy/len;
+    const x1 = px(a) + ux*(NR+2), y1 = py(a) + uy*(NR+2);
+    const x2 = px(b) - ux*(NR+5), y2 = py(b) - uy*(NR+5);
+    const marker = isActive ? (isBackEdge ? 'arr-back' : 'arr-tree') : 'arr';
+    const stroke = isActive ? (isBackEdge ? '#fb923c' : '#fbbf24') : '#334155';
+    const sw = isActive ? '2.5' : '1.5';
+    graphSvg.appendChild(svgEl('line',
+      {x1, y1, x2, y2, stroke, 'stroke-width':sw, 'marker-end':`url(#${marker})`}));
+  });
+
+  // Draw nodes
+  nodeStates.forEach((ns, id) => {
+    const x = px(id), y = py(id);
+    let fill = '#1e293b', stroke = '#475569', textFill = '#64748b', useGlow = false;
+    if (ns.state === 'instack') {
+      fill = 'rgba(56,189,248,0.2)'; stroke = '#38bdf8'; textFill = '#38bdf8'; useGlow = true;
+    } else if (ns.state === 'done' && ns.sccId !== null && ns.sccId < SCC_FILL.length) {
+      fill   = SCC_FILL[ns.sccId];
+      stroke = SCC_STROKE[ns.sccId];
+      textFill = SCC_TEXT[ns.sccId];
+    }
+    const c = svgEl('circle', {cx:x, cy:y, r:NR, fill, stroke, 'stroke-width':'2'});
+    if (useGlow) c.setAttribute('filter', 'url(#glow)');
+    graphSvg.appendChild(c);
+
+    // Node ID label
+    graphSvg.appendChild(svgEl('text',
+      {x, y:y+5, fill:textFill, 'font-size':14, 'font-weight':'700',
+       'text-anchor':'middle', 'font-family':'monospace'}, id));
+
+    // disc/low below node
+    if (ns.disc >= 0) {
+      graphSvg.appendChild(svgEl('text',
+        {x, y:y+NR+13, fill:'#64748b', 'font-size':9, 'text-anchor':'middle', 'font-family':'monospace'},
+        ns.disc + '/' + ns.low));
+      graphSvg.appendChild(svgEl('text',
+        {x, y:y+NR+22, fill:'#3f4f64', 'font-size':8, 'text-anchor':'middle', 'font-family':'monospace'},
+        'd/l'));
+    }
+  });
+
+  // ── DFS Stack panel ──
+  const panelX = W - 120, panelY = 20;
+  graphSvg.appendChild(svgEl('rect',
+    {x:panelX-8, y:panelY-4, width:118, height:H*0.7, rx:6,
+     fill:'rgba(15,23,42,0.7)', stroke:'#334155', 'stroke-width':1}));
+  graphSvg.appendChild(svgEl('text',
+    {x:panelX+51, y:panelY+12, fill:'#64748b', 'font-size':10, 'text-anchor':'middle', 'font-family':'monospace'},
+    'DFS 栈'));
+
+  if (stack.length === 0) {
+    graphSvg.appendChild(svgEl('text',
+      {x:panelX+51, y:panelY+34, fill:'#334155', 'font-size':10, 'text-anchor':'middle', 'font-family':'monospace'},
+      '(空)'));
+  } else {
+    [...stack].reverse().forEach((nodeId, idx) => {
+      const sy = panelY + 24 + idx * 26;
+      const isTop = idx === 0;
+      graphSvg.appendChild(svgEl('rect',
+        {x:panelX, y:sy, width:102, height:22, rx:3,
+         fill: isTop?'rgba(56,189,248,0.15)':'rgba(56,189,248,0.06)',
+         stroke: isTop?'rgba(56,189,248,0.5)':'rgba(56,189,248,0.2)', 'stroke-width':1}));
+      graphSvg.appendChild(svgEl('text',
+        {x:panelX+51, y:sy+15, fill: isTop?'#38bdf8':'#7ac8e0',
+         'font-size':12, 'font-weight': isTop?'700':'400', 'text-anchor':'middle', 'font-family':'monospace'},
+        nodeId));
+    });
+  }
+
+  // Legend: disc/low explanation
+  graphSvg.appendChild(svgEl('text',
+    {x:panelX, y:H-30, fill:'#334155', 'font-size':9, 'font-family':'monospace'}, 'd/l = disc/low'));
+}
+
+// ── State ──
+let currentScene = 1;
+let steps = ALL_SCENES[1];
+let cur = 0, playing = false, timer = null;
+const SPEED = [900,550,320,180,80];
+
+const descText = document.getElementById('descText');
+const stepCounter = document.getElementById('stepCounter');
+const codeBody = document.getElementById('codeBody');
+const btnPlay = document.getElementById('btnPlay');
+const btnPrev = document.getElementById('btnPrev');
+const btnNext = document.getElementById('btnNext');
+const btnReset = document.getElementById('btnReset');
+const speedRange = document.getElementById('speedRange');
+
+// Scene tabs
+document.getElementById('sceneBtns').querySelectorAll('.start-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    pause();
+    currentScene = parseInt(btn.dataset.scene);
+    steps = ALL_SCENES[currentScene];
+    cur = 0;
+    document.querySelectorAll('#sceneBtns .start-btn').forEach(b => b.classList.remove('active-start'));
+    btn.classList.add('active-start');
+    render();
+  });
+});
+
+function buildCode() {
+  codeBody.innerHTML = CODE_LINES.map((l,i) =>
+    `<div class="code-line" data-line="${i}"><span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
+  ).join('');
+}
+
+function highlightLines(lines) {
+  codeBody.querySelectorAll('.code-line').forEach(el => el.classList.remove('active'));
+  (lines||[]).forEach(ln => {
+    const e = codeBody.querySelector(`[data-line="${ln}"]`);
+    if (e) e.classList.add('active');
+  });
+  if (lines && lines.length > 0) {
+    const f = codeBody.querySelector(`[data-line="${lines[0]}"]`);
+    if (f) f.scrollIntoView({block:'nearest'});
+  }
+}
+
+function render() {
+  if (!steps.length) return;
+  if (cur >= steps.length) cur = steps.length - 1;
+  const s = steps[cur];
+  draw(s);
+  descText.textContent = s.description;
+  stepCounter.textContent = `${cur+1} / ${steps.length}`;
+  highlightLines(s.highlightLines || []);
+  btnPrev.disabled = cur === 0;
+  btnNext.disabled = cur === steps.length - 1;
+}
+
+function play() {
+  if (cur >= steps.length - 1) cur = 0;
+  playing = true;
+  btnPlay.innerHTML = '⏸ 暂停';
+  tick();
+}
+function pause() {
+  playing = false;
+  clearTimeout(timer);
+  btnPlay.innerHTML = '▶ 播放';
+}
+function tick() {
+  if (!playing) return;
+  if (cur < steps.length - 1) {
+    cur++;
+    render();
+    timer = setTimeout(tick, SPEED[parseInt(speedRange.value)-1]);
+  } else pause();
+}
+
+btnPlay.addEventListener('click', () => playing ? pause() : play());
+btnPrev.addEventListener('click', () => { pause(); if (cur > 0) { cur--; render(); } });
+btnNext.addEventListener('click', () => { pause(); if (cur < steps.length-1) { cur++; render(); } });
+btnReset.addEventListener('click', () => { pause(); cur = 0; render(); });
+
+buildCode();
+render();
+window.addEventListener('resize', () => { const s = steps[cur]; if (s) draw(s); });
+</script>
+</body>
+</html>

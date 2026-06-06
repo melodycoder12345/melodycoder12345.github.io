@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="爬虫抓取→分词→倒排索引→TF-IDF/BM25排序→分布式检索合并结果。">
+<link rel="canonical" href="https://melodycoder12345.github.io/system-design/search-engine.html">
+<meta property="og:title" content="搜索引擎 — 码海拾贝">
+<meta property="og:description" content="爬虫抓取→分词→倒排索引→TF-IDF/BM25排序→分布式检索合并结果。">
+<meta property="og:url" content="https://melodycoder12345.github.io/system-design/search-engine.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="搜索引擎 — 码海拾贝">
+<meta name="twitter:description" content="爬虫抓取→分词→倒排索引→TF-IDF/BM25排序→分布式检索合并结果。">
+<title>搜索引擎 - 系统设计</title>
+<script src="../nav.js"></script>
+<style>
+:root{
+  --bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;
+  --text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;
+  --accent:#f59e0b;--blue:#38bdf8;--green:#4ade80;--red:#f87171;--purple:#c084fc;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;overflow:hidden}
+.layout{display:grid;grid-template-columns:260px 1fr 340px;height:calc(100vh - 44px)}
+.steps-panel{background:rgba(17,24,39,.92);border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;overflow:hidden}
+.sp-head{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,.06)}
+.sp-eyebrow{font-size:.65rem;color:var(--accent);text-transform:uppercase;letter-spacing:.14em;font-weight:700;margin-bottom:6px}
+.sp-title{font-size:1rem;font-weight:700;margin-bottom:4px}
+.sp-sub{font-size:.75rem;color:var(--dim);line-height:1.5}
+.scene-tabs{display:flex;flex-direction:column;gap:4px;padding:12px 10px;border-bottom:1px solid rgba(255,255,255,.06)}
+.scene-tab{padding:8px 12px;border-radius:8px;font-size:.78rem;cursor:pointer;border:1px solid transparent;color:var(--dim);transition:all .15s;text-align:left;background:none}
+.scene-tab.active{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.3);color:#fde68a}
+.scene-tab:hover:not(.active){background:rgba(255,255,255,.04);color:var(--text)}
+.dot-nav{display:flex;gap:7px;align-items:center;padding:12px 16px;flex-wrap:wrap}
+.dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.15);cursor:pointer;transition:all .15s;flex-shrink:0}
+.dot.active{background:var(--accent);transform:scale(1.3)}
+.dot.done{background:rgba(245,158,11,.4)}
+.controls{display:flex;gap:8px;padding:10px 16px 14px;border-top:1px solid rgba(255,255,255,.06);margin-top:auto}
+.ctrl-btn{flex:1;padding:7px 0;border-radius:7px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--text);font-size:.78rem;cursor:pointer;transition:all .15s;font-family:inherit}
+.ctrl-btn:hover{background:rgba(255,255,255,.1)}
+.ctrl-btn.play{background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.35);color:#fde68a}
+.ctrl-btn.play:hover{background:rgba(245,158,11,.25)}
+.viz-panel{display:flex;flex-direction:column;overflow:hidden;background:rgba(13,17,23,.6)}
+.viz-canvas{flex:1;position:relative;overflow:hidden}
+svg.arch{width:100%;height:100%}
+.step-desc{padding:14px 20px;border-top:1px solid rgba(255,255,255,.06);background:rgba(17,24,39,.8);min-height:72px}
+.step-desc .sd-label{font-size:.65rem;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px}
+.step-desc .sd-text{font-size:.84rem;color:var(--text);line-height:1.6}
+.detail-panel{background:rgba(17,24,39,.92);border-left:1px solid rgba(255,255,255,.07);overflow-y:auto;padding:18px 16px}
+.dp-section{margin-bottom:22px}
+.dp-title{font-size:.68rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:10px;padding-bottom:7px;border-bottom:1px solid rgba(255,255,255,.06)}
+.dp-block{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:12px 14px;margin-bottom:8px}
+.dp-block h4{font-size:.82rem;font-weight:700;margin-bottom:6px;color:var(--text)}
+.dp-block p{font-size:.77rem;color:var(--dim);line-height:1.6}
+.dp-block code{font-size:.74rem;background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;font-family:monospace;color:#93c5fd}
+.highlight-note{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:10px 12px;font-size:.78rem;color:#fde68a;line-height:1.6;margin-bottom:8px}
+.algo-compare{display:grid;grid-template-columns:1fr;gap:6px}
+.algo-item{padding:8px 10px;border-radius:7px;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03)}
+.algo-item .ai-name{font-size:.78rem;font-weight:700;color:var(--text);margin-bottom:3px}
+.algo-item .ai-desc{font-size:.73rem;color:var(--dim);line-height:1.5}
+@media(max-width:1000px){
+  body{overflow:auto}
+  .layout{grid-template-columns:1fr;height:auto}
+  .viz-panel{height:480px}
+  .steps-panel,.detail-panel{height:auto;overflow:visible}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="steps-panel">
+    <div class="sp-head">
+      <div class="sp-eyebrow">System Design</div>
+      <div class="sp-title">搜索引擎</div>
+      <div class="sp-sub">倒排索引 · BM25 · 分布式检索</div>
+    </div>
+    <div class="scene-tabs" id="sceneTabs">
+      <button class="scene-tab active" data-scene="0">🕷️ 索引构建</button>
+      <button class="scene-tab" data-scene="1">🗄️ 倒排索引合并</button>
+      <button class="scene-tab" data-scene="2">🔍 查询处理</button>
+      <button class="scene-tab" data-scene="3">🔗 PageRank 分析</button>
+    </div>
+    <div class="dot-nav" id="dotNav"></div>
+    <div class="controls">
+      <button class="ctrl-btn" id="btnPrev">◀ 上一步</button>
+      <button class="ctrl-btn play" id="btnPlay">▶ 播放</button>
+      <button class="ctrl-btn" id="btnNext">下一步 ▶</button>
+    </div>
+  </aside>
+
+  <div class="viz-panel">
+    <div class="viz-canvas" id="vizCanvas">
+      <svg class="arch" id="archSvg" viewBox="0 0 680 480" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <div class="step-desc" id="stepDesc">
+      <div class="sd-label">步骤说明</div>
+      <div class="sd-text" id="sdText">选择搜索引擎场景，点击播放观察索引构建和查询处理流程。</div>
+    </div>
+  </div>
+
+  <aside class="detail-panel">
+    <div class="dp-section">
+      <div class="dp-title">← <a href="../system-design/index.html" style="color:var(--dim);text-decoration:none">系统设计</a></div>
+    </div>
+    <div class="dp-section">
+      <div class="dp-title">核心数据结构</div>
+      <div class="algo-compare">
+        <div class="algo-item">
+          <div class="ai-name">📋 倒排索引</div>
+          <div class="ai-desc">词 → Posting List（文档 ID + 词频 + 位置）。是全文检索的核心数据结构。查询复杂度 O(1) 词典查找 + O(k) Posting 遍历。</div>
+        </div>
+        <div class="algo-item">
+          <div class="ai-name">📊 BM25 算法</div>
+          <div class="ai-desc">改进版 TF-IDF，加入文档长度归一化。score = IDF × TF×(k1+1) / (TF + k1×(1-b+b×L/avgL))。k1=1.2, b=0.75 是典型参数。</div>
+        </div>
+        <div class="algo-item">
+          <div class="ai-name">🔗 PageRank</div>
+          <div class="ai-desc">网页权威度 = 0.15 + 0.85 × Σ(PageRank(入链页)/出链数)。迭代收敛后反映页面在网络中的重要性，与 BM25 结合用于最终排序。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dp-section">
+      <div class="dp-title">倒排索引存储</div>
+      <div class="dp-block">
+        <h4>Lucene 存储格式</h4>
+        <p>词典存入 FST（有限状态转换器），Posting List 用 Delta 编码 + VByte 压缩。词典常驻内存，Posting List 按需加载磁盘。</p>
+      </div>
+      <div class="highlight-note">Elasticsearch 基于 Lucene，Shard 即一个 Lucene 实例。查询时并行搜索所有 Shard，协调节点合并结果。</div>
+      <div class="dp-block">
+        <h4>分词器</h4>
+        <p>中文分词：<code>jieba</code>（精确模式/全模式/搜索引擎模式）或 <code>IK Analyzer</code>（ES 常用）。英文：标准空格分词 + Stemming（词干化）。</p>
+      </div>
+    </div>
+
+    <div class="dp-section">
+      <div class="dp-title">分布式搜索</div>
+      <div class="dp-block">
+        <h4>Scatter-Gather 模式</h4>
+        <p>协调节点将查询广播到所有 Shard（Scatter），每个 Shard 本地检索后返回 Top-K，协调节点归并排序（Gather）取全局 Top-K。</p>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script>
+(function(){
+'use strict';
+const NS='http://www.w3.org/2000/svg';
+const svg=document.getElementById('archSvg');
+
+function h2r(hex,a){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return `rgba(${r},${g},${b},${a})`;}
+function addGrid(){
+  const defs=document.createElementNS(NS,'defs');const pat=document.createElementNS(NS,'pattern');pat.setAttribute('id','grid');pat.setAttribute('width','32');pat.setAttribute('height','32');pat.setAttribute('patternUnits','userSpaceOnUse');
+  const pl=document.createElementNS(NS,'path');pl.setAttribute('d','M 32 0 L 0 0 0 32');pl.setAttribute('fill','none');pl.setAttribute('stroke','rgba(255,255,255,.035)');pl.setAttribute('stroke-width','0.5');pat.appendChild(pl);defs.appendChild(pat);svg.appendChild(defs);
+  const bg=document.createElementNS(NS,'rect');bg.setAttribute('width','680');bg.setAttribute('height','480');bg.setAttribute('fill','url(#grid)');svg.appendChild(bg);
+}
+function mkText(x,y,txt,opts){
+  const t=document.createElementNS(NS,'text');t.setAttribute('x',x);t.setAttribute('y',y);t.setAttribute('text-anchor',opts.anchor||'middle');t.setAttribute('font-size',opts.size||12);if(opts.weight)t.setAttribute('font-weight',opts.weight);t.setAttribute('fill',opts.fill||'#e2e8f0');if(opts.family)t.setAttribute('font-family',opts.family);t.textContent=txt;svg.appendChild(t);return t;
+}
+function mkRect(x,y,w,h,fill,stroke,rx){
+  const r=document.createElementNS(NS,'rect');r.setAttribute('x',x);r.setAttribute('y',y);r.setAttribute('width',w);r.setAttribute('height',h);r.setAttribute('rx',rx||8);r.setAttribute('fill',fill);r.setAttribute('stroke',stroke);r.setAttribute('stroke-width','1.5');svg.appendChild(r);return r;
+}
+function mkLine(x1,y1,x2,y2,stroke,dashed,sw){
+  const l=document.createElementNS(NS,'line');l.setAttribute('x1',x1);l.setAttribute('y1',y1);l.setAttribute('x2',x2);l.setAttribute('y2',y2);l.setAttribute('stroke',stroke||'#475569');l.setAttribute('stroke-width',sw||'1.5');if(dashed)l.setAttribute('stroke-dasharray','5 4');svg.appendChild(l);return l;
+}
+function mkCircle(cx,cy,r,fill,stroke){
+  const c=document.createElementNS(NS,'circle');c.setAttribute('cx',cx);c.setAttribute('cy',cy);c.setAttribute('r',r);c.setAttribute('fill',fill);c.setAttribute('stroke',stroke||'none');c.setAttribute('stroke-width','1.5');svg.appendChild(c);return c;
+}
+function mkBox(x,y,w,h,label,color){
+  mkRect(x,y,w,h,h2r(color,.1),color,8);
+  label.split('\n').forEach((l,i)=>mkText(x+w/2,y+h/2-4+(i*14),l,{fill:color,size:11,weight:'700'}));
+}
+
+// ====== 场景1：索引构建 ======
+const INDEX_COMPS = {
+  frontier: {x:20, y:195, w:90,  h:50, label:'URL\nFrontier', color:'#38bdf8'},
+  crawler:  {x:165,y:195, w:90,  h:50, label:'爬虫集群\n(并发)', color:'#a78bfa'},
+  parser:   {x:310,y:195, w:90,  h:50, label:'HTML\n解析器', color:'#f59e0b'},
+  tokenize: {x:455,y:195, w:90,  h:50, label:'中文分词\n(jieba)', color:'#4ade80'},
+  index:    {x:310,y:330, w:130, h:60, label:'倒排索引\n构建', color:'#f87171'},
+};
+const INDEX_STEPS = [
+  { desc:'URL Frontier：待爬取 URL 优先队列，按 PageRank 得分和上次爬取时间排序。高权威网站（如 .gov/.edu）优先爬取。支持去重（布隆过滤器）和礼貌限速（robots.txt）。', from:'frontier', to:'crawler', color:'#38bdf8' },
+  { desc:'爬虫集群并发抓取：数百个爬虫协程同时 HTTP GET 目标 URL，获取 HTML 原始文本。每台机器维护 DNS 缓存避免重复解析，支持 HTTP/2 连接复用。', from:'crawler', to:'parser', color:'#a78bfa', msg:'GET /article/123\nUser-Agent: Googlebot' },
+  { desc:'HTML 解析：提取正文文本（去除 HTML 标签、JS/CSS 代码），提取 title/meta description/h1-h3 标题、链接锚文本。标题权重高于正文。', from:'parser', to:'tokenize', color:'#f59e0b', msg:'title: 机器学习入门\nbody: 2400字\nlinks: [url1, url2]' },
+  { desc:'中文分词（jieba）：将连续汉字切分为词语。"机器学习模型训练" → ["机器学习", "模型", "训练"]。搜索引擎模式会对长词进行细粒度切割，提升召回率。', from:'tokenize', to:'index', color:'#4ade80', msg:'["机器学习","模型","训练"]\n["深度","学习","神经网络"]' },
+  { desc:'构建 Posting List：每个词对应一个倒排列表，记录出现该词的文档 ID + 词频 + 位置偏移。例如："机器学习" → [(doc1, tf=3, pos=[5,18,42]), (doc5, tf=1, pos=[12])]。', from:'index', to:'parser', color:'#f87171' },
+  { desc:'索引写入磁盘：在内存中构建完 Segment 后，写入 Lucene 格式的磁盘文件。词典用 FST 存储（O(n) 空间，O(k) 查找），Posting List 用 Delta+VByte 压缩。', from:'index', to:'frontier', color:'#f87171', msg:'Segment 写盘\nFST词典 + Posting' },
+];
+
+// ====== 场景2：倒排索引合并 ======
+const MERGE_STEPS = [
+  { desc:'分布式倒排索引：搜索集群分为多个 Shard（如 5 个），每个 Shard 存储全量文档的 1/5，并独立维护自己的局部倒排索引。', shards:0 },
+  { desc:'Shard 1 本地检索：查找词 "机器学习" 在 Shard 1 的 Posting List → [(doc2, tf=3), (doc8, tf=1), (doc15, tf=2)]，本地 BM25 打分。', shards:1 },
+  { desc:'Shard 2、3 并行检索：所有 Shard 同时执行查询（Scatter 阶段）。Shard 2 返回 [(doc3, tf=5), (doc21, tf=2)]，Shard 3 返回 [(doc1, tf=4)]。', shards:3 },
+  { desc:'Shard 4、5 也完成检索。协调节点等待所有 Shard 返回各自的本地 Top-K 结果（通常取 Top-100），进入归并阶段（Gather）。', shards:5 },
+  { desc:'协调节点归并（Gather）：收集所有 Shard 的 Top-K 结果，按全局 BM25 分数重新排序，取全局 Top-N 作为最终结果。注意：全局 IDF 需要用各 Shard 的文档频率加权。', shards:5, merge:true },
+  { desc:'归并完成：全局 Top-10 结果出炉。然后协调节点发起第二轮请求，向各 Shard 拉取最终入选文档的完整字段（标题/摘要/URL）。', shards:5, merge:true, result:true },
+];
+
+function drawMergeScene(step) {
+  svg.innerHTML='';addGrid();
+  mkText(340,30,'分布式倒排索引：Scatter-Gather',{fill:'#38bdf8',size:13,weight:'700'});
+
+  // 协调节点
+  mkBox(270,55,140,55,'协调节点\n(Coordinator)','#f59e0b');
+
+  // shards
+  const shardCount = step>=0?MERGE_STEPS[Math.max(0,step)].shards:0;
+  const shards=[
+    {x:50,  y:200, label:'Shard 1', color:'#38bdf8'},
+    {x:170, y:200, label:'Shard 2', color:'#38bdf8'},
+    {x:290, y:200, label:'Shard 3', color:'#38bdf8'},
+    {x:410, y:200, label:'Shard 4', color:'#38bdf8'},
+    {x:530, y:200, label:'Shard 5', color:'#38bdf8'},
+  ];
+  shards.forEach((s,i)=>{
+    const isActive = i < shardCount;
+    mkBox(s.x, s.y, 100, 55, s.label+'\n(Posting List)', isActive?s.color:'#334155');
+    if(isActive){
+      mkLine(340,110,s.x+50,200,'#475569',true,'1');
+      mkLine(s.x+50,255,340,310,'#475569',true,'1');
+    }
+  });
+
+  // posting list
+  if(step>=1){
+    const pls=[
+      {shard:0, docs:'doc2,doc8,doc15'},
+      {shard:1, docs:'doc3,doc21'},
+      {shard:2, docs:'doc1,doc18'},
+      {shard:3, docs:'doc7,doc33'},
+      {shard:4, docs:'doc5,doc29'},
+    ];
+    pls.slice(0, shardCount).forEach((p,i)=>{
+      const sx=shards[p.shard].x;
+      mkText(sx+50,290,p.docs,{fill:'#64748b',size:8,family:'monospace'});
+    });
+  }
+
+  // merge box
+  const s = step>=0 ? MERGE_STEPS[Math.max(0,step)] : {};
+  if(s.merge){
+    mkBox(245,320,190,55,'归并排序\nTop-K 全局合并','#4ade80');
+  }
+
+  // result
+  if(s.result){
+    mkRect(30,395,580,60,h2r('#4ade80',.04),'rgba(74,222,128,.2)',8);
+    mkText(320,415,'全局 Top-10 结果',{fill:'#4ade80',size:11,weight:'700'});
+    ['#1 doc2  score:8.72','#2 doc1  score:8.14','#3 doc5  score:7.89'].forEach((t,i)=>
+      mkText(180+i*180,432,t,{fill:'#94a3b8',size:9,family:'monospace'}));
+  }
+}
+
+// ====== 场景3：查询处理 ======
+const QUERY_COMPS = {
+  user:    {x:20,  y:200, w:90, h:50, label:'用户输入\n"机器学习"', color:'#38bdf8'},
+  tokenize:{x:165, y:200, w:85, h:50, label:'分词\n查询解析', color:'#a78bfa'},
+  lookup:  {x:310, y:200, w:90, h:50, label:'倒排索引\n查找', color:'#f59e0b'},
+  score:   {x:460, y:200, w:90, h:50, label:'BM25\n打分', color:'#4ade80'},
+  result:  {x:310, y:330, w:200,h:50, label:'Top-K 排序结果', color:'#f87171'},
+};
+const QUERY_STEPS = [
+  { desc:'用户输入查询词 "机器学习"，搜索引擎首先对查询进行预处理：分词（"机器学习" 本身是词）、停用词过滤（的/了/是）、同义词扩展（"人工智能"）、拼写纠错。', from:'user', to:'tokenize', color:'#38bdf8' },
+  { desc:'查询分词结果：["机器学习"]（单词查询）。若输入 "机器学习模型"，则分词为 ["机器学习", "模型"]，生成布尔查询：机器学习 AND 模型，要求两个词都出现。', from:'tokenize', to:'lookup', color:'#a78bfa', msg:'query: ["机器学习"]\nmode: AND/OR' },
+  { desc:'查倒排索引：词典 FST 中查找 "机器学习" 的 Posting List → [(doc2,tf=3,pos=[5,18,42]), (doc5,tf=1,pos=[12]), (doc8,tf=2,pos=[3,77])]。词典查找 O(1)。', from:'lookup', to:'score', color:'#f59e0b', msg:'"机器学习" → posting:\n[doc2(3), doc5(1), doc8(2)]' },
+  { desc:'BM25 打分计算：IDF("机器学习") = log((N-df+0.5)/(df+0.5))，其中 N=总文档数，df=含该词的文档数。对每个候选文档计算 BM25 分数。', from:'score', to:'result', color:'#4ade80' },
+  { desc:'多词查询时合并 Posting Lists：对 "机器学习" 和 "模型" 的 Posting Lists 做交集（AND）或归并（OR）。交集用双指针算法 O(m+n)，效率极高。', from:'lookup', to:'result', color:'#f59e0b', msg:'AND合并:\n[doc2, doc8] ∩ [doc1, doc2, doc5]\n→ [doc2]' },
+  { desc:'Top-K 堆排序：使用最小堆维护 Top-K 结果，扫描完所有候选后输出分数最高的 K 个文档。K 通常取 100-200，再截取前 10 条展示给用户。', from:'score', to:'user', color:'#4ade80', msg:'Top-10 结果\n< 50ms' },
+];
+
+// ====== 场景4：PageRank ======
+const PR_STEPS = [
+  { desc:'网页构成有向图：每个节点是一个网页，有向边代表超链接（A→B 表示 A 页面链接到 B 页面）。PageRank 的核心假设：被更多高质量页面链接的页面，本身也越重要。', iter:0, converged:false },
+  { desc:'初始化 PageRank：每个节点初始值 PR = 1/N（N 为总页数）。假设随机冲浪者从任意页面出发，以 0.85 概率点击链接，以 0.15 概率随机跳转到任意页面。', iter:1, converged:false },
+  { desc:'第 1 轮迭代：PR(v) = 0.15/N + 0.85 × Σ(PR(u)/出链数(u))。每个节点将自己的 PR 值均分给它链接的所有页面。中心节点接收多个入链，PR 值增加。', iter:2, converged:false },
+  { desc:'第 3 轮迭代：PR 值逐渐稳定。中心页面（被多个页面链接）的 PR 值明显高于叶子节点。周期性高链接的节点形成权威聚集。', iter:4, converged:false },
+  { desc:'迭代收敛：当所有节点的 PR 值变化量 < ε（如 1e-6）时停止迭代。通常需要 50-100 次迭代。PageRank 值反映了网页在互联网结构中的整体重要性。', iter:8, converged:true },
+  { desc:'PageRank 与 BM25 结合：最终得分 = BM25_score × log(1 + PageRank)。高权威页面（Wikipedia/政府网站）在 BM25 分数接近时优先排名，提升结果质量。', iter:8, converged:true, combine:true },
+];
+
+function drawQueryScene(step) {
+  svg.innerHTML='';addGrid();
+  mkText(340,36,'查询处理：分词 → 倒排查找 → BM25打分',{fill:'#f59e0b',size:12,weight:'700'});
+  // draw components
+  Object.entries(QUERY_COMPS).forEach(([id,c])=>{
+    const g=document.createElementNS(NS,'g');g.id='comp-'+id;
+    mkRect(c.x,c.y,c.w,c.h,h2r(c.color,.1),c.color,8);
+    c.label.split('\n').forEach((l,i)=>{const t=document.createElementNS(NS,'text');t.setAttribute('x',c.x+c.w/2);t.setAttribute('y',c.y+c.h/2-4+(i*14));t.setAttribute('text-anchor','middle');t.setAttribute('font-size','11');t.setAttribute('font-weight','700');t.setAttribute('fill',c.color);t.textContent=l;g.appendChild(t);});
+    svg.appendChild(g);
+  });
+
+  // BM25 formula
+  if(step>=3){
+    mkRect(30,310,600,90,h2r('#4ade80',.04),'rgba(74,222,128,.2)',8);
+    mkText(330,335,'BM25 公式',{fill:'#4ade80',size:11,weight:'700'});
+    mkText(330,355,'score(D,Q) = Σ IDF(qi) × TF(qi,D)×(k1+1) / (TF(qi,D) + k1×(1-b+b×|D|/avgdl))',{fill:'#94a3b8',size:9,family:'monospace'});
+    mkText(330,373,'k1=1.2, b=0.75  →  IDF="机器学习": 4.31  →  doc2: 3.14  doc8: 2.89',{fill:'#64748b',size:9,family:'monospace'});
+  }
+
+  if(step>=0 && step<QUERY_STEPS.length){
+    const s=QUERY_STEPS[step];
+    if(s.from&&s.to)drawAnimArrow2(QUERY_COMPS,s.from,s.to,s.color,s.msg);
+  }
+}
+
+function drawPageRankScene(step) {
+  svg.innerHTML='';addGrid();
+  const s = step>=0 ? PR_STEPS[Math.max(0,step)] : PR_STEPS[0];
+  const iter = s.iter||0;
+  mkText(340,28,`PageRank 迭代 (第 ${iter} 轮)`,{fill:'#c084fc',size:13,weight:'700'});
+
+  // nodes with positions
+  const nodes = [
+    {id:'A', x:160, y:160, pr: Math.min(0.35, 0.1 + iter*0.03), color:'#38bdf8', links:['B','C','E']},
+    {id:'B', x:340, y:100, pr: Math.min(0.28, 0.08 + iter*0.025), color:'#4ade80', links:['C','D']},
+    {id:'C', x:500, y:200, pr: Math.min(0.42, 0.12 + iter*0.04), color:'#f59e0b', links:['A']},
+    {id:'D', x:420, y:320, pr: Math.min(0.15, 0.05 + iter*0.012), color:'#f87171', links:['C']},
+    {id:'E', x:240, y:300, pr: Math.min(0.20, 0.07 + iter*0.016), color:'#a78bfa', links:['B','D']},
+    {id:'F', x:100, y:320, pr: Math.min(0.08, 0.03 + iter*0.006), color:'#94a3b8', links:['A']},
+  ];
+  const nodeMap = {};
+  nodes.forEach(n=>nodeMap[n.id]=n);
+
+  // draw edges
+  nodes.forEach(n=>{
+    n.links.forEach(to=>{
+      const t=nodeMap[to];
+      if(!t)return;
+      const dx=t.x-n.x,dy=t.y-n.y,len=Math.sqrt(dx*dx+dy*dy);
+      const r=22;
+      const sx=n.x+dx/len*r,sy=n.y+dy/len*r;
+      const ex=t.x-dx/len*r,ey=t.y-dy/len*r;
+      const mid2='e'+n.id+to;
+      const defsEl=document.createElementNS(NS,'defs');
+      const mark=document.createElementNS(NS,'marker');mark.setAttribute('id',mid2);mark.setAttribute('viewBox','0 0 10 10');mark.setAttribute('refX','9');mark.setAttribute('refY','5');mark.setAttribute('markerWidth','5');mark.setAttribute('markerHeight','5');mark.setAttribute('orient','auto');
+      const mp=document.createElementNS(NS,'path');mp.setAttribute('d','M 0 0 L 10 5 L 0 10 z');mp.setAttribute('fill','#475569');mark.appendChild(mp);defsEl.appendChild(mark);svg.appendChild(defsEl);
+      const line=document.createElementNS(NS,'line');line.setAttribute('x1',sx);line.setAttribute('y1',sy);line.setAttribute('x2',ex);line.setAttribute('y2',ey);line.setAttribute('stroke','#334155');line.setAttribute('stroke-width','1.5');line.setAttribute('marker-end','url(#'+mid2+')');svg.appendChild(line);
+    });
+  });
+
+  // draw nodes
+  nodes.forEach(n=>{
+    const r = 18 + n.pr * 25;
+    mkCircle(n.x, n.y, r, h2r(n.color,.15), n.color);
+    mkText(n.x, n.y+4, n.id, {fill:n.color, size:12, weight:'700'});
+    if(iter>0){
+      mkText(n.x, n.y+r+14, n.pr.toFixed(3), {fill:'#64748b', size:9});
+    }
+  });
+
+  // convergence
+  if(s.converged){
+    mkRect(30,380,280,70,h2r('#4ade80',.06),'rgba(74,222,128,.2)',8);
+    mkText(170,400,'PageRank 已收敛',{fill:'#4ade80',size:11,weight:'700'});
+    mkText(170,418,'所有节点 ΔPR < 1e-6',{fill:'#94a3b8',size:9});
+    mkText(170,434,'C(0.420) > A(0.350) > B(0.280) > E(0.200)',{fill:'#64748b',size:9,family:'monospace'});
+  }
+
+  if(s.combine){
+    mkRect(330,380,310,70,h2r('#c084fc',.06),'rgba(192,132,252,.2)',8);
+    mkText(485,400,'最终得分融合',{fill:'#c084fc',size:11,weight:'700'});
+    mkText(485,418,'score = BM25 × log(1 + PR)',{fill:'#94a3b8',size:9,family:'monospace'});
+    mkText(485,434,'权威页面在 BM25 相近时优先排名',{fill:'#64748b',size:9});
+  }
+}
+
+let arrowEl2=null, msgEl2=null;
+function drawAnimArrow2(comps, fromId, toId, color, msg) {
+  if(arrowEl2){arrowEl2.remove();arrowEl2=null;}
+  if(msgEl2){msgEl2.remove();msgEl2=null;}
+  const fc=comps[fromId],tc=comps[toId];
+  if(!fc||!tc)return;
+  const fx=fc.x+fc.w/2,fy=fc.y+fc.h/2,tx=tc.x+tc.w/2,ty=tc.y+tc.h/2;
+  const dx=tx-fx,dy=ty-fy,len=Math.sqrt(dx*dx+dy*dy)||1;
+  const ux=dx/len,uy=dy/len;
+  const sx=fx+ux*(fc.w/2+6),sy=fy+uy*(fc.h/2+6);
+  const ex=tx-ux*(tc.w/2+6),ey=ty-uy*(tc.h/2+6);
+  const mx=(sx+ex)/2,my=(sy+ey)/2,perp=-22;
+  const px=mx-uy*perp,py=my+ux*perp;
+  const mid='am'+Date.now();
+  const defsEl=document.createElementNS(NS,'defs');
+  const mark=document.createElementNS(NS,'marker');mark.setAttribute('id',mid);mark.setAttribute('viewBox','0 0 10 10');mark.setAttribute('refX','9');mark.setAttribute('refY','5');mark.setAttribute('markerWidth','6');mark.setAttribute('markerHeight','6');mark.setAttribute('orient','auto');
+  const mp=document.createElementNS(NS,'path');mp.setAttribute('d','M 0 0 L 10 5 L 0 10 z');mp.setAttribute('fill',color);mark.appendChild(mp);defsEl.appendChild(mark);svg.appendChild(defsEl);
+  arrowEl2=document.createElementNS(NS,'path');
+  const pathD=`M${sx},${sy} Q${px},${py} ${ex},${ey}`;
+  arrowEl2.setAttribute('d',pathD);arrowEl2.setAttribute('fill','none');arrowEl2.setAttribute('stroke',color);arrowEl2.setAttribute('stroke-width','2.5');arrowEl2.setAttribute('marker-end','url(#'+mid+')');
+  function bezLen(sx,sy,cx,cy,ex,ey){let l=0,px=sx,py=sy;for(let i=1;i<=20;i++){const t=i/20,nx=(1-t)*(1-t)*sx+2*(1-t)*t*cx+t*t*ex,ny=(1-t)*(1-t)*sy+2*(1-t)*t*cy+t*t*ey;l+=Math.sqrt((nx-px)**2+(ny-py)**2);px=nx;py=ny;}return l;}
+  const tlen=bezLen(sx,sy,px,py,ex,ey);
+  arrowEl2.setAttribute('stroke-dasharray',tlen);arrowEl2.setAttribute('stroke-dashoffset',tlen);arrowEl2.style.transition='stroke-dashoffset 0.5s ease';
+  svg.appendChild(arrowEl2);
+  requestAnimationFrame(()=>{arrowEl2.setAttribute('stroke-dashoffset','0');});
+  if(msg){
+    const lines=msg.split('\n');
+    const lx=(sx+ex)/2,ly=(sy+ey)/2-22;
+    msgEl2=document.createElementNS(NS,'g');
+    const maxW=Math.max(...lines.map(l=>l.length))*6+16,mh=lines.length*14+10;
+    const mbg=document.createElementNS(NS,'rect');mbg.setAttribute('x',lx-maxW/2);mbg.setAttribute('y',ly-mh/2);mbg.setAttribute('width',maxW);mbg.setAttribute('height',mh);mbg.setAttribute('rx','5');mbg.setAttribute('fill','rgba(13,17,23,.9)');mbg.setAttribute('stroke',h2r(color,.5));mbg.setAttribute('stroke-width','1');msgEl2.appendChild(mbg);
+    lines.forEach((line,i)=>{const t=document.createElementNS(NS,'text');t.setAttribute('x',lx);t.setAttribute('y',ly-mh/2+14+i*14);t.setAttribute('text-anchor','middle');t.setAttribute('font-size','10');t.setAttribute('fill',color);t.setAttribute('font-family','monospace');t.textContent=line;msgEl2.appendChild(t);});
+    svg.appendChild(msgEl2);
+  }
+}
+
+// 场景1 arrow helper
+let arrowEl=null, msgEl=null;
+function drawAnimArrow(comps, fromId, toId, color, msg) {
+  if(arrowEl){arrowEl.remove();arrowEl=null;}
+  if(msgEl){msgEl.remove();msgEl=null;}
+  const fc=comps[fromId],tc=comps[toId];
+  if(!fc||!tc)return;
+  const fx=fc.x+fc.w/2,fy=fc.y+fc.h/2,tx=tc.x+tc.w/2,ty=tc.y+tc.h/2;
+  const dx=tx-fx,dy=ty-fy,len=Math.sqrt(dx*dx+dy*dy)||1;
+  const ux=dx/len,uy=dy/len;
+  const sx=fx+ux*(fc.w/2+6),sy=fy+uy*(fc.h/2+6);
+  const ex=tx-ux*(tc.w/2+6),ey=ty-uy*(tc.h/2+6);
+  const mx=(sx+ex)/2,my=(sy+ey)/2,perp=-22;
+  const px=mx-uy*perp,py=my+ux*perp;
+  const mid='am'+Date.now();
+  const defsEl=document.createElementNS(NS,'defs');
+  const mark=document.createElementNS(NS,'marker');mark.setAttribute('id',mid);mark.setAttribute('viewBox','0 0 10 10');mark.setAttribute('refX','9');mark.setAttribute('refY','5');mark.setAttribute('markerWidth','6');mark.setAttribute('markerHeight','6');mark.setAttribute('orient','auto');
+  const mp=document.createElementNS(NS,'path');mp.setAttribute('d','M 0 0 L 10 5 L 0 10 z');mp.setAttribute('fill',color);mark.appendChild(mp);defsEl.appendChild(mark);svg.appendChild(defsEl);
+  arrowEl=document.createElementNS(NS,'path');
+  const pathD=`M${sx},${sy} Q${px},${py} ${ex},${ey}`;
+  arrowEl.setAttribute('d',pathD);arrowEl.setAttribute('fill','none');arrowEl.setAttribute('stroke',color);arrowEl.setAttribute('stroke-width','2.5');arrowEl.setAttribute('marker-end','url(#'+mid+')');
+  function bezLen(sx,sy,cx,cy,ex,ey){let l=0,px=sx,py=sy;for(let i=1;i<=20;i++){const t=i/20,nx=(1-t)*(1-t)*sx+2*(1-t)*t*cx+t*t*ex,ny=(1-t)*(1-t)*sy+2*(1-t)*t*cy+t*t*ey;l+=Math.sqrt((nx-px)**2+(ny-py)**2);px=nx;py=ny;}return l;}
+  const tlen=bezLen(sx,sy,px,py,ex,ey);
+  arrowEl.setAttribute('stroke-dasharray',tlen);arrowEl.setAttribute('stroke-dashoffset',tlen);arrowEl.style.transition='stroke-dashoffset 0.5s ease';
+  svg.appendChild(arrowEl);
+  requestAnimationFrame(()=>{arrowEl.setAttribute('stroke-dashoffset','0');});
+  if(msg){
+    const lines=msg.split('\n');
+    const lx=(sx+ex)/2,ly=(sy+ey)/2-22;
+    msgEl=document.createElementNS(NS,'g');
+    const maxW=Math.max(...lines.map(l=>l.length))*6+16,mh=lines.length*14+10;
+    const mbg=document.createElementNS(NS,'rect');mbg.setAttribute('x',lx-maxW/2);mbg.setAttribute('y',ly-mh/2);mbg.setAttribute('width',maxW);mbg.setAttribute('height',mh);mbg.setAttribute('rx','5');mbg.setAttribute('fill','rgba(13,17,23,.9)');mbg.setAttribute('stroke',h2r(color,.5));mbg.setAttribute('stroke-width','1');msgEl.appendChild(mbg);
+    lines.forEach((line,i)=>{const t=document.createElementNS(NS,'text');t.setAttribute('x',lx);t.setAttribute('y',ly-mh/2+14+i*14);t.setAttribute('text-anchor','middle');t.setAttribute('font-size','10');t.setAttribute('fill',color);t.setAttribute('font-family','monospace');t.textContent=line;msgEl.appendChild(t);});
+    svg.appendChild(msgEl);
+  }
+}
+
+function drawIndexScene(step) {
+  svg.innerHTML='';addGrid();
+  mkText(340,36,'索引构建：爬取 → 解析 → 分词 → 倒排索引',{fill:'#38bdf8',size:12,weight:'700'});
+  // draw components
+  Object.entries(INDEX_COMPS).forEach(([id,c])=>{
+    mkRect(c.x,c.y,c.w,c.h,h2r(c.color,.1),c.color,8);
+    c.label.split('\n').forEach((l,i)=>mkText(c.x+c.w/2,c.y+c.h/2-4+(i*14),l,{fill:c.color,size:11,weight:'700'}));
+  });
+
+  // posting list visual
+  if(step>=4){
+    mkRect(30,310,590,130,h2r('#f87171',.04),'rgba(248,113,113,.2)',8);
+    mkText(320,332,'倒排索引 Posting Lists',{fill:'#f87171',size:11,weight:'700'});
+    const terms=[
+      {term:'"机器学习"',docs:'(doc1,3) (doc5,1) (doc8,2)',x:110},
+      {term:'"模型"',     docs:'(doc1,2) (doc3,4) (doc5,3)',x:320},
+      {term:'"训练"',     docs:'(doc2,1) (doc5,2) (doc9,3)',x:510},
+    ];
+    terms.forEach(t=>{
+      mkText(t.x,352,t.term,{fill:'#f87171',size:10,weight:'700',family:'monospace'});
+      mkText(t.x,368,'→',{fill:'#475569',size:12});
+      mkText(t.x,385,t.docs,{fill:'#64748b',size:8,family:'monospace'});
+      mkText(t.x,400,'(docId, tf)',{fill:'#334155',size:8});
+    });
+  }
+
+  if(step>=0 && step<INDEX_STEPS.length){
+    const s=INDEX_STEPS[step];
+    if(s.from&&s.to)drawAnimArrow(INDEX_COMPS,s.from,s.to,s.color,s.msg);
+  }
+}
+
+const SCENES = [
+  { name:'索引构建', steps:INDEX_STEPS, draw:(i)=>drawIndexScene(i) },
+  { name:'倒排索引合并', steps:MERGE_STEPS, draw:(i)=>drawMergeScene(i) },
+  { name:'查询处理', steps:QUERY_STEPS, draw:(i)=>drawQueryScene(i) },
+  { name:'PageRank 分析', steps:PR_STEPS, draw:(i)=>drawPageRankScene(i) },
+];
+
+let currentScene=0,currentStep=-1,playing=false,timer=null;
+
+function renderStep(idx) {
+  const scene=SCENES[currentScene];
+  if(!scene)return;
+  if(idx<0)idx=-1;
+  if(idx>=scene.steps.length)idx=scene.steps.length-1;
+  currentStep=idx;arrowEl=null;msgEl=null;arrowEl2=null;msgEl2=null;
+  if(idx>=0){
+    document.getElementById('sdText').textContent=scene.steps[idx].desc;
+    scene.draw(idx);
+  } else {
+    document.getElementById('sdText').textContent='选择搜索引擎场景，点击播放观察索引构建和查询处理流程。';
+    scene.draw(-1);
+  }
+  updateDots();
+}
+
+function updateDots(){
+  const scene=SCENES[currentScene];
+  const nav=document.getElementById('dotNav');
+  nav.innerHTML='';
+  scene.steps.forEach((_,i)=>{
+    const d=document.createElement('div');
+    d.className='dot'+(i===currentStep?' active':i<currentStep?' done':'');
+    d.addEventListener('click',()=>{stopPlay();renderStep(i);});
+    nav.appendChild(d);
+  });
+}
+
+function stopPlay(){playing=false;clearTimeout(timer);document.getElementById('btnPlay').textContent='▶ 播放';}
+function startPlay(){
+  playing=true;document.getElementById('btnPlay').textContent='⏸ 暂停';
+  function next(){if(!playing)return;const scene=SCENES[currentScene];if(currentStep<scene.steps.length-1){renderStep(currentStep+1);timer=setTimeout(next,2000);}else stopPlay();}
+  timer=setTimeout(next,400);
+}
+
+document.getElementById('sceneTabs').addEventListener('click',e=>{
+  const btn=e.target.closest('.scene-tab');if(!btn)return;
+  stopPlay();currentScene=parseInt(btn.dataset.scene);
+  document.querySelectorAll('.scene-tab').forEach((t,i)=>t.classList.toggle('active',i===currentScene));
+  renderStep(-1);
+});
+document.getElementById('btnPlay').addEventListener('click',()=>{if(playing){stopPlay();return;}const s=SCENES[currentScene];if(currentStep>=s.steps.length-1)renderStep(-1);startPlay();});
+document.getElementById('btnPrev').addEventListener('click',()=>{stopPlay();renderStep(currentStep-1);});
+document.getElementById('btnNext').addEventListener('click',()=>{stopPlay();renderStep(currentStep+1);});
+
+renderStep(-1);
+})();
+</script>
+<script src="../footer.js"></script>
+</body>
+</html>

@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="衡量两个字符串需要多少次插入/删除/替换操作才能互相转化。动态规划填充二维表格，dp[i][j]=min(三个来源)。">
+<link rel="canonical" href="https://melodycoder12345.github.io/algo/edit-distance.html">
+<meta property="og:title" content="编辑距离 (Levenshtein Distance) — 码海拾贝">
+<meta property="og:description" content="衡量两个字符串需要多少次插入/删除/替换操作才能互相转化。">
+<meta property="og:url" content="https://melodycoder12345.github.io/algo/edit-distance.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="编辑距离 — 码海拾贝">
+<meta name="twitter:description" content="衡量两个字符串需要多少次插入/删除/替换操作才能互相转化。">
+<title>编辑距离 (Levenshtein Distance) - 算法可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}
+.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.badge.time{background:rgba(56,189,248,0.15);color:var(--blue);}
+.badge.space{background:rgba(196,132,252,0.15);color:var(--purple);}
+/* layout */
+.layout{display:grid;grid-template-columns:242px 1fr 368px;flex:1;overflow:hidden;}
+/* left */
+.left-panel{border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.scene-tabs{display:flex;flex-direction:column;gap:3px;padding:10px 10px 8px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.scene-label{font-size:0.68rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--dim);margin-bottom:4px;font-weight:600;}
+.tab-btn{background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--dim);padding:7px 10px;border-radius:7px;cursor:pointer;font-size:0.78rem;text-align:left;transition:all 0.15s;}
+.tab-btn:hover{background:rgba(255,255,255,0.08);color:var(--text);}
+.tab-btn.active{background:rgba(167,139,250,0.15);border-color:rgba(167,139,250,0.4);color:#a78bfa;}
+.info-area{flex:1;overflow-y:auto;padding:10px 12px;min-height:0;}
+.area-title{font-size:0.68rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--dim);margin-bottom:7px;font-weight:600;}
+.subcase-row{display:flex;flex-direction:column;gap:3px;margin-bottom:8px;}
+.subcase-btn{background:rgba(255,255,255,0.03);border:1px solid var(--border);color:var(--dim);padding:5px 9px;border-radius:5px;cursor:pointer;font-size:0.75rem;text-align:left;transition:all 0.15s;}
+.subcase-btn:hover{background:rgba(255,255,255,0.07);}
+.subcase-btn.active{background:rgba(56,189,248,0.12);border-color:rgba(56,189,248,0.3);color:var(--blue);}
+.result-box{background:rgba(74,222,128,0.06);border:1px solid rgba(74,222,128,0.25);border-radius:7px;padding:10px 12px;font-size:0.8rem;margin-bottom:8px;display:none;}
+.result-title{font-size:0.68rem;color:var(--dim);margin-bottom:4px;}
+.result-val{font-size:1.2rem;font-weight:700;color:var(--green);}
+.ops-list{margin-top:6px;display:flex;flex-direction:column;gap:3px;}
+.op-item{font-family:monospace;font-size:0.74rem;padding:2px 0;}
+.step-box{padding:9px 12px;border-top:1px solid var(--border);flex-shrink:0;}
+.step-ctr{font-size:0.72rem;color:var(--dim);margin-bottom:5px;}
+.step-desc{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:7px;padding:9px 11px;font-size:0.79rem;line-height:1.65;min-height:66px;}
+.ctrl-row{display:flex;gap:6px;padding:9px 12px;border-top:1px solid var(--border);flex-shrink:0;align-items:center;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:6px 13px;border-radius:6px;cursor:pointer;font-size:0.82rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}
+.btn.primary{background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.3);color:var(--blue);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-row{display:flex;align-items:center;gap:7px;padding:6px 12px;border-top:1px solid var(--border);font-size:0.74rem;color:var(--dim);flex-shrink:0;}
+input[type=range]{-webkit-appearance:none;width:80px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--blue);cursor:pointer;}
+/* mid */
+.mid-panel{display:flex;flex-direction:column;overflow:hidden;}
+.legend{display:flex;gap:12px;padding:8px 20px;border-bottom:1px solid var(--border);flex-wrap:wrap;flex-shrink:0;}
+.leg{display:flex;align-items:center;gap:5px;font-size:0.71rem;color:var(--dim);}
+.leg-dot{width:12px;height:12px;border-radius:3px;flex-shrink:0;}
+.table-area{flex:1;overflow:auto;padding:16px 20px;display:flex;align-items:flex-start;justify-content:flex-start;}
+.dp-table{border-collapse:collapse;font-family:monospace;font-size:0.84rem;}
+.dp-header{color:var(--dim);font-size:0.72rem;padding:0 4px;text-align:center;min-width:42px;height:32px;font-weight:500;}
+.dp-cell{width:42px;height:42px;text-align:center;vertical-align:middle;border:1px solid var(--border);transition:background 0.18s,color 0.18s;position:relative;}
+.dp-cell.c-cur{background:rgba(251,191,36,0.25);color:var(--yellow);font-weight:700;}
+.dp-cell.c-dep{background:rgba(196,132,252,0.2);color:var(--purple);}
+.dp-cell.c-match{background:rgba(74,222,128,0.2);color:var(--green);}
+.dp-cell.c-path{background:rgba(251,146,60,0.28);color:var(--orange);font-weight:700;}
+.dp-cell.c-init{background:rgba(56,189,248,0.1);color:var(--blue);}
+.dp-cell.c-done{background:rgba(74,222,128,0.12);color:var(--green);}
+.hdr-char{font-weight:700;font-size:0.88rem;}
+.row-hdr{padding:0 10px 0 4px;text-align:right;white-space:nowrap;font-size:0.72rem;min-width:32px;}
+/* right */
+.right-panel{border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.formula-box{padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.formula-title{font-size:0.68rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--dim);margin-bottom:8px;font-weight:600;}
+.formula{background:#0d1117;border-radius:8px;padding:12px 14px;font-family:monospace;font-size:0.78rem;line-height:1.9;}
+.code-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.code-hdr{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.78rem;line-height:1.7;}
+.code-line.active{background:rgba(251,191,36,0.1);}
+.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:44px;padding:0 10px 0 14px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.76rem;}
+.lc{padding:0 14px 0 2px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.id{color:#e6edf3;}.cm{color:#8b949e;}
+@media(max-width:900px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;overflow-x:hidden;}
+  .layout{grid-template-columns:1fr!important;height:auto!important;}
+  .table-area{min-height:280px;}
+  .right-panel{height:400px!important;}
+}
+</style>
+<script src="../nav.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>编辑距离（Levenshtein Distance）</h1>
+  <div class="complexity">
+    <span class="badge time">时间 O(mn)</span>
+    <span class="badge space">空间 O(mn)</span>
+  </div>
+</nav>
+<div class="layout">
+<!-- ═══ LEFT ═══ -->
+<div class="left-panel">
+  <div class="scene-tabs">
+    <div class="scene-label">场景</div>
+    <button class="tab-btn active" id="tab0" onclick="switchScene(0)">① 正常 DP 填表</button>
+    <button class="tab-btn" id="tab1" onclick="switchScene(1)">② 回溯操作路径</button>
+    <button class="tab-btn" id="tab2" onclick="switchScene(2)">③ 边界情况</button>
+  </div>
+  <div class="info-area">
+    <div id="subcaseArea" style="display:none">
+      <div class="area-title">选择边界情况</div>
+      <div class="subcase-row">
+        <button class="subcase-btn active" id="sub0" onclick="switchSub(0)">A：两串相同 "cat" == "cat"</button>
+        <button class="subcase-btn" id="sub1" onclick="switchSub(1)">B：一端为空 "" → "hello"</button>
+        <button class="subcase-btn" id="sub2" onclick="switchSub(2)">C：完全不同 "abc" vs "xyz"</button>
+      </div>
+    </div>
+    <div class="result-box" id="resultBox">
+      <div class="result-title">最终编辑距离</div>
+      <div class="result-val" id="resultVal"></div>
+      <div class="ops-list" id="opsList"></div>
+    </div>
+    <div class="area-title" style="margin-top:4px">字符串</div>
+    <div id="strDisplay" style="font-family:monospace;font-size:0.85rem;line-height:2;color:var(--dim)"></div>
+  </div>
+  <div class="step-box">
+    <div class="step-ctr" id="stepCtr">步骤 0 / 0</div>
+    <div class="step-desc" id="stepDesc">点击「▶ 播放」开始演示</div>
+  </div>
+  <div class="ctrl-row">
+    <button class="btn" onclick="reset()">⏮</button>
+    <button class="btn" id="btnPrev" onclick="prev()">◀</button>
+    <button class="btn primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+    <button class="btn" id="btnNext" onclick="next()">▶▶</button>
+  </div>
+  <div class="speed-row">
+    <span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span>
+  </div>
+</div>
+<!-- ═══ MIDDLE ═══ -->
+<div class="mid-panel">
+  <div class="legend">
+    <div class="leg"><div class="leg-dot" style="background:rgba(251,191,36,0.4)"></div>当前格</div>
+    <div class="leg"><div class="leg-dot" style="background:rgba(74,222,128,0.3)"></div>对角来源（字符匹配）</div>
+    <div class="leg"><div class="leg-dot" style="background:rgba(196,132,252,0.3)"></div>不匹配来源格</div>
+    <div class="leg"><div class="leg-dot" style="background:rgba(251,146,60,0.35)"></div>回溯路径</div>
+    <div class="leg"><div class="leg-dot" style="background:rgba(56,189,248,0.2)"></div>基础初始化</div>
+  </div>
+  <div class="table-area" id="tableArea"></div>
+</div>
+<!-- ═══ RIGHT ═══ -->
+<div class="right-panel">
+  <div class="formula-box">
+    <div class="formula-title">递推公式</div>
+    <div class="formula">
+<span style="color:var(--blue)">if</span> s[i-1] == t[j-1]:
+  dp[i][j] = dp[i-1][j-1]   <span style="color:var(--cm,#8b949e)">// 匹配，不花费</span>
+<span style="color:var(--blue)">else</span>:
+  dp[i][j] = 1 + min(
+    dp[i-1][j-1],  <span style="color:var(--cm,#8b949e)">// 替换</span>
+    dp[i-1][j],    <span style="color:var(--cm,#8b949e)">// 删除 s[i-1]</span>
+    dp[i][j-1]     <span style="color:var(--cm,#8b949e)">// 插入 t[j-1]</span>
+  )</div>
+  </div>
+  <div class="code-panel">
+    <div class="code-hdr">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px">edit_distance.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+</div>
+<script>
+// ──────────────────────────────────────────
+// Code Lines
+// ──────────────────────────────────────────
+const CODE_LINES = [
+  {html:`<span class="kw">func</span> <span class="fn">editDist</span>(s, t <span class="kw">string</span>) <span class="kw">int</span> {`},           // 0
+  {html:`&nbsp;&nbsp;m, n := <span class="fn">len</span>(s), <span class="fn">len</span>(t)`},                         // 1
+  {html:`&nbsp;&nbsp;dp := <span class="fn">make</span>([][]<span class="kw">int</span>, m+<span class="num">1</span>)`},                  // 2
+  {html:`&nbsp;&nbsp;<span class="kw">for</span> i := <span class="kw">range</span> dp { dp[i] = <span class="fn">make</span>([]<span class="kw">int</span>, n+<span class="num">1</span>) }`}, // 3
+  {html:``},                                                                    // 4
+  {html:`&nbsp;&nbsp;<span class="cm">// 基础情况：空串到前缀需 i/j 次操作</span>`},             // 5
+  {html:`&nbsp;&nbsp;<span class="kw">for</span> i := <span class="num">0</span>; i &lt;= m; i++ { dp[i][<span class="num">0</span>] = i }  <span class="cm">// 删除</span>`}, // 6
+  {html:`&nbsp;&nbsp;<span class="kw">for</span> j := <span class="num">0</span>; j &lt;= n; j++ { dp[<span class="num">0</span>][j] = j }  <span class="cm">// 插入</span>`}, // 7
+  {html:``},                                                                    // 8
+  {html:`&nbsp;&nbsp;<span class="kw">for</span> i := <span class="num">1</span>; i &lt;= m; i++ {`},                     // 9
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> j := <span class="num">1</span>; j &lt;= n; j++ {`},                   // 10
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> s[i-<span class="num">1</span>] == t[j-<span class="num">1</span>] {               <span class="cm">// 字符匹配</span>`}, // 11
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;dp[i][j] = dp[i-<span class="num">1</span>][j-<span class="num">1</span>]`},               // 12
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;} <span class="kw">else</span> {`},                                   // 13
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;dp[i][j] = <span class="num">1</span> + <span class="fn">min</span>(`},                   // 14
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;dp[i-<span class="num">1</span>][j-<span class="num">1</span>],         <span class="cm">// 替换</span>`},        // 15
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;dp[i-<span class="num">1</span>][j],           <span class="cm">// 删除</span>`},        // 16
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;dp[i][j-<span class="num">1</span>],           <span class="cm">// 插入</span>`},        // 17
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)`},                                               // 18
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},                                                 // 19
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},                                                     // 20
+  {html:`&nbsp;&nbsp;}`},                                                           // 21
+  {html:`&nbsp;&nbsp;<span class="kw">return</span> dp[m][n]`},                                   // 22
+  {html:`}`},                                                                    // 23
+];
+
+// ──────────────────────────────────────────
+// Scenario Config
+// ──────────────────────────────────────────
+const SCENARIOS = {
+  s1: { s1:'horse', s2:'rose',  label:'horse → rose' },
+  s2: { s1:'horse', s2:'rose',  label:'horse → rose（回溯）' },
+  s3a:{ s1:'cat',   s2:'cat',   label:'cat → cat' },
+  s3b:{ s1:'',      s2:'hello', label:'"" → hello' },
+  s3c:{ s1:'abc',   s2:'xyz',   label:'abc → xyz' },
+};
+
+let curScene=0, curSub=0, curKey='s1';
+let steps=[], cur=0, playing=false, timer=null;
+let curS1='', curS2='', curDP=[];
+const SPEED=[900,550,320,175,75];
+
+// ──────────────────────────────────────────
+// DP Computation
+// ──────────────────────────────────────────
+function buildDP(s1, s2) {
+  const m=s1.length, n=s2.length;
+  const dp=Array.from({length:m+1},()=>new Array(n+1).fill(0));
+  for(let i=0;i<=m;i++) dp[i][0]=i;
+  for(let j=0;j<=n;j++) dp[0][j]=j;
+  for(let i=1;i<=m;i++) for(let j=1;j<=n;j++) {
+    if(s1[i-1]===s2[j-1]) dp[i][j]=dp[i-1][j-1];
+    else dp[i][j]=1+Math.min(dp[i-1][j-1],dp[i-1][j],dp[i][j-1]);
+  }
+  return dp;
+}
+
+// ──────────────────────────────────────────
+// Step Generation – Fill Table
+// ──────────────────────────────────────────
+function generateFillSteps(s1, s2, dp) {
+  const m=s1.length, n=s2.length;
+  const S=[];
+
+  S.push({phase:'init', revealedTo:[-1,-1], curCell:null, deps:[], matchDep:null, pathCells:null,
+    hl:[2,3], desc:`初始化 dp 数组：<strong style="color:var(--blue)">(m+1)×(n+1)</strong> = ${m+1}×${n+1} 的表格，s1="${s1}", s2="${s2}"`});
+
+  S.push({phase:'base', revealedTo:[0,n], curCell:null, deps:[], matchDep:null, pathCells:null,
+    hl:[6,7], desc:`填入基础情况：<strong style="color:var(--blue)">dp[i][0] = i</strong>（从 s1 前 i 个字符到空串需 i 次删除），<strong style="color:var(--blue)">dp[0][j] = j</strong>（从空串到 s2 前 j 个字符需 j 次插入）`});
+
+  for(let i=1;i<=m;i++) {
+    for(let j=1;j<=n;j++) {
+      const match = s1[i-1]===s2[j-1];
+      let deps=[], matchDep=null;
+      let descDetail='';
+      if(match) {
+        matchDep=[i-1,j-1];
+        descDetail=`s1[${i}]='<strong style="color:var(--green)">${s1[i-1]}</strong>' == s2[${j}]='<strong style="color:var(--green)">${s2[j-1]}</strong>'，<strong style="color:var(--green)">字符匹配！</strong>dp[${i}][${j}] = dp[${i-1}][${j-1}] = <strong style="color:var(--yellow)">${dp[i][j]}</strong>（不花费操作）`;
+      } else {
+        deps=[[i-1,j-1],[i-1,j],[i,j-1]];
+        const [vReplace,vDelete,vInsert]=[dp[i-1][j-1],dp[i-1][j],dp[i][j-1]];
+        const opType = dp[i][j]-1===vReplace?'替换':dp[i][j]-1===vDelete?'删除':'插入';
+        descDetail=`s1[${i}]='<strong style="color:var(--orange)">${s1[i-1]}</strong>' ≠ s2[${j}]='<strong style="color:var(--orange)">${s2[j-1]}</strong>'，不匹配。min(替换:${vReplace}, 删除:${vDelete}, 插入:${vInsert})+1 = <strong style="color:var(--yellow)">${dp[i][j]}</strong>（最优：${opType}）`;
+      }
+      S.push({phase:'fill', revealedTo:[i,j], curCell:[i,j], deps, matchDep, pathCells:null,
+        hl: match ? [11,12] : [13,14,15,16,17,18],
+        desc: descDetail});
+    }
+  }
+
+  S.push({phase:'done', revealedTo:[m,n], curCell:null, deps:[], matchDep:null, pathCells:null,
+    hl:[22], desc:`<strong style="color:var(--green)">填表完成！</strong>dp[${m}][${n}] = <strong style="color:var(--green)">${dp[m][n]}</strong>，即 "<strong>${s1}</strong>" → "<strong>${s2}</strong>" 的最小编辑距离为 <strong style="color:var(--green)">${dp[m][n]}</strong> 次操作。`});
+
+  return S;
+}
+
+// ──────────────────────────────────────────
+// Step Generation – Traceback
+// ──────────────────────────────────────────
+function generateTraceSteps(s1, s2, dp) {
+  const m=s1.length, n=s2.length;
+  const S=[];
+  const pathCells=new Set();
+
+  S.push({phase:'trace_init', revealedTo:[m,n], curCell:[m,n], deps:[], matchDep:null, pathCells:new Set(),
+    hl:[22], desc:`表格已填完，dp[${m}][${n}]=${dp[m][n]}。从右下角 (${m},${n}) 开始回溯，沿最优路径找到所有操作。`});
+
+  let i=m,j=n;
+  const ops=[];
+  pathCells.add(`${i},${j}`);
+
+  while(i>0||j>0){
+    let ni=i,nj=j,op='';
+    if(i>0&&j>0&&s1[i-1]===s2[j-1]){
+      op='保留'; ni=i-1; nj=j-1;
+    } else if(i===0){
+      op=`插入 '${s2[j-1]}'`; nj=j-1;
+    } else if(j===0){
+      op=`删除 '${s1[i-1]}'`; ni=i-1;
+    } else {
+      const vReplace=dp[i-1][j-1], vDelete=dp[i-1][j], vInsert=dp[i][j-1];
+      const best=Math.min(vReplace,vDelete,vInsert);
+      if(best===vReplace){ op=`替换 '${s1[i-1]}'→'${s2[j-1]}'`; ni=i-1; nj=j-1; }
+      else if(best===vDelete){ op=`删除 '${s1[i-1]}'`; ni=i-1; }
+      else { op=`插入 '${s2[j-1]}'`; nj=j-1; }
+    }
+    ops.push(op);
+    pathCells.add(`${ni},${nj}`);
+    const dir = ni<i&&nj<j?'↖对角线':ni<i?'↑上方':'←左方';
+    const opColor = op.startsWith('保留')?'var(--green)':op.startsWith('替换')?'var(--yellow)':op.startsWith('删除')?'var(--red)':'var(--blue)';
+    S.push({phase:'trace', revealedTo:[m,n], curCell:[ni,nj], deps:[], matchDep:null,
+      pathCells: new Set(pathCells), ops:[...ops],
+      hl: op.startsWith('保留')?[11,12]:op.startsWith('替换')?[15]:op.startsWith('删除')?[16]:[17],
+      desc:`从 (${i},${j}) 沿 <strong>${dir}</strong> 到 (${ni},${nj})：<strong style="color:${opColor}">${op}</strong>。已记录 ${ops.length} 步操作。`});
+    i=ni; j=nj;
+  }
+
+  S.push({phase:'trace_done', revealedTo:[m,n], curCell:null, deps:[], matchDep:null,
+    pathCells: new Set(pathCells), ops:[...ops],
+    hl:[22], desc:`<strong style="color:var(--green)">回溯完成！</strong>编辑距离 = ${dp[m][n]}，操作序列（逆序）：${[...ops].reverse().join(' → ')}`});
+
+  return S;
+}
+
+// ──────────────────────────────────────────
+// Rendering
+// ──────────────────────────────────────────
+function isRevealed(i, j, step) {
+  if(step.phase==='init') return false;
+  if(step.phase==='base') return i===0||j===0;
+  if(step.phase==='done'||step.phase==='trace'||step.phase==='trace_init'||step.phase==='trace_done') return true;
+  const [ri,rj]=step.revealedTo;
+  if(i===0||j===0) return true;
+  if(i<ri) return true;
+  if(i===ri&&j<=rj) return true;
+  return false;
+}
+
+function getCellClass(i,j,step){
+  const key=`${i},${j}`;
+  if(step.pathCells&&step.pathCells.has(key)&&(step.phase==='trace'||step.phase==='trace_done')){
+    return step.curCell&&step.curCell[0]===i&&step.curCell[1]===j?'c-cur':'c-path';
+  }
+  if(step.curCell&&step.curCell[0]===i&&step.curCell[1]===j) return 'c-cur';
+  if(step.matchDep&&step.matchDep[0]===i&&step.matchDep[1]===j) return 'c-match';
+  for(const d of step.deps||[]) if(d[0]===i&&d[1]===j) return 'c-dep';
+  if(step.phase==='base'&&(i===0||j===0)) return 'c-init';
+  if(step.phase==='done'&&i===curS1.length&&j===curS2.length) return 'c-done';
+  return '';
+}
+
+function renderTable(step){
+  const m=curS1.length, n=curS2.length;
+  const s1Arr=['ε',...curS1.split('')];
+  const s2Arr=['ε',...curS2.split('')];
+  const cellW=Math.min(44,Math.max(32,Math.floor((document.getElementById('tableArea').clientWidth-60)/(n+1))));
+
+  let html='<table class="dp-table"><thead><tr>';
+  html+=`<th class="dp-header" style="min-width:36px"></th>`;
+  for(let j=0;j<=n;j++){
+    const c=s2Arr[j];
+    const col=j===0?'var(--dim)':'var(--blue)';
+    html+=`<th class="dp-header" style="width:${cellW}px"><span class="hdr-char" style="color:${col}">${c}</span></th>`;
+  }
+  html+='</tr></thead><tbody>';
+  for(let i=0;i<=m;i++){
+    html+='<tr>';
+    const rc=s1Arr[i];
+    const rcol=i===0?'var(--dim)':'var(--orange)';
+    html+=`<td class="row-hdr"><span style="color:${rcol};font-weight:700;font-size:0.88rem">${rc}</span></td>`;
+    for(let j=0;j<=n;j++){
+      const cls=getCellClass(i,j,step);
+      const val=isRevealed(i,j,step)?curDP[i][j]:'';
+      html+=`<td class="dp-cell ${cls}" style="width:${cellW}px">${val}</td>`;
+    }
+    html+='</tr>';
+  }
+  html+='</tbody></table>';
+  document.getElementById('tableArea').innerHTML=html;
+}
+
+function renderResult(step){
+  const box=document.getElementById('resultBox');
+  if((step.phase==='done'||step.phase==='trace_done')&&curDP.length){
+    box.style.display='';
+    document.getElementById('resultVal').textContent=`${curDP[curS1.length][curS2.length]} 次操作`;
+    if(step.ops&&step.ops.length){
+      const opsHtml=step.ops.slice().reverse().map((op,i)=>{
+        const color=op.startsWith('保留')?'var(--green)':op.startsWith('替换')?'var(--yellow)':op.startsWith('删除')?'var(--red)':'var(--blue)';
+        return `<div class="op-item" style="color:${color}">${i+1}. ${op}</div>`;
+      }).join('');
+      document.getElementById('opsList').innerHTML=opsHtml;
+    } else document.getElementById('opsList').innerHTML='';
+  } else box.style.display='none';
+}
+
+function renderCode(){
+  const step=steps[cur];
+  const hl=step?(step.hl||[]):[];
+  const body=document.getElementById('codeBody');
+  body.innerHTML=CODE_LINES.map((line,i)=>{
+    const active=hl.includes(i)?' active':'';
+    return `<div class="code-line${active}"><span class="ln">${i+1}</span><span class="lc">${line.html||'&nbsp;'}</span></div>`;
+  }).join('');
+  const el=body.querySelector('.code-line.active');
+  if(el) el.scrollIntoView({block:'nearest'});
+}
+
+function renderStrDisplay(){
+  const s1Label=curS1||'(空串)', s2Label=curS2||'(空串)';
+  document.getElementById('strDisplay').innerHTML=
+    `<span style="color:var(--dim)">s1: </span><span style="color:var(--orange);font-weight:600">"${s1Label}"</span><br>`+
+    `<span style="color:var(--dim)">s2: </span><span style="color:var(--blue);font-weight:600">"${s2Label}"</span>`;
+}
+
+function render(){
+  if(!steps.length) return;
+  const s=steps[cur];
+  renderTable(s);
+  renderResult(s);
+  renderCode();
+  document.getElementById('stepDesc').innerHTML=s.desc;
+  document.getElementById('stepCtr').textContent=`步骤 ${cur+1} / ${steps.length}`;
+  document.getElementById('btnPrev').disabled=cur===0;
+  document.getElementById('btnNext').disabled=cur===steps.length-1;
+}
+
+// ──────────────────────────────────────────
+// Scene Switching
+// ──────────────────────────────────────────
+function initScene(key){
+  const cfg=SCENARIOS[key];
+  curS1=cfg.s1; curS2=cfg.s2;
+  curDP=buildDP(curS1,curS2);
+  renderStrDisplay();
+  if(key==='s1'||key==='s3a'||key==='s3b'||key==='s3c'){
+    steps=generateFillSteps(curS1,curS2,curDP);
+  } else { // s2
+    steps=generateTraceSteps(curS1,curS2,curDP);
+  }
+  cur=0; render();
+}
+
+function switchScene(idx){
+  stopPlay();
+  curScene=idx;
+  for(let i=0;i<3;i++) document.getElementById(`tab${i}`).classList.toggle('active',i===idx);
+  document.getElementById('subcaseArea').style.display=idx===2?'':'none';
+  if(idx===0) { curKey='s1'; initScene('s1'); }
+  else if(idx===1){ curKey='s2'; initScene('s2'); }
+  else { curKey=`s3${['a','b','c'][curSub]}`; initScene(curKey); }
+}
+
+function switchSub(idx){
+  stopPlay();
+  curSub=idx;
+  for(let i=0;i<3;i++) document.getElementById(`sub${i}`).classList.toggle('active',i===idx);
+  curKey=`s3${['a','b','c'][idx]}`;
+  initScene(curKey);
+}
+
+function prev(){ if(cur>0){ cur--; render(); } }
+function next(){ if(cur<steps.length-1){ cur++; render(); } }
+function reset(){ stopPlay(); cur=0; render(); }
+
+function stopPlay(){
+  playing=false; clearInterval(timer); timer=null;
+  document.getElementById('btnPlay').textContent='▶ 播放';
+}
+
+function togglePlay(){
+  if(!playing&&cur>=steps.length-1){cur=0;render();}
+  if(playing){stopPlay();return;}
+  playing=true;
+  document.getElementById('btnPlay').textContent='⏸ 暂停';
+  const spd=SPEED[parseInt(document.getElementById('speedRange').value)-1];
+  timer=setInterval(()=>{if(cur>=steps.length-1){stopPlay();return;} cur++;render();},spd);
+}
+
+document.getElementById('speedRange').oninput=()=>{if(playing){stopPlay();togglePlay();}};
+window.addEventListener('resize',()=>{if(steps.length) renderTable(steps[cur]);});
+
+// Init
+switchScene(0);
+</script>
+</body>
+</html>

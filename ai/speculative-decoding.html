@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="投机解码：Draft Model 快速生成候选，Target Model 并行验证，不降低输出质量的前提下加速推理 2–5x。">
+<link rel="canonical" href="https://melodycoder12345.github.io/ai/speculative-decoding.html">
+<meta property="og:title" content="投机解码 — 码海拾贝">
+<meta property="og:description" content="投机解码：Draft Model 快速生成候选，Target Model 并行验证，不降低输出质量的前提下加速推理 2–5x。">
+<meta property="og:url" content="https://melodycoder12345.github.io/ai/speculative-decoding.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="投机解码 — 码海拾贝">
+<meta name="twitter:description" content="投机解码：Draft Model 快速生成候选，Target Model 并行验证，不降低输出质量的前提下加速推理 2–5x。">
+<title>投机解码 - AI</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<link rel="stylesheet" href="ai.css">
+<script>window.PAGE_CONCEPTS=[
+  {"title":"投机解码","body":"Draft Model 快速生成多个候选 token，Target Model 并行验证；期望可接受的 token 数为 α/(1−α)，α 是平均接受率，理论加速比可达 3–5x。","tag":"term"},
+  {"title":"接受率（α）","body":"Target 接受 Draft 采样 token 的概率，取决于两个模型分布的相似程度。α 越高加速比越大；使用同族蒸馏小模型作 Draft 时 α 通常 ≥ 0.8。","tag":"term"},
+  {"title":"并行验证","body":"Target Model 将 Draft 生成的所有候选 token 拼接为 prefix，一次 forward pass 同时验证，而非逐个顺序处理，计算量不变但等效产出多个 token。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="shell" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">AI / Inference / C 类型</div>
+      <h1>投机解码</h1>
+      <p class="summary">Draft Model 快速生成多个候选 token，Target Model 用一次 forward pass 并行验证，通过拒绝采样保持输出分布与 Target 完全等价。接受则保留全部候选，拒绝则截断并从 Target 重采样，实现 2–5x 推理加速而不损失质量。</p>
+      <div class="tags"><span>Speculative Decoding</span><span>Draft Model</span><span>Parallel Verify</span><span>Accept/Reject Sampling</span></div>
+    </div>
+    <div class="card map">
+      <div class="eyebrow">核心观察</div>
+      <div class="term"><strong>一次前向，多个 token</strong><span>Target 验证 k 个候选只需 1 次 forward pass，等效将 decode 吞吐放大 k 倍。</span></div>
+      <div class="term"><strong>分布等价保证</strong><span>拒绝采样机制确保最终输出分布等价于 Target 独立采样，不降低任何质量。</span></div>
+      <div class="term"><strong>接受率决定收益</strong><span>α 是关键指标，同族蒸馏小模型作 Draft 时 α 通常 ≥ 0.8，加速最明显。</span></div>
+    </div>
+  </section>
+  <section class="lab">
+    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <section class="panel viz"><div class="stage" id="aiStage"></div><div class="controls"><button class="ctrl" id="btnReset">重置</button><button class="ctrl" id="btnPrev">上一步</button><button class="ctrl primary" id="btnPlay">播放</button><button class="ctrl" id="btnNext">下一步</button></div></section>
+    <aside class="panel"><div class="panel-hd">当前状态</div><div class="status"><span class="badge" id="stateBadge">normal</span><h2 id="stepTitle"></h2><p id="stepDesc"></p><p id="stepDetail"></p><div class="metrics" id="metrics"></div><div class="codebox"><h3>推理伪代码</h3><pre id="codeBlock"></pre></div></div></aside>
+  </section>
+  <section class="grid">
+    <article class="section"><h2>工程意义</h2><p>Speculative Decoding 由 Google Brain 与 DeepMind 于 2023 年同期提出，已被 vLLM、TensorRT-LLM 等主流推理框架原生支持。Draft Model 可以是同系列蒸馏版（如 Llama-3-70B 配 Llama-3-8B），也可以是参数共享的 "draft head"，后者无需额外显存。动态调整每轮生成的草稿步数 γ 可进一步平衡延迟与接受率。</p></article>
+    <article class="section"><h2>失败模式</h2><ul><li>Domain Shift：Draft 分布偏离 Target 时，α 骤降，加速比消失甚至带来负收益。</li><li>长上下文退化：随上下文增长，Draft 预测准确率通常下降，需动态缩短 γ。</li><li>大 batch 收益递减：batch 增大后 Target 本身已高度并行，Speculative 的边际收益快速降低。</li></ul></article>
+  </section>
+  <div class="back-row"><a class="btn" href="../ai/index.html">← AI 系统</a></div>
+</main>
+<script>
+window.AI_DEMO = {
+  title: 'Speculative Decoding', viewBox: '0 0 560 360',
+  nodes: [
+    {id:'draft',   label:'Draft Model',    sub:'small & fast',      x:82,  y:80,  w:130, h:44},
+    {id:'t1',      label:'tok₁',           sub:'candidate',         x:222, y:80,  w:54,  h:44},
+    {id:'t2',      label:'tok₂',           sub:'candidate',         x:284, y:80,  w:54,  h:44},
+    {id:'t3',      label:'tok₃',           sub:'candidate',         x:346, y:80,  w:54,  h:44},
+    {id:'t4',      label:'tok₄',           sub:'candidate',         x:408, y:80,  w:54,  h:44},
+    {id:'t5',      label:'tok₅',           sub:'candidate',         x:470, y:80,  w:54,  h:44},
+    {id:'target',  label:'Target Model',   sub:'large & accurate',  x:82,  y:200, w:130, h:44},
+    {id:'verify',  label:'Parallel Verify',sub:'1 forward pass',    x:284, y:200, w:118, h:44},
+    {id:'accept',  label:'Accept ✓',       sub:'keep tokens',       x:436, y:162, w:94,  h:40},
+    {id:'reject',  label:'Reject ✗',       sub:'truncate',          x:436, y:248, w:94,  h:40},
+    {id:'output',  label:'Final Output',   sub:'accepted tokens',   x:284, y:308, w:130, h:44},
+    {id:'autoregr',label:'Autoregressive', sub:'1 token / step',    x:82,  y:308, w:130, h:44}
+  ],
+  edges: [
+    {id:'e1',  x1:147, y1:80,  x2:195, y2:80},
+    {id:'e2',  x1:249, y1:80,  x2:257, y2:80},
+    {id:'e3',  x1:311, y1:80,  x2:319, y2:80},
+    {id:'e4',  x1:373, y1:80,  x2:381, y2:80},
+    {id:'e5',  x1:435, y1:80,  x2:443, y2:80},
+    {id:'e6',  x1:346, y1:102, x2:284, y2:178},
+    {id:'e7',  x1:147, y1:200, x2:225, y2:200},
+    {id:'e8',  x1:343, y1:191, x2:389, y2:167},
+    {id:'e9',  x1:343, y1:209, x2:389, y2:243},
+    {id:'e10', x1:436, y1:180, x2:349, y2:294},
+    {id:'e11', x1:436, y1:262, x2:349, y2:300},
+    {id:'e12', x1:82,  y1:222, x2:82,  y2:286}
+  ],
+  code: 'draft_tokens = draft_model.generate(prefix, k=4)\nlogits_t = target_model.forward(prefix + draft_tokens)\naccepted = []\nfor tok, p_d, p_t in zip(draft_tokens, draft_probs, target_probs):\n    alpha = min(p_t[tok] / p_d[tok], 1.0)\n    if random() < alpha:\n        accepted.append(tok)\n    else:\n        accepted.append(resample(p_t - p_d))\n        break\nstream(accepted)',
+  steps: [
+    {
+      kicker:'baseline', title:'传统自回归：逐 token 串行',
+      badge:'autoregressive',
+      nodes:['autoregr','target'], edges:['e12'],
+      desc:'标准 LLM decode 每步只生成一个 token，Target Model 串行前向传播，受限于显存带宽，属于 memory-bound 操作，GPU 算力利用率极低。',
+      metrics:[{label:'throughput',value:'1 token / step'},{label:'瓶颈',value:'Memory-bound'}]
+    },
+    {
+      kicker:'draft-gen', title:'Scenario 1：Draft 快速生成候选',
+      badge:'drafting',
+      nodes:['draft','t1','t2','t3','t4'], edges:['e1','e2','e3','e4'],
+      desc:'小模型（Draft Model）以极低延迟连续生成 4 个候选 token，等待 Target 并行验证。',
+      detail:'Draft Model 通常是 Target 1/10 参数量，单步延迟可忽略不计，生成 4 个候选仅需几毫秒。',
+      metrics:[{label:'draft tokens',value:'4'},{label:'draft latency',value:'~1 ms/token'}]
+    },
+    {
+      kicker:'parallel-verify', title:'Target Model 一次 forward pass 并行验证',
+      badge:'verifying',
+      nodes:['target','verify','t1','t2','t3','t4'], edges:['e6','e7'],
+      desc:'Target Model 将 4 个候选 token 拼接为 prefix，一次 forward pass 同时计算所有位置的 logits，等效于 4 次串行 decode 的计算量在一步中完成。',
+      metrics:[{label:'forward pass',value:'1 次'},{label:'验证 tokens',value:'4 个并行'}]
+    },
+    {
+      kicker:'full-accept', title:'全部接受，吞吐 3–5x 提升',
+      badge:'accepted', tone:'ok',
+      goodNodes:['t1','t2','t3','t4','output','accept'],
+      nodes:['verify'], edges:['e8','e10'],
+      desc:'若 Target 分布与 Draft 分布足够接近，则接受全部 4 个 token，等效用 1 次 forward pass 产出 4 个有效 token。',
+      detail:'加速比 ≈ α/(1−α) + 1，α=0.8 时理论加速约 5x，实测（含调度开销）通常达 2–3x。',
+      metrics:[{label:'accepted',value:'4 / 4'},{label:'实测加速',value:'~3–5x'}]
+    },
+    {
+      kicker:'partial-draft', title:'Scenario 2：Draft 生成新一批候选',
+      badge:'drafting',
+      nodes:['draft','t1','t2','t3','t4'], edges:['e1','e2','e3','e4'],
+      desc:'Draft Model 继续快速生成 4 个候选 token，Target 将逐 token 检验各自的概率分布差异。'
+    },
+    {
+      kicker:'partial-reject', title:'tok₃ 分布不匹配，被拒绝并截断',
+      badge:'partial-reject', tone:'warn',
+      goodNodes:['t1','t2'],
+      warnNodes:['t3','t4','reject'],
+      nodes:['verify','target'], edges:['e6','e7','e9'],
+      desc:'Target 发现 tok₃ 的概率差距超过阈值（拒绝概率 = 1 − min(p_T/p_D, 1)），拒绝 tok₃ 及其后所有候选。',
+      detail:'修正接受机制保证最终输出分布等价于 Target 独立采样，这是 speculative decoding 质量无损的数学基础。'
+    },
+    {
+      kicker:'resample', title:'截断，从 Target 分布重采样 tok₃',
+      badge:'resample',
+      goodNodes:['t1','t2','output'],
+      nodes:['target','verify'],
+      badNodes:['t3','t4'], edges:['e11'],
+      desc:'接受 tok₁、tok₂；从 Target 修正分布（p_T − p_D 归一化）重采样一个 token 替换 tok₃，无需额外 forward pass；丢弃 tok₄。净收益 2 个 token。',
+      metrics:[{label:'accepted',value:'2 / 4'},{label:'resample',value:'tok₃ from Target'}]
+    },
+    {
+      kicker:'draft-collapse', title:'Scenario 3：Draft 全部质量差，Target 全拒',
+      badge:'fallback', tone:'warn',
+      badNodes:['t1','t2','t3','t4'],
+      nodes:['draft','verify','target'], edges:['e1','e2','e3','e4','e6','e7'],
+      desc:'Draft Model 在当前上下文下偏离 Target 分布，生成的 4 个候选 token 接受概率均接近 0，Target 全部拒绝。',
+      detail:'常见于 domain shift、代码/数学推理场景：参数量差距大时小模型无法准确预测大模型的输出分布。'
+    },
+    {
+      kicker:'autoregr-fallback', title:'回退单步自回归，本轮无加速收益',
+      badge:'autoregressive',
+      goodNodes:['autoregr'],
+      nodes:['target'], edges:['e12'],
+      desc:'Target 独立采样一个 token，本轮退化为标准 decode。整体加速比受平均接受率 α 决定；若 α < 0.5，speculative decoding 可能带来负收益。',
+      metrics:[{label:'this step',value:'1 token (fallback)'},{label:'accept rate',value:'α ≈ 0'}]
+    },
+    {
+      kicker:'comparison', title:'Scenario 4：不同 α 下的吞吐对比',
+      badge:'comparison', tone:'ok',
+      goodNodes:['draft','verify','accept'],
+      nodes:['target'], edges:['e7','e8'],
+      desc:'当平均接受率 α ≥ 0.7 时，Speculative Decoding 吞吐约为自回归的 2–3x；使用同族蒸馏模型作 Draft（α ≥ 0.85）实测可达 3–5x，且输出质量与 Target 独立采样完全等价。',
+      detail:'数学上可以证明：无论接受还是拒绝，最终的 token 序列分布与 Target Model 逐步自回归采样完全相同。',
+      metrics:[{label:'α = 0.5',value:'~2x'},{label:'α = 0.8',value:'~5x'},{label:'α = 0.9',value:'~10x'}]
+    }
+  ]
+};
+</script>
+<script src="ai.js"></script>
+<script src="../footer.js"></script>
+</body>
+</html>

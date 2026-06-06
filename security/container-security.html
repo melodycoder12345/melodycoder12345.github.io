@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="容器安全全景：镜像扫描（Trivy/Grype）、运行时加固（seccomp/AppArmor）、K8s RBAC 最小权限、NetworkPolicy 网络隔离与常见高危误区。">
+<link rel="canonical" href="https://melodycoder12345.github.io/security/container-security.html">
+<meta property="og:title" content="容器安全 — 码海拾贝">
+<meta property="og:description" content="容器安全全景：镜像扫描（Trivy/Grype）、运行时加固（seccomp/AppArmor）、K8s RBAC 最小权限、NetworkPolicy 网络隔离与常见高危误区。">
+<meta property="og:url" content="https://melodycoder12345.github.io/security/container-security.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="容器安全 — 码海拾贝">
+<meta name="twitter:description" content="容器安全全景：镜像扫描（Trivy/Grype）、运行时加固（seccomp/AppArmor）、K8s RBAC 最小权限、NetworkPolicy 网络隔离与常见高危误区。">
+<title>容器安全 - Security</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 20% 0%,color-mix(in srgb,var(--accent) 14%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit;text-decoration:none}
+.content{max-width:1160px;margin:0 auto;padding:44px clamp(20px,4vw,58px) 76px}
+.hero{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr);gap:22px;align-items:stretch;margin-bottom:22px}
+.card,.section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.72);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.28)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.1rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.map{display:grid;grid-template-columns:1fr;gap:10px}
+.term{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.term strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.term span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.section h2{font-size:.9rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:13px}
+.section p,.section li{color:var(--dim);font-size:.92rem;line-height:1.85}
+.section ul{padding-left:18px;display:flex;flex-direction:column;gap:9px}
+.callout{margin-top:18px;border-left:3px solid var(--accent);padding:13px 15px;background:color-mix(in srgb,var(--accent) 10%,transparent);border-radius:0 12px 12px 0;color:var(--dim);line-height:1.75}
+.callout strong{color:var(--text)}
+pre{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.78rem;line-height:1.7;margin:12px 0}
+code{font-family:'JetBrains Mono','Fira Code',monospace;font-size:.82em;color:var(--accent)}
+.qa-card{border:1px solid rgba(255,255,255,.08);border-radius:14px;margin-bottom:10px;overflow:hidden}
+.qa-q{padding:13px 16px;background:rgba(248,113,113,.06);font-size:.88rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none}
+.qa-q:hover{background:rgba(248,113,113,.10)}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s}
+.qa-card.open .qa-arrow{transform:rotate(90deg)}
+.qa-a{display:none;padding:14px 16px;font-size:.86rem;color:var(--dim);line-height:1.78;border-top:1px solid var(--border)}
+.qa-card.open .qa-a{display:block}
+.pitfall{border:1px solid rgba(255,255,255,.08);border-radius:14px;margin-bottom:14px;overflow:hidden}
+.pitfall-hd{padding:10px 14px;font-size:.82rem;font-weight:700}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr}
+.pitfall-col{padding:12px 14px}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border)}
+.pitfall-col pre{font-size:.74rem}
+.pitfall-col p{font-size:.8rem;color:var(--dim);line-height:1.6;margin-top:6px}
+.severity{display:inline-block;padding:2px 8px;border-radius:6px;font-size:.72rem;font-weight:700;font-family:monospace;margin-right:4px}
+.severity.critical{background:rgba(248,113,113,.18);color:#f87171;border:1px solid rgba(248,113,113,.3)}
+.severity.high{background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.3)}
+.severity.medium{background:rgba(56,189,248,.1);color:#38bdf8;border:1px solid rgba(56,189,248,.25)}
+.table-wrap{overflow-x:auto;margin:12px 0}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{background:var(--panel2);color:var(--accent);text-align:left;padding:9px 12px;font-size:.76rem;letter-spacing:.04em;border-bottom:1px solid var(--border)}
+td{padding:9px 12px;color:var(--dim);border-bottom:1px solid rgba(255,255,255,.05);line-height:1.6}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.back-row{margin-top:24px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:900px){.hero,.grid{grid-template-columns:1fr}.content{padding:30px 16px 58px}.pitfall-body{grid-template-columns:1fr}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border)}}
+</style>
+</head>
+<body>
+<main class="content" data-page-type="B">
+
+<section class="hero">
+  <div class="card">
+    <div class="eyebrow">Security / Container / B 类型</div>
+    <h1>容器安全</h1>
+    <p class="summary">容器共享宿主机内核，边界远比虚拟机薄。一旦容器以 root 运行、挂载特权、RBAC 过宽，攻击者突破容器即可控制整个集群。纵深防御：扫描镜像漏洞 → 加固运行时 → 最小权限 RBAC → 网络隔离，每一层都是独立防线。</p>
+    <div class="tags"><span>Trivy</span><span>Grype</span><span>securityContext</span><span>Seccomp</span><span>AppArmor</span><span>RBAC</span><span>NetworkPolicy</span><span>distroless</span></div>
+    <div class="callout"><strong>核心威胁模型：</strong>容器不等于虚拟机，共享内核意味着逃逸路径更短。攻击链通常是：镜像 CVE 入侵 → root 提权 → 挂载宿主机文件系统 → 横向移动。每个防御层都需要独立应对这条链路上的节点。</div>
+  </div>
+  <div class="card map">
+    <div class="eyebrow">核心术语</div>
+    <div class="term"><strong>CVE</strong><span>Common Vulnerabilities and Exposures，公开的安全漏洞编号数据库，每个漏洞有唯一编号和严重级别（CVSS 分数）。</span></div>
+    <div class="term"><strong>securityContext</strong><span>K8s Pod/Container 级别的安全约束配置，控制运行用户、文件系统只读、特权升级等。</span></div>
+    <div class="term"><strong>Seccomp</strong><span>Secure Computing Mode，Linux 内核机制，限制容器可调用的系统调用集合，减少内核攻击面。</span></div>
+    <div class="term"><strong>RBAC</strong><span>Role-Based Access Control，K8s 访问控制模型，基于 Subject/Role/RoleBinding 三要素管理权限。</span></div>
+    <div class="term"><strong>NetworkPolicy</strong><span>K8s 网络访问控制策略，白名单模式控制 Pod 间流量，实现东西向流量隔离。</span></div>
+  </div>
+</section>
+
+<section class="grid">
+
+<article class="section">
+  <h2>镜像扫描</h2>
+  <p>镜像是容器的"出生证明"，基础层中的 CVE 会伴随整个生命周期。扫描必须嵌入 CI/CD，而非事后补救：</p>
+  <ul>
+    <li><strong>Trivy</strong>：Aqua Security 出品，扫描 OS 包（apt/yum）和语言依赖（go.sum/package-lock.json），支持 SBOM 输出，速度快，Docker Hub 可直接拉取使用</li>
+    <li><strong>Grype</strong>：Anchore 出品，与 syft 配合生成 SBOM 后扫描，适合需要精确物料清单的场景</li>
+    <li><strong>CI/CD 集成</strong>：在 build 阶段扫描镜像，CRITICAL/HIGH CVE 阻断 pipeline，阻止有漏洞的镜像进入 registry</li>
+    <li><strong>定期重扫</strong>：镜像构建后每天/每周重扫，因为新 CVE 每天都在发布，昨天安全的镜像今天可能不安全</li>
+  </ul>
+  <pre><code># Trivy 扫描镜像（CI 中使用）
+trivy image --exit-code 1 \
+  --severity CRITICAL,HIGH \
+  --ignore-unfixed \
+  myapp:v1.2.3
+
+# --exit-code 1：发现高危 CVE 返回非零退出码，阻断 pipeline
+# --ignore-unfixed：跳过尚无修复版本的 CVE，减少误报
+# 输出示例：
+# CRITICAL: CVE-2021-44228 (log4j) in log4j-core-2.14.0.jar
+# HIGH: CVE-2023-29491 (ncurses) in libncurses6 6.3
+
+# Grype + syft 组合
+syft myapp:v1.2.3 -o cyclonedx-json > sbom.json
+grype sbom:sbom.json --fail-on critical</code></pre>
+</article>
+
+<article class="section">
+  <h2>基础镜像选择</h2>
+  <p>攻击面 = 镜像中存在的二进制/库数量。更小的镜像意味着更少的 CVE 暴露面：</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>镜像</th><th>大小</th><th>shell</th><th>包管理器</th><th>适用场景</th></tr></thead>
+      <tbody>
+        <tr><td><code>ubuntu:22.04</code></td><td>~77MB</td><td>✅ bash</td><td>✅ apt</td><td>开发调试</td></tr>
+        <tr><td><code>alpine:3.19</code></td><td>~7MB</td><td>✅ sh</td><td>✅ apk</td><td>通用生产（musl libc 需注意兼容性）</td></tr>
+        <tr><td><code>distroless/static</code></td><td>~2MB</td><td>❌</td><td>❌</td><td>Go 静态二进制</td></tr>
+        <tr><td><code>scratch</code></td><td>0MB</td><td>❌</td><td>❌</td><td>Go CGO_ENABLED=0 纯静态</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <pre><code># 多阶段构建：构建环境与运行时镜像分离
+FROM golang:1.22-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -o server .
+
+# 最终镜像使用 distroless（无 shell，极小攻击面）
+FROM gcr.io/distroless/static-debian12
+COPY --from=builder /app/server /server
+USER nonroot:nonroot          # 非 root 用户运行
+ENTRYPOINT ["/server"]</code></pre>
+  <div class="callout">distroless 没有 shell，攻击者即使获得代码执行权限也无法直接 <code>exec</code> 进入容器执行命令，大幅增加后渗透难度。</div>
+</article>
+
+<article class="section">
+  <h2>运行时安全：securityContext</h2>
+  <p>容器默认以 <strong>root（UID 0）</strong> 运行，如果容器逃逸成功，攻击者在宿主机上也是 root，可以读取任意文件、加载内核模块、控制整台机器：</p>
+  <pre><code># K8s Pod securityContext 最佳实践
+apiVersion: v1
+kind: Pod
+spec:
+  securityContext:
+    runAsNonRoot: true        # 禁止 root 用户运行
+    runAsUser: 1000           # 指定 UID（避免 UID 0）
+    runAsGroup: 3000
+    fsGroup: 2000             # 挂载卷的 GID
+    seccompProfile:
+      type: RuntimeDefault    # 启用默认 Seccomp profile
+
+  containers:
+  - name: app
+    image: myapp:v1.2.3
+    securityContext:
+      allowPrivilegeEscalation: false  # 禁止 setuid/sudo 提权
+      readOnlyRootFilesystem: true     # 文件系统只读（防止写入木马）
+      capabilities:
+        drop: ["ALL"]                  # 丢弃所有 Linux Capabilities
+        add: ["NET_BIND_SERVICE"]      # 按需添加（仅绑定 <1024 端口）
+
+    # 只写必要目录（tmpfs 挂载）
+    volumeMounts:
+    - name: tmp
+      mountPath: /tmp
+  volumes:
+  - name: tmp
+    emptyDir:
+      medium: Memory    # tmpfs，重启后清空</code></pre>
+  <div class="callout"><strong>readOnlyRootFilesystem</strong>：攻击者即使执行了 RCE（远程命令执行），也无法将 webshell 或后门写入文件系统，显著提高持久化难度。</div>
+</article>
+
+<article class="section">
+  <h2>Seccomp 与 AppArmor</h2>
+  <p>syscall 是容器与宿主机内核的唯一桥梁。限制可用 syscall 是阻断容器逃逸的最底层防御：</p>
+  <ul>
+    <li><strong>Seccomp 默认 profile</strong>：Docker/containerd 默认启用，屏蔽约 44 个高危 syscall（如 <code>ptrace</code>、<code>kexec_load</code>、<code>mount</code>），阻止已知逃逸路径</li>
+    <li><strong>自定义 profile</strong>：最小化策略，只允许应用实际需要的 syscall（用 <code>strace</code> 采集后生成白名单）</li>
+    <li><strong>AppArmor</strong>：Ubuntu/Debian 内核模块，基于路径的访问控制，限制容器可读写的文件路径、可执行的程序，比 Seccomp 更细粒度控制文件系统访问</li>
+  </ul>
+  <pre><code># 自定义 Seccomp profile（JSON 格式）
+{
+  "defaultAction": "SCMP_ACT_ERRNO",   // 默认拒绝
+  "architectures": ["SCMP_ARCH_X86_64"],
+  "syscalls": [
+    {
+      "names": ["read","write","open","close","stat",
+                "fstat","lstat","poll","lseek","mmap",
+                "mprotect","munmap","brk","rt_sigaction",
+                "rt_sigprocmask","rt_sigreturn","ioctl",
+                "pread64","pwrite64","readv","writev",
+                "access","pipe","select","sched_yield",
+                "mremap","msync","mincore","madvise",
+                "shmget","shmat","shmctl","dup","dup2",
+                "nanosleep","getitimer","setitimer",
+                "getpid","sendfile","socket","connect",
+                "accept","sendto","recvfrom","sendmsg",
+                "recvmsg","shutdown","bind","listen",
+                "getsockname","getpeername","socketpair",
+                "setsockopt","getsockopt","clone","fork",
+                "vfork","execve","exit","wait4","kill",
+                "uname","fcntl","getdents","getcwd",
+                "chdir","rename","mkdir","rmdir","creat",
+                "link","unlink","symlink","chmod","chown",
+                "umask","gettimeofday","getrlimit","time",
+                "sigaltstack","arch_prctl","futex",
+                "set_tid_address","set_robust_list",
+                "exit_group","epoll_create","epoll_ctl",
+                "epoll_wait","openat","getdents64"],
+      "action": "SCMP_ACT_ALLOW"       // 允许以上 syscall
+    }
+  ]
+}
+
+# 在 Pod 中引用自定义 profile
+securityContext:
+  seccompProfile:
+    type: Localhost
+    localhostProfile: "profiles/myapp.json"
+
+# AppArmor profile 示例（加载后在 Pod annotations 引用）
+# /etc/apparmor.d/myapp-profile
+profile myapp-profile flags=(attach_disconnected) {
+  /proc/** r,
+  /sys/** r,
+  /app/server rix,        # 只允许执行 /app/server
+  /tmp/** rw,             # 只允许读写 /tmp
+  deny /etc/shadow r,     # 明确拒绝读取 shadow 密码文件
+  deny /proc/sysrq* w,    # 禁止写 sysrq
+}</code></pre>
+</article>
+
+<article class="section">
+  <h2>K8s RBAC 最小权限</h2>
+  <p>RBAC 是 K8s 控制平面的门卫。权限过宽时，一个被攻击的 Pod 可以通过 API Server 控制整个集群：</p>
+  <ul>
+    <li><strong>Subject（谁）</strong>：User、Group 或 ServiceAccount，代表请求发起方身份</li>
+    <li><strong>Role/ClusterRole（权限）</strong>：定义对哪些资源（pods/secrets/deployments）允许哪些动作（get/list/create/delete）</li>
+    <li><strong>RoleBinding/ClusterRoleBinding（绑定）</strong>：将 Subject 与 Role 关联；RoleBinding 作用于单个 Namespace，ClusterRoleBinding 作用于全集群</li>
+    <li><strong>ServiceAccount</strong>：Pod 的 K8s API 身份，默认挂载的 token 具有 API 访问权限，应按最小权限原则配置</li>
+  </ul>
+  <pre><code># 反面案例：过宽权限（高危）
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dangerous-admin
+subjects:
+- kind: ServiceAccount
+  name: my-app-sa
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin     # cluster-admin = 超级管理员，可删除集群一切资源
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# 正确做法：最小权限 Role（Namespace 级别）
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: production
+  name: app-reader
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list"]    # 只读，且只能读 configmaps
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]    # 不允许 create/delete
+  # 不授予 secrets 读取权限
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: app-reader-binding
+  namespace: production
+subjects:
+- kind: ServiceAccount
+  name: my-app-sa
+  namespace: production
+roleRef:
+  kind: Role
+  name: app-reader
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Pod 指定最小权限 ServiceAccount
+apiVersion: v1
+kind: Pod
+spec:
+  serviceAccountName: my-app-sa
+  automountServiceAccountToken: false   # 不需要 API 访问时完全禁用 token 挂载</code></pre>
+  <div class="callout"><strong>原则：</strong>如果 Pod 不需要调用 K8s API，设置 <code>automountServiceAccountToken: false</code>。攻击者入侵后无法利用 token 横向移动。</div>
+</article>
+
+<article class="section">
+  <h2>NetworkPolicy 网络隔离</h2>
+  <p>K8s 默认所有 Pod 可以互相通信，等同于一个完全开放的内网。NetworkPolicy 实现白名单模式的东西向流量控制：</p>
+  <ul>
+    <li><strong>默认策略问题</strong>：即使数据库 Pod 只应被 app Pod 访问，默认情况下任意 Pod 都可以直接连接数据库端口</li>
+    <li><strong>前提条件</strong>：需要支持 NetworkPolicy 的 CNI 插件（Calico、Cilium、Weave），flannel 不支持</li>
+    <li><strong>Ingress/Egress</strong>：分别控制入流量（谁可以连我）和出流量（我可以连谁），可独立配置</li>
+  </ul>
+  <pre><code># 场景：数据库只允许来自 app Pod 的连接
+
+# 步骤 1：标记 app Pod
+# kubectl label pod my-app app=backend
+
+# 步骤 2：为数据库 Pod 创建 NetworkPolicy（白名单入流量）
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: db-allow-backend-only
+  namespace: production
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres          # 目标：postgres Pod
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: backend       # 只允许 label=backend 的 Pod
+    ports:
+    - protocol: TCP
+      port: 5432
+  egress:
+  - to: []                   # postgres 不需要主动发起连接（可为空）
+
+---
+# 默认拒绝所有流量（推荐先设置兜底策略）
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: production
+spec:
+  podSelector: {}            # 匹配所有 Pod
+  policyTypes:
+  - Ingress
+  - Egress
+  # 不配置 ingress/egress 规则 = 拒绝所有
+
+---
+# 允许 Pod 访问 kube-dns（DNS 查询必须放行）
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: production
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53</code></pre>
+</article>
+
+<article class="section">
+  <h2>面试问答</h2>
+  <div class="qa-card" onclick="toggleQA(this)">
+    <div class="qa-q">容器和虚拟机的安全边界有什么本质区别？<span class="qa-arrow">&#9654;</span></div>
+    <div class="qa-a">虚拟机通过 Hypervisor 隔离，每个 VM 有独立内核，Guest 内核漏洞不影响 Host。容器共享宿主机内核，仅靠 Namespace（隔离视图）和 Cgroup（限制资源）隔离，内核的任意 CVE 都是潜在逃逸点。例如 CVE-2022-0492（cgroup v1 越界）、CVE-2019-5736（runc 覆写）都是利用共享内核路径实现逃逸的案例。这也是为什么容器安全需要多层防御，而不能仅靠 Namespace 隔离。</div>
+  </div>
+  <div class="qa-card" onclick="toggleQA(this)">
+    <div class="qa-q">为什么说 privileged: true 等同于宿主机 root？<span class="qa-arrow">&#9654;</span></div>
+    <div class="qa-a">privileged 容器关闭了大部分 Namespace 和 Capability 限制，可以：1) 挂载宿主机文件系统（<code>mount /dev/sda1 /mnt</code>）；2) 加载内核模块（<code>insmod</code>）；3) 访问宿主机的网络命名空间；4) 读写 /proc/sysrq，触发内核崩溃或同步。攻击者只需运行 <code>nsenter --target 1 --mount --uts --ipc --net --pid</code> 就可以进入宿主机的 PID 1 命名空间，完全控制宿主机。在生产环境中，只有 daemonset（如 node exporter、网络插件）才有理由用 privileged，且需要严格审计。</div>
+  </div>
+  <div class="qa-card" onclick="toggleQA(this)">
+    <div class="qa-q">K8s 中 RBAC 权限审计怎么做？如何发现过宽权限？<span class="qa-arrow">&#9654;</span></div>
+    <div class="qa-a">工具层面：1) <code>kubectl auth can-i --list --as=system:serviceaccount:default:my-sa</code> 列出某 SA 的所有权限；2) rbac-tool（open-source）生成可视化权限矩阵；3) Polaris / Kyverno 等策略引擎扫描 cluster-admin 滥用。原则层面：审计三个高风险点 —— 绑定了 cluster-admin 的 ServiceAccount；具有 secrets get 权限的工作负载（可读取所有 Secret，包括其他服务的数据库密码）；具有 pods/exec 权限的角色（可在任意 Pod 内执行命令）。建议定期运行 <code>kubectl get clusterrolebindings -o wide | grep cluster-admin</code> 检查 cluster-admin 授权范围。</div>
+  </div>
+  <div class="qa-card" onclick="toggleQA(this)">
+    <div class="qa-q">Secret 通过 env 注入和 volumeMount 有什么安全差异？<span class="qa-arrow">&#9654;</span></div>
+    <div class="qa-a">env 注入的安全问题：1) 子进程自动继承所有环境变量，第三方库可能打印 env 到日志；2) <code>/proc/[pid]/environ</code> 文件在同一 Pod 内其他容器或有 <code>exec</code> 权限的用户可读；3) kubectl describe pod 输出会显示 env 键名（值需解密）。volumeMount 方式：文件挂载到指定路径，只有读取该路径的代码能访问，不会自动泄露到子进程或日志。最佳实践：将 Secret 挂载为 tmpfs 上的文件，并配合 readOnlyRootFilesystem + RBAC 限制 secrets get 权限，实现最小暴露面。</div>
+  </div>
+</article>
+
+<article class="section">
+  <h2>常见高危误区</h2>
+
+  <div class="pitfall">
+    <div class="pitfall-hd bad">⚠ 高危：privileged: true + hostNetwork: true</div>
+    <div class="pitfall-body">
+      <div class="pitfall-col">
+        <pre><code># 危险配置（等同于裸机访问）
+spec:
+  hostNetwork: true    # 使用宿主机网络命名空间
+  hostPID: true        # 可见宿主机所有进程
+  containers:
+  - securityContext:
+      privileged: true # 完全特权模式
+      # 攻击者可：
+      # nsenter --target 1 --mount
+      # mount /dev/sda1 /mnt
+      # 读写宿主机任意文件</code></pre>
+        <p><strong>问题</strong>：三者叠加 = 完全失去容器隔离，攻击者入侵后即控制宿主机。</p>
+      </div>
+      <div class="pitfall-col">
+        <pre><code># 正确：按需最小权限
+spec:
+  hostNetwork: false   # 默认值，无需显式声明
+  containers:
+  - securityContext:
+      privileged: false
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: ["ALL"]
+      runAsNonRoot: true
+      runAsUser: 1000
+  # 如果必须监听宿主机端口，使用
+  # hostPort（仍在容器 Namespace 内）
+  # 而非 hostNetwork</code></pre>
+        <p><strong>正确</strong>：只在确有必要时（如 CNI 插件、Node exporter）才开启宿主机相关权限，并通过 Admission Webhook 审计。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pitfall">
+    <div class="pitfall-hd bad">⚠ 高危：镜像 tag 使用 latest，无法版本追溯</div>
+    <div class="pitfall-body">
+      <div class="pitfall-col">
+        <pre><code># 危险做法
+image: myapp:latest
+# 问题：
+# 1. latest 被覆盖后无法回滚到上一版本
+# 2. 不同节点可能拉取到不同版本的 latest
+# 3. 镜像扫描无法对应到具体版本
+# 4. 安全审计无法追溯历史问题版本
+#
+# CI 推送新镜像：
+# docker push myapp:latest
+# Deployment 回滚：
+# kubectl rollout undo → 拉取的还是 latest
+#                        不等于上一个版本！</code></pre>
+        <p><strong>问题</strong>：latest 是可变引用，可重复性差，回滚语义不可靠，安全扫描无法定位。</p>
+      </div>
+      <div class="pitfall-col">
+        <pre><code># 正确：固定摘要（sha256）最安全
+image: myapp@sha256:a3f2bc...1d8e
+
+# 次选：固定语义化版本 tag
+image: myapp:v1.2.3
+
+# CI/CD 流程：
+# 1. 构建时生成版本号（git commit sha / semver）
+# docker build -t myapp:v1.2.3 .
+# docker build -t myapp:${GIT_SHA} .
+
+# 2. 推送到私有 registry
+# docker push myregistry.io/myapp:v1.2.3
+
+# 3. Deployment 引用固定版本
+# 回滚时可精确指定上一版本 tag
+# kubectl set image deploy/app app=myapp:v1.2.2
+
+# Kyverno 策略：禁止 latest tag 部署
+# apiVersion: kyverno.io/v1
+# kind: ClusterPolicy
+# spec:
+#   rules:
+#   - name: disallow-latest-tag
+#     match: {resources: {kinds: [Pod]}}
+#     validate:
+#       deny:
+#         conditions:
+#         - image: "*/latest"</code></pre>
+        <p><strong>正确</strong>：固定版本 tag 或 sha256 摘要，配合 Kyverno policy 在 Admission 阶段强制禁止 latest 部署。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pitfall">
+    <div class="pitfall-hd bad">⚠ 误区：Secret 用 env 注入以为足够安全</div>
+    <div class="pitfall-body">
+      <div class="pitfall-col">
+        <pre><code># 常见但不够安全
+env:
+- name: DB_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: db-secret
+      key: password
+
+# 风险路径：
+# /proc/[pid]/environ 可被读取
+# 子进程继承环境变量
+# 第三方库打印 env 到日志（调试模式）
+# kubectl describe pod 可见键名
+# Java: System.getenv() 在 heap dump 中可见</code></pre>
+        <p><strong>问题</strong>：env 方式的 Secret 可通过多条路径泄露，攻击者获得代码执行能力后很容易读取。</p>
+      </div>
+      <div class="pitfall-col">
+        <pre><code># 更安全：volumeMount 挂载为文件
+volumes:
+- name: db-credentials
+  secret:
+    secretName: db-secret
+    defaultMode: 0400   # 只有 owner 可读
+
+containers:
+- volumeMounts:
+  - name: db-credentials
+    mountPath: /run/secrets/db
+    readOnly: true
+
+# 应用读取文件：
+# password, _ := os.ReadFile("/run/secrets/db/password")
+
+# 更进一步：使用 External Secrets Operator
+# 从 Vault / AWS SSM 动态获取 Secret
+# 不在 etcd 中明文存储
+# 支持自动轮换（rotation）
+
+# Vault Agent Sidecar Injector：
+# 挂载 tmpfs，Secret 不落磁盘
+# 支持 lease 自动续期和吊销</code></pre>
+        <p><strong>正确</strong>：挂载为只读文件，配合 External Secrets Operator 从 Vault 动态注入，避免 Secret 存储在 etcd 中。</p>
+      </div>
+    </div>
+  </div>
+</article>
+
+</section>
+
+<div class="back-row">
+  <a class="btn" href="../security/index.html">← 安全基础</a>
+  <a class="btn" href="../index.html">首页</a>
+  <a class="btn" href="supply-chain.html">供应链安全 →</a>
+</div>
+
+</main>
+<script>function toggleQA(el){el.classList.toggle('open')}</script>
+</body>
+</html>

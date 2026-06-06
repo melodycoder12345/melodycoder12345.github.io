@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="时序数据库专为带时间戳的度量序列优化，涵盖 TSM 写入路径、Delta-of-Delta 压缩、时间范围查询分区剪枝和降采样 TTL。">
+<link rel="canonical" href="https://melodycoder12345.github.io/db/timeseries.html">
+<meta property="og:title" content="时序数据库 — 码海拾贝">
+<meta property="og:description" content="时序数据库专为带时间戳的度量序列优化，涵盖 TSM 写入路径、Delta-of-Delta 压缩、时间范围查询分区剪枝和降采样 TTL。">
+<meta property="og:url" content="https://melodycoder12345.github.io/db/timeseries.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="时序数据库 — 码海拾贝">
+<meta name="twitter:description" content="时序数据库专为带时间戳的度量序列优化，涵盖 TSM 写入路径、Delta-of-Delta 压缩、时间范围查询分区剪枝和降采样 TTL。">
+<title>时序数据库 - 数据库</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--accent:#60a5fa;--green:#4ade80;--yellow:#fbbf24;--orange:#fb923c;--red:#f87171;--purple:#c084fc;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{height:100vh;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;}
+nav{height:52px;display:flex;align-items:center;gap:16px;padding:0 20px;background:var(--panel2);border-bottom:1px solid var(--border);flex-shrink:0;}
+nav h1{font-size:1.1rem;font-weight:600;}
+.nav-back{color:var(--dim);text-decoration:none;font-size:0.88rem;}
+.nav-back:hover{color:var(--text);}
+.nav-tags{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;}
+.nav-tag{font-size:0.72rem;padding:3px 10px;border-radius:100px;font-family:monospace;background:rgba(255,255,255,0.06);border:1px solid var(--border);}
+.main{display:flex;flex:1;overflow:hidden;}
+.sidebar{width:220px;flex-shrink:0;background:var(--panel2);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:14px 12px;overflow-y:auto;}
+.sidebar-label{font-size:0.68rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--dim);margin-bottom:10px;font-weight:600;}
+.tab-btn{display:flex;align-items:center;width:100%;text-align:left;padding:8px 10px;border-radius:8px;border:1px solid transparent;background:transparent;color:var(--dim);font-size:0.83rem;cursor:pointer;transition:all 0.2s;margin-bottom:4px;}
+.tab-btn.active{background:rgba(96,165,250,0.12);border-color:rgba(96,165,250,0.4);color:var(--accent);}
+.tab-btn:hover:not(.active){color:var(--text);background:rgba(255,255,255,0.05);}
+.tab-num{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;font-size:0.7rem;margin-right:8px;background:rgba(255,255,255,0.08);flex-shrink:0;font-family:monospace;}
+.tab-btn.active .tab-num{background:rgba(96,165,250,0.25);color:var(--accent);}
+.step-dots-wrap{margin-top:18px;padding-top:14px;border-top:1px solid var(--border);}
+.step-dots{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;}
+.dot{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,0.1);cursor:pointer;transition:all 0.2s;}
+.dot.done{background:rgba(96,165,250,0.45);}
+.dot.curr{background:var(--accent);box-shadow:0 0 7px var(--accent);width:11px;height:11px;}
+.ctrl-section{margin-top:auto;padding-top:14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px;}
+button{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;cursor:pointer;font-size:0.8rem;transition:all 0.2s;}
+button:hover{background:rgba(255,255,255,0.12);}
+.play-btn{background:rgba(96,165,250,0.14);border-color:rgba(96,165,250,0.4);color:var(--accent);}
+.play-btn:hover{background:rgba(96,165,250,0.24);}
+.ctrl-row{display:flex;gap:6px;}
+.ctrl-row button{flex:1;font-size:0.75rem;}
+.speed-row{display:flex;gap:4px;}
+.sp-btn{flex:1;font-size:0.7rem;padding:3px 6px;}
+.sp-btn.active{background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.4);color:var(--yellow);}
+.step-counter{font-size:0.75rem;color:var(--dim);text-align:center;font-family:monospace;}
+.anim-area{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.tab-canvas{flex:1;overflow:hidden;padding:20px;}
+.desc-box{flex-shrink:0;padding:14px 20px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);min-height:62px;font-size:0.9rem;color:var(--text);line-height:1.65;}
+.status-bar{flex-shrink:0;height:30px;display:flex;align-items:center;padding:0 20px;background:var(--panel2);border-top:1px solid var(--border);font-size:0.75rem;color:var(--dim);}
+
+/* Pipeline */
+.pipeline{display:flex;align-items:stretch;gap:0;height:100%;}
+.pipe-stage{flex:1;min-width:0;}
+.pipe-conn{display:flex;align-items:center;justify-content:center;padding:0 4px;flex-shrink:0;padding-top:32px;color:var(--accent);font-size:1.1rem;}
+.pipe-box{border:1.5px solid var(--border);border-radius:12px;padding:12px;height:100%;display:flex;flex-direction:column;gap:5px;min-height:180px;}
+.pipe-box.sensor{border-color:rgba(251,191,36,0.35);background:rgba(251,191,36,0.04);}
+.pipe-box.wal{border-color:rgba(45,212,191,0.35);background:rgba(45,212,191,0.04);}
+.pipe-box.mem{border-color:rgba(74,222,128,0.35);background:rgba(74,222,128,0.04);}
+.pipe-box.tsm{border-color:rgba(96,165,250,0.35);background:rgba(96,165,250,0.04);}
+.pipe-title{font-size:0.75rem;font-weight:700;font-family:monospace;margin-bottom:6px;}
+.pipe-title.sensor{color:var(--yellow);}
+.pipe-title.wal{color:var(--teal);}
+.pipe-title.mem{color:var(--green);}
+.pipe-title.tsm{color:var(--accent);}
+.dp{font-size:0.72rem;padding:4px 7px;border-radius:5px;font-family:monospace;background:rgba(255,255,255,0.05);color:var(--dim);transition:all 0.3s;margin-bottom:2px;}
+.dp.active{background:rgba(96,165,250,0.15);color:var(--accent);border:1px solid rgba(96,165,250,0.3);animation:slideIn 0.3s ease;}
+.dp.warn{background:rgba(251,191,36,0.1);color:var(--yellow);}
+.dp.ok{background:rgba(74,222,128,0.08);color:var(--green);border:1px solid rgba(74,222,128,0.2);}
+.tsm-file{display:flex;align-items:center;gap:6px;padding:5px 9px;border-radius:7px;background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.25);font-size:0.73rem;font-family:monospace;color:var(--accent);margin-bottom:3px;transition:all 0.4s;}
+.tsm-file.merging{border-color:var(--orange);background:rgba(251,146,60,0.1);color:var(--orange);}
+.tsm-file.merged{border-color:var(--green);background:rgba(74,222,128,0.08);color:var(--green);}
+.flush-badge{font-size:0.72rem;padding:4px 8px;border-radius:6px;background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.3);color:var(--yellow);font-family:monospace;display:none;}
+.compact-bar{margin-top:6px;padding:6px 9px;background:rgba(251,146,60,0.07);border:1px solid rgba(251,146,60,0.2);border-radius:7px;font-size:0.72rem;font-family:monospace;color:var(--orange);display:none;}
+@keyframes slideIn{from{opacity:0;transform:translateX(-6px);}to{opacity:1;transform:translateX(0);}}
+
+/* Compression table */
+.compress-wrap{height:100%;display:flex;flex-direction:column;gap:14px;overflow-y:auto;}
+.ct-table{width:100%;border-collapse:separate;border-spacing:3px;}
+.ct-table th{padding:7px 12px;font-size:0.75rem;font-family:monospace;color:var(--dim);text-align:center;}
+.ct-table th:first-child{text-align:left;}
+.ct-table td{padding:8px 14px;font-size:0.8rem;font-family:monospace;text-align:center;border:1px solid var(--border);border-radius:5px;transition:all 0.4s;}
+.ct-label{color:var(--dim);font-size:0.78rem;text-align:left!important;white-space:nowrap;}
+.ct-raw{color:var(--text);background:rgba(255,255,255,0.04);}
+.ct-delta{color:var(--yellow);background:rgba(251,191,36,0.06);}
+.ct-dod{color:var(--green);background:rgba(74,222,128,0.07);}
+.ct-dod.zero{font-weight:700;}
+.ct-hide{opacity:0;transform:translateY(4px);}
+.bit-section{padding:12px 14px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;}
+.bit-section-title{font-size:0.75rem;color:var(--dim);margin-bottom:10px;font-family:monospace;}
+.bit-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:7px;}
+.bit-lbl{font-size:0.73rem;color:var(--dim);width:110px;font-family:monospace;flex-shrink:0;}
+.bit-track{height:18px;flex:1;background:rgba(255,255,255,0.04);border-radius:4px;overflow:hidden;position:relative;}
+.bit-fill{height:100%;border-radius:4px;transition:width 0.6s ease;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;}
+.bit-fill.raw{background:rgba(248,113,113,0.55);}
+.bit-fill.dod{background:rgba(74,222,128,0.55);}
+.bit-val{font-size:0.68rem;color:white;font-weight:700;font-family:monospace;}
+.xor-box{padding:12px 14px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:10px;}
+.xor-title{font-size:0.75rem;color:var(--dim);margin-bottom:8px;font-family:monospace;}
+.xor-row{display:flex;align-items:center;gap:12px;margin-bottom:5px;}
+.xor-lbl{font-size:0.73rem;color:var(--dim);width:70px;flex-shrink:0;}
+.xor-bits{font-size:0.75rem;font-family:monospace;color:var(--dim);letter-spacing:0.04em;}
+.xor-bits .ch{color:var(--accent);font-weight:700;}
+.ratio-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:8px;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.3);color:var(--green);font-size:0.85rem;font-family:monospace;}
+
+/* Range Query */
+.rq-wrap{height:100%;display:flex;flex-direction:column;gap:12px;overflow-y:auto;}
+.sql-box{padding:10px 14px;background:rgba(96,165,250,0.07);border:1px solid rgba(96,165,250,0.25);border-radius:8px;font-family:monospace;font-size:0.8rem;color:var(--accent);transition:opacity 0.4s;}
+.parts-label{font-size:0.73rem;color:var(--dim);font-family:monospace;}
+.parts-grid{display:flex;flex-wrap:wrap;gap:4px;}
+.part{width:54px;height:46px;border-radius:6px;border:1px solid var(--border);background:rgba(255,255,255,0.03);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:0.68rem;font-family:monospace;color:var(--dim);transition:all 0.4s;}
+.part .pd{color:var(--dim);font-size:0.67rem;}
+.part .ps{color:rgba(255,255,255,0.25);font-size:0.62rem;}
+.part.hl{border-color:var(--accent);background:rgba(96,165,250,0.14);}
+.part.hl .pd{color:var(--accent);font-weight:700;}
+.part.dim{opacity:0.2;}
+.col-section{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.col-lbl{font-size:0.75rem;color:var(--dim);}
+.col-pill{padding:4px 12px;border-radius:5px;border:1px solid var(--border);background:rgba(255,255,255,0.04);font-size:0.76rem;font-family:monospace;color:var(--dim);transition:all 0.3s;}
+.col-pill.sel{border-color:var(--accent);background:rgba(96,165,250,0.13);color:var(--accent);}
+.col-pill.dim{opacity:0.2;}
+.scan-wrap{display:none;}
+.scan-lbl{font-size:0.74rem;color:var(--dim);margin-bottom:5px;font-family:monospace;}
+.scan-track{height:14px;background:rgba(255,255,255,0.04);border-radius:7px;overflow:hidden;}
+.scan-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--teal));border-radius:7px;width:0;transition:width 0.8s ease;}
+.result-row{display:none;margin-top:4px;}
+.result-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.3);color:var(--green);font-size:0.83rem;font-family:monospace;}
+
+/* Downsampling / TTL */
+.ds-wrap{height:100%;display:flex;flex-direction:column;gap:14px;overflow-y:auto;}
+.res-row{display:flex;align-items:center;gap:12px;transition:opacity 0.4s;}
+.res-lbl{font-size:0.75rem;color:var(--dim);font-family:monospace;width:86px;flex-shrink:0;}
+.res-bars{display:flex;flex-wrap:wrap;gap:2px;flex:1;}
+.res-bar{width:4px;height:16px;background:rgba(96,165,250,0.4);border-radius:2px;transition:all 0.3s;}
+.res-bar.h{background:rgba(251,191,36,0.5);}
+.res-bar.d{background:rgba(74,222,128,0.5);}
+.res-count{font-size:0.73rem;font-family:monospace;color:var(--dim);width:80px;text-align:right;flex-shrink:0;}
+.ttl-section{padding-top:10px;border-top:1px solid var(--border);}
+.ttl-lbl{font-size:0.73rem;color:var(--dim);margin-bottom:7px;font-family:monospace;}
+.ttl-row{display:flex;gap:4px;flex-wrap:wrap;}
+.ttl-p{padding:4px 9px;border-radius:5px;font-size:0.7rem;font-family:monospace;border:1px solid;transition:all 0.5s;}
+.ttl-p.fresh{border-color:rgba(96,165,250,0.3);color:var(--accent);background:rgba(96,165,250,0.07);}
+.ttl-p.aging{border-color:rgba(251,191,36,0.35);color:var(--yellow);background:rgba(251,191,36,0.06);}
+.ttl-p.expired{border-color:rgba(248,113,113,0.4);color:var(--red);background:rgba(248,113,113,0.08);}
+.ttl-p.gone{opacity:0;transform:scale(0.7);}
+@keyframes flash{0%,100%{background:rgba(248,113,113,0.08);}50%{background:rgba(248,113,113,0.3);}}
+.ttl-p.flash{animation:flash 0.4s ease 2;}
+.ooo-section{padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,0.02);}
+.ooo-lbl{font-size:0.73rem;color:var(--dim);margin-bottom:7px;font-family:monospace;}
+.ooo-pt{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:6px;font-size:0.75rem;font-family:monospace;border:1px solid;margin-bottom:5px;transition:all 0.4s;}
+.ooo-pt.normal{border-color:rgba(96,165,250,0.3);color:var(--accent);background:rgba(96,165,250,0.08);}
+.ooo-pt.ooo{border-color:rgba(251,191,36,0.4);color:var(--yellow);background:rgba(251,191,36,0.1);}
+.ooo-pt.merged{border-color:rgba(74,222,128,0.35);color:var(--green);background:rgba(74,222,128,0.08);}
+.ooo-flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px;}
+.ooo-node{padding:4px 10px;border-radius:6px;font-size:0.72rem;font-family:monospace;border:1px solid;transition:all 0.4s;}
+.ooo-node.n{border-color:rgba(96,165,250,0.3);color:var(--accent);background:rgba(96,165,250,0.08);}
+.ooo-node.warn{border-color:rgba(251,191,36,0.4);color:var(--yellow);background:rgba(251,191,36,0.1);}
+.ooo-node.ok{border-color:rgba(74,222,128,0.35);color:var(--green);background:rgba(74,222,128,0.08);}
+.ooo-arr{color:var(--dim);font-size:0.85rem;}
+/* Info badge */
+.ib{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:5px;font-size:0.75rem;font-family:monospace;margin:3px 2px;}
+.ib.b{background:rgba(96,165,250,0.09);border:1px solid rgba(96,165,250,0.25);color:var(--accent);}
+.ib.g{background:rgba(74,222,128,0.09);border:1px solid rgba(74,222,128,0.25);color:var(--green);}
+.ib.y{background:rgba(251,191,36,0.09);border:1px solid rgba(251,191,36,0.25);color:var(--yellow);}
+.ib.r{background:rgba(248,113,113,0.09);border:1px solid rgba(248,113,113,0.25);color:var(--red);}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="nav-back">← 数据库</a>
+  <h1>时序数据库</h1>
+  <div class="nav-tags">
+    <span class="nav-tag">TSM写入</span>
+    <span class="nav-tag">Delta压缩</span>
+    <span class="nav-tag">分区剪枝</span>
+    <span class="nav-tag">降采样TTL</span>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-label">动画场景</div>
+    <button class="tab-btn active" onclick="switchTab(0)"><span class="tab-num">1</span>写入路径</button>
+    <button class="tab-btn" onclick="switchTab(1)"><span class="tab-num">2</span>Delta 压缩</button>
+    <button class="tab-btn" onclick="switchTab(2)"><span class="tab-num">3</span>范围查询</button>
+    <button class="tab-btn" onclick="switchTab(3)"><span class="tab-num">4</span>降采样 TTL</button>
+
+    <div class="step-dots-wrap">
+      <div class="sidebar-label">进度</div>
+      <div class="step-dots" id="stepDots"></div>
+    </div>
+
+    <div class="ctrl-section">
+      <button class="play-btn" id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      <div class="ctrl-row">
+        <button onclick="prev()">← 上一步</button>
+        <button onclick="next()">下一步 →</button>
+      </div>
+      <button onclick="doReset()">↺ 重置</button>
+      <div class="speed-row">
+        <button class="sp-btn" onclick="setSpeed(0)" id="sp0">慢</button>
+        <button class="sp-btn active" onclick="setSpeed(1)" id="sp1">中</button>
+        <button class="sp-btn" onclick="setSpeed(2)" id="sp2">快</button>
+        <button class="sp-btn" onclick="setSpeed(3)" id="sp3">极速</button>
+      </div>
+      <div class="step-counter" id="stepCounter">步骤 1/8</div>
+    </div>
+  </div>
+
+  <div class="anim-area">
+    <div class="tab-canvas">
+
+      <!-- Tab 0: Write Path -->
+      <div id="tab0">
+        <div class="pipeline">
+          <div class="pipe-stage">
+            <div class="pipe-box sensor">
+              <div class="pipe-title sensor">⚡ Sensor</div>
+              <div id="sensorPts"></div>
+            </div>
+          </div>
+          <div class="pipe-conn">→</div>
+          <div class="pipe-stage">
+            <div class="pipe-box wal">
+              <div class="pipe-title wal">📝 WAL</div>
+              <div id="walEntries"></div>
+            </div>
+          </div>
+          <div class="pipe-conn">→</div>
+          <div class="pipe-stage">
+            <div class="pipe-box mem">
+              <div class="pipe-title mem">🗂 MemTable</div>
+              <div id="memEntries"></div>
+              <div class="flush-badge" id="flushBadge">⏳ Flushing → TSM...</div>
+            </div>
+          </div>
+          <div class="pipe-conn">→</div>
+          <div class="pipe-stage">
+            <div class="pipe-box tsm">
+              <div class="pipe-title tsm">💿 TSM Files</div>
+              <div id="tsmFiles"></div>
+              <div class="compact-bar" id="compactBar">🔄 Compaction: 4 files → 1...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 1: Compression -->
+      <div id="tab1" style="display:none">
+        <div class="compress-wrap">
+          <table class="ct-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>t₁</th><th>t₂</th><th>t₃</th><th>t₄</th><th>t₅</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr id="rawRow">
+                <td class="ct-label">原始时间戳</td>
+                <td class="ct-raw ct-hide" id="r0">1000000</td>
+                <td class="ct-raw ct-hide" id="r1">1000001</td>
+                <td class="ct-raw ct-hide" id="r2">1000002</td>
+                <td class="ct-raw ct-hide" id="r3">1000003</td>
+                <td class="ct-raw ct-hide" id="r4">1000004</td>
+              </tr>
+              <tr id="deltaRow">
+                <td class="ct-label">Delta Δ</td>
+                <td class="ct-delta ct-hide" id="d0">—</td>
+                <td class="ct-delta ct-hide" id="d1">1</td>
+                <td class="ct-delta ct-hide" id="d2">1</td>
+                <td class="ct-delta ct-hide" id="d3">1</td>
+                <td class="ct-delta ct-hide" id="d4">1</td>
+              </tr>
+              <tr id="dodRow">
+                <td class="ct-label">DoD ΔΔ</td>
+                <td class="ct-dod ct-hide" id="dd0">—</td>
+                <td class="ct-dod ct-hide" id="dd1">—</td>
+                <td class="ct-dod ct-hide zero" id="dd2">0</td>
+                <td class="ct-dod ct-hide zero" id="dd3">0</td>
+                <td class="ct-dod ct-hide zero" id="dd4">0</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="bit-section" id="bitSection" style="display:none">
+            <div class="bit-section-title">编码位宽对比（每个时间戳值）</div>
+            <div class="bit-bar-row">
+              <div class="bit-lbl">原始时间戳</div>
+              <div class="bit-track">
+                <div class="bit-fill raw" style="width:100%"><span class="bit-val">64 bits</span></div>
+              </div>
+            </div>
+            <div class="bit-bar-row">
+              <div class="bit-lbl">DoD = 0</div>
+              <div class="bit-track">
+                <div class="bit-fill dod" id="dodFill" style="width:2%"><span class="bit-val" style="position:absolute;left:8px;font-size:0.68rem;color:var(--green)">1 bit !</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="xor-box" id="xorBox" style="display:none">
+            <div class="xor-title">XOR 浮点压缩（Gorilla 算法）</div>
+            <div class="xor-row">
+              <div class="xor-lbl">v₁=72.3:</div>
+              <div class="xor-bits">0100 0010 1001 0000 <span class="ch">1001 1001 1001 1010</span></div>
+            </div>
+            <div class="xor-row">
+              <div class="xor-lbl">v₂=72.4:</div>
+              <div class="xor-bits">0100 0010 1001 0000 <span class="ch">1100 1100 1100 1101</span></div>
+            </div>
+            <div class="xor-row">
+              <div class="xor-lbl">XOR:</div>
+              <div class="xor-bits" style="color:var(--dim)">0000 0000 0000 0000 <span class="ch" style="color:var(--accent)">0101 0101 0101 0111</span></div>
+            </div>
+            <div style="font-size:0.72rem;color:var(--dim);margin-top:6px">前导零 16 位 + 尾随零 0 位 → 只存中间 16 位变化段</div>
+          </div>
+
+          <div id="ratioArea" style="display:none">
+            <span class="ratio-badge">🗜 InfluxDB TSM 实测平均压缩比 15:1（时序度量数据）</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Range Query -->
+      <div id="tab2" style="display:none">
+        <div class="rq-wrap">
+          <div class="sql-box" id="sqlBox" style="opacity:0.3">
+            SELECT avg(cpu_usage) FROM metrics<br>WHERE time &gt;= '2024-01-01' AND time &lt; '2024-01-02'
+          </div>
+          <div>
+            <div class="parts-label" style="margin-bottom:6px">时间分区（2024年1月，按天分区）</div>
+            <div class="parts-grid" id="partsGrid"></div>
+          </div>
+          <div class="col-section">
+            <div class="col-lbl">指标列：</div>
+            <div class="col-pill" id="cCpu">cpu_usage</div>
+            <div class="col-pill" id="cMem">mem_usage</div>
+            <div class="col-pill" id="cDisk">disk_io</div>
+            <div class="col-pill" id="cNet">net_rx</div>
+            <div class="col-pill" id="cTemp">temperature</div>
+          </div>
+          <div class="scan-wrap" id="scanWrap">
+            <div class="scan-lbl">并行扫描 cpu_usage 列（Jan 01 分区）：</div>
+            <div class="scan-track"><div class="scan-fill" id="scanFill"></div></div>
+          </div>
+          <div class="result-row" id="resultRow">
+            <span class="result-badge">✓ avg(cpu_usage) = 68.5%　|　扫描 1/31 分区 × 1/5 列 → IO 节省 99.3%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 3: Downsampling + TTL -->
+      <div id="tab3" style="display:none">
+        <div class="ds-wrap">
+          <div class="res-row" id="rowMin" style="opacity:0.4">
+            <div class="res-lbl">分钟级 1m</div>
+            <div class="res-bars" id="barsMin"></div>
+            <div class="res-count" id="cntMin">—</div>
+          </div>
+          <div class="res-row" id="rowHour" style="opacity:0.3">
+            <div class="res-lbl">小时级 1h</div>
+            <div class="res-bars" id="barsHour"></div>
+            <div class="res-count" id="cntHour">—</div>
+          </div>
+          <div class="res-row" id="rowDay" style="opacity:0.3">
+            <div class="res-lbl">天级 1d</div>
+            <div class="res-bars" id="barsDay"></div>
+            <div class="res-count" id="cntDay">—</div>
+          </div>
+
+          <div class="ttl-section">
+            <div class="ttl-lbl">TTL 分区（原始数据保留 30 天）</div>
+            <div class="ttl-row" id="ttlRow"></div>
+          </div>
+
+          <div class="ooo-section" id="oooSection" style="display:none">
+            <div class="ooo-lbl">乱序写入（Out-of-Order）处理路径</div>
+            <div id="oooContent"></div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /tab-canvas -->
+
+    <div class="desc-box" id="descBox">时序数据库（TSDB）专为带时间戳的度量序列设计。传感器每秒产生 (timestamp, value, tags) 三元组数据点。</div>
+  </div>
+</div>
+<div class="status-bar" id="statusBar">写入路径 — 初始状态</div>
+
+<script>
+window.PAGE_CONCEPTS = [
+  { title: 'TSM 文件', body: 'Time-Structured Merge Tree 文件格式，时序数据的磁盘存储单元，按 tag 分列压缩存储。', tag: 'TSDB' },
+  { title: 'Delta-of-Delta', body: '对时间戳做两次差分，均匀间隔时差值接近 0，配合变长编码压缩比极高。', tag: 'Gorilla' },
+  { title: '分区剪枝', body: '查询时根据时间条件直接跳过不相关的时间分区，避免扫描无关数据。', tag: '优化' },
+  { title: '降采样', body: '将高精度原始数据定期聚合为低精度汇总数据，平衡存储成本与历史分析需求。', tag: '保留策略' },
+];
+
+const SPEEDS = [1800, 1100, 600, 300];
+let curTab = 0, cur = 0, playing = false, timer = null, speedIdx = 1;
+
+const TABS = [
+  {
+    name: '写入路径',
+    steps: [
+      { desc: '时序数据库（TSDB）专为带时间戳的度量序列设计。传感器每秒产生 (timestamp, value, tags) 三元组数据点，写入模式是顺序追加。', action: 'w_reset' },
+      { desc: '传感器 web1 写入第一个数据点：ts=1000001, cpu_usage=72.3%。时序写入总是按时间顺序追加，利用磁盘顺序写特性（比随机写快 10-100x）。', action: 'w_s1' },
+      { desc: 'WAL 预写日志（Write-Ahead Log）：每次写入先追加到 WAL 文件。顺序写磁盘，崩溃后可从 WAL 完整重放恢复 MemTable 数据。', action: 'w_wal' },
+      { desc: 'MemTable（内存有序表）：WAL 写入后，数据插入内存按 (measurement + tags + time) 复合键排序的结构，支持快速范围查询。', action: 'w_mem' },
+      { desc: '持续写入：更多传感器数据涌入，WAL 继续顺序追加，MemTable 有序积累。新数据总是比旧数据时间戳更大。', action: 'w_fill' },
+      { desc: 'MemTable 达到阈值（默认 64MB）：冻结当前 MemTable 为 Immutable，后台线程将其 Flush 写入磁盘 TSM 文件。', action: 'w_flush' },
+      { desc: 'TSM 文件（Time-Structured Merge Tree）：按列存储，每个 tag-set 的 timestamps 和 values 分开存放，Delta-of-Delta 压缩时间戳，XOR 编码浮点值。', action: 'w_tsm1' },
+      { desc: '后台 Compaction：多个小 TSM 文件合并为更大文件。合并时去重（duplicate points）、删除过期数据（tombstone）、重建稀疏索引，提升查询效率。', action: 'w_compact' },
+    ]
+  },
+  {
+    name: 'Delta 压缩',
+    steps: [
+      { desc: 'Gorilla/TSM 时间戳压缩原理：均匀间隔采集的时序数据（如每秒一次），原始时间戳数值大但变化规律极强，适合差分编码。', action: 'c_reset' },
+      { desc: '原始时间戳（Unix 秒级）：1000000, 1000001, 1000002, 1000003, 1000004。5 个值 × 64 bits = 320 bits。', action: 'c_raw' },
+      { desc: '一阶差分 Delta Δ：计算相邻时间戳之差，均匀间隔时 Δ = 1, 1, 1, 1。只需 3 bits 表示 ≤7 的差值（节省 95%）。', action: 'c_delta' },
+      { desc: '二阶差分 Delta-of-Delta ΔΔ：差值之差，均匀间隔时全为 0！0 只需 1 bit 标识。320 bits 压缩到约 3 bits（106x 压缩比）。', action: 'c_dod' },
+      { desc: '位宽对比：原始每值 64 bits vs DoD 均匀间隔时 1 bit。实际 Gorilla 变长编码：DoD=0 用 1 bit，小范围用 9 bits，中范围 12 bits，大范围 32 bits。', action: 'c_bits' },
+      { desc: 'XOR 浮点压缩：相邻浮点值（如 CPU 用量 72.3→72.4）变化微小，XOR 后高位大量前导零。只存变化的中间位段，均匀数据再压缩 3-5x。', action: 'c_xor' },
+    ]
+  },
+  {
+    name: '范围查询',
+    steps: [
+      { desc: '时序数据按时间分区存储（如每天一个分区文件）。查询引擎通过时间条件进行分区剪枝和列过滤，避免大量无效 IO。', action: 'q_reset' },
+      { desc: '查询到达：SELECT avg(cpu_usage) FROM metrics WHERE time >= \'2024-01-01\' AND time < \'2024-01-02\'。需要 1 天的 cpu_usage 平均值。', action: 'q_query' },
+      { desc: '时间范围解析：查询时间窗口为 2024-01-01 00:00 ~ 2024-01-01 23:59。数据库查找覆盖此范围的分区元数据。', action: 'q_parse' },
+      { desc: '分区剪枝（Partition Pruning）：Jan 02 ~ Jan 31 共 30 个分区完全在时间范围外，直接跳过，无需打开任何文件。仅 Jan 01 需要访问。', action: 'q_prune' },
+      { desc: '列存过滤：本次查询仅需 cpu_usage 列，mem_usage / disk_io / net_rx / temperature 4 列整块跳过（列式存储天然支持按需读列）。', action: 'q_col' },
+      { desc: '并行扫描：对 Jan 01 分区内 cpu_usage 列数据分段并行读取（每段 ~8192 行 granule），并行聚合 avg 值。', action: 'q_scan' },
+      { desc: '查询完成！扫描 1/31 分区 × 1/5 列 → 实际 IO 仅为全表扫描的 0.65%。亿级数据点毫秒级响应，这是 TSDB 的核心优势。', action: 'q_result' },
+    ]
+  },
+  {
+    name: '降采样 TTL',
+    steps: [
+      { desc: '时序数据保留策略：高精度原始数据随时间降采样为低精度，超过保留期的旧分区整体删除（O(1) 代价）。', action: 'd_reset' },
+      { desc: '原始数据（分钟级）：31 天 × 1440 min/天 = 44,640 行/指标。随时间持续增长，需要保留策略控制成本。', action: 'd_raw' },
+      { desc: '自动降采样至小时级（Downsample 60:1）：每小时聚合为 avg/max/min → 744 行/指标。压缩 60x，历史趋势分析仍然准确。', action: 'd_hour' },
+      { desc: 'TTL 触发：分钟级原始数据保留 30 天。第 31 天分区到期 → 直接删除整个分区文件（O(1)），而非逐行 DELETE（O(n)，可能需要数小时）。', action: 'd_ttl' },
+      { desc: '乱序写入（Out-of-Order Write）：延迟的传感器数据包到达，携带 5 分钟前的时间戳（比当前最新写入时间戳早）。', action: 'd_ooo' },
+      { desc: 'OOO 处理：乱序点写入独立 OOO 缓冲区，不进主 MemTable。定期 Merge 将 OOO 数据合并回对应时间分区，不影响正常写入路径。', action: 'd_ooo2' },
+    ]
+  },
+];
+
+// ─── Tab 0 actions ────────────────────────────────────────────
+function applyTab0(action) {
+  const sp = document.getElementById('sensorPts');
+  const we = document.getElementById('walEntries');
+  const me = document.getElementById('memEntries');
+  const tf = document.getElementById('tsmFiles');
+  const fb = document.getElementById('flushBadge');
+  const cb = document.getElementById('compactBar');
+
+  function clearAll() {
+    sp.innerHTML=''; we.innerHTML=''; me.innerHTML=''; tf.innerHTML='';
+    fb.style.display='none'; cb.style.display='none';
+  }
+
+  function mkDp(cls, text) {
+    const d=document.createElement('div');
+    d.className='dp '+cls; d.textContent=text; return d;
+  }
+
+  if (action==='w_reset') { clearAll(); }
+  else if (action==='w_s1') {
+    clearAll();
+    const p=mkDp('active','ts=1000001 | cpu=72.3 | host=web1'); sp.appendChild(p);
+  }
+  else if (action==='w_wal') {
+    sp.innerHTML=''; sp.appendChild(mkDp('warn','ts=1000001 | cpu=72.3'));
+    we.appendChild(mkDp('active','LSN:001  ts=1000001  cpu=72.3'));
+  }
+  else if (action==='w_mem') {
+    sp.innerHTML=''; sp.appendChild(mkDp('warn','ts=1000001 | cpu=72.3'));
+    we.appendChild(mkDp('ok','LSN:001  ts=1000001'));
+    me.appendChild(mkDp('active','[web1] ts=1000001  72.3%'));
+  }
+  else if (action==='w_fill') {
+    sp.innerHTML=''; sp.appendChild(mkDp('warn','ts=1000005 | cpu=74.1'));
+    we.innerHTML='';
+    ['LSN:001  ts=1000001','LSN:002  ts=1000002','LSN:003  ts=1000003','LSN:004  ts=1000004'].forEach(t=>we.appendChild(mkDp('ok',t)));
+    me.innerHTML='';
+    ['[web1] ts=1000001  72.3%','[web1] ts=1000002  73.1%','[web1] ts=1000003  71.8%','[web1] ts=1000004  74.1%'].forEach(t=>me.appendChild(mkDp('ok',t)));
+  }
+  else if (action==='w_flush') {
+    me.innerHTML='';
+    ['[web1] ts=1000001  72.3%','[web1] ts=1000002  73.1%','[web2] ts=1000003  41.2%','… 1024 entries'].forEach(t=>me.appendChild(mkDp('warn',t)));
+    fb.style.display='block';
+  }
+  else if (action==='w_tsm1') {
+    me.innerHTML=''; fb.style.display='none';
+    const f=document.createElement('div'); f.className='tsm-file'; f.innerHTML='📄 file-001.tsm <small style="color:var(--dim)">(4.2 MB)</small>';
+    tf.appendChild(f);
+    tf.appendChild(Object.assign(document.createElement('div'),{className:'dp ok',textContent:'列: timestamps | cpu_usage'}));
+    tf.appendChild(Object.assign(document.createElement('div'),{className:'dp ok',textContent:'ΔΔ压缩 + XOR编码'}));
+  }
+  else if (action==='w_compact') {
+    tf.innerHTML='';
+    ['file-001.tsm','file-002.tsm','file-003.tsm','file-004.tsm'].forEach(n=>{
+      const f=document.createElement('div'); f.className='tsm-file merging'; f.innerHTML='📄 '+n; tf.appendChild(f);
+    });
+    cb.style.display='block';
+    setTimeout(()=>{
+      tf.innerHTML='';
+      const f=document.createElement('div'); f.className='tsm-file merged'; f.innerHTML='📦 merged-001.tsm <small style="color:var(--dim)">(14.8 MB)</small>';
+      tf.appendChild(f);
+    }, 1200);
+  }
+}
+
+// ─── Tab 1 actions ────────────────────────────────────────────
+function applyTab1(action) {
+  const ids = ['r0','r1','r2','r3','r4','d0','d1','d2','d3','d4','dd0','dd1','dd2','dd3','dd4'];
+
+  function hideAll() { ids.forEach(id=>{ const el=document.getElementById(id); if(el){el.classList.add('ct-hide');} }); }
+  function show(...arr) { arr.forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('ct-hide'); }); }
+
+  function setVis(id, vis) {
+    const el=document.getElementById(id);
+    if(el) el.style.display = vis ? 'block' : 'none';
+  }
+
+  if (action==='c_reset') {
+    hideAll();
+    setVis('bitSection',false); setVis('xorBox',false); setVis('ratioArea',false);
+  }
+  else if (action==='c_raw') {
+    hideAll(); show('r0','r1','r2','r3','r4');
+    setVis('bitSection',false); setVis('xorBox',false); setVis('ratioArea',false);
+  }
+  else if (action==='c_delta') {
+    show('r0','r1','r2','r3','r4','d0','d1','d2','d3','d4');
+    setVis('bitSection',false);
+  }
+  else if (action==='c_dod') {
+    show('r0','r1','r2','r3','r4','d0','d1','d2','d3','d4','dd0','dd1','dd2','dd3','dd4');
+    setVis('bitSection',false);
+  }
+  else if (action==='c_bits') {
+    show('r0','r1','r2','r3','r4','d0','d1','d2','d3','d4','dd0','dd1','dd2','dd3','dd4');
+    setVis('bitSection',true);
+    setTimeout(()=>{ const f=document.getElementById('dodFill'); if(f) f.style.width='1.5%'; },100);
+    setVis('xorBox',false);
+  }
+  else if (action==='c_xor') {
+    show('r0','r1','r2','r3','r4','d0','d1','d2','d3','d4','dd0','dd1','dd2','dd3','dd4');
+    setVis('bitSection',true);
+    setVis('xorBox',true);
+    setVis('ratioArea',true);
+  }
+}
+
+// ─── Tab 2 actions ────────────────────────────────────────────
+function initParts() {
+  const g = document.getElementById('partsGrid');
+  g.innerHTML = '';
+  for (let d=1; d<=31; d++) {
+    const p = document.createElement('div');
+    p.className='part'; p.id='part'+d;
+    p.innerHTML=`<div class="pd">Jan ${String(d).padStart(2,'0')}</div><div class="ps">${(Math.random()*2+1).toFixed(1)}GB</div>`;
+    g.appendChild(p);
+  }
+}
+function applyTab2(action) {
+  const sql = document.getElementById('sqlBox');
+  const scanWrap = document.getElementById('scanWrap');
+  const resultRow = document.getElementById('resultRow');
+
+  function resetParts() {
+    for(let d=1;d<=31;d++){const p=document.getElementById('part'+d);if(p){p.className='part';}}
+  }
+  function resetCols() {
+    ['cCpu','cMem','cDisk','cNet','cTemp'].forEach(id=>{const el=document.getElementById(id);if(el)el.className='col-pill';});
+  }
+
+  if (action==='q_reset') {
+    sql.style.opacity='0.3'; resetParts(); resetCols();
+    scanWrap.style.display='none'; resultRow.style.display='none';
+    document.getElementById('scanFill').style.width='0';
+  }
+  else if (action==='q_query') {
+    sql.style.opacity='1'; resetParts(); resetCols();
+    scanWrap.style.display='none'; resultRow.style.display='none';
+  }
+  else if (action==='q_parse') {
+    sql.style.opacity='1'; resetParts();
+    document.getElementById('part1').className='part hl';
+  }
+  else if (action==='q_prune') {
+    document.getElementById('part1').className='part hl';
+    for(let d=2;d<=31;d++){const p=document.getElementById('part'+d);if(p)p.className='part dim';}
+  }
+  else if (action==='q_col') {
+    document.getElementById('part1').className='part hl';
+    for(let d=2;d<=31;d++){const p=document.getElementById('part'+d);if(p)p.className='part dim';}
+    document.getElementById('cCpu').className='col-pill sel';
+    ['cMem','cDisk','cNet','cTemp'].forEach(id=>{document.getElementById(id).className='col-pill dim';});
+  }
+  else if (action==='q_scan') {
+    document.getElementById('cCpu').className='col-pill sel';
+    ['cMem','cDisk','cNet','cTemp'].forEach(id=>{document.getElementById(id).className='col-pill dim';});
+    scanWrap.style.display='block';
+    setTimeout(()=>{ document.getElementById('scanFill').style.width='100%'; }, 100);
+  }
+  else if (action==='q_result') {
+    scanWrap.style.display='block';
+    document.getElementById('scanFill').style.width='100%';
+    resultRow.style.display='block';
+  }
+}
+
+// ─── Tab 3 actions ────────────────────────────────────────────
+function initTtlRow() {
+  const row = document.getElementById('ttlRow');
+  row.innerHTML = '';
+  for (let d=1; d<=31; d++) {
+    const p=document.createElement('div'); p.id='ttl'+d;
+    const cls = d<=25?'ttl-p fresh':d<=30?'ttl-p aging':'ttl-p expired';
+    p.className=cls; p.textContent='D'+String(d).padStart(2,'0');
+    row.appendChild(p);
+  }
+}
+function makeBars(containerId, count, cls) {
+  const el=document.getElementById(containerId); el.innerHTML='';
+  for(let i=0;i<count;i++){const b=document.createElement('div');b.className='res-bar '+(cls||'');el.appendChild(b);}
+}
+function applyTab3(action) {
+  const rowMin=document.getElementById('rowMin');
+  const rowHour=document.getElementById('rowHour');
+  const rowDay=document.getElementById('rowDay');
+  const oooSec=document.getElementById('oooSection');
+  const oooCont=document.getElementById('oooContent');
+
+  if (action==='d_reset') {
+    rowMin.style.opacity='0.35'; rowHour.style.opacity='0.3'; rowDay.style.opacity='0.3';
+    document.getElementById('barsMin').innerHTML='';
+    document.getElementById('barsHour').innerHTML='';
+    document.getElementById('barsDay').innerHTML='';
+    document.getElementById('cntMin').textContent='—';
+    document.getElementById('cntHour').textContent='—';
+    document.getElementById('cntDay').textContent='—';
+    initTtlRow();
+    oooSec.style.display='none';
+  }
+  else if (action==='d_raw') {
+    rowMin.style.opacity='1';
+    makeBars('barsMin', 80, '');
+    document.getElementById('cntMin').textContent='44,640 行';
+    rowHour.style.opacity='0.3'; rowDay.style.opacity='0.3';
+    oooSec.style.display='none';
+  }
+  else if (action==='d_hour') {
+    rowMin.style.opacity='1'; makeBars('barsMin', 80, '');
+    document.getElementById('cntMin').textContent='44,640 行';
+    rowHour.style.opacity='1';
+    makeBars('barsHour', 22, 'h');
+    document.getElementById('cntHour').textContent='744 行 (60x↓)';
+    rowDay.style.opacity='0.3'; oooSec.style.display='none';
+  }
+  else if (action==='d_ttl') {
+    rowMin.style.opacity='1'; makeBars('barsMin', 80, '');
+    document.getElementById('cntMin').textContent='44,640 行';
+    rowHour.style.opacity='1'; makeBars('barsHour', 22, 'h');
+    document.getElementById('cntHour').textContent='744 行 (60x↓)';
+    rowDay.style.opacity='1'; makeBars('barsDay', 4, 'd');
+    document.getElementById('cntDay').textContent='31 行 (1440x↓)';
+    oooSec.style.display='none';
+    // trigger TTL deletion animation
+    const p31=document.getElementById('ttl31');
+    if(p31){ p31.className='ttl-p flash'; setTimeout(()=>{ p31.className='ttl-p gone'; },900); }
+  }
+  else if (action==='d_ooo') {
+    rowMin.style.opacity='1'; makeBars('barsMin', 80, '');
+    document.getElementById('cntMin').textContent='44,640 行';
+    rowHour.style.opacity='1'; makeBars('barsHour', 22, 'h');
+    document.getElementById('cntHour').textContent='744 行';
+    oooSec.style.display='block';
+    oooCont.innerHTML='<div class="ooo-pt ooo">⚠ ts=t-5min  cpu=68.2  host=web3  <small style="color:var(--dim)">(5分钟前的旧时间戳)</small></div>'
+      +'<div style="font-size:0.73rem;color:var(--dim);margin-top:4px">比当前最新写入时间戳早 300s → 触发 OOO 路径</div>';
+  }
+  else if (action==='d_ooo2') {
+    oooSec.style.display='block';
+    oooCont.innerHTML='<div class="ooo-flow">'
+      +'<div class="ooo-node warn">OOO点 ts=t-5min</div>'
+      +'<div class="ooo-arr">→</div>'
+      +'<div class="ooo-node warn">OOO Buffer</div>'
+      +'<div class="ooo-arr">→ (定期Merge) →</div>'
+      +'<div class="ooo-node ok">正确时间分区 ✓</div>'
+      +'</div>'
+      +'<div style="margin-top:8px;font-size:0.73rem;color:var(--dim)">正常写入路径不受影响；OOO 数据延迟数秒后合并到正确位置。</div>'
+      +'<div style="margin-top:5px"><span class="ib g">✓ 写入不阻塞</span><span class="ib y">⚠ 查询可能短暂看不到 OOO 数据</span></div>';
+  }
+}
+
+// ─── Core logic ───────────────────────────────────────────────
+function applyStep() {
+  const tab = TABS[curTab];
+  const step = tab.steps[cur];
+  document.getElementById('descBox').textContent = step.desc;
+  document.getElementById('stepCounter').textContent = `步骤 ${cur+1}/${tab.steps.length}`;
+  document.getElementById('statusBar').textContent = tab.name + ' — ' + step.action;
+
+  if (curTab===0) applyTab0(step.action);
+  else if (curTab===1) applyTab1(step.action);
+  else if (curTab===2) applyTab2(step.action);
+  else if (curTab===3) applyTab3(step.action);
+
+  renderDots();
+}
+
+function renderDots() {
+  const steps = TABS[curTab].steps;
+  const container = document.getElementById('stepDots');
+  container.innerHTML = '';
+  steps.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i < cur ? ' done' : '') + (i === cur ? ' curr' : '');
+    d.onclick = () => { cur = i; applyStep(); };
+    container.appendChild(d);
+  });
+}
+
+function switchTab(t) {
+  curTab = t; cur = 0;
+  document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', i === t));
+  ['tab0','tab1','tab2','tab3'].forEach((id, i) => {
+    document.getElementById(id).style.display = i === t ? 'block' : 'none';
+  });
+  stopPlay();
+  if (t===2) initParts();
+  if (t===3) initTtlRow();
+  applyStep();
+}
+
+function next() { if (cur < TABS[curTab].steps.length-1) { cur++; applyStep(); } }
+function prev() { if (cur > 0) { cur--; applyStep(); } }
+function doReset() { cur=0; stopPlay(); applyStep(); }
+function setSpeed(i) {
+  speedIdx = i;
+  ['sp0','sp1','sp2','sp3'].forEach((id, j) => document.getElementById(id).classList.toggle('active', j===i));
+  if (playing) { stopPlay(); startPlay(); }
+}
+function startPlay() {
+  if (cur >= TABS[curTab].steps.length-1) { cur=0; applyStep(); }
+  playing=true;
+  document.getElementById('playBtn').textContent='⏸ 暂停';
+  timer = setInterval(() => {
+    if (cur >= TABS[curTab].steps.length-1) { stopPlay(); return; }
+    cur++; applyStep();
+  }, SPEEDS[speedIdx]);
+}
+function stopPlay() {
+  playing=false; clearInterval(timer); timer=null;
+  document.getElementById('playBtn').textContent='▶ 播放';
+}
+function togglePlay() { if (playing) stopPlay(); else startPlay(); }
+
+// Init
+initParts();
+initTtlRow();
+switchTab(0);
+</script>
+<script src="../footer.js"></script>
+</body>
+</html>

@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="LLM 推理优化：FlashAttention、Speculative Decoding、PagedAttention（vLLM）、Continuous Batching 原理与可视化。">
+<link rel="canonical" href="https://melodycoder12345.github.io/ai/inference-optimization.html">
+<meta property="og:title" content="LLM 推理优化 — 码海拾贝">
+<meta property="og:description" content="LLM 推理优化：FlashAttention、Speculative Decoding、PagedAttention、Continuous Batching。">
+<meta property="og:url" content="https://melodycoder12345.github.io/ai/inference-optimization.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="LLM 推理优化 — 码海拾贝">
+<meta name="twitter:description" content="LLM 推理优化：FlashAttention、Speculative Decoding、PagedAttention、Continuous Batching。">
+<title>LLM 推理优化 - AI</title>
+<script src="../nav.js"></script>
+<style>
+:root{
+  --bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;
+  --text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;
+  --accent:#a78bfa;--blue:#38bdf8;--green:#4ade80;--red:#f87171;--orange:#fb923c;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;overflow:hidden}
+.layout{display:grid;grid-template-columns:270px 1fr 340px;height:calc(100vh - 44px)}
+.steps-panel{background:rgba(17,24,39,.92);border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;overflow:hidden}
+.sp-head{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,.06)}
+.sp-eyebrow{font-size:.65rem;color:var(--accent);text-transform:uppercase;letter-spacing:.14em;font-weight:700;margin-bottom:6px}
+.sp-title{font-size:1rem;font-weight:700;margin-bottom:4px}
+.sp-sub{font-size:.72rem;color:var(--dim);line-height:1.5}
+.scene-tabs{display:flex;flex-direction:column;gap:4px;padding:12px 10px;border-bottom:1px solid rgba(255,255,255,.06)}
+.scene-tab{padding:8px 12px;border-radius:8px;font-size:.78rem;cursor:pointer;border:1px solid transparent;color:var(--dim);transition:all .15s;text-align:left;background:none}
+.scene-tab.active{background:rgba(167,139,250,.12);border-color:rgba(167,139,250,.3);color:#ddd6fe}
+.scene-tab:hover:not(.active){background:rgba(255,255,255,.04);color:var(--text)}
+.dot-nav{display:flex;gap:7px;align-items:center;padding:12px 16px;flex-wrap:wrap}
+.dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.15);cursor:pointer;transition:all .15s;flex-shrink:0}
+.dot.active{background:var(--accent);transform:scale(1.3)}
+.dot.done{background:rgba(167,139,250,.4)}
+.controls{display:flex;gap:8px;padding:10px 16px 14px;border-top:1px solid rgba(255,255,255,.06);margin-top:auto}
+.ctrl-btn{flex:1;padding:7px 0;border-radius:7px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--text);font-size:.78rem;cursor:pointer;transition:all .15s;font-family:inherit}
+.ctrl-btn:hover{background:rgba(255,255,255,.1)}
+.ctrl-btn.play{background:rgba(167,139,250,.15);border-color:rgba(167,139,250,.35);color:#ddd6fe}
+.ctrl-btn.play:hover{background:rgba(167,139,250,.25)}
+.viz-panel{display:flex;flex-direction:column;overflow:hidden;background:rgba(13,17,23,.6)}
+.viz-canvas{flex:1;position:relative;overflow:hidden}
+svg.arch{width:100%;height:100%}
+.step-desc{padding:14px 20px;border-top:1px solid rgba(255,255,255,.06);background:rgba(17,24,39,.8);min-height:72px}
+.step-desc .sd-label{font-size:.65rem;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px}
+.step-desc .sd-text{font-size:.84rem;color:var(--text);line-height:1.6}
+.detail-panel{background:rgba(17,24,39,.92);border-left:1px solid rgba(255,255,255,.07);overflow-y:auto;padding:18px 16px}
+.dp-section{margin-bottom:22px}
+.dp-title{font-size:.68rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:10px;padding-bottom:7px;border-bottom:1px solid rgba(255,255,255,.06)}
+.dp-block{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:12px 14px;margin-bottom:8px}
+.dp-block h4{font-size:.82rem;font-weight:700;margin-bottom:6px;color:var(--text)}
+.dp-block p{font-size:.77rem;color:var(--dim);line-height:1.6}
+.dp-block code{font-size:.74rem;background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;font-family:monospace;color:#c084fc}
+.highlight-note{background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.2);border-radius:8px;padding:10px 12px;font-size:.78rem;color:#ddd6fe;line-height:1.6;margin-bottom:8px}
+@media(max-width:1000px){body{overflow:auto}.layout{grid-template-columns:1fr;height:auto}.viz-panel{height:480px}.steps-panel,.detail-panel{height:auto;overflow:visible}}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="steps-panel">
+    <div class="sp-head">
+      <div class="sp-eyebrow">AI / 推理优化</div>
+      <div class="sp-title">LLM 推理优化</div>
+      <div class="sp-sub">memory-bound · 自回归 · FlashAttention · vLLM</div>
+    </div>
+    <div class="scene-tabs" id="sceneTabs">
+      <button class="scene-tab active" data-scene="0">⚡ Speculative Decoding</button>
+      <button class="scene-tab" data-scene="1">🧠 FlashAttention IO</button>
+      <button class="scene-tab" data-scene="2">📄 PagedAttention (vLLM)</button>
+      <button class="scene-tab" data-scene="3">🔄 Continuous Batching</button>
+    </div>
+    <div class="dot-nav" id="dotNav"></div>
+    <div class="controls">
+      <button class="ctrl-btn" id="btnPrev">◀ 上一步</button>
+      <button class="ctrl-btn play" id="btnPlay">▶ 播放</button>
+      <button class="ctrl-btn" id="btnNext">下一步 ▶</button>
+    </div>
+  </aside>
+
+  <div class="viz-panel">
+    <div class="viz-canvas" id="vizCanvas">
+      <svg class="arch" id="archSvg" viewBox="0 0 700 500" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <div class="step-desc" id="stepDesc">
+      <div class="sd-label">步骤说明</div>
+      <div class="sd-text" id="sdText">选择推理优化场景，点击播放观察优化机制。</div>
+    </div>
+  </div>
+
+  <aside class="detail-panel">
+    <div class="dp-section">
+      <div class="dp-title">推理瓶颈</div>
+      <div class="dp-block">
+        <h4>Memory-Bound 问题</h4>
+        <p>LLM 推理慢的核心原因：Attention 计算需要反复从 HBM（显存）读取庞大的 KV Cache，而 HBM 带宽远低于 GPU 算力（算力 > 内存带宽，称 memory-bound）。</p>
+      </div>
+      <div class="dp-block">
+        <h4>自回归串行瓶颈</h4>
+        <p>LLM 每次只生成一个 Token，下一个 Token 依赖上一个的结果，无法并行化。这是推理速度的根本限制。</p>
+      </div>
+    </div>
+    <div class="dp-section">
+      <div class="dp-title">优化技术对比</div>
+      <div class="dp-block">
+        <h4>Speculative Decoding</h4>
+        <p>用小模型（draft model）并行猜 N 个 Token，大模型一次前向传播并行验证。接受率高时加速 2-3x，适合大小模型能力差距不大的场景。</p>
+      </div>
+      <div class="dp-block">
+        <h4>FlashAttention</h4>
+        <p>IO 感知的分块矩阵乘法，减少 HBM 读写次数。不改变计算结果，只改变计算顺序。训练和推理都有效，已成为标准实现。</p>
+      </div>
+      <div class="dp-block">
+        <h4>PagedAttention</h4>
+        <p>虚拟化 KV Cache 内存管理，消除碎片化，支持不同请求动态共享物理内存页（Prefix Caching）。vLLM 核心技术。</p>
+      </div>
+      <div class="dp-block">
+        <h4>Continuous Batching</h4>
+        <p>请求完成即插入新请求，不等整个 batch 完成。将 GPU 利用率从 40-60% 提升到 80%+。</p>
+      </div>
+    </div>
+    <div class="dp-section">
+      <div class="dp-title">关键指标</div>
+      <div class="highlight-note">TTFT（Time To First Token）：第一个 Token 的延迟，影响用户感知响应速度。</div>
+      <div class="highlight-note">TPS（Tokens Per Second）：吞吐量，影响服务成本。两者往往需要权衡。</div>
+    </div>
+  </aside>
+</div>
+
+<script>
+(function(){
+'use strict';
+const NS = 'http://www.w3.org/2000/svg';
+const svg = document.getElementById('archSvg');
+
+function hex(h, a) {
+  const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+function mkGrid() {
+  const defs = document.createElementNS(NS,'defs');
+  const pat = document.createElementNS(NS,'pattern');
+  pat.setAttribute('id','grid');pat.setAttribute('width','32');pat.setAttribute('height','32');pat.setAttribute('patternUnits','userSpaceOnUse');
+  const pl = document.createElementNS(NS,'path');pl.setAttribute('d','M 32 0 L 0 0 0 32');pl.setAttribute('fill','none');pl.setAttribute('stroke','rgba(255,255,255,.03)');pl.setAttribute('stroke-width','0.5');
+  pat.appendChild(pl);defs.appendChild(pat);svg.appendChild(defs);
+  const bg=document.createElementNS(NS,'rect');bg.setAttribute('width','700');bg.setAttribute('height','500');bg.setAttribute('fill','url(#grid)');svg.appendChild(bg);
+}
+
+function box(x,y,w,h,color,label,sub,id2){
+  const g=document.createElementNS(NS,'g');if(id2)g.id=id2;
+  const r=document.createElementNS(NS,'rect');r.setAttribute('x',x);r.setAttribute('y',y);r.setAttribute('width',w);r.setAttribute('height',h);r.setAttribute('rx','10');r.setAttribute('fill',hex(color,.1));r.setAttribute('stroke',color);r.setAttribute('stroke-width','1.5');g.appendChild(r);
+  const t=document.createElementNS(NS,'text');t.setAttribute('x',x+w/2);t.setAttribute('y',y+h/2-(sub?6:0));t.setAttribute('text-anchor','middle');t.setAttribute('font-size','12');t.setAttribute('font-weight','700');t.setAttribute('fill',color);t.textContent=label;g.appendChild(t);
+  if(sub){const s=document.createElementNS(NS,'text');s.setAttribute('x',x+w/2);s.setAttribute('y',y+h/2+10);s.setAttribute('text-anchor','middle');s.setAttribute('font-size','10');s.setAttribute('fill','#64748b');s.textContent=sub;g.appendChild(s);}
+  svg.appendChild(g);return g;
+}
+
+function txt(x,y,content,color,size,anchor){
+  const t=document.createElementNS(NS,'text');t.setAttribute('x',x);t.setAttribute('y',y);t.setAttribute('text-anchor',anchor||'middle');t.setAttribute('font-size',size||12);t.setAttribute('fill',color||'#94a3b8');t.textContent=content;svg.appendChild(t);return t;
+}
+
+function arrow(x1,y1,x2,y2,color){
+  const mid='m'+Math.random().toString(36).slice(2);
+  const defs=document.createElementNS(NS,'defs');
+  const mk=document.createElementNS(NS,'marker');mk.setAttribute('id',mid);mk.setAttribute('viewBox','0 0 10 10');mk.setAttribute('refX','9');mk.setAttribute('refY','5');mk.setAttribute('markerWidth','6');mk.setAttribute('markerHeight','6');mk.setAttribute('orient','auto');
+  const mp=document.createElementNS(NS,'path');mp.setAttribute('d','M 0 0 L 10 5 L 0 10 z');mp.setAttribute('fill',color);mk.appendChild(mp);defs.appendChild(mk);svg.appendChild(defs);
+  const l=document.createElementNS(NS,'line');l.setAttribute('x1',x1);l.setAttribute('y1',y1);l.setAttribute('x2',x2);l.setAttribute('y2',y2);l.setAttribute('stroke',color);l.setAttribute('stroke-width','2');l.setAttribute('marker-end','url(#'+mid+')');svg.appendChild(l);return l;
+}
+
+function rect(x,y,w,h,fill,stroke,rx){
+  const r=document.createElementNS(NS,'rect');r.setAttribute('x',x);r.setAttribute('y',y);r.setAttribute('width',w);r.setAttribute('height',h);r.setAttribute('rx',rx||6);r.setAttribute('fill',fill);r.setAttribute('stroke',stroke||'none');svg.appendChild(r);return r;
+}
+
+const SCENES=[
+  // 0: Speculative Decoding
+  {
+    name:'Speculative Decoding',
+    steps:[
+      {desc:'初始状态：需要生成一段文字。大模型（LLM）生成质量高但速度慢；小模型（Draft Model）速度快但质量稍低。Speculative Decoding 结合两者优点。',draw:drawSpecInit},
+      {desc:'小模型（Draft Model）并行预测 5 个候选 Token：[" is", " a", " fast", " language", " model"]，整个预测过程只需要 1 次前向传播（并行）。',draw:drawSpecDraft},
+      {desc:'大模型（LLM）对 5 个候选 Token 进行一次并行验证（1次前向传播）。这等同于：顺序生成时的 1 次计算量，却可以验证 5 个 Token。',draw:drawSpecVerify},
+      {desc:'验证结果：前 3 个 Token 被接受（" is", " a", " fast"），第 4 个被拒绝（" language" → 大模型认为应该是 " inference"）。净效果：1次大模型计算完成了 3-4 个 Token 的生成。',draw:drawSpecAccept},
+      {desc:'[边界情况] 小模型连第 1 个 Token 就猜错（概率低但存在）：大模型拒绝第 1 个，退化为普通生成（生成 1 个 Token / 大模型前向传播）。此时 Speculative Decoding 无加速效果，但也不比普通生成慢。',draw:drawSpecFail},
+    ]
+  },
+  // 1: FlashAttention
+  {
+    name:'FlashAttention IO 对比',
+    steps:[
+      {desc:'标准 Attention 的 IO 问题：Q/K/V 矩阵存在 HBM（显存），计算 Attention 时需要多次完整读写大矩阵。序列长度 N，则 S=QK^T 矩阵大小为 NxN，IO 代价 O(N²)。',draw:drawFlashInit},
+      {desc:'标准 Attention 步骤 1：从 HBM 读取整个 Q、K 矩阵（红色箭头=高 IO），计算 S = Q × K^T（NxN 矩阵），写回 HBM。对 N=8192 的长序列，这需要传输数 GB 数据。',draw:drawFlashStd1},
+      {desc:'标准 Attention 步骤 2：从 HBM 读取 S（再一次大量 IO），计算 softmax(S)，写回 HBM。再从 HBM 读取 softmax(S) 和 V，计算最终输出 O = softmax(S)×V。总计 3 次读写大矩阵。',draw:drawFlashStd2},
+      {desc:'FlashAttention 策略：将 Q/K/V 分成小块（Tiles），每个 Tile 的计算完全在 SRAM（片上高速缓存）中完成。SRAM 速度比 HBM 快 10x，且容量限制不是问题，因为每次只处理一个小块。',draw:drawFlashTile},
+      {desc:'FlashAttention 计算：每个 Tile 的 Attention 在 SRAM 中一次性完成（QK^T + softmax + V）后直接输出，无需将中间结果 NxN 矩阵写回 HBM。总 HBM IO 从 O(N²) 降至 O(N)，速度提升 2-4x。',draw:drawFlashResult},
+    ]
+  },
+  // 2: PagedAttention
+  {
+    name:'PagedAttention (vLLM)',
+    steps:[
+      {desc:'传统 KV Cache 内存分配问题：为每个请求预先分配一块连续的最大长度显存（max_length * hidden_size）。即使请求只生成了 100 个 Token，也占用了 2048 个 Token 的显存。碎片率 > 50%。',draw:drawPageInit},
+      {desc:'PagedAttention 思路（借鉴 OS 虚拟内存分页）：将 KV Cache 分成固定大小的物理页（如 16 Tokens/页），请求的 KV Cache 由多个不连续的物理页组成，按需分配，不预留空间。',draw:drawPageVirtual},
+      {desc:'Prefix Caching（共享物理页）：两个不同请求共享相同的系统 Prompt（"你是一个助手..."），对应的 KV Cache 物理页只存储一份，用引用计数管理。节省大量显存。',draw:drawPageShare},
+      {desc:'动态分配：Request A 生成新 Token 时，按需分配新的物理页（不影响 Request B 的页）；Request B 完成后，物理页立即释放给等待队列中的 Request C。显存利用率从 40-60% 提升到 80-90%。',draw:drawPageAlloc},
+    ]
+  },
+  // 3: Continuous Batching
+  {
+    name:'Continuous Batching',
+    steps:[
+      {desc:'静态 Batching 问题：将 4 个请求组成一个 Batch，必须等所有请求都生成完毕才能处理下一个 Batch。即使 Request 1 在第 3 步就完成，GPU 仍然等待最慢的 Request 4 完成（GPU 空闲等待）。',draw:drawBatchStatic},
+      {desc:'静态 Batching：Request 1 第 3 步完成，但 Batch 中其他请求还在继续。GPU 计算资源浪费在填充（padding）上。蓝色=计算，灰色=空闲/padding，整体 GPU 利用率约 40-60%。',draw:drawBatchStaticWaste},
+      {desc:'Continuous Batching 策略：不等整个 Batch 完成。Request 1 一完成，立即将等待队列中的 Request 5 插入 Batch（替换 Request 1 的 slot）。GPU 始终保持满负载。',draw:drawBatchContinuous},
+      {desc:'Continuous Batching 结果：GPU 利用率曲线从锯齿形（静态 Batching）变为接近满载的平稳曲线。吞吐量提升 2-4x，P99 延迟降低。这是 vLLM、TensorRT-LLM 的核心优化之一。',draw:drawBatchResult},
+    ]
+  }
+];
+
+// ===== Scene 0: Speculative Decoding =====
+function drawSpecInit(){
+  mkGrid();
+  box(50,80,180,60,'#a78bfa','Draft Model','小模型 7B','draft');
+  box(50,220,180,60,'#38bdf8','LLM','大模型 70B','llm');
+  txt(350,160,'Speculative Decoding','#64748b',11);
+  txt(350,180,'小模型猜测 + 大模型验证','#64748b',10);
+  box(460,60,190,180,'#334155','待生成文字','','output');
+  txt(555,155,'...','#64748b',24);
+}
+function drawSpecDraft(){
+  mkGrid();
+  box(30,80,160,60,'#a78bfa','Draft Model','并行预测','draft');
+  box(30,220,160,60,'#38bdf8','LLM','等待验证','llm');
+  const tokens=['" is"','" a"','" fast"','" lang"','" model"'];
+  tokens.forEach((t,i)=>{
+    const x=220+i*88,y=140;
+    rect(x,y,80,36,hex('#a78bfa',.12),'#a78bfa',8);
+    txt(x+40,y+14,t,'#ddd6fe',10);
+    txt(x+40,y+26,'预测 #'+(i+1),'#64748b',9);
+  });
+  arrow(190,110,220,158,'#a78bfa');
+  txt(390,105,'1次前向传播（并行）','#a78bfa',11);
+}
+function drawSpecVerify(){
+  mkGrid();
+  box(30,80,160,60,'#a78bfa','Draft Model','已完成','draft');
+  box(30,220,160,60,'#38bdf8','LLM','并行验证','llm');
+  const tokens=['" is"','" a"','" fast"','" lang"','" model"'];
+  tokens.forEach((t,i)=>{
+    const x=220+i*88,y=130;
+    rect(x,y,80,40,hex('#38bdf8',.1),'#38bdf8',8);
+    txt(x+40,y+14,t,'#7dd3fc',10);
+    txt(x+40,y+28,'验证中...','#64748b',9);
+  });
+  arrow(190,250,220,170,'#38bdf8');
+  txt(390,105,'1次前向传播（同时验证5个Token）','#38bdf8',11);
+  txt(390,120,'等同于顺序生成1个Token的计算量','#64748b',10);
+}
+function drawSpecAccept(){
+  mkGrid();
+  const tokens=['" is"','" a"','" fast"'];
+  tokens.forEach((t,i)=>{
+    const x=60+i*140,y=120;
+    rect(x,y,120,50,hex('#4ade80',.12),'#4ade80',8);
+    txt(x+60,y+20,t,'#4ade80',11);
+    txt(x+60,y+36,'✓ 接受','#4ade80',10);
+  });
+  const rejected=['" lang"','" model"'];
+  rejected.forEach((t,i)=>{
+    const x=480+i*120,y=120;
+    rect(x,y,110,50,hex('#f87171',.1),'#f87171',8);
+    txt(x+55,y+20,t,'#f87171',11);
+    txt(x+55,y+36,'✗ 拒绝','#f87171',10);
+  });
+  rect(480,190,110,40,hex('#4ade80',.1),'#4ade80',8);
+  txt(535,215,'" inference"','#4ade80',10);
+  txt(535,205,'→ 大模型采样','#64748b',9);
+  txt(350,290,'净效果：1次大模型计算 = 生成3-4个Token（加速 3-4x）','#a78bfa',11);
+  rect(40,275,620,40,hex('#a78bfa',.06),'#a78bfa',8);
+}
+function drawSpecFail(){
+  mkGrid();
+  rect(40,60,620,40,hex('#f87171',.06),'#f87171',8);
+  txt(350,85,'[边界情况] 第 1 个 Token 就猜错','#f87171',12);
+  box(60,130,160,50,'#a78bfa','Draft Model','" wrong"','draft');
+  box(300,130,160,50,'#38bdf8','LLM','✗ 拒绝','llm');
+  arrow(220,155,300,155,'#f87171');
+  box(520,130,130,50,'#4ade80','生成正确 Token','重新采样','out');
+  arrow(460,155,520,155,'#38bdf8');
+  txt(350,250,'退化为普通生成：1次大模型计算 = 1个Token','#64748b',11);
+  txt(350,268,'Speculative Decoding 无加速，但也不比普通生成慢','#64748b',10);
+}
+
+// ===== Scene 1: FlashAttention =====
+function drawFlashInit(){
+  mkGrid();
+  txt(350,40,'Standard Attention vs FlashAttention 内存访问对比','#94a3b8',13);
+  rect(40,70,300,180,hex('#334155',.4),'#334155',10);
+  txt(190,65,'HBM（显存，慢）','#64748b',11);
+  txt(190,100,'Q 矩阵 [N×d]','#38bdf8',11);
+  txt(190,125,'K 矩阵 [N×d]','#38bdf8',11);
+  txt(190,150,'V 矩阵 [N×d]','#4ade80',11);
+  txt(190,175,'S = QK^T [N×N]','#f87171',11);
+  txt(190,200,'softmax(S) [N×N]','#f87171',11);
+  txt(190,225,'O = softmax(S)·V','#a78bfa',11);
+  rect(400,70,260,180,hex('#f59e0b',.08),'#f59e0b',10);
+  txt(530,65,'SRAM（片上缓存，快）','#f59e0b',11);
+  txt(530,130,'容量小（20-40MB）','#64748b',11);
+  txt(530,150,'但速度比 HBM 快 10x','#4ade80',11);
+  txt(350,290,'标准 Attention：NxN 矩阵反复在 HBM 和 GPU 核心间传输','#f87171',11);
+  txt(350,308,'FlashAttention：小块 Tile 全程留在 SRAM，减少 HBM IO','#4ade80',11);
+}
+function drawFlashStd1(){
+  mkGrid();
+  rect(50,40,200,300,hex('#1e293b',.8),'#334155',10);
+  txt(150,35,'HBM','#64748b',11);
+  ['Q[N×d]','K[N×d]','V[N×d]'].forEach((l,i)=>{
+    rect(65,60+i*50,170,38,hex('#38bdf8',.1),'#38bdf8',6);
+    txt(150,83+i*50,l,'#7dd3fc',11);
+  });
+  rect(310,120,150,60,hex('#94a3b8',.08),'#334155',8);
+  txt(385,145,'GPU Core','#94a3b8',11);
+  txt(385,160,'计算 QK^T','#94a3b8',10);
+  arrow(220,90,'310',150,'#f87171');
+  arrow(220,135,'310',160,'#f87171');
+  rect(510,80,150,80,hex('#f87171',.1),'#f87171',8);
+  txt(585,115,'S = QK^T','#f87171',12);
+  txt(585,132,'[N × N] 大矩阵','#f87171',10);
+  txt(585,148,'写回 HBM','#f87171',10);
+  arrow(460,150,'510',120,'#f87171');
+  txt(350,330,'❌ 高 IO：读 Q+K 写 S，数据量 = O(N²)','#f87171',11);
+}
+function drawFlashStd2(){
+  mkGrid();
+  txt(350,35,'标准 Attention 共需 3 次 HBM 大矩阵读写','#f87171',12);
+  const ops=[
+    {y:60,label:'Step 1: 读 Q,K → 计算 S=QK^T → 写 S 回 HBM',color:'#f87171'},
+    {y:100,label:'Step 2: 读 S → 计算 softmax(S) → 写回 HBM',color:'#f87171'},
+    {y:140,label:'Step 3: 读 softmax(S)+V → 计算 O → 写 O 回 HBM',color:'#f87171'},
+  ];
+  ops.forEach(o=>{
+    rect(50,o.y-16,600,32,hex(o.color,.08),o.color,6);
+    txt(350,o.y,o.label,o.color,11);
+  });
+  rect(50,200,600,60,hex('#a78bfa',.06),'#a78bfa',8);
+  txt(350,225,'总 HBM IO：O(N²)','#a78bfa',12);
+  txt(350,245,'N=8192 时需传输 ~8GB 数据（A100 显存带宽 2TB/s，约 4ms/次）','#a78bfa',10);
+  rect(50,290,600,60,hex('#4ade80',.06),'#4ade80',8);
+  txt(350,315,'FlashAttention：将以上 3 步合并，中间结果全留在 SRAM','#4ade80',12);
+  txt(350,335,'总 HBM IO：O(N)，加速 2-4x','#4ade80',11);
+}
+function drawFlashTile(){
+  mkGrid();
+  txt(350,30,'FlashAttention：Tiling（分块计算）','#a78bfa',13);
+  const matSize=160,tileSize=40;
+  const drawMatrix=(ox,oy,label,color)=>{
+    rect(ox,oy,matSize,matSize,hex(color,.05),color,4);
+    txt(ox+matSize/2,oy-8,label,color,11);
+    for(let i=0;i<4;i++)for(let j=0;j<4;j++){
+      const highlight=(i<2&&j<2);
+      rect(ox+j*tileSize,oy+i*tileSize,tileSize,tileSize,
+        highlight?hex('#f59e0b',.2):hex(color,.03),
+        highlight?'#f59e0b':hex(color,.2),2);
+    }
+  };
+  drawMatrix(50,60,'Q [N×d]','#38bdf8');
+  drawMatrix(240,60,'K [N×d]','#38bdf8');
+  drawMatrix(430,60,'V [N×d]','#4ade80');
+  txt(350,250,'当前处理的 Tile（橙色）：2×2 块，全程留在 SRAM','#f59e0b',11);
+  txt(350,268,'SRAM 读写速度 = HBM 的 10x','#f59e0b',10);
+  rect(200,290,300,70,hex('#f59e0b',.08),'#f59e0b',8);
+  txt(350,315,'对每个 Q-Tile × K-Tile：','#f59e0b',11);
+  txt(350,333,'计算局部 Attention + 累加到 O，不产生 NxN 中间矩阵','#fde68a',10);
+}
+function drawFlashResult(){
+  mkGrid();
+  txt(350,30,'FlashAttention 效果：HBM IO 大幅减少','#4ade80',13);
+  const bars=[
+    {label:'Standard',io:100,color:'#f87171',x:100},
+    {label:'Flash v1',io:30,color:'#a78bfa',x:280},
+    {label:'Flash v2',io:15,color:'#4ade80',x:460},
+  ];
+  bars.forEach(b=>{
+    const h=b.io*2;
+    rect(b.x,280-h,120,h,hex(b.color,.2),b.color,6);
+    txt(b.x+60,285,b.label,b.color,11);
+    txt(b.x+60,275-h,b.io+'%','#e2e8f0',10);
+  });
+  txt(350,310,'HBM IO（相对值）','#64748b',11);
+  rect(50,340,600,70,hex('#4ade80',.06),'#4ade80',8);
+  txt(350,362,'FlashAttention v2 相比 Standard Attention：','#4ade80',11);
+  txt(350,380,'HBM IO 减少 85% · GPU 利用率提升 · 长序列内存占用大幅降低','#a7f3d0',10);
+  txt(350,398,'训练加速 3x · 推理速度提升 2-4x','#a7f3d0',10);
+}
+
+// ===== Scene 2: PagedAttention =====
+function drawPageInit(){
+  mkGrid();
+  txt(350,25,'传统 KV Cache：预分配连续显存，碎片率高','#f87171',12);
+  const reqs=[
+    {label:'Req A',tokens:100,max:512,color:'#38bdf8',x:50},
+    {label:'Req B',tokens:50,max:512,color:'#4ade80',x:220},
+    {label:'Req C',tokens:400,max:512,color:'#a78bfa',x:390},
+    {label:'Req D',tokens:30,max:512,color:'#fb923c',x:560},
+  ];
+  reqs.forEach(r=>{
+    const usedH=Math.round(r.tokens/r.max*200);
+    const totalH=200;
+    rect(r.x,60,130,totalH,'rgba(255,255,255,.03)','#334155',6);
+    rect(r.x,60+totalH-usedH,130,usedH,hex(r.color,.2),r.color,0);
+    txt(r.x+65,45,r.label,r.color,11);
+    txt(r.x+65,278,r.tokens+'/'+r.max+' tok',r.color,10);
+  });
+  rect(50,300,620,50,hex('#f87171',.08),'#f87171',8);
+  txt(350,320,'预分配：每个请求占用 max_length 显存','#f87171',11);
+  txt(350,338,'平均显存利用率：(100+50+400+30)/(4×512) = 28%','#fca5a5',10);
+}
+function drawPageVirtual(){
+  mkGrid();
+  txt(350,25,'PagedAttention：物理内存分页，按需分配','#a78bfa',12);
+  const pages=16;
+  const colors=['#38bdf8','#38bdf8','#38bdf8','#4ade80','#4ade80','#a78bfa','#a78bfa','#a78bfa','#a78bfa','#a78bfa','#fb923c','#fb923c','rgba(255,255,255,.1)','rgba(255,255,255,.1)','rgba(255,255,255,.1)','rgba(255,255,255,.1)'];
+  const labels=['A1','A2','A3','B1','B2','C1','C2','C3','C4','C5','D1','D2','空','空','空','空'];
+  for(let i=0;i<pages;i++){
+    const x=50+(i%8)*78,y=60+Math.floor(i/8)*80;
+    const c=colors[i];
+    rect(x,y,70,64,c==='rgba(255,255,255,.1)'?c:hex(c,.15),c==='rgba(255,255,255,.1)'?'#334155':c,8);
+    txt(x+35,y+32,labels[i],c==='rgba(255,255,255,.1)'?'#334155':'#e2e8f0',11);
+    txt(x+35,y+46,'16 tok','#64748b',9);
+  }
+  txt(350,230,'每页 16 Tokens，物理页不要求连续','#a78bfa',11);
+  rect(50,250,620,50,hex('#4ade80',.06),'#4ade80',8);
+  txt(350,268,'按需分配：Token 生成时才分配物理页','#4ade80',11);
+  txt(350,286,'释放及时：请求完成后立即回收物理页','#4ade80',11);
+}
+function drawPageShare(){
+  mkGrid();
+  txt(350,25,'Prefix Caching：相同 Prompt 共享 KV Cache 物理页','#a78bfa',12);
+  rect(50,50,620,100,hex('#334155',.4),'#334155',8);
+  txt(350,70,'系统 Prompt 物理页（共享，ref_count=3）','#f59e0b',11);
+  for(let i=0;i<5;i++){
+    rect(65+i*110,85,100,50,hex('#f59e0b',.15),'#f59e0b',6);
+    txt(115+i*110,115,'Sys P'+(i+1),'#fde68a',10);
+  }
+  const reqs=[
+    {label:'Req A',color:'#38bdf8',y:185},
+    {label:'Req B',color:'#4ade80',y:250},
+    {label:'Req C',color:'#a78bfa',y:315},
+  ];
+  reqs.forEach(r=>{
+    txt(70,r.y+20,r.label,r.color,11);
+    txt(110,r.y+10,'↑ 共享前5页（不复制）',r.color,10);
+    for(let i=0;i<3;i++){
+      rect(320+i*90,r.y,80,40,hex(r.color,.12),r.color,6);
+      txt(360+i*90,r.y+20,'Priv '+(i+1),'#e2e8f0',10);
+    }
+    txt(600,r.y+20,'各自私有页',r.color,10);
+  });
+  rect(50,380,620,50,hex('#4ade80',.06),'#4ade80',8);
+  txt(350,400,'5个共享页只存1份 vs 传统方案存3份 → 节省 ~2/3 显存','#4ade80',11);
+}
+function drawPageAlloc(){
+  mkGrid();
+  txt(350,25,'动态分配与回收：GPU 显存高效利用','#a78bfa',12);
+  const stages=[
+    {label:'t=0',desc:'Req A 运行（3页）\nReq B 运行（2页）\nReq C 等待队列',gpu:'5/16页使用',color:'#38bdf8'},
+    {label:'t=5','desc':'Req A 完成，释放3页\nReq C 立即分配进来\nReq B 继续运行',gpu:'4/16页使用',color:'#4ade80'},
+    {label:'t=10',desc:'Req B 完成，释放2页\nReq D+E 进入\n持续运行',gpu:'6/16页使用',color:'#a78bfa'},
+  ];
+  stages.forEach((s,i)=>{
+    const x=50+i*215;
+    rect(x,50,200,180,hex(s.color,.06),s.color,8);
+    txt(x+100,40,s.label,s.color,12);
+    const lines=s.desc.split('\n');
+    lines.forEach((l,j)=>txt(x+100,80+j*22,l,'#94a3b8',10));
+    rect(x+30,160,140,40,hex(s.color,.15),s.color,6);
+    txt(x+100,175,s.gpu,s.color,11);
+    txt(x+100,188,'显存利用率',s.color,9);
+  });
+  rect(50,270,620,50,hex('#4ade80',.08),'#4ade80',8);
+  txt(350,290,'PagedAttention 显存利用率：80-90%','#4ade80',12);
+  txt(350,308,'对比传统预分配：40-60% → 服务能力提升 2x','#a7f3d0',11);
+}
+
+// ===== Scene 3: Continuous Batching =====
+function drawBatchStatic(){
+  mkGrid();
+  txt(350,25,'静态 Batching：等整个 Batch 完成才处理下一批','#f87171',12);
+  const reqs=[
+    {label:'Req 1',steps:3,color:'#38bdf8'},
+    {label:'Req 2',steps:5,color:'#4ade80'},
+    {label:'Req 3',steps:7,color:'#a78bfa'},
+    {label:'Req 4',steps:9,color:'#fb923c'},
+  ];
+  const maxSteps=9,stepW=55;
+  reqs.forEach((r,i)=>{
+    const y=60+i*70;
+    txt(40,y+22,r.label,r.color,11);
+    for(let s=0;s<maxSteps;s++){
+      const filled=s<r.steps;
+      rect(70+s*stepW,y,50,40,filled?hex(r.color,.2):'rgba(255,255,255,.02)',filled?r.color:'#334155',6);
+      if(filled)txt(95+s*stepW,y+20,'▶','#e2e8f0',10);
+      else txt(95+s*stepW,y+20,'░','#334155',10);
+    }
+  });
+  for(let s=0;s<maxSteps;s++){
+    txt(95+s*stepW,345,'Step'+(s+1),'#64748b',9);
+  }
+  txt(350,380,'Req 1 在 Step 3 完成，但整个 Batch 要等到 Step 9 才处理下一批','#f87171',11);
+}
+function drawBatchStaticWaste(){
+  mkGrid();
+  txt(350,25,'静态 Batching：GPU 空闲时间高亮','#f87171',12);
+  const reqs=[
+    {label:'Req 1',steps:3,color:'#38bdf8'},
+    {label:'Req 2',steps:5,color:'#4ade80'},
+    {label:'Req 3',steps:7,color:'#a78bfa'},
+    {label:'Req 4',steps:9,color:'#fb923c'},
+  ];
+  const maxSteps=9,stepW=55;
+  reqs.forEach((r,i)=>{
+    const y=60+i*70;
+    txt(40,y+22,r.label,r.color,11);
+    for(let s=0;s<maxSteps;s++){
+      const filled=s<r.steps;
+      const isWaste=!filled;
+      rect(70+s*stepW,y,50,40,isWaste?hex('#f87171',.08):hex(r.color,.2),isWaste?'#f87171':r.color,6);
+      if(filled)txt(95+s*stepW,y+20,'▶','#e2e8f0',10);
+      else txt(95+s*stepW,y+20,'浪费','#f87171',8);
+    }
+  });
+  const totalSlots=maxSteps*reqs.length;
+  const usedSlots=3+5+7+9;
+  rect(50,330,620,50,hex('#f87171',.08),'#f87171',8);
+  txt(350,352,'GPU 有效利用率：'+usedSlots+'/'+totalSlots+' = '+Math.round(usedSlots/totalSlots*100)+'%','#f87171',12);
+  txt(350,370,'红色格子 = padding/空闲，约 '+Math.round((1-usedSlots/totalSlots)*100)+'% 计算浪费','#fca5a5',10);
+}
+function drawBatchContinuous(){
+  mkGrid();
+  txt(350,25,'Continuous Batching：完成即替换，GPU 持续满载','#4ade80',12);
+  const timeline=[
+    {slots:[{l:'Req1',c:'#38bdf8'},{l:'Req2',c:'#4ade80'},{l:'Req3',c:'#a78bfa'},{l:'Req4',c:'#fb923c'}],label:'Step 1-3'},
+    {slots:[{l:'Req5',c:'#38bdf8',new:true},{l:'Req2',c:'#4ade80'},{l:'Req3',c:'#a78bfa'},{l:'Req4',c:'#fb923c'}],label:'Step 4(Req1→Req5)'},
+    {slots:[{l:'Req5',c:'#38bdf8'},{l:'Req6',c:'#4ade80',new:true},{l:'Req3',c:'#a78bfa'},{l:'Req4',c:'#fb923c'}],label:'Step 6(Req2→Req6)'},
+    {slots:[{l:'Req5',c:'#38bdf8'},{l:'Req6',c:'#4ade80'},{l:'Req7',c:'#a78bfa',new:true},{l:'Req4',c:'#fb923c'}],label:'Step 8(Req3→Req7)'},
+  ];
+  timeline.forEach((t,ti)=>{
+    const x=50+ti*160;
+    txt(x+70,50,t.label,'#64748b',9);
+    t.slots.forEach((s,si)=>{
+      const y=70+si*72;
+      rect(x,y,130,60,s.new?hex(s.c,.25):hex(s.c,.12),s.c,8);
+      txt(x+65,y+24,s.l,s.c,11);
+      if(s.new)txt(x+65,y+40,'← 新插入','#4ade80',9);
+    });
+  });
+  rect(50,380,620,50,hex('#4ade80',.08),'#4ade80',8);
+  txt(350,402,'Batch 中始终有活跃请求，没有空闲格子','#4ade80',12);
+  txt(350,420,'GPU 利用率接近 100%，吞吐量提升 2-4x','#a7f3d0',11);
+}
+function drawBatchResult(){
+  mkGrid();
+  txt(350,30,'GPU 利用率对比：静态 Batching vs Continuous Batching','#4ade80',13);
+  const steps=12,w=46;
+  // Static
+  txt(100,60,'静态 Batching','#f87171',11);
+  const staticUtil=[80,80,80,80,60,40,20,80,80,80,60,40];
+  staticUtil.forEach((u,i)=>{
+    const h=u*1.5,y=220-h;
+    rect(50+i*w,y,40,h,hex('#f87171',.2),'#f87171',4);
+  });
+  txt(100,230,'平均利用率 ~63%','#f87171',10);
+  // Continuous
+  txt(450,60,'Continuous Batching','#4ade80',11);
+  const contUtil=[95,97,96,98,95,96,97,98,95,96,97,98];
+  contUtil.forEach((u,i)=>{
+    const h=u*1.5,y=220-h;
+    rect(400+i*w,y,40,h,hex('#4ade80',.2),'#4ade80',4);
+  });
+  txt(450,230,'平均利用率 ~97%','#4ade80',10);
+  for(let i=0;i<steps;i++){txt(70+i*w,242,'T'+(i+1),'#64748b',8);}
+  rect(50,270,620,80,hex('#a78bfa',.06),'#a78bfa',8);
+  txt(350,293,'Continuous Batching 结果总结：','#a78bfa',12);
+  txt(350,313,'吞吐量提升 2-4x · P99 延迟降低 · 支持更多并发请求','#ddd6fe',11);
+  txt(350,331,'vLLM、TensorRT-LLM、SGLang 均已内置该优化','#94a3b8',10);
+}
+
+let currentScene=0,currentStep=-1,playing=false,timer=null;
+
+function renderStep(idx){
+  const scene=SCENES[currentScene];
+  if(idx<0)idx=-1;
+  if(idx>=scene.steps.length)idx=scene.steps.length-1;
+  currentStep=idx;
+  svg.innerHTML='';
+  if(idx>=0){
+    const s=scene.steps[idx];
+    document.getElementById('sdText').textContent=s.desc;
+    s.draw();
+  } else {
+    document.getElementById('sdText').textContent='选择推理优化场景，点击播放观察优化机制。';
+    SCENES[currentScene].steps[0].draw();
+  }
+  updateDots();
+}
+
+function updateDots(){
+  const scene=SCENES[currentScene];
+  const nav=document.getElementById('dotNav');
+  nav.innerHTML='';
+  scene.steps.forEach((_,i)=>{
+    const d=document.createElement('div');
+    d.className='dot'+(i===currentStep?' active':i<currentStep?' done':'');
+    d.addEventListener('click',()=>{stopPlay();renderStep(i);});
+    nav.appendChild(d);
+  });
+}
+
+function stopPlay(){playing=false;clearTimeout(timer);document.getElementById('btnPlay').textContent='▶ 播放';}
+function startPlay(){
+  playing=true;document.getElementById('btnPlay').textContent='⏸ 暂停';
+  function next(){if(!playing)return;const s=SCENES[currentScene];if(currentStep<s.steps.length-1){renderStep(currentStep+1);timer=setTimeout(next,1900);}else stopPlay();}
+  timer=setTimeout(next,400);
+}
+
+document.getElementById('sceneTabs').addEventListener('click',e=>{
+  const btn=e.target.closest('.scene-tab');if(!btn)return;
+  stopPlay();currentScene=parseInt(btn.dataset.scene);
+  document.querySelectorAll('.scene-tab').forEach((t,i)=>t.classList.toggle('active',i===currentScene));
+  renderStep(-1);
+});
+document.getElementById('btnPlay').addEventListener('click',()=>{
+  if(playing){stopPlay();return;}
+  const s=SCENES[currentScene];if(currentStep>=s.steps.length-1)renderStep(-1);
+  startPlay();
+});
+document.getElementById('btnPrev').addEventListener('click',()=>{stopPlay();renderStep(currentStep-1);});
+document.getElementById('btnNext').addEventListener('click',()=>{stopPlay();renderStep(currentStep+1);});
+
+renderStep(-1);
+})();
+</script>
+</body>
+</html>

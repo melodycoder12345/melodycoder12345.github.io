@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Operator 通过 CRD 描述业务意图，Controller 实现 Reconcile 循环持续将实际状态拉向期望状态，管理有状态应用如数据库、消息队列。">
+<link rel="canonical" href="https://melodycoder12345.github.io/cloud-native/operator.html">
+<meta property="og:title" content="Kubernetes Operator — 码海拾贝">
+<meta property="og:description" content="Operator 通过 CRD 描述业务意图，Controller 实现 Reconcile 循环持续将实际状态拉向期望状态，管理有状态应用如数据库、消息队列。">
+<meta property="og:url" content="https://melodycoder12345.github.io/cloud-native/operator.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Kubernetes Operator — 码海拾贝">
+<meta name="twitter:description" content="Operator 通过 CRD 描述业务意图，Controller 实现 Reconcile 循环持续将实际状态拉向期望状态，管理有状态应用如数据库、消息队列。">
+<title>Kubernetes Operator - 云原生</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#34d399;--indigo:#818cf8;--ok:#4ade80;--warn:#fbbf24;--err:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:radial-gradient(circle at 30% 0%,rgba(52,211,153,.1),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1320px;margin:0 auto;padding:40px 32px 80px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--dim2);margin-bottom:24px}
+.breadcrumb a{color:var(--dim2)}.breadcrumb a:hover{color:var(--text)}
+.page-title{font-size:clamp(1.6rem,3.5vw,2.8rem);letter-spacing:-.04em;margin-bottom:6px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{color:var(--dim);font-size:.95rem;margin-bottom:28px;max-width:700px;line-height:1.75}
+.layout{display:grid;grid-template-columns:280px 1fr;gap:20px;align-items:start}
+
+/* Left panel */
+.left-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:16px;position:sticky;top:20px}
+.tab-list{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:14px}
+.tab-btn{border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);color:var(--dim);padding:7px 5px;border-radius:9px;cursor:pointer;font-size:.72rem;text-align:center;transition:.15s;line-height:1.45}
+.tab-btn:hover{border-color:rgba(52,211,153,.3);color:var(--text)}
+.tab-btn.active{background:rgba(52,211,153,.12);border-color:rgba(52,211,153,.45);color:var(--accent);font-weight:600}
+.panel-label{font-size:.68rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;font-weight:700}
+.step-btn{width:100%;text-align:left;border:1px solid transparent;background:none;color:var(--dim);padding:7px 10px;border-radius:8px;cursor:pointer;font-size:.76rem;line-height:1.5;transition:.15s;margin-bottom:2px;display:flex;align-items:center;gap:0}
+.step-btn:hover{border-color:rgba(52,211,153,.3);color:var(--text)}
+.step-btn.active{background:rgba(52,211,153,.1);border-color:rgba(52,211,153,.4);color:var(--text)}
+.step-btn.done{opacity:.5}
+.step-index{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;background:rgba(52,211,153,.15);color:var(--accent);font-size:.65rem;font-weight:700;margin-right:7px;flex-shrink:0}
+.ctrl{display:flex;gap:5px;margin-top:10px;flex-wrap:wrap}
+.ctrl button{flex:1;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:8px;padding:7px 2px;cursor:pointer;font-size:.72rem;transition:.15s;min-width:0}
+.ctrl button:hover{border-color:var(--accent);color:var(--text)}
+
+/* Center panel */
+.center-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:22px}
+.step-msg{border-left:3px solid var(--accent);background:rgba(52,211,153,.06);border-radius:0 10px 10px 0;padding:10px 14px;font-size:.86rem;color:var(--text);line-height:1.7;margin-bottom:16px}
+.anim-area{display:flex;flex-direction:column;gap:12px}
+
+/* Three-column layout */
+.three-cols{display:grid;grid-template-columns:1fr 50px 1fr 50px 1fr;gap:0;align-items:center}
+.anim-col{border:1px solid rgba(255,255,255,.09);border-radius:13px;padding:13px 12px;background:rgba(30,41,59,.45);min-height:128px;transition:all .3s}
+.anim-col.user-active{border-color:var(--accent);background:rgba(52,211,153,.06);box-shadow:0 0 18px rgba(52,211,153,.1)}
+.anim-col.k8s-active{border-color:var(--indigo);background:rgba(129,140,248,.06);box-shadow:0 0 18px rgba(129,140,248,.1)}
+.anim-col.op-active{border-color:var(--accent);background:rgba(52,211,153,.06);box-shadow:0 0 18px rgba(52,211,153,.1)}
+.col-hdr{font-size:.67rem;text-transform:uppercase;letter-spacing:.1em;color:var(--dim2);font-weight:700;margin-bottom:8px}
+.col-body{font-size:.79rem;color:var(--dim);line-height:1.65}
+.col-body .hl{color:var(--text);font-weight:600}
+.col-body code{font-family:monospace;font-size:.72rem;color:var(--accent);background:rgba(52,211,153,.08);padding:1px 5px;border-radius:4px;word-break:break-all}
+
+/* Reconcile badge */
+.rc-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:.7rem;font-weight:600;border:1px solid;margin-bottom:7px;transition:all .3s}
+.rc-badge.idle{color:var(--dim2);border-color:rgba(255,255,255,.1);background:rgba(255,255,255,.03)}
+.rc-badge.active{color:var(--accent);border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.08)}
+.rc-badge.active .spin{animation:spin 1.1s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Arrows */
+.anim-arrow{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:0 3px}
+.arrow-track{width:40px;height:2px;background:rgba(255,255,255,.07);border-radius:1px;overflow:hidden;position:relative}
+.anim-arrow.active .arrow-track::after{content:'';position:absolute;top:0;left:0;height:100%;width:100%;background:var(--accent);animation:arrowFwd .55s ease-in-out infinite}
+.anim-arrow.rev.active .arrow-track::after{background:var(--indigo);animation:arrowRev .55s ease-in-out infinite}
+@keyframes arrowFwd{0%{transform:translateX(-100%);opacity:.3}50%{opacity:1}100%{transform:translateX(100%);opacity:.3}}
+@keyframes arrowRev{0%{transform:translateX(100%);opacity:.3}50%{opacity:1}100%{transform:translateX(-100%);opacity:.3}}
+.arrow-lbl{font-size:.62rem;color:var(--dim2);transition:color .3s;line-height:1.3;text-align:center}
+.arrow-hd{font-size:.85rem;color:var(--dim2);transition:color .3s}
+.anim-arrow.active .arrow-lbl,.anim-arrow.active .arrow-hd{color:var(--accent)}
+.anim-arrow.rev.active .arrow-lbl,.anim-arrow.rev.active .arrow-hd{color:var(--indigo)}
+
+/* Pod section */
+.pod-section{border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:12px 14px;background:rgba(15,23,42,.35)}
+.pod-sec-title{font-size:.67rem;text-transform:uppercase;letter-spacing:.1em;color:var(--dim2);font-weight:700;margin-bottom:10px}
+.pod-grid{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start}
+.pod-bubble{display:flex;flex-direction:column;align-items:center;gap:3px}
+.pod-circle{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.85rem;border:2px solid;transition:all .4s;font-weight:700}
+.pod-circle.running{background:rgba(52,211,153,.14);border-color:var(--accent);color:var(--accent)}
+.pod-circle.pending{background:rgba(251,191,36,.1);border-color:var(--warn);color:var(--warn);animation:podPulse 1.1s ease-in-out infinite}
+.pod-circle.error{background:rgba(248,113,113,.14);border-color:var(--err);color:var(--err)}
+.pod-circle.gone{background:rgba(255,255,255,.02);border-color:rgba(255,255,255,.1);color:var(--dim2);border-style:dashed;opacity:.5}
+.pod-circle.upgrading{background:rgba(129,140,248,.14);border-color:var(--indigo);color:var(--indigo);animation:podPulse .9s ease-in-out infinite}
+@keyframes podPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.65;transform:scale(.93)}}
+.pod-lbl{font-size:.62rem;color:var(--dim2);text-align:center;max-width:62px;word-break:break-all;line-height:1.3}
+.pod-stat{font-size:.6rem;color:var(--dim2);margin-top:1px}
+
+/* Spec/Status compare */
+.spec-status{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ss-box{border:1px solid rgba(255,255,255,.07);border-radius:11px;padding:12px;background:rgba(15,23,42,.35);transition:all .4s}
+.ss-box.drift{border-color:var(--warn);background:rgba(251,191,36,.04)}
+.ss-title{font-size:.65rem;text-transform:uppercase;letter-spacing:.1em;color:var(--dim2);font-weight:700;margin-bottom:8px}
+.ss-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+.ss-row:last-child{border-bottom:none}
+.ss-key{font-size:.72rem;color:var(--dim);font-family:monospace}
+.ss-val{font-size:.72rem;font-family:monospace;font-weight:600;transition:color .3s}
+.ss-val.ok{color:var(--ok)}.ss-val.warn{color:var(--warn)}.ss-val.err{color:var(--err)}.ss-val.dim{color:var(--dim)}
+
+/* Error/Event box */
+.ev-box{border:1px solid rgba(248,113,113,.3);border-radius:10px;padding:10px 13px;background:rgba(248,113,113,.05);font-size:.75rem;font-family:monospace;color:#fca5a5;line-height:1.65;transition:all .3s}
+.ev-box.hidden{display:none}
+.retry-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px}
+.retry-dot{padding:2px 7px;border-radius:5px;font-size:.68rem;font-family:monospace;border:1px solid;transition:all .35s}
+.retry-dot.wait{color:var(--dim2);border-color:rgba(255,255,255,.08);background:rgba(255,255,255,.02)}
+.retry-dot.done{color:var(--err);border-color:rgba(248,113,113,.3);background:rgba(248,113,113,.06)}
+.retry-dot.success{color:var(--ok);border-color:rgba(74,222,128,.3);background:rgba(74,222,128,.06)}
+.retry-dot.active{color:var(--warn);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.07);animation:podPulse .7s ease-in-out infinite}
+
+@media(max-width:1100px){.layout{grid-template-columns:1fr}.left-panel{position:static}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="breadcrumb">
+    <a href="../index.html">首页</a><span>/</span>
+    <a href="index.html">云原生</a><span>/</span>
+    Kubernetes Operator
+  </div>
+  <h1 class="page-title">Kubernetes Operator</h1>
+  <p class="subtitle">Operator 是 K8s 原生的扩展机制：通过自定义资源（CRD）描述业务意图，自定义 Controller 实现 Reconcile 循环持续将实际状态拉向期望状态。Operator 让 K8s 能管理有状态应用（数据库、消息队列等），将运维知识编码为代码。</p>
+
+  <div class="layout">
+    <div class="left-panel">
+      <div class="tab-list" id="tabList"></div>
+      <div class="panel-label">步骤</div>
+      <div id="stepList"></div>
+      <div class="ctrl">
+        <button onclick="prev()">← 上一步</button>
+        <button onclick="next()">下一步 →</button>
+        <button onclick="reset()">重置</button>
+        <button id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      </div>
+    </div>
+
+    <div class="center-panel">
+      <div class="step-msg" id="stepMsg">选择场景，点击「下一步」开始演示。</div>
+      <div class="anim-area">
+
+        <!-- Three-column animation -->
+        <div class="three-cols">
+          <div class="anim-col" id="colUser">
+            <div class="col-hdr">👤 用户 / kubectl</div>
+            <div class="col-body" id="colUserContent">就绪</div>
+          </div>
+          <div class="anim-arrow" id="arrow1">
+            <div class="arrow-track"></div>
+            <span class="arrow-hd" id="arrow1Hd">→</span>
+            <span class="arrow-lbl" id="arrow1Lbl">apply</span>
+          </div>
+          <div class="anim-col" id="colK8s">
+            <div class="col-hdr">☸️ K8s 控制面</div>
+            <div class="col-body" id="colK8sContent">API Server + etcd</div>
+          </div>
+          <div class="anim-arrow" id="arrow2">
+            <div class="arrow-track"></div>
+            <span class="arrow-hd" id="arrow2Hd">→</span>
+            <span class="arrow-lbl" id="arrow2Lbl">watch</span>
+          </div>
+          <div class="anim-col" id="colOp">
+            <div class="col-hdr">⚙️ Operator Controller</div>
+            <div id="rcBadge" class="rc-badge idle"><span class="spin">⟳</span> Reconcile 循环</div>
+            <div class="col-body" id="colOpContent"></div>
+          </div>
+        </div>
+
+        <!-- Pod grid -->
+        <div class="pod-section" id="podSection" style="display:none">
+          <div class="pod-sec-title">Pod 状态</div>
+          <div class="pod-grid" id="podGrid"></div>
+        </div>
+
+        <!-- Spec vs Status -->
+        <div class="spec-status">
+          <div class="ss-box" id="specBox">
+            <div class="ss-title">📋 期望状态 (spec)</div>
+            <div id="specContent"></div>
+          </div>
+          <div class="ss-box" id="statusBox">
+            <div class="ss-title">📊 实际状态 (status)</div>
+            <div id="statusContent"></div>
+          </div>
+        </div>
+
+        <!-- Error events -->
+        <div class="ev-box hidden" id="evBox"></div>
+
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+const S = [
+  /* ── Scenario 1: Normal Creation ── */
+  {
+    name:'正常创建', emoji:'🚀',
+    steps:[
+      {
+        title:'初始状态',
+        msg:'场景一：用户通过 kubectl apply 创建 MySQLCluster 自定义资源，Operator 完成从 0 到 Ready 的全自动化创建流程。这展示了 Operator 的核心价值：声明式 API + 自动化运维知识编码。',
+        u:{on:false,c:'准备部署 MySQL 集群<br><code>MySQLCluster</code> 资源清单就绪'},
+        k:{on:false,c:'API Server 运行中<br>etcd 正常<br>CRD 已注册'},
+        o:{on:false,rc:false,c:'等待 Watch 事件...'},
+        a1:'none',a2:'none',
+        pods:[],
+        spec:{replicas:3,version:'5.7',phase:'-'},
+        stat:{replicas:0,version:'-',phase:'Pending'},
+        drift:false,err:null,retry:null
+      },
+      {
+        title:'kubectl apply',
+        msg:'Step 1：kubectl apply 将 MySQLCluster 资源清单发送给 API Server。API Server 进行 Schema 校验（字段类型、必填项）、RBAC 权限检查，验证通过后原子写入 etcd，返回成功。',
+        u:{on:true,c:'<span class="hl">kubectl apply</span><br><code>POST /apis/mysql.example.com/<br>v1/mysqlclusters</code><br>spec.replicas: 3<br>spec.version: "5.7"'},
+        k:{on:true,c:'<span class="hl">API Server 处理</span><br>① Schema 校验 ✓<br>② RBAC 检查 ✓<br>③ etcd 写入 ✓<br><code>MySQLCluster/my-db</code>'},
+        o:{on:false,rc:false,c:''},
+        a1:'fwd',a2:'none',
+        pods:[],
+        spec:{replicas:3,version:'5.7',phase:'-'},
+        stat:{replicas:0,version:'-',phase:'Pending'},
+        drift:false,err:null,retry:null
+      },
+      {
+        title:'Watch 事件触发',
+        msg:'Step 2：etcd 发送 ADDED 事件。Operator 的 Informer 通过 Watch 机制接收对象并更新本地缓存，将对象 key（namespace/name）放入 WorkQueue，触发 Reconcile。这是 Operator 的「感知」阶段。',
+        u:{on:false,c:'kubectl 命令执行完毕'},
+        k:{on:true,c:'<span class="hl">Watch 事件下发</span><br>Event: ADDED<br><code>MySQLCluster/my-db</code><br>Informer Cache 更新完成'},
+        o:{on:true,rc:true,c:'<span class="hl">WorkQueue 入队</span><br>key: default/my-db<br>准备执行 Reconcile...'},
+        a1:'none',a2:'fwd',
+        pods:[],
+        spec:{replicas:3,version:'5.7',phase:'-'},
+        stat:{replicas:0,version:'-',phase:'Pending'},
+        drift:false,err:null,retry:null
+      },
+      {
+        title:'Reconcile 执行',
+        msg:'Step 3：Reconcile 函数执行。读取 spec（期望 3 副本，版本 5.7），查询当前实际状态（0 个 Pod，StatefulSet 不存在）。期望 ≠ 实际 → 检测到「状态漂移」（Drift），状态框高亮显示差异。',
+        u:{on:false,c:'kubectl 命令执行完毕'},
+        k:{on:false,c:'对象已存储<br>等待 Controller 响应'},
+        o:{on:true,rc:true,c:'<span class="hl">Reconcile 执行中</span><br>读取 spec.replicas: 3<br>查询实际 Pods: 0 个<br>⚠️ Drift 检测到！'},
+        a1:'none',a2:'none',
+        pods:[],
+        spec:{replicas:3,version:'5.7',phase:'Creating'},
+        stat:{replicas:0,version:'-',phase:'Pending'},
+        drift:true,err:null,retry:null
+      },
+      {
+        title:'创建 StatefulSet',
+        msg:'Step 4：Controller 创建 StatefulSet，Scheduler 调度并由 kubelet 拉取镜像。StatefulSet 保证 Pod 按序启动（my-db-0 Running 后才创建 my-db-1）。Primary Pod 首先进入 Pending。',
+        u:{on:false,c:'可用 <code>kubectl get pods</code> 观察'},
+        k:{on:true,c:'<span class="hl">StatefulSet 创建</span><br>Scheduler 分配节点<br>kubelet 拉取 mysql:5.7<br>my-db-0 → Pending'},
+        o:{on:true,rc:true,c:'<span class="hl">CREATE StatefulSet</span><br>按序创建 Pod<br>等待 my-db-0 就绪后<br>再创建 my-db-1/2'},
+        a1:'none',a2:'rev',
+        pods:[
+          {name:'Primary',s:'pending',lbl:'my-db-0'},
+          {name:'Replica-1',s:'gone',lbl:'my-db-1'},
+          {name:'Replica-2',s:'gone',lbl:'my-db-2'}
+        ],
+        spec:{replicas:3,version:'5.7',phase:'Creating'},
+        stat:{replicas:0,version:'-',phase:'Creating'},
+        drift:true,err:null,retry:null
+      },
+      {
+        title:'Pod 启动中',
+        msg:'Step 5：Primary Pod（my-db-0）启动成功，进入 Running 状态。Replica Pod 依次进入 Pending。Controller 持续监控 Pod 状态，等待所有副本就绪。',
+        u:{on:false,c:'可用 <code>kubectl get pods</code> 观察'},
+        k:{on:false,c:'my-db-0: Running ✓<br>my-db-1: Pending...<br>my-db-2: 等待创建'},
+        o:{on:true,rc:true,c:'<span class="hl">等待 Pod 就绪</span><br>my-db-0: Running ✓<br>my-db-1: Pending...<br>持续监控状态变化'},
+        a1:'none',a2:'none',
+        pods:[
+          {name:'Primary',s:'running',lbl:'my-db-0'},
+          {name:'Replica-1',s:'pending',lbl:'my-db-1'},
+          {name:'Replica-2',s:'gone',lbl:'my-db-2'}
+        ],
+        spec:{replicas:3,version:'5.7',phase:'Creating'},
+        stat:{replicas:1,version:'5.7',phase:'Creating'},
+        drift:true,err:null,retry:null
+      },
+      {
+        title:'配置主从复制',
+        msg:'Step 6：所有 3 个 Pod 均已 Running。Controller 执行主从复制配置：连接各 Pod，执行 CHANGE MASTER TO 命令，配置 my-db-1 和 my-db-2 从 my-db-0（Primary）同步数据，建立主从关系。',
+        u:{on:false,c:'可用 <code>kubectl get pods</code> 观察'},
+        k:{on:false,c:'3/3 Pods Running<br>等待 Controller 完成配置'},
+        o:{on:true,rc:true,c:'<span class="hl">配置主从复制</span><br>Primary: my-db-0<br>CHANGE MASTER TO<br>my-db-1 ✓  my-db-2 ✓'},
+        a1:'none',a2:'none',
+        pods:[
+          {name:'Primary',s:'running',lbl:'my-db-0'},
+          {name:'Replica-1',s:'running',lbl:'my-db-1'},
+          {name:'Replica-2',s:'running',lbl:'my-db-2'}
+        ],
+        spec:{replicas:3,version:'5.7',phase:'Creating'},
+        stat:{replicas:3,version:'5.7',phase:'Configuring'},
+        drift:true,err:null,retry:null
+      },
+      {
+        title:'状态收敛 ✓',
+        msg:'Step 7：状态收敛！期望状态 = 实际状态。Controller 将 MySQLCluster 的 status.phase 更新为 Ready，写回 API Server。Status 更新使用 SubResource，不会触发新的 Reconcile 循环，避免无限递归。',
+        u:{on:false,c:'<code>kubectl get mysqlcluster</code><br>NAME    STATUS  READY<br>my-db   Ready   3/3'},
+        k:{on:true,c:'<span class="hl">status 写回</span><br>status.phase = Ready<br>status.replicas = 3<br>etcd 持久化 ✓'},
+        o:{on:true,rc:false,c:'<span class="hl">✓ 状态收敛</span><br>期望 = 实际<br>更新 status → Ready<br>Reconcile 完成'},
+        a1:'none',a2:'rev',
+        pods:[
+          {name:'Primary',s:'running',lbl:'my-db-0'},
+          {name:'Replica-1',s:'running',lbl:'my-db-1'},
+          {name:'Replica-2',s:'running',lbl:'my-db-2'}
+        ],
+        spec:{replicas:3,version:'5.7',phase:'Ready'},
+        stat:{replicas:3,version:'5.7',phase:'Ready'},
+        drift:false,err:null,retry:null
+      }
+    ]
+  },
+
+  /* ── Scenario 2: Drift Detection & Repair ── */
+  {
+    name:'Drift 修复', emoji:'🔧',
+    steps:[
+      {
+        title:'初始状态',
+        msg:'场景二：运维人员意外手动删除了 MySQL 的 Replica Pod，演示 Operator 如何自动检测并修复状态漂移（Drift）。这是 Operator 的核心能力：K8s 原生自愈，无需人工介入。',
+        u:{on:false,c:'MySQLCluster 正常运行<br>3/3 Pods Ready'},
+        k:{on:false,c:'etcd: 期望 3 副本<br>status.phase = Ready'},
+        o:{on:false,rc:false,c:'周期性 Reconcile 中<br>最近检查: 状态一致 ✓'},
+        a1:'none',a2:'none',
+        pods:[
+          {name:'Primary',s:'running',lbl:'my-db-0'},
+          {name:'Replica-1',s:'running',lbl:'my-db-1'},
+          {name:'Replica-2',s:'running',lbl:'my-db-2'}
+        ],
+        spec:{replicas:3,version:'5.7',phase:'Ready'},
+        stat:{replicas:3,version:'5.7',phase:'Ready'},
+        drift:false,err:null,retry:null
+      },
+      {
+        title:'误删 Pod',
+        msg:'Step 1：运维人员直接执行 kubectl delete pod my-db-2，删除了 Replica-2 Pod（正确做法应修改 CRD spec.replicas 而非直接操作 Pod）。Pod 被立即删除，集群从 3 副本降至 2 副本。',
+        u:{on:true,c:'<span class="hl">⚠️ 误操作！</span><br><code>kubectl delete pod my-db-2</code><br>pod "my-db-2" deleted<br>（正确做法：修改 CRD spec）'},
+        k:{on:true,c:'<span class="hl">DELETED 事件</span><br>Pod/my-db-2 已删除<br>Watch 事件触发<br>OwnerReference 链通知'},
+        o:{on:false,rc:false,c:''},
+        a1:'fwd',a2:'none',
+        pods:[
+          {name:'Primary',s:'running',lbl:'my-db-0'},
+          {name:'Replica-1',s:'running',lbl:'my-db-1'},
+          {name:'Replica-2',s:'gone',lbl:'my-db-2 (删除)'}
+        ],
+        spec:{replicas:3,version:'5.7',phase:'Ready'},
+        stat:{replicas:2,version:'5.7',phase:'Degraded'},
+        drift:true,err:null,retry:null
+      },
+      {
+        title:'Watch 触发',
+        msg:'Step 2：Informer 通过 Watch 立即感知 Pod DELETED 事件，通过 OwnerReference 链找到父对象 MySQLCluster，将其重新放入 WorkQueue 触发 Reconcile。即使 Watch 事件丢失，30s 周期性 resync 也会兜底触发。',
+        u:{on:false,c:'误删操作已完成'},
+        k:{on:true,c:'<span class="hl">事件传递</span><br>Pod DELETED 事件<br>OwnerReference 链<br>→ MySQLCluster 重入队'},
+        o:{on:true,rc:true,c:'<span class="hl">检测到变更！</span><br>WorkQueue 重新入队<br>即将执行 Reconcile...'},
+        a1:'none',a2:'fwd',
+        pods:[
+          {name:'Primary',s:'running',lbl:'my-db-0'},
+          {name:'Replica-1',s:'running',lbl:'my-db-1'},
+          {name:'Replica-2',s:'gone',lbl:'my-db-2'}
+        ],
+        spec:{replicas:3,version:'5.7',phase:'Ready'},
+        stat:{replicas:2,version:'5.7',phase:'Degraded'},
+        drift:true,err:null,retry:null
+      },
+      {
+        title:'Drift 检测',
+        msg:'Step 3：Reconcile 执行。对比期望状态（spec.replicas=3）与实际状态（2 个 Pod）→ 不一致！Controller 不关心谁删了 Pod、为什么删，只负责将实际状态拉向期望状态。决策：重新创建 my-db-2。',
+        u:{on:false,c:'误删操作已完成'},
+        k:{on:false,c:'等待 Controller 修复...'},
+        o:{on:true,rc:true,c:'<span class="hl">检测到 Drift</span><br>期望: replicas = 3<br>实际: replicas = 2<br>→ 需创建 1 个 Pod'},
+        a1:'none',a2:'none',
+        pods:[
+          {name:'Primary',s:'running',lbl:'my-db-0'},
+          {name:'Replica-1',s:'running',lbl:'my-db-1'},
+          {name:'Replica-2',s:'gone',lbl:'my-db-2'}
+        ],
+        spec:{replicas:3,version:'5.7',phase:'Ready'},
+        stat:{replicas:2,version:'5.7',phase:'Recovering'},
+        drift:true,err:null,retry:null
+      },
+      {
+        title:'重建 Pod',
+        msg:'Step 4：Controller 重建 my-db-2 Pod。新 Pod 启动后，通过主从复制从 Primary 追平 binlog 数据（增量同步）。控制器持续等待 ReadinessProbe 通过，确认数据已同步完成。',
+        u:{on:false,c:'可用 <code>kubectl get pods</code> 观察'},
+        k:{on:true,c:'<span class="hl">重建 Pod</span><br>CREATE Pod/my-db-2<br>Scheduler → kubelet<br>镜像拉取中...'},
+        o:{on:true,rc:true,c:'<span class="hl">重建 my-db-2</span><br>Pending → Running<br>binlog 追平数据中<br>等待 ReadinessProbe...'},
+        a1:'none',a2:'rev',
+        pods:[
+          {name:'Primary',s:'running',lbl:'my-db-0'},
+          {name:'Replica-1',s:'running',lbl:'my-db-1'},
+          {name:'Replica-2',s:'pending',lbl:'my-db-2'}
+        ],
+        spec:{replicas:3,version:'5.7',phase:'Ready'},
+        stat:{replicas:2,version:'5.7',phase:'Recovering'},
+        drift:true,err:null,retry:null
+      },
+      {
+        title:'修复完成 ✓',
+        msg:'Step 5：my-db-2 重新 Running，数据同步完成。Controller 确认状态收敛（实际=期望），更新 status.phase=Ready。整个修复过程秒级完成，无需人工干预。这就是 Operator 的自愈价值。',
+        u:{on:false,c:'<code>kubectl get mysqlcluster</code><br>NAME    STATUS  READY<br>my-db   Ready   3/3'},
+        k:{on:true,c:'status.phase = Ready<br>etcd 更新完成'},
+        o:{on:true,rc:false,c:'<span class="hl">✓ Drift 已修复</span><br>my-db-2 数据追平 ✓<br>replicas: 2 → 3<br>status = Ready'},
+        a1:'none',a2:'rev',
+        pods:[
+          {name:'Primary',s:'running',lbl:'my-db-0'},
+          {name:'Replica-1',s:'running',lbl:'my-db-1'},
+          {name:'Replica-2',s:'running',lbl:'my-db-2 ✓'}
+        ],
+        spec:{replicas:3,version:'5.7',phase:'Ready'},
+        stat:{replicas:3,version:'5.7',phase:'Ready'},
+        drift:false,err:null,retry:null
+      }
+    ]
+  },
+
+  /* ── Scenario 3: Version Upgrade ── */
+  {
+    name:'版本升级', emoji:'⬆️',
+    steps:[
+      {
+        title:'初始状态',
+        msg:'场景三：演示 Operator 管理的滚动版本升级。用户只需修改 CRD 的 spec.version 字段，Operator 自动执行「先 Replica 后 Primary」的安全升级策略，全程服务不中断，无需手动操作每个 Pod。',
+        u:{on:false,c:'MySQLCluster 正常运行<br>version: 5.7 · 3/3 Ready'},
+        k:{on:false,c:'etcd: version=5.7<br>status.phase = Ready'},
+        o:{on:false,rc:false,c:'周期性监控中<br>状态一致 ✓'},
+        a1:'none',a2:'none',
+        pods:[
+          {name:'Primary',s:'running',lbl:'my-db-0 v5.7'},
+          {name:'Replica-1',s:'running',lbl:'my-db-1 v5.7'},
+          {name:'Replica-2',s:'running',lbl:'my-db-2 v5.7'}
+        ],
+        spec:{replicas:3,version:'5.7',phase:'Ready'},
+        stat:{replicas:3,version:'5.7',phase:'Ready'},
+        drift:false,err:null,retry:null
+      },
+      {
+        title:'修改 version 字段',
+        msg:'Step 1：用户执行 kubectl patch，将 spec.version 从 5.7 改为 8.0。API Server 更新对象，发出 MODIFIED 事件，Informer 触发 Reconcile。整个升级只需修改这一个字段。',
+        u:{on:true,c:'<span class="hl">触发版本升级</span><br><code>kubectl patch mysqlcluster my-db \\<br>-p \'{"spec":{"version":"8.0"}}\'</code>'},
+        k:{on:true,c:'<span class="hl">对象更新</span><br>spec.version: 5.7 → 8.0<br>Event: MODIFIED<br>Informer 缓存更新'},
+        o:{on:false,rc:false,c:''},
+        a1:'fwd',a2:'none',
+        pods:[
+          {name:'Primary',s:'running',lbl:'my-db-0 v5.7'},
+          {name:'Replica-1',s:'running',lbl:'my-db-1 v5.7'},
+          {name:'Replica-2',s:'running',lbl:'my-db-2 v5.7'}
+        ],
+        spec:{replicas:3,version:'8.0',phase:'Upgrading'},
+        stat:{replicas:3,version:'5.7',phase:'Ready'},
+        drift:true,err:null,retry:null
+      },
+      {
+        title:'制定升级计划',
+        msg:'Step 2：Reconcile 触发，检测到版本 Drift（spec=8.0 ≠ status=5.7）。制定升级计划：先升 Replica-2，再升 Replica-1，最后升 Primary。为什么 Replica 先升？避免主节点先升级导致数据风险和主从不兼容问题。',
+        u:{on:false,c:'patch 命令已执行'},
+        k:{on:false,c:'MODIFIED 事件已传递'},
+        o:{on:true,rc:true,c:'<span class="hl">制定升级计划</span><br>版本 Drift: 5.7→8.0<br>① my-db-2 (Replica-2)<br>② my-db-1 (Replica-1)<br>③ my-db-0 (Primary)'},
+        a1:'none',a2:'fwd',
+        pods:[
+          {name:'Primary',s:'running',lbl:'my-db-0 v5.7'},
+          {name:'Replica-1',s:'running',lbl:'my-db-1 v5.7'},
+          {name:'Replica-2',s:'running',lbl:'my-db-2 v5.7'}
+        ],
+        spec:{replicas:3,version:'8.0',phase:'Upgrading'},
+        stat:{replicas:3,version:'5.7',phase:'Upgrading'},
+        drift:true,err:null,retry:null
+      },
+      {
+        title:'升级 Replica-2',
+        msg:'Step 3：升级 Replica-2（my-db-2）。Controller 更新 StatefulSet 镜像为 mysql:8.0，触发 Pod 重建：Terminating → 拉取 mysql:8.0 → Pending → Running → 等待 ReadinessProbe → 追平数据。',
+        u:{on:false,c:'可 <code>kubectl get pods</code> 观察'},
+        k:{on:true,c:'my-db-2: Terminating<br>拉取 mysql:8.0 镜像<br>Pending → Running<br>ReadinessProbe 等待中'},
+        o:{on:true,rc:true,c:'<span class="hl">升级 Replica-2</span><br>mysql:5.7 → mysql:8.0<br>等待 ReadinessProbe<br>数据追平...'},
+        a1:'none',a2:'none',
+        pods:[
+          {name:'Primary',s:'running',lbl:'my-db-0 v5.7'},
+          {name:'Replica-1',s:'running',lbl:'my-db-1 v5.7'},
+          {name:'Replica-2',s:'upgrading',lbl:'my-db-2 →v8.0'}
+        ],
+        spec:{replicas:3,version:'8.0',phase:'Upgrading'},
+        stat:{replicas:3,version:'5.7→8.0',phase:'Upgrading'},
+        drift:true,err:null,retry:null
+      },
+      {
+        title:'升级 Replica-1',
+        msg:'Step 4：Replica-2 升级完成且就绪。继续升级 Replica-1（my-db-1），使用相同流程。服务全程通过 Primary（my-db-0）对外提供读写，两个 Replica 升级期间对主库无影响。',
+        u:{on:false,c:'可 <code>kubectl get pods</code> 观察'},
+        k:{on:true,c:'my-db-2: Running(8.0) ✓<br>my-db-1: Terminating<br>拉取 mysql:8.0...'},
+        o:{on:true,rc:true,c:'<span class="hl">升级 Replica-1</span><br>Replica-2 完成 ✓<br>mysql:5.7 → mysql:8.0<br>等待就绪...'},
+        a1:'none',a2:'none',
+        pods:[
+          {name:'Primary',s:'running',lbl:'my-db-0 v5.7'},
+          {name:'Replica-1',s:'upgrading',lbl:'my-db-1 →v8.0'},
+          {name:'Replica-2',s:'running',lbl:'my-db-2 v8.0 ✓'}
+        ],
+        spec:{replicas:3,version:'8.0',phase:'Upgrading'},
+        stat:{replicas:3,version:'5.7→8.0',phase:'Upgrading'},
+        drift:true,err:null,retry:null
+      },
+      {
+        title:'升级 Primary',
+        msg:'Step 5：两个 Replica 均已升级。现在升级 Primary（my-db-0）。Controller 先执行主从切换（Failover，将 my-db-1 提升为临时主），然后升级 my-db-0，完成后切回为 Primary。切换过程服务短暂中断（秒级）。',
+        u:{on:false,c:'Primary 临时切到 my-db-1<br>服务短暂（秒级）中断'},
+        k:{on:true,c:'my-db-1 接管 Primary<br>my-db-0: Terminating<br>拉取 mysql:8.0...'},
+        o:{on:true,rc:true,c:'<span class="hl">升级 Primary</span><br>① Failover → my-db-1<br>② 升级 my-db-0<br>③ 切回 Primary'},
+        a1:'none',a2:'none',
+        pods:[
+          {name:'Primary',s:'upgrading',lbl:'my-db-0 →v8.0'},
+          {name:'Replica-1',s:'running',lbl:'my-db-1 v8.0 ✓'},
+          {name:'Replica-2',s:'running',lbl:'my-db-2 v8.0 ✓'}
+        ],
+        spec:{replicas:3,version:'8.0',phase:'Upgrading'},
+        stat:{replicas:3,version:'5.7→8.0',phase:'Upgrading'},
+        drift:true,err:null,retry:null
+      },
+      {
+        title:'升级完成 ✓',
+        msg:'Step 6：全部升级完成！所有 3 个 Pod 运行 MySQL 8.0，数据零丢失。Controller 更新 status（version=8.0，phase=Ready）。Operator 将复杂的有状态滚动升级完全自动化，无需运维人员逐步手动操作。',
+        u:{on:false,c:'<code>kubectl get mysqlcluster</code><br>NAME    VERSION  STATUS<br>my-db   8.0      Ready'},
+        k:{on:true,c:'status.version = 8.0<br>status.phase = Ready<br>etcd 持久化 ✓'},
+        o:{on:true,rc:false,c:'<span class="hl">✓ 升级完成！</span><br>3/3 Pods v8.0<br>数据零丢失<br>Reconcile 完成'},
+        a1:'none',a2:'rev',
+        pods:[
+          {name:'Primary',s:'running',lbl:'my-db-0 v8.0 ✓'},
+          {name:'Replica-1',s:'running',lbl:'my-db-1 v8.0 ✓'},
+          {name:'Replica-2',s:'running',lbl:'my-db-2 v8.0 ✓'}
+        ],
+        spec:{replicas:3,version:'8.0',phase:'Ready'},
+        stat:{replicas:3,version:'8.0',phase:'Ready'},
+        drift:false,err:null,retry:null
+      }
+    ]
+  },
+
+  /* ── Scenario 4: Reconcile Failure & Retry ── */
+  {
+    name:'失败重试', emoji:'♻️',
+    steps:[
+      {
+        title:'初始状态',
+        msg:'场景四：演示 Reconcile 失败时的指数退避重试和幂等性。当 PVC 创建因磁盘不足失败时，Controller 如何记录错误事件、安全重试，以及多次 Reconcile 如何保证不产生重复资源（幂等性）。',
+        u:{on:false,c:'准备创建新 MySQLCluster<br>⚠️ 存储节点磁盘不足'},
+        k:{on:false,c:'⚠️ StorageClass: standard<br>Available: 10Gi（不足）'},
+        o:{on:false,rc:false,c:'等待对象创建...'},
+        a1:'none',a2:'none',
+        pods:[],
+        spec:{replicas:3,version:'5.7',phase:'-'},
+        stat:{replicas:0,version:'-',phase:'Pending'},
+        drift:false,err:null,retry:null
+      },
+      {
+        title:'触发 Reconcile',
+        msg:'Step 1：用户创建 MySQLCluster 对象，API Server 存储，Watch 事件触发 Reconcile。Controller 开始创建 StatefulSet 和相关 PVC（每个 Pod 需要 100Gi 持久化存储）。',
+        u:{on:true,c:'<span class="hl">创建 MySQLCluster</span><br><code>kubectl apply -f mysql.yaml</code><br>需要 PVC: 100Gi × 3'},
+        k:{on:true,c:'API Server 验证 ✓<br>etcd 存储完成<br>Watch 事件: ADDED'},
+        o:{on:true,rc:true,c:'<span class="hl">Reconcile 开始</span><br>创建 StatefulSet...<br>创建 PVC (100Gi)...'},
+        a1:'fwd',a2:'fwd',
+        pods:[],
+        spec:{replicas:3,version:'5.7',phase:'Creating'},
+        stat:{replicas:0,version:'-',phase:'Creating'},
+        drift:false,err:null,retry:null
+      },
+      {
+        title:'PVC 创建失败',
+        msg:'Step 2：创建 PVC 时失败！存储节点磁盘不足（请求 100Gi，可用仅 10Gi），PVC 无法绑定 PV。Reconcile 函数返回 error，Controller 记录错误事件到 K8s Events，进入退避等待。',
+        u:{on:false,c:'等待创建结果...'},
+        k:{on:true,c:'<span class="hl">⚠️ PVC 绑定失败</span><br>StorageClass: standard<br>Available: 10Gi<br>Requested: 100Gi'},
+        o:{on:true,rc:true,c:'<span class="hl">❌ Reconcile 返回 error</span><br>err: insufficient storage<br>记录 Event 到 K8s<br>进入退避等待...'},
+        a1:'none',a2:'none',
+        pods:[],
+        spec:{replicas:3,version:'5.7',phase:'Creating'},
+        stat:{replicas:0,version:'-',phase:'Error'},
+        drift:false,
+        err:'Warning  FailedCreate  StatefulSet/my-db:\n  create PVC my-db-data-0: unable to provision volume\n  no persistent volumes available for this claim\n  Available: 10Gi, Requested: 100Gi',
+        retry:['active','wait','wait','wait']
+      },
+      {
+        title:'指数退避重试',
+        msg:'Step 3：指数退避重试序列：1s → 失败，2s → 失败，4s → 失败，8s → 失败。每次 Reconcile 都是幂等的：先 GET 检查 StatefulSet 是否已存在，存在则跳过 CREATE，不会产生重复资源，重试绝对安全。',
+        u:{on:false,c:'<code>kubectl describe mysqlcluster my-db</code><br>Events: Warning×4<br>FailedCreate'},
+        k:{on:true,c:'记录 Warning Events<br>kubectl describe 可见<br>磁盘仍然不足'},
+        o:{on:true,rc:true,c:'<span class="hl">退避重试中</span><br>1s ✗ → 2s ✗ → 4s ✗<br>当前等待: 8s...<br>幂等: 不重复创建'},
+        a1:'none',a2:'rev',
+        pods:[],
+        spec:{replicas:3,version:'5.7',phase:'Creating'},
+        stat:{replicas:0,version:'-',phase:'Error'},
+        drift:false,
+        err:'Warning  FailedCreate  StatefulSet/my-db:\n  create PVC my-db-data-0: unable to provision volume\n  no persistent volumes available for this claim\n  (×4 retries, backing off)',
+        retry:['done','done','done','active']
+      },
+      {
+        title:'管理员扩容存储',
+        msg:'Step 4：管理员通过 kubectl describe 查看 Events 定位问题，扩容存储节点，现在有 200Gi 可用。下一次 Reconcile 触发时（8s 退避结束），PVC 将能正常绑定。',
+        u:{on:true,c:'<span class="hl">管理员扩容存储</span><br>查看 Events 定位问题<br>扩容存储节点<br>Available: 200Gi ✓'},
+        k:{on:true,c:'<span class="hl">存储扩容完成</span><br>StorageClass: standard<br>Available: 200Gi<br>PVC 可绑定 ✓'},
+        o:{on:true,rc:true,c:'<span class="hl">等待下次重试</span><br>8s 退避结束中<br>下次 Reconcile<br>即将触发...'},
+        a1:'fwd',a2:'none',
+        pods:[],
+        spec:{replicas:3,version:'5.7',phase:'Creating'},
+        stat:{replicas:0,version:'-',phase:'Retrying'},
+        drift:false,err:null,
+        retry:['done','done','done','done']
+      },
+      {
+        title:'重试成功 ✓',
+        msg:'Step 5：下一次 Reconcile 触发！幂等性体现：StatefulSet 已存在 → 跳过 CREATE；PVC 不存在 → CREATE 成功（磁盘充足）；Pod 启动 → Running；status.phase = Ready。Operator 自动完成恢复，整个过程无需重新操作。',
+        u:{on:false,c:'<code>kubectl get mysqlcluster</code><br>NAME    STATUS  READY<br>my-db   Ready   3/3'},
+        k:{on:true,c:'<span class="hl">PVC 绑定成功 ✓</span><br>3 PVCs Created<br>3 Pods Running<br>status.phase = Ready'},
+        o:{on:true,rc:false,c:'<span class="hl">✓ 重试成功！</span><br>PVC 创建成功<br>StatefulSet 已存在→跳过<br>Pods 全部 Running'},
+        a1:'none',a2:'rev',
+        pods:[
+          {name:'Primary',s:'running',lbl:'my-db-0'},
+          {name:'Replica-1',s:'running',lbl:'my-db-1'},
+          {name:'Replica-2',s:'running',lbl:'my-db-2'}
+        ],
+        spec:{replicas:3,version:'5.7',phase:'Ready'},
+        stat:{replicas:3,version:'5.7',phase:'Ready'},
+        drift:false,err:null,
+        retry:['done','done','done','success']
+      }
+    ]
+  }
+];
+
+let cs = 0; // current scenario
+let ci = -1; // current step index
+let timer = null;
+
+function switchTab(i) {
+  cs = i; ci = -1;
+  stopPlay();
+  render();
+}
+function gotoStep(i) { ci = i; stopPlay(); render(); }
+function next() {
+  const steps = S[cs].steps;
+  if (ci < steps.length - 1) { ci++; render(); }
+  else stopPlay();
+}
+function prev() { if (ci > -1) { ci--; render(); } }
+function reset() { ci = -1; stopPlay(); render(); }
+function togglePlay() { if (timer) stopPlay(); else startPlay(); }
+function startPlay() {
+  document.getElementById('playBtn').textContent = '⏸ 暂停';
+  timer = setInterval(() => {
+    if (ci < S[cs].steps.length - 1) { ci++; render(); } else stopPlay();
+  }, 2000);
+}
+function stopPlay() {
+  if (timer) { clearInterval(timer); timer = null; }
+  document.getElementById('playBtn').textContent = '▶ 播放';
+}
+
+/* ── Arrow helper ── */
+function setArrow(id, state) {
+  const el = document.getElementById(id);
+  const hd = document.getElementById(id + 'Hd');
+  const lb = document.getElementById(id + 'Lbl');
+  if (state === 'fwd') {
+    el.className = 'anim-arrow active';
+    hd.textContent = '→';
+    lb.textContent = id === 'arrow1' ? 'apply' : 'Watch 事件';
+  } else if (state === 'rev') {
+    el.className = 'anim-arrow rev active';
+    hd.textContent = '←';
+    lb.textContent = 'status 写回';
+  } else {
+    el.className = 'anim-arrow';
+    hd.textContent = '→';
+    lb.textContent = id === 'arrow1' ? 'apply' : 'watch/event';
+  }
+}
+
+/* ── Column helper ── */
+function setCol(id, active, content) {
+  document.getElementById(id).className = 'anim-col' + (active ? ' ' + active : '');
+  document.getElementById(id + 'Content').innerHTML = content;
+}
+
+/* ── Pod render ── */
+const podSymbol = {running:'●', pending:'◌', error:'✕', gone:'—', upgrading:'↑'};
+const podText   = {running:'Running', pending:'Pending', error:'Error', gone:'Gone', upgrading:'Upgrading'};
+function renderPods(pods) {
+  const sec = document.getElementById('podSection');
+  const grid = document.getElementById('podGrid');
+  if (!pods || !pods.length) { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+  grid.innerHTML = pods.map(p =>
+    `<div class="pod-bubble">
+       <div class="pod-circle ${p.s}">${podSymbol[p.s]||'?'}</div>
+       <div class="pod-lbl">${p.lbl}</div>
+       <div class="pod-stat">${podText[p.s]||p.s}</div>
+     </div>`
+  ).join('');
+}
+
+/* ── Spec/Status render ── */
+function renderSS(spec, stat, drift) {
+  const sb = document.getElementById('statusBox');
+  sb.className = 'ss-box' + (drift ? ' drift' : '');
+  const rows = ['replicas','version','phase'];
+  document.getElementById('specContent').innerHTML = rows.map(k =>
+    `<div class="ss-row"><span class="ss-key">${k}:</span><span class="ss-val dim">${spec[k]}</span></div>`
+  ).join('');
+  document.getElementById('statusContent').innerHTML = rows.map(k => {
+    let cls = 'dim';
+    if (k === 'phase') {
+      if (stat[k] === 'Ready') cls = 'ok';
+      else if (stat[k] === 'Error') cls = 'err';
+      else if (stat[k] !== '-' && stat[k] !== 'Pending') cls = 'warn';
+    } else {
+      cls = (String(stat[k]) === String(spec[k])) ? 'ok' : 'warn';
+    }
+    return `<div class="ss-row"><span class="ss-key">${k}:</span><span class="ss-val ${cls}">${stat[k]}</span></div>`;
+  }).join('');
+}
+
+/* ── Error/Retry render ── */
+function renderErr(err, retry) {
+  const box = document.getElementById('evBox');
+  if (!err && !retry) { box.className = 'ev-box hidden'; return; }
+  box.className = 'ev-box';
+  let html = '';
+  if (err) html += `<div>${err.replace(/\n/g,'<br>')}</div>`;
+  if (retry) {
+    const delays = ['1s','2s','4s','8s'];
+    html += `<div class="retry-bar"><span style="color:var(--dim2);font-size:.7rem">退避重试:</span>`;
+    html += delays.map((d,i) => {
+      const st = retry[i] || 'wait';
+      const icon = {done:' ✗', active:' ⟳', success:' ✓', wait:''}[st] || '';
+      return `<span class="retry-dot ${st}">${d}${icon}</span>`;
+    }).join('');
+    html += '</div>';
+  }
+  box.innerHTML = html;
+}
+
+/* ── Reconcile badge ── */
+function renderRc(on) {
+  const b = document.getElementById('rcBadge');
+  if (on) {
+    b.className = 'rc-badge active';
+    b.innerHTML = '<span class="spin">⟳</span> Reconcile 执行中';
+  } else {
+    b.className = 'rc-badge idle';
+    b.innerHTML = '<span class="spin">⟳</span> Reconcile 循环';
+  }
+}
+
+/* ── Tabs ── */
+function buildTabs() {
+  document.getElementById('tabList').innerHTML = S.map((sc, i) =>
+    `<button class="tab-btn${i === cs ? ' active' : ''}" onclick="switchTab(${i})">${sc.emoji} ${sc.name}</button>`
+  ).join('');
+}
+
+/* ── Step list ── */
+function buildStepList() {
+  const steps = S[cs].steps;
+  document.getElementById('stepList').innerHTML = steps.map((s, i) => {
+    let cls = 'step-btn';
+    if (i === ci) cls += ' active';
+    else if (i < ci) cls += ' done';
+    return `<button class="${cls}" onclick="gotoStep(${i})"><span class="step-index">${i+1}</span>${s.title}</button>`;
+  }).join('');
+}
+
+/* ── Main render ── */
+function render() {
+  const sc = S[cs];
+  const step = ci >= 0 ? sc.steps[ci] : null;
+
+  document.getElementById('stepMsg').textContent = step
+    ? step.msg
+    : `请选择场景，点击「下一步」开始。当前：${sc.name}，共 ${sc.steps.length} 步。`;
+
+  if (step) {
+    setCol('colUser', step.u.on ? 'user-active' : '', step.u.c);
+    setCol('colK8s', step.k.on ? 'k8s-active' : '', step.k.c);
+    document.getElementById('colOp').className = 'anim-col' + (step.o.on ? ' op-active' : '');
+    document.getElementById('colOpContent').innerHTML = step.o.c;
+    renderRc(step.o.rc);
+    setArrow('arrow1', step.a1);
+    setArrow('arrow2', step.a2);
+    renderPods(step.pods);
+    renderSS(step.spec, step.stat, step.drift);
+    renderErr(step.err, step.retry);
+  } else {
+    setCol('colUser', '', '就绪');
+    setCol('colK8s', '', 'API Server + etcd');
+    document.getElementById('colOp').className = 'anim-col';
+    document.getElementById('colOpContent').innerHTML = '';
+    renderRc(false);
+    setArrow('arrow1','none');
+    setArrow('arrow2','none');
+    renderPods([]);
+    renderSS({replicas:'-',version:'-',phase:'-'},{replicas:'-',version:'-',phase:'-'},false);
+    renderErr(null,null);
+  }
+
+  buildTabs();
+  buildStepList();
+}
+
+render();
+</script>
+</body>
+</html>

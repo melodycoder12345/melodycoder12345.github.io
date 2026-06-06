@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="CGO：Go 调用 C 库的原理、内存边界规则、性能代价、goroutine 阻塞行为与交叉编译限制。">
+<link rel="canonical" href="https://melodycoder12345.github.io/golang/cgo.html">
+<meta property="og:title" content="CGO：Go 调用 C — 码海拾贝">
+<meta property="og:description" content="CGO：Go 调用 C 库的原理、内存边界规则、性能代价、goroutine 阻塞行为与交叉编译限制。">
+<meta property="og:url" content="https://melodycoder12345.github.io/golang/cgo.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="CGO：Go 调用 C — 码海拾贝">
+<meta name="twitter:description" content="CGO：Go 调用 C 库的原理、内存边界规则、性能代价、goroutine 阻塞行为与交叉编译限制。">
+<title>CGO：Go 调用 C - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#34d399;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:44px;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:116px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.side-nav a.active{color:var(--accent);background:rgba(52,211,153,.08);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(52,211,153,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(52,211,153,.12);color:var(--accent);border:1px solid rgba(52,211,153,.2);}
+.badge-adv{background:rgba(251,146,60,.12);color:#fb923c;border:1px solid rgba(251,146,60,.2);}
+.badge-warn{background:rgba(248,113,113,.12);color:#f87171;border:1px solid rgba(248,113,113,.2);}
+.badge-high{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+.card-body strong{color:var(--text);}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}.tp{color:#79c0ff}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(52,211,153,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(52,211,153,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+.pitfall-single{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-single .pitfall-hd{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-single .pitfall-body-single{padding:12px 14px;font-size:.82rem;color:var(--dim);line-height:1.7;}
+.highlight-box{background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.2);border-radius:8px;padding:12px 14px;font-size:.82rem;color:#a7f3d0;line-height:1.7;margin-bottom:10px;}
+.warn-box{background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.2);border-radius:8px;padding:12px 14px;font-size:.82rem;color:#fca5a5;line-height:1.7;margin-bottom:10px;}
+.memory-diagram{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--border2);border-radius:10px;overflow:hidden;margin:12px 0;}
+.mem-side{padding:14px;}
+.mem-side+.mem-side{border-left:1px solid var(--border2);}
+.mem-side h4{font-size:.78rem;font-weight:700;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border2);}
+.mem-side h4.go{color:var(--accent);}
+.mem-side h4.c{color:#38bdf8;}
+.mem-block{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:8px 10px;font-size:.76rem;color:var(--dim);margin-bottom:6px;}
+.mem-block .mb-label{font-size:.68rem;font-weight:700;margin-bottom:4px;}
+.mem-block .mb-label.go{color:var(--accent);}
+.mem-block .mb-label.c{color:#38bdf8;}
+.mem-block .mb-label.red{color:#f87171;}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}.memory-diagram{grid-template-columns:1fr;}.mem-side+.mem-side{border-left:none;border-top:1px solid var(--border2);}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">🔗 CGO：Go 调用 C</span>
+  <div class="nav-tags">
+    <span class="ntag">cgo</span>
+    <span class="ntag">memory-boundary</span>
+    <span class="ntag">goroutine-block</span>
+    <span class="ntag">cross-compile</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <nav class="side-nav">
+    <ul>
+      <li><a href="#usecase">使用场景</a></li>
+      <li><a href="#basic">基本用法</a></li>
+      <li><a href="#memory">内存边界</a></li>
+      <li><a href="#perf">性能代价</a></li>
+      <li><a href="#goroutine">Goroutine 阻塞</a></li>
+      <li><a href="#cross">交叉编译</a></li>
+      <li><a href="#pitfalls">常见误区</a></li>
+    </ul>
+  </nav>
+  <main class="main-content">
+
+    <div class="section" id="usecase">
+      <div class="section-title"><div class="title-bar"></div><h2>使用场景</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>什么时候需要 CGO</h3><span class="badge badge-core">[背景]</span></div>
+        <div class="card-body">
+          <p>CGO 允许 Go 程序调用 C 代码（及通过 C ABI 暴露的 C++ 库）。适合以下场景：</p>
+          <ul>
+            <li><strong>加密 / 安全库</strong>：OpenSSL、libsodium（某些场景需要 FIPS 认证版本，Go 原生实现不满足）</li>
+            <li><strong>音视频编解码</strong>：FFmpeg、libopus、libx264（高度优化的汇编实现，Go 重写性能差距大）</li>
+            <li><strong>嵌入式数据库</strong>：SQLite（<code>modernc.org/sqlite</code> 是纯 Go 实现，但 <code>mattn/go-sqlite3</code> 用 CGO）</li>
+            <li><strong>系统库绑定</strong>：libpq（PostgreSQL 客户端）、librdkafka、GPU 计算库（CUDA）</li>
+          </ul>
+          <div class="warn-box">
+            能用纯 Go 实现的，不要用 CGO。CGO 引入了额外的构建复杂度、运行时开销和交叉编译限制。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="basic">
+      <div class="section-title"><div class="title-bar"></div><h2>基本用法</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>import "C" 魔法</h3><span class="badge badge-core">[核心]</span></div>
+        <div class="card-body">
+          <p><code>import "C"</code> 是 CGO 的入口。紧贴在这条 import 语句前的注释（Preamble）会被当作 C 源代码编译。注意 <code>import "C"</code> 必须单独一行，不能放进 import 分组。</p>
+          <pre><span class="kw">package</span> <span class="id">main</span>
+
+<span class="cm">/*
+#include &lt;string.h&gt;
+#include &lt;stdlib.h&gt;
+
+int add(int a, int b) {
+    return a + b;
+}
+
+char* greet(const char* name) {
+    char* result = malloc(64);
+    snprintf(result, 64, "Hello, %s!", name);
+    return result;
+}
+*/</span>
+<span class="kw">import</span> <span class="st">"C"</span>     <span class="cm">// 必须紧接注释，单独一行</span>
+<span class="kw">import</span> (
+    <span class="st">"fmt"</span>
+    <span class="st">"unsafe"</span>
+)
+
+<span class="kw">func</span> <span class="fn">main</span>() {
+    <span class="cm">// 调用 C 函数</span>
+    result := <span class="id">C</span>.<span class="fn">add</span>(<span class="num">3</span>, <span class="num">4</span>)
+    <span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">int</span>(result))  <span class="cm">// 7</span>
+
+    <span class="cm">// Go string → C string（需要手动释放）</span>
+    <span class="id">name</span> := <span class="id">C</span>.<span class="fn">CString</span>(<span class="st">"World"</span>)
+    <span class="kw">defer</span> <span class="id">C</span>.<span class="fn">free</span>(<span class="id">unsafe</span>.<span class="id">Pointer</span>(<span class="id">name</span>))
+
+    <span class="id">msg</span> := <span class="id">C</span>.<span class="fn">greet</span>(<span class="id">name</span>)
+    <span class="kw">defer</span> <span class="id">C</span>.<span class="fn">free</span>(<span class="id">unsafe</span>.<span class="id">Pointer</span>(<span class="id">msg</span>))
+    <span class="id">fmt</span>.<span class="fn">Println</span>(<span class="id">C</span>.<span class="fn">GoString</span>(<span class="id">msg</span>))  <span class="cm">// "Hello, World!"</span>
+}</pre>
+          <p>常用转换函数：</p>
+          <ul>
+            <li><code>C.CString(s string) *C.char</code> — Go string → C string（malloc，必须 free）</li>
+            <li><code>C.GoString(p *C.char) string</code> — C string → Go string（复制到 Go heap）</li>
+            <li><code>C.GoBytes(p unsafe.Pointer, n C.int) []byte</code> — C 内存 → Go slice</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="memory">
+      <div class="section-title"><div class="title-bar"></div><h2>内存边界规则</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>Go GC 与 C malloc 的边界</h3><span class="badge badge-warn">[关键规则]</span></div>
+        <div class="card-body">
+          <p>Go 的垃圾回收器（GC）只管理 Go heap 上的对象；C 的 <code>malloc</code> 分配的内存完全不受 GC 管控。两个内存世界不互通，跨越边界时必须遵守严格规则。</p>
+          <div class="memory-diagram">
+            <div class="mem-side">
+              <h4 class="go">Go Heap（GC 管理）</h4>
+              <div class="mem-block">
+                <div class="mb-label go">Go 对象</div>
+                GC 可以移动对象（GC compaction）。C 代码持有 Go 指针时，GC 移动对象会导致 C 指针悬空。
+              </div>
+              <div class="mem-block">
+                <div class="mb-label red">❌ 禁止</div>
+                C 代码不能在调用返回后持久保存 Go 指针（只能在 CGO 调用期间使用）。
+              </div>
+            </div>
+            <div class="mem-side">
+              <h4 class="c">C Heap（malloc 管理）</h4>
+              <div class="mem-block">
+                <div class="mb-label c">C 对象</div>
+                GC 不知道 C 内存的存在，不会回收。必须手动 <code>C.free()</code>，否则内存泄漏。
+              </div>
+              <div class="mem-block">
+                <div class="mb-label go">✅ 允许</div>
+                Go 代码可以持有 C 指针（<code>unsafe.Pointer</code>），但要管理好生命周期。
+              </div>
+            </div>
+          </div>
+          <pre><span class="cm">// ❌ 错误：将 Go slice 传给 C 并让 C 持久保存指针</span>
+<span class="id">data</span> := []<span class="tp">byte</span>{<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>}
+<span class="cm">// 危险：GC 可能在 C 函数返回后移动 data 底层数组</span>
+<span class="id">C</span>.<span class="fn">store_pointer</span>((<span class="id">*C</span>.<span class="tp">uchar</span>)(<span class="id">unsafe</span>.<span class="id">Pointer</span>(&amp;<span class="id">data</span>[<span class="num">0</span>])))
+
+<span class="cm">// ✅ 正确：用 cgo.Handle 传递 Go 对象引用给 C</span>
+<span class="kw">import</span> <span class="st">"runtime/cgo"</span>
+
+<span class="id">handle</span> := <span class="id">cgo</span>.<span class="fn">NewHandle</span>(<span class="id">myGoObject</span>)
+<span class="kw">defer</span> <span class="id">handle</span>.<span class="fn">Delete</span>()
+<span class="id">C</span>.<span class="fn">some_c_func</span>(<span class="id">C</span>.<span class="tp">uintptr_t</span>(<span class="id">handle</span>))
+
+<span class="cm">// C 代码中通过整数 handle 回调 Go：</span>
+<span class="cm">// extern void goCallback(uintptr_t handle);</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="perf">
+      <div class="section-title"><div class="title-bar"></div><h2>性能代价</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>CGO 调用开销</h3><span class="badge badge-adv">[性能]</span></div>
+        <div class="card-body">
+          <p>每次 CGO 调用需要进行栈切换：从 goroutine 的可增长 Go 栈切换到固定大小的 OS 线程栈（约 1MB）。这个过程涉及寄存器保存/恢复、栈指针更新和调度器通知，约有 <strong>100–200ns 额外开销</strong>。</p>
+          <div class="highlight-box">
+            相比之下，普通 Go 函数调用约 1–5ns，syscall 约 50–100ns。CGO 调用开销是普通函数调用的 50–100 倍。
+          </div>
+          <p><strong>优化策略：批量合并调用</strong></p>
+          <pre><span class="cm">// ❌ 性能差：每个元素一次 CGO 调用（N 次开销）</span>
+<span class="kw">for</span> <span class="id">i</span>, <span class="id">v</span> := <span class="kw">range</span> <span class="id">data</span> {
+    <span class="id">C</span>.<span class="fn">process_one</span>(<span class="id">C</span>.<span class="tp">int</span>(<span class="id">v</span>))
+}
+
+<span class="cm">// ✅ 性能好：一次 CGO 调用处理整个数组（1次开销）</span>
+<span class="kw">if</span> <span class="kw">len</span>(<span class="id">data</span>) > <span class="num">0</span> {
+    <span class="id">C</span>.<span class="fn">process_batch</span>(
+        (<span class="id">*C</span>.<span class="tp">int</span>)(<span class="id">unsafe</span>.<span class="id">Pointer</span>(&amp;<span class="id">data</span>[<span class="num">0</span>])),
+        <span class="id">C</span>.<span class="tp">int</span>(<span class="kw">len</span>(<span class="id">data</span>)),
+    )
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="goroutine">
+      <div class="section-title"><div class="title-bar"></div><h2>Goroutine 阻塞行为</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>调用阻塞 C 函数时的调度器行为</h3><span class="badge badge-high">[调度器]</span></div>
+        <div class="card-body">
+          <p>Go 调度器的核心假设是 goroutine 会定期让出 CPU（在函数调用处插入调度点）。但 C 函数对 Go 调度器不透明——C 代码中没有 goroutine 调度点。</p>
+          <p>当 goroutine G 调用阻塞 C 函数时：</p>
+          <ul>
+            <li>当前 M（OS 线程）被阻塞，无法运行其他 goroutine</li>
+            <li>Go 运行时检测到 M 长时间未返回，<strong>创建新的 M</strong> 接管 P，继续运行其他 goroutine</li>
+            <li>此时运行的 M 数量可能<strong>超过 GOMAXPROCS</strong>（因为阻塞的 M 不计入）</li>
+            <li>大量并发 CGO 阻塞调用会导致 M 数量暴增（每个都是 OS 线程，内存开销大）</li>
+          </ul>
+          <div class="warn-box">
+            如果业务需要并发调用阻塞 C 函数，必须限制并发度（用 goroutine 池或 semaphore），避免 M 数量失控。
+          </div>
+          <pre><span class="cm">// 用 semaphore 限制并发 CGO 调用数</span>
+<span class="kw">var</span> <span class="id">sem</span> = <span class="fn">make</span>(<span class="kw">chan</span> <span class="kw">struct</span>{}, <span class="num">8</span>)  <span class="cm">// 最多 8 个并发 C 调用</span>
+
+<span class="kw">func</span> <span class="fn">callBlockingC</span>() {
+    <span class="id">sem</span> <- <span class="kw">struct</span>{}{}
+    <span class="kw">defer</span> <span class="kw">func</span>() { &lt;-<span class="id">sem</span> }()
+    <span class="id">C</span>.<span class="fn">blocking_c_function</span>()
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="cross">
+      <div class="section-title"><div class="title-bar"></div><h2>交叉编译限制</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>CGO 破坏交叉编译</h3><span class="badge badge-warn">[限制]</span></div>
+        <div class="card-body">
+          <p>纯 Go 代码的交叉编译极为简单：<code>GOOS=linux GOARCH=arm64 go build</code> 即可，因为 Go 工具链内置了所有平台的代码生成能力。</p>
+          <p>一旦引入 CGO，情况就复杂了：</p>
+          <ul>
+            <li>需要目标平台的 C 编译器（如 <code>aarch64-linux-gnu-gcc</code>）</li>
+            <li>需要目标平台的 C 库头文件和 so/a 文件</li>
+            <li>在 macOS 上交叉编译 Linux 需要安装 cross-toolchain</li>
+          </ul>
+          <pre><span class="cm"># 有 CGO 的交叉编译：需要指定 C 编译器</span>
+$ GOOS=linux GOARCH=amd64 CGO_ENABLED=1 \
+  CC=x86_64-linux-musl-gcc go build ./...
+
+<span class="cm"># 禁用 CGO：生成静态二进制，可在任意平台运行</span>
+$ CGO_ENABLED=0 GOOS=linux go build -o app ./...
+
+<span class="cm"># 常用于 Docker 多阶段构建：</span>
+<span class="cm"># FROM golang:1.22 AS builder</span>
+<span class="cm"># RUN CGO_ENABLED=0 go build -o /app ./...</span>
+<span class="cm"># FROM scratch</span>
+<span class="cm"># COPY --from=builder /app /app</span></pre>
+          <div class="highlight-box">
+            在 CI/CD 环境中，<code>CGO_ENABLED=0</code> 是 Docker 镜像构建的最佳实践——生成的静态二进制无需任何依赖，可以直接在 <code>scratch</code> 镜像中运行。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="pitfalls">
+      <div class="section-title"><div class="title-bar"></div><h2>常见误区</h2></div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd">❌ CGO 调用不受 defer/recover 保护</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// 错误认知：以为可以捕获 C panic</span>
+<span class="kw">func</span> <span class="fn">safe</span>() {
+    <span class="kw">defer</span> <span class="kw">func</span>() {
+        <span class="kw">if</span> <span class="id">r</span> := <span class="id">recover</span>(); <span class="id">r</span> != <span class="kw">nil</span> {
+            <span class="id">fmt</span>.<span class="fn">Println</span>(<span class="st">"recovered"</span>)
+        }
+    }()
+    <span class="id">C</span>.<span class="fn">dangerous_c_func</span>()
+    <span class="cm">// C 崩溃时 recover() 无效</span>
+}</pre>
+            <p>Go 的 recover 只能捕获 Go panic，C 代码中的段错误（SIGSEGV）、abort() 或 C++ 异常会直接 crash 整个 Go 进程，无法被 recover 拦截。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 正确做法：在 C 代码中处理错误</span>
+<span class="cm">// 或用 C 信号处理 + setjmp/longjmp</span>
+<span class="cm">/*
+int safe_call(int* err) {
+    *err = 0;
+    // 用错误码而非 crash
+    if (bad_condition) {
+        *err = -1;
+        return 0;
+    }
+    return do_work();
+}
+*/</span>
+<span class="id">C</span>.<span class="fn">safe_call</span>(&amp;<span class="id">errCode</span>)
+<span class="kw">if</span> <span class="id">errCode</span> != <span class="num">0</span> {
+    <span class="cm">// Go 层正常处理错误</span>
+}</pre>
+            <p>在 C 代码中用错误码返回错误，而不是依赖 crash 后 Go 能恢复。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall-single">
+        <div class="pitfall-hd">❌ C.CString 忘记 free</div>
+        <div class="pitfall-body-single pitfall-col">
+          <p><code>C.CString()</code>、<code>C.CBytes()</code> 等转换函数会在 C heap 上分配内存，GC 不会回收。每次调用都必须配对 <code>defer C.free(unsafe.Pointer(cs))</code>，否则长期运行中会有内存泄漏。在 CGO 代码中建议用静态分析工具（<code>go vet</code> 部分检测）或专门的 CGO 内存检测工具辅助排查。</p>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>
+function toggleQA(card) { card.classList.toggle('open'); }
+(function() {
+  var links = document.querySelectorAll('.side-nav a');
+  var sections = Array.from(links).map(function(l) {
+    return document.querySelector(l.getAttribute('href'));
+  }).filter(Boolean);
+  function onScroll() {
+    var scrollY = window.scrollY + 140;
+    var current = sections[0];
+    sections.forEach(function(s) { if (s.offsetTop <= scrollY) current = s; });
+    links.forEach(function(l) {
+      l.classList.toggle('active', l.getAttribute('href') === '#' + current.id);
+    });
+  }
+  window.addEventListener('scroll', onScroll, {passive: true});
+  onScroll();
+})();
+</script>
+</body>
+</html>

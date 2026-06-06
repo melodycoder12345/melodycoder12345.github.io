@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="列式存储将同一列连续存放，OLAP 查询 IO 减少 10-100 倍。ClickHouse 结合列压缩和向量化执行，在亿级数据实现秒级聚合。">
+<link rel="canonical" href="https://melodycoder12345.github.io/db/column-store.html">
+<meta property="og:title" content="列存储与 ClickHouse — 码海拾贝">
+<meta property="og:description" content="列式存储将同一列连续存放，OLAP 查询 IO 减少 10-100 倍。ClickHouse 结合列压缩和向量化执行，在亿级数据实现秒级聚合。">
+<meta property="og:url" content="https://melodycoder12345.github.io/db/column-store.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="列存储与 ClickHouse — 码海拾贝">
+<meta name="twitter:description" content="列式存储将同一列连续存放，OLAP 查询 IO 减少 10-100 倍。ClickHouse 结合列压缩和向量化执行，在亿级数据实现秒级聚合。">
+<title>列存储与 ClickHouse - 数据库</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--accent:#60a5fa;--green:#4ade80;--yellow:#fbbf24;--orange:#fb923c;--red:#f87171;--purple:#c084fc;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{height:100vh;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;}
+nav{height:52px;display:flex;align-items:center;gap:16px;padding:0 20px;background:var(--panel2);border-bottom:1px solid var(--border);flex-shrink:0;}
+nav h1{font-size:1.1rem;font-weight:600;}
+.nav-back{color:var(--dim);text-decoration:none;font-size:0.88rem;}
+.nav-back:hover{color:var(--text);}
+.nav-tags{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;}
+.nav-tag{font-size:0.72rem;padding:3px 10px;border-radius:100px;font-family:monospace;background:rgba(255,255,255,0.06);border:1px solid var(--border);}
+.main{display:flex;flex:1;overflow:hidden;}
+.sidebar{width:220px;flex-shrink:0;background:var(--panel2);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:14px 12px;overflow-y:auto;}
+.sidebar-label{font-size:0.68rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--dim);margin-bottom:10px;font-weight:600;}
+.tab-btn{display:flex;align-items:center;width:100%;text-align:left;padding:8px 10px;border-radius:8px;border:1px solid transparent;background:transparent;color:var(--dim);font-size:0.83rem;cursor:pointer;transition:all 0.2s;margin-bottom:4px;}
+.tab-btn.active{background:rgba(96,165,250,0.12);border-color:rgba(96,165,250,0.4);color:var(--accent);}
+.tab-btn:hover:not(.active){color:var(--text);background:rgba(255,255,255,0.05);}
+.tab-num{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;font-size:0.7rem;margin-right:8px;background:rgba(255,255,255,0.08);flex-shrink:0;font-family:monospace;}
+.tab-btn.active .tab-num{background:rgba(96,165,250,0.25);color:var(--accent);}
+.step-dots-wrap{margin-top:18px;padding-top:14px;border-top:1px solid var(--border);}
+.step-dots{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;}
+.dot{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,0.1);cursor:pointer;transition:all 0.2s;}
+.dot.done{background:rgba(96,165,250,0.45);}
+.dot.curr{background:var(--accent);box-shadow:0 0 7px var(--accent);width:11px;height:11px;}
+.ctrl-section{margin-top:auto;padding-top:14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px;}
+button{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;cursor:pointer;font-size:0.8rem;transition:all 0.2s;}
+button:hover{background:rgba(255,255,255,0.12);}
+.play-btn{background:rgba(96,165,250,0.14);border-color:rgba(96,165,250,0.4);color:var(--accent);}
+.play-btn:hover{background:rgba(96,165,250,0.24);}
+.ctrl-row{display:flex;gap:6px;}
+.ctrl-row button{flex:1;font-size:0.75rem;}
+.speed-row{display:flex;gap:4px;}
+.sp-btn{flex:1;font-size:0.7rem;padding:3px 6px;}
+.sp-btn.active{background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.4);color:var(--yellow);}
+.step-counter{font-size:0.75rem;color:var(--dim);text-align:center;font-family:monospace;}
+.anim-area{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.tab-canvas{flex:1;overflow:hidden;padding:20px;}
+.desc-box{flex-shrink:0;padding:14px 20px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);min-height:62px;font-size:0.9rem;color:var(--text);line-height:1.65;}
+.status-bar{flex-shrink:0;height:30px;display:flex;align-items:center;padding:0 20px;background:var(--panel2);border-top:1px solid var(--border);font-size:0.75rem;color:var(--dim);}
+
+/* Row vs Column layout */
+.io-wrap{height:100%;display:flex;flex-direction:column;gap:14px;overflow-y:auto;}
+.storage-compare{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.store-box{border:1.5px solid var(--border);border-radius:12px;padding:14px;background:rgba(255,255,255,0.02);}
+.store-box.row-store{border-color:rgba(248,113,113,0.35);}
+.store-box.col-store{border-color:rgba(96,165,250,0.35);}
+.store-title{font-size:0.78rem;font-weight:700;font-family:monospace;margin-bottom:10px;}
+.row-store .store-title{color:var(--red);}
+.col-store .store-title{color:var(--accent);}
+.row-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;margin-bottom:6px;}
+.cell{padding:3px 5px;border-radius:3px;font-size:0.65rem;font-family:monospace;text-align:center;transition:all 0.3s;}
+.cell.id{background:rgba(255,255,255,0.08);color:var(--dim);}
+.cell.price{background:rgba(96,165,250,0.15);color:var(--accent);}
+.cell.price.active{background:rgba(96,165,250,0.4);color:white;font-weight:700;}
+.cell.other{background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.2);}
+.cell.scanned{background:rgba(248,113,113,0.2);color:var(--red);}
+.col-grid{display:flex;flex-direction:column;gap:2px;}
+.col-strip{display:flex;gap:2px;align-items:center;}
+.col-name{font-size:0.63rem;color:var(--dim);width:46px;font-family:monospace;flex-shrink:0;}
+.col-cells{display:flex;gap:2px;}
+.col-cell{padding:3px 6px;border-radius:3px;font-size:0.65rem;font-family:monospace;text-align:center;transition:all 0.3s;}
+.col-cell.price-col{background:rgba(96,165,250,0.12);color:var(--accent);}
+.col-cell.price-col.active{background:rgba(96,165,250,0.4);color:white;font-weight:700;}
+.col-cell.other-col{background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.2);}
+.col-cell.skip{opacity:0.12;}
+.io-compare{display:flex;gap:10px;align-items:center;}
+.io-bar-wrap{flex:1;}
+.io-lbl{font-size:0.73rem;color:var(--dim);font-family:monospace;margin-bottom:4px;}
+.io-track{height:18px;background:rgba(255,255,255,0.04);border-radius:5px;overflow:hidden;}
+.io-fill{height:100%;border-radius:5px;transition:width 0.7s ease;display:flex;align-items:center;padding-right:6px;justify-content:flex-end;}
+.io-fill.row-io{background:rgba(248,113,113,0.5);}
+.io-fill.col-io{background:rgba(96,165,250,0.5);}
+.io-val{font-size:0.68rem;color:white;font-weight:700;font-family:monospace;}
+
+/* Compression */
+.comp-wrap{height:100%;display:flex;flex-direction:column;gap:14px;overflow-y:auto;}
+.comp-section{border:1px solid var(--border);border-radius:10px;padding:13px 14px;background:rgba(255,255,255,0.02);}
+.comp-title{font-size:0.76rem;font-weight:700;font-family:monospace;margin-bottom:8px;}
+.comp-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap;}
+.comp-lbl{font-size:0.73rem;color:var(--dim);width:70px;flex-shrink:0;font-family:monospace;}
+.value-pills{display:flex;gap:3px;flex-wrap:wrap;}
+.vpill{padding:3px 8px;border-radius:4px;font-size:0.72rem;font-family:monospace;border:1px solid;transition:all 0.3s;}
+.vpill.raw{border-color:rgba(255,255,255,0.12);color:var(--text);background:rgba(255,255,255,0.05);}
+.vpill.rle{border-color:rgba(74,222,128,0.35);color:var(--green);background:rgba(74,222,128,0.07);}
+.vpill.dict{border-color:rgba(96,165,250,0.35);color:var(--accent);background:rgba(96,165,250,0.07);}
+.vpill.delta{border-color:rgba(251,191,36,0.35);color:var(--yellow);background:rgba(251,191,36,0.07);}
+.arrow-row{font-size:0.9rem;color:var(--dim);margin:4px 0;}
+.ratio-tag{display:inline-flex;align-items:center;padding:3px 10px;border-radius:5px;font-size:0.72rem;font-family:monospace;}
+.ratio-tag.g{background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.25);color:var(--green);}
+.ratio-tag.b{background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.25);color:var(--accent);}
+
+/* Vectorized execution */
+.vec-wrap{height:100%;display:flex;flex-direction:column;gap:14px;overflow-y:auto;}
+.exec-compare{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.exec-box{border:1.5px solid var(--border);border-radius:12px;padding:14px;background:rgba(255,255,255,0.02);}
+.exec-box.scalar{border-color:rgba(248,113,113,0.35);}
+.exec-box.vector{border-color:rgba(96,165,250,0.35);}
+.exec-title{font-size:0.76rem;font-weight:700;font-family:monospace;margin-bottom:8px;}
+.scalar .exec-title{color:var(--red);}
+.vector .exec-title{color:var(--accent);}
+.iter-row{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:5px;}
+.iter-cell{width:22px;height:22px;border-radius:3px;border:1px solid;display:flex;align-items:center;justify-content:center;font-size:0.62rem;font-family:monospace;transition:all 0.3s;}
+.iter-cell.idle{border-color:rgba(255,255,255,0.1);color:var(--dim);background:rgba(255,255,255,0.03);}
+.iter-cell.current{border-color:var(--yellow);color:var(--yellow);background:rgba(251,191,36,0.15);}
+.iter-cell.done{border-color:rgba(74,222,128,0.35);color:var(--green);background:rgba(74,222,128,0.07);}
+.iter-cell.pass{border-color:var(--accent);color:var(--accent);background:rgba(96,165,250,0.12);}
+.simd-block{display:flex;flex-wrap:wrap;gap:2px;padding:6px;border:1px solid rgba(96,165,250,0.3);border-radius:7px;background:rgba(96,165,250,0.05);transition:all 0.4s;}
+.simd-cell{width:32px;height:22px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-family:monospace;transition:all 0.3s;}
+.simd-cell.idle{background:rgba(255,255,255,0.05);color:var(--dim);}
+.simd-cell.active{background:rgba(96,165,250,0.3);color:var(--accent);font-weight:700;}
+.simd-cell.pass{background:rgba(74,222,128,0.2);color:var(--green);}
+.simd-cell.fail{background:rgba(248,113,113,0.15);color:var(--red);}
+.simd-lbl{font-size:0.72rem;color:var(--dim);font-family:monospace;margin-bottom:4px;}
+.perf-bar-row{display:flex;align-items:center;gap:10px;margin-top:8px;}
+.perf-lbl{font-size:0.73rem;color:var(--dim);width:80px;font-family:monospace;flex-shrink:0;}
+.perf-track{height:16px;flex:1;background:rgba(255,255,255,0.04);border-radius:4px;overflow:hidden;}
+.perf-fill{height:100%;border-radius:4px;transition:width 0.8s ease;display:flex;align-items:center;padding-right:6px;justify-content:flex-end;}
+.perf-fill.s{background:rgba(248,113,113,0.45);}
+.perf-fill.v{background:rgba(96,165,250,0.45);}
+.perf-val{font-size:0.66rem;color:white;font-weight:700;font-family:monospace;}
+
+/* MergeTree */
+.mt-wrap{height:100%;display:flex;flex-direction:column;gap:12px;overflow-y:auto;}
+.parts-area{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;}
+.part-block{border:1.5px solid;border-radius:10px;padding:10px 12px;min-width:90px;transition:all 0.4s;}
+.part-block.small{border-color:rgba(96,165,250,0.35);background:rgba(96,165,250,0.05);}
+.part-block.merging{border-color:var(--orange);background:rgba(251,146,60,0.08);animation:glow-o 0.7s ease 3;}
+.part-block.large{border-color:rgba(74,222,128,0.4);background:rgba(74,222,128,0.07);}
+.part-block.problem{border-color:rgba(248,113,113,0.45);background:rgba(248,113,113,0.07);}
+@keyframes glow-o{0%,100%{box-shadow:none;}50%{box-shadow:0 0 12px rgba(251,146,60,0.4);}}
+.part-name{font-size:0.73rem;font-weight:700;font-family:monospace;margin-bottom:4px;}
+.small .part-name{color:var(--accent);}
+.merging .part-name{color:var(--orange);}
+.large .part-name{color:var(--green);}
+.problem .part-name{color:var(--red);}
+.part-info{font-size:0.68rem;color:var(--dim);font-family:monospace;}
+.merge-arrow{font-size:1.4rem;color:var(--orange);align-self:center;}
+.query-path-row{display:flex;align-items:center;gap:6px;padding:7px 12px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;font-size:0.76rem;font-family:monospace;flex-wrap:wrap;}
+.qp-node{padding:3px 10px;border-radius:5px;}
+.qp-node.s{border:1px solid rgba(96,165,250,0.3);color:var(--accent);background:rgba(96,165,250,0.07);}
+.qp-node.g{border:1px solid rgba(74,222,128,0.3);color:var(--green);background:rgba(74,222,128,0.07);}
+.qp-node.y{border:1px solid rgba(251,191,36,0.3);color:var(--yellow);background:rgba(251,191,36,0.07);}
+.qp-node.r{border:1px solid rgba(248,113,113,0.3);color:var(--red);background:rgba(248,113,113,0.07);}
+.qp-arr{color:var(--dim);}
+.granule-row{display:flex;gap:3px;flex-wrap:wrap;}
+.gran{width:30px;height:18px;border-radius:3px;font-size:0.6rem;display:flex;align-items:center;justify-content:center;font-family:monospace;transition:all 0.3s;}
+.gran.idle{background:rgba(255,255,255,0.06);color:var(--dim);}
+.gran.skip{background:rgba(255,255,255,0.02);color:rgba(255,255,255,0.15);}
+.gran.scan{background:rgba(96,165,250,0.25);color:var(--accent);}
+/* Info badges */
+.ib{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:5px;font-size:0.73rem;font-family:monospace;margin:3px 2px;}
+.ib.b{background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.25);color:var(--accent);}
+.ib.g{background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.25);color:var(--green);}
+.ib.y{background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);color:var(--yellow);}
+.ib.r{background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.25);color:var(--red);}
+.ib.o{background:rgba(251,146,60,0.08);border:1px solid rgba(251,146,60,0.25);color:var(--orange);}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="nav-back">← 数据库</a>
+  <h1>列存储与 ClickHouse</h1>
+  <div class="nav-tags">
+    <span class="nav-tag">行列对比</span>
+    <span class="nav-tag">列压缩</span>
+    <span class="nav-tag">向量化SIMD</span>
+    <span class="nav-tag">MergeTree</span>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-label">动画场景</div>
+    <button class="tab-btn active" onclick="switchTab(0)"><span class="tab-num">1</span>行存 vs 列存</button>
+    <button class="tab-btn" onclick="switchTab(1)"><span class="tab-num">2</span>列压缩原理</button>
+    <button class="tab-btn" onclick="switchTab(2)"><span class="tab-num">3</span>向量化执行</button>
+    <button class="tab-btn" onclick="switchTab(3)"><span class="tab-num">4</span>MergeTree 写入</button>
+
+    <div class="step-dots-wrap">
+      <div class="sidebar-label">进度</div>
+      <div class="step-dots" id="stepDots"></div>
+    </div>
+
+    <div class="ctrl-section">
+      <button class="play-btn" id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      <div class="ctrl-row">
+        <button onclick="prev()">← 上一步</button>
+        <button onclick="next()">下一步 →</button>
+      </div>
+      <button onclick="doReset()">↺ 重置</button>
+      <div class="speed-row">
+        <button class="sp-btn" onclick="setSpeed(0)" id="sp0">慢</button>
+        <button class="sp-btn active" onclick="setSpeed(1)" id="sp1">中</button>
+        <button class="sp-btn" onclick="setSpeed(2)" id="sp2">快</button>
+        <button class="sp-btn" onclick="setSpeed(3)" id="sp3">极速</button>
+      </div>
+      <div class="step-counter" id="stepCounter">步骤 1/7</div>
+    </div>
+  </div>
+
+  <div class="anim-area">
+    <div class="tab-canvas">
+
+      <!-- Tab 0: Row vs Column IO -->
+      <div id="tab0">
+        <div class="io-wrap">
+          <div style="font-size:0.8rem;color:var(--dim);font-family:monospace;" id="queryText0">
+            查询：SELECT SUM(price) FROM orders（1000万行，每行 4 列：id, price, status, created_at）
+          </div>
+          <div class="storage-compare">
+            <div class="store-box row-store">
+              <div class="store-title">🔴 行存储（Row-Oriented）</div>
+              <div class="row-grid" id="rowGrid"></div>
+              <div id="rowScanInfo" style="font-size:0.72rem;color:var(--dim);margin-top:5px;font-family:monospace;"></div>
+            </div>
+            <div class="store-box col-store">
+              <div class="store-title">🔵 列存储（Column-Oriented）</div>
+              <div class="col-grid" id="colGrid"></div>
+              <div id="colScanInfo" style="font-size:0.72rem;color:var(--dim);margin-top:5px;font-family:monospace;"></div>
+            </div>
+          </div>
+          <div class="io-compare" id="ioCompare" style="display:none">
+            <div class="io-bar-wrap">
+              <div class="io-lbl">行存 IO（需读 4 列）</div>
+              <div class="io-track"><div class="io-fill row-io" id="rowIoFill" style="width:0"><span class="io-val">100%</span></div></div>
+            </div>
+            <div class="io-bar-wrap">
+              <div class="io-lbl">列存 IO（只读 1 列）</div>
+              <div class="io-track"><div class="io-fill col-io" id="colIoFill" style="width:0"><span class="io-val">25%</span></div></div>
+            </div>
+          </div>
+          <div id="ioSummary" style="display:none"></div>
+        </div>
+      </div>
+
+      <!-- Tab 1: Column Compression -->
+      <div id="tab1" style="display:none">
+        <div class="comp-wrap">
+
+          <div class="comp-section" id="rleSection">
+            <div class="comp-title">RLE — Run-Length Encoding（游程编码）</div>
+            <div class="comp-row">
+              <div class="comp-lbl">price 原始</div>
+              <div class="value-pills" id="rleBefore"></div>
+            </div>
+            <div class="arrow-row" id="rleArrow" style="display:none">→ RLE 压缩：</div>
+            <div class="comp-row" id="rleAfterRow" style="display:none">
+              <div class="comp-lbl">RLE 压缩</div>
+              <div class="value-pills" id="rleAfter"></div>
+            </div>
+            <div id="rleRatio" style="display:none;margin-top:5px"></div>
+          </div>
+
+          <div class="comp-section" id="dictSection">
+            <div class="comp-title">字典编码（Dictionary Encoding）— 低基数列</div>
+            <div class="comp-row">
+              <div class="comp-lbl">status 原始</div>
+              <div class="value-pills" id="dictBefore"></div>
+            </div>
+            <div class="arrow-row" id="dictArrow" style="display:none">→ 字典编码：</div>
+            <div class="comp-row" id="dictAfterRow" style="display:none">
+              <div class="comp-lbl">字典</div>
+              <div class="value-pills" id="dictDict"></div>
+            </div>
+            <div class="comp-row" id="dictDataRow" style="display:none">
+              <div class="comp-lbl">编码后</div>
+              <div class="value-pills" id="dictAfter"></div>
+            </div>
+            <div id="dictRatio" style="display:none;margin-top:5px"></div>
+          </div>
+
+          <div class="comp-section" id="deltaSection">
+            <div class="comp-title">Delta 编码 — 有序数字列</div>
+            <div class="comp-row">
+              <div class="comp-lbl">order_id 原始</div>
+              <div class="value-pills" id="deltaBefore"></div>
+            </div>
+            <div class="arrow-row" id="deltaArrow" style="display:none">→ Delta 编码：</div>
+            <div class="comp-row" id="deltaAfterRow" style="display:none">
+              <div class="comp-lbl">Delta 后</div>
+              <div class="value-pills" id="deltaAfter"></div>
+            </div>
+            <div id="deltaRatio" style="display:none;margin-top:5px"></div>
+          </div>
+
+          <div id="compSummary" style="display:none;padding:10px 14px;border:1px solid rgba(74,222,128,0.3);border-radius:8px;background:rgba(74,222,128,0.05);font-size:0.8rem;color:var(--green);font-family:monospace;"></div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Vectorized execution -->
+      <div id="tab2" style="display:none">
+        <div class="vec-wrap">
+          <div class="exec-compare">
+            <div class="exec-box scalar">
+              <div class="exec-title">🔴 标量执行（Volcano 逐行模型）</div>
+              <div style="font-size:0.72rem;color:var(--dim);font-family:monospace;margin-bottom:6px">每次 next() 处理 1 行，for 循环：</div>
+              <div class="iter-row" id="scalarCells"></div>
+              <div style="font-size:0.7rem;color:var(--dim);font-family:monospace;margin-top:6px" id="scalarStatus">—</div>
+            </div>
+            <div class="exec-box vector">
+              <div class="exec-title">🔵 向量化执行（批量 SIMD）</div>
+              <div class="simd-lbl" id="simdLabel">一次处理 8 个值（256-bit AVX2 寄存器）：</div>
+              <div class="simd-block" id="simdCells"></div>
+              <div style="font-size:0.7rem;color:var(--dim);font-family:monospace;margin-top:6px" id="simdStatus">—</div>
+            </div>
+          </div>
+          <div id="perfSection" style="display:none">
+            <div style="font-size:0.75rem;color:var(--dim);font-family:monospace;margin-bottom:8px">过滤 price > 100 — 处理速度对比：</div>
+            <div class="perf-bar-row">
+              <div class="perf-lbl">标量执行</div>
+              <div class="perf-track"><div class="perf-fill s" id="perfScalar" style="width:0"><span class="perf-val">1x</span></div></div>
+            </div>
+            <div class="perf-bar-row">
+              <div class="perf-lbl">向量化 SIMD</div>
+              <div class="perf-track"><div class="perf-fill v" id="perfVector" style="width:0"><span class="perf-val">8x+</span></div></div>
+            </div>
+          </div>
+          <div id="vecSummary" style="display:none"></div>
+        </div>
+      </div>
+
+      <!-- Tab 3: MergeTree -->
+      <div id="tab3" style="display:none">
+        <div class="mt-wrap">
+          <div style="font-size:0.78rem;color:var(--dim);font-family:monospace;">MergeTree：ClickHouse 核心存储引擎，每次 INSERT 生成一个有序 Part，后台定期 Merge。</div>
+          <div class="parts-area" id="partsArea"></div>
+          <div id="mergeArrow" style="display:none;text-align:center;font-size:1.2rem;color:var(--orange)">↕ 后台 Merge 线程</div>
+          <div id="queryPath" style="display:none">
+            <div style="font-size:0.75rem;color:var(--dim);font-family:monospace;margin-bottom:6px">查询时 Primary Key Index 跳过不相关 granule：</div>
+            <div class="query-path-row" id="queryPathRow"></div>
+          </div>
+          <div id="granuleRow" style="display:none">
+            <div style="font-size:0.73rem;color:var(--dim);font-family:monospace;margin-bottom:5px">granule（每 8192 行为一块）扫描状态：</div>
+            <div class="granule-row" id="granules"></div>
+          </div>
+          <div id="problemSection" style="display:none"></div>
+          <div id="mtSummary" style="display:none"></div>
+        </div>
+      </div>
+
+    </div><!-- /tab-canvas -->
+    <div class="desc-box" id="descBox">列式存储将同一列的数据连续存放，OLAP 聚合查询只需读取相关列，IO 减少 10-100 倍。ClickHouse 是高性能列存 OLAP 数据库。</div>
+  </div>
+</div>
+<div class="status-bar" id="statusBar">行存 vs 列存 — 初始状态</div>
+
+<script>
+window.PAGE_CONCEPTS = [
+  { title: '列存储', body: '将同一列所有行的数据连续存储，OLAP 查询时只读取需要的列，大幅降低 IO。', tag: 'OLAP' },
+  { title: 'RLE 压缩', body: '游程编码，将连续重复值折叠为 (值, 次数) 对，对低变化列效果极佳。', tag: '压缩' },
+  { title: '向量化执行', body: '批量处理 1024 行而非逐行迭代，配合 CPU SIMD 指令并行计算，显著提升吞吐。', tag: 'ClickHouse' },
+  { title: 'MergeTree', body: 'ClickHouse 核心存储引擎，INSERT 生成小 Part 后台 Merge，主键索引 + granule 跳过加速查询。', tag: '存储引擎' },
+];
+
+const SPEEDS = [1800, 1100, 600, 300];
+let curTab = 0, cur = 0, playing = false, timer = null, speedIdx = 1;
+
+const TABS = [
+  {
+    name: '行存 vs 列存',
+    steps: [
+      { desc: '列式存储的核心思想：将同一列的所有数据连续存放在磁盘。OLAP 分析查询通常只涉及少数几列，但行存储必须读取整行所有列数据。', action: 'io_reset' },
+      { desc: '行存储布局：每行的 id、price、status、created_at 连续存储。查询 SUM(price) 时，必须扫描所有行的完整数据（包括不需要的列）。', action: 'io_row_layout' },
+      { desc: '行存扫描 SUM(price)：每读 1 个 price 值，就要读取同行其他 3 列（浪费 75% IO）。1000 万行 × 4 列 = 4000 万个 cell 的读取量。', action: 'io_row_scan' },
+      { desc: '列存储布局：price 列所有值连续存放，status 列、created_at 列各自独立连续存放。列之间物理隔离。', action: 'io_col_layout' },
+      { desc: '列存扫描 SUM(price)：只需顺序读取 price 列连续数据块，其他列完全不访问。IO 减少 4x（列数越多，优势越大）。', action: 'io_col_scan' },
+      { desc: 'IO 量对比：宽表（20列）时，列存 IO 约为行存 1/20。加上列压缩（RLE/字典编码），实际差距可达 1/50 ~ 1/100。', action: 'io_compare' },
+      { desc: 'OLAP vs OLTP 选型：OLAP 查询（宽表聚合、少列访问）→ 列存；OLTP 查询（按主键读写整行）→ 行存（InnoDB/PostgreSQL）。', action: 'io_summary' },
+    ]
+  },
+  {
+    name: '列压缩原理',
+    steps: [
+      { desc: '列存储的第二个优势：同一列数据类型相同、值范围相近，压缩效果远好于行存储。常见列压缩：RLE、字典编码、Delta 编码。', action: 'comp_reset' },
+      { desc: 'RLE（游程编码）：price 列 [100,100,101,100,99,100,100] 中重复值多，折叠为 [(100,2),(101,1),(100,1),(99,1),(100,2)]，节省 30-60%。', action: 'comp_rle' },
+      { desc: '字典编码（Dictionary Encoding）：status 列只有 2 个不同值 [active, inactive]，建字典 {0:active, 1:inactive}，原列用 0/1 整数替代，压缩比极高。', action: 'comp_dict' },
+      { desc: 'Delta 编码：有序数字列（order_id: 1001,1002,1003,1004）存差值 [1001,Δ1,Δ1,Δ1]，差值范围小，后续 bit-packing 更高效。', action: 'comp_delta' },
+      { desc: 'Bit-Packing：状态值/字典码只需 1-4 bits，将多个小整数打包进一个 64-bit 字，减少存储空间同时提升 CPU 缓存命中率。', action: 'comp_bitpack' },
+      { desc: 'ClickHouse 综合压缩效果：通用列压缩比 5-20x，加上 LZ4/ZSTD 二次压缩，生产环境原始数据压缩比通常在 10-40x。', action: 'comp_summary' },
+    ]
+  },
+  {
+    name: '向量化执行',
+    steps: [
+      { desc: '向量化执行（Vectorized Execution）是 ClickHouse 高性能的核心：不逐行处理，而是批量处理 1024 行（vector batch），配合 CPU SIMD 指令。', action: 'vec_reset' },
+      { desc: '标量执行（Volcano 模型）：每次 next() 调用返回 1 行，循环 1000 万次。函数调用开销大，CPU 分支预测失败率高。', action: 'vec_scalar' },
+      { desc: '向量化执行：一次 next() 返回 1024 行构成 vector batch，减少 1024x 函数调用开销，数据连续在 CPU L1 缓存中。', action: 'vec_batch' },
+      { desc: 'SIMD 过滤（price > 100）：256-bit AVX2 寄存器同时比较 8 个 float32 值，1 条 CPU 指令完成 8 次比较，吞吐提升 8x。', action: 'vec_simd' },
+      { desc: 'SIMD 聚合（SUM）：8 个通道并行累加，最后水平合并结果。向量化 SUM 比标量循环快 5-10x（消除了循环依赖）。', action: 'vec_agg' },
+      { desc: '综合性能：向量化执行 + SIMD + 列存局部性，ClickHouse 在过滤聚合场景比 Volcano 模型快 20-100x，实测百亿行/秒扫描速度。', action: 'vec_summary' },
+    ]
+  },
+  {
+    name: 'MergeTree 写入',
+    steps: [
+      { desc: 'MergeTree 是 ClickHouse 核心存储引擎。每次 INSERT 批量写入生成一个按主键排序的小 Part（包含列数据文件 + 索引文件）。', action: 'mt_reset' },
+      { desc: 'INSERT 批量写入：建议每次至少写入 10 万行。数据在内存中按主键排序后写出，每列单独存为 .bin 文件，主键索引存为 primary.idx。', action: 'mt_insert' },
+      { desc: '多个 Part 积累：连续写入产生多个小 Part（part_1, part_2, part_3）。每个 Part 内部有序，但多个 Part 之间可以有主键范围重叠。', action: 'mt_parts' },
+      { desc: '后台 Merge：定时将相邻多个小 Part 合并为更大 Part。Merge 过程：多路归并排序 → 去重/聚合（ReplacingMergeTree/AggregatingMergeTree）→ 重建稀疏索引。', action: 'mt_merge' },
+      { desc: '查询时 granule 跳过：主键索引每 8192 行记录一个 mark（稀疏索引）。查询时通过索引定位范围，跳过不相关的 granule，只扫描匹配的数据块。', action: 'mt_query' },
+      { desc: '故障场景：写入速度超过 Merge 速度 → Part 数量超过 300 → 写入被限速（"Too many parts"错误）。监控 parts_to_merge 指标，避免 Part 碎片化。', action: 'mt_problem' },
+    ]
+  },
+];
+
+// ─── Tab 0 ────────────────────────────────────────────────────
+function buildRowGrid() {
+  const g = document.getElementById('rowGrid'); g.innerHTML='';
+  const headers = ['id','price','status','created'];
+  headers.forEach(h=>{
+    const c=document.createElement('div');
+    c.className='cell '+(h==='price'?'price':'other');
+    c.textContent=h; g.appendChild(c);
+  });
+  const rows = [{id:'1',price:'120',status:'active',created:'2024-01'},{id:'2',price:'85',status:'inactive',created:'2024-01'},
+    {id:'3',price:'200',status:'active',created:'2024-01'},{id:'4',price:'45',status:'active',created:'2024-01'},
+    {id:'…',price:'…',status:'…',created:'…'}];
+  rows.forEach(r=>{
+    ['id','price','status','created'].forEach(f=>{
+      const c=document.createElement('div');
+      c.className='cell '+(f==='price'?'price':'other');
+      c.textContent=r[f]; c.id='rc_'+r.id+'_'+f; g.appendChild(c);
+    });
+  });
+}
+function buildColGrid() {
+  const g = document.getElementById('colGrid'); g.innerHTML='';
+  const cols = [{name:'id col',values:['1','2','3','4','…'],type:'other-col'},
+    {name:'price col',values:['120','85','200','45','…'],type:'price-col'},
+    {name:'status col',values:['active','inact','active','active','…'],type:'other-col'},
+    {name:'created col',values:['2024-01','2024-01','2024-01','2024-01','…'],type:'other-col'}];
+  cols.forEach(c=>{
+    const row=document.createElement('div'); row.className='col-strip';
+    const n=document.createElement('div'); n.className='col-name'; n.textContent=c.name; row.appendChild(n);
+    const cells=document.createElement('div'); cells.className='col-cells'; row.appendChild(cells);
+    c.values.forEach(v=>{
+      const el=document.createElement('div'); el.className='col-cell '+c.type;
+      el.textContent=v; cells.appendChild(el);
+    });
+    g.appendChild(row);
+  });
+}
+function applyTab0(action) {
+  const ioComp = document.getElementById('ioCompare');
+  const ioSum = document.getElementById('ioSummary');
+  const rScanInfo = document.getElementById('rowScanInfo');
+  const cScanInfo = document.getElementById('colScanInfo');
+
+  if (action==='io_reset') {
+    buildRowGrid(); buildColGrid();
+    ioComp.style.display='none'; ioSum.style.display='none';
+    rScanInfo.textContent=''; cScanInfo.textContent='';
+    document.querySelectorAll('.cell').forEach(c=>c.classList.remove('scanned'));
+    document.querySelectorAll('.col-cell').forEach(c=>c.classList.remove('active','skip'));
+  }
+  else if (action==='io_row_layout') {
+    buildRowGrid(); buildColGrid(); ioComp.style.display='none'; ioSum.style.display='none';
+    rScanInfo.innerHTML='<span style="color:var(--yellow)">↑ 每行完整数据：id + price + status + created 连续存储</span>';
+    cScanInfo.textContent='';
+  }
+  else if (action==='io_row_scan') {
+    document.querySelectorAll('.cell').forEach(c=>{ if(!c.classList.contains('price')) c.classList.add('scanned'); });
+    rScanInfo.innerHTML='<span style="color:var(--red)">⚠ 读 price 但也扫描了其他 3 列（75% IO 浪费）</span>';
+  }
+  else if (action==='io_col_layout') {
+    document.querySelectorAll('.cell').forEach(c=>c.classList.remove('scanned'));
+    rScanInfo.textContent='';
+    cScanInfo.innerHTML='<span style="color:var(--accent)">↑ 每列独立连续存储，price 列与其他列物理隔离</span>';
+  }
+  else if (action==='io_col_scan') {
+    document.querySelectorAll('.col-cell').forEach(c=>{
+      if(c.classList.contains('price-col')) c.classList.add('active');
+      else c.classList.add('skip');
+    });
+    cScanInfo.innerHTML='<span style="color:var(--green)">✓ 只读 price 列，其他列完全跳过</span>';
+  }
+  else if (action==='io_compare') {
+    ioComp.style.display='flex';
+    setTimeout(()=>{
+      document.getElementById('rowIoFill').style.width='100%';
+      document.getElementById('colIoFill').style.width='25%';
+    }, 100);
+  }
+  else if (action==='io_summary') {
+    ioComp.style.display='flex';
+    document.getElementById('rowIoFill').style.width='100%';
+    document.getElementById('colIoFill').style.width='25%';
+    ioSum.style.display='block';
+    ioSum.innerHTML='<div style="margin-top:6px"><span class="ib b">列数越多优势越大</span><span class="ib g">20 列宽表 → IO 减少 20x</span><span class="ib y">配合压缩 → 实际 50-100x</span></div>';
+  }
+}
+
+// ─── Tab 1 ────────────────────────────────────────────────────
+function mkPill(text, type) {
+  const p=document.createElement('div'); p.className='vpill '+type; p.textContent=text; return p;
+}
+function applyTab1(action) {
+  if (action==='comp_reset') {
+    ['rleBefore','rleAfter','dictBefore','dictDict','dictAfter','deltaBefore','deltaAfter'].forEach(id=>{
+      const el=document.getElementById(id); if(el) el.innerHTML='';
+    });
+    ['rleArrow','rleAfterRow','rleRatio','dictArrow','dictAfterRow','dictDataRow','dictRatio','deltaArrow','deltaAfterRow','deltaRatio','compSummary'].forEach(id=>{
+      const el=document.getElementById(id); if(el) el.style.display='none';
+    });
+    // init raw values
+    const rleB = document.getElementById('rleBefore');
+    [100,100,101,100,99,100,100].forEach(v=>rleB.appendChild(mkPill(v,'raw')));
+    const dictB = document.getElementById('dictBefore');
+    ['active','inactive','active','active','inactive','active'].forEach(v=>dictB.appendChild(mkPill(v,'raw')));
+    const dltB = document.getElementById('deltaBefore');
+    [1001,1002,1003,1004,1005].forEach(v=>dltB.appendChild(mkPill(v,'raw')));
+  }
+  else if (action==='comp_rle') {
+    document.getElementById('rleArrow').style.display='block';
+    document.getElementById('rleAfterRow').style.display='flex';
+    const af=document.getElementById('rleAfter'); af.innerHTML='';
+    ['(100×2)','(101×1)','(100×1)','(99×1)','(100×2)'].forEach(v=>af.appendChild(mkPill(v,'rle')));
+    document.getElementById('rleRatio').style.display='block';
+    document.getElementById('rleRatio').innerHTML='<span class="ratio-tag g">压缩 7 → 5 个记录，节省 28%。连续重复越多效果越好（监控数据常见）</span>';
+  }
+  else if (action==='comp_dict') {
+    document.getElementById('dictArrow').style.display='block';
+    document.getElementById('dictAfterRow').style.display='flex';
+    document.getElementById('dictDataRow').style.display='flex';
+    const dd=document.getElementById('dictDict'); dd.innerHTML='';
+    mkPill('0 → active','dict'), mkPill('1 → inactive','dict');
+    dd.appendChild(mkPill('0 → active','dict')); dd.appendChild(mkPill('1 → inactive','dict'));
+    const da=document.getElementById('dictAfter'); da.innerHTML='';
+    [0,1,0,0,1,0].forEach(v=>da.appendChild(mkPill(v,'dict')));
+    document.getElementById('dictRatio').style.display='block';
+    document.getElementById('dictRatio').innerHTML='<span class="ratio-tag b">字符串 → 整数，基数 2 时每值仅需 1 bit，压缩 8x+</span>';
+  }
+  else if (action==='comp_delta') {
+    document.getElementById('deltaArrow').style.display='block';
+    document.getElementById('deltaAfterRow').style.display='flex';
+    const da=document.getElementById('deltaAfter'); da.innerHTML='';
+    [1001,'Δ1','Δ1','Δ1','Δ1'].forEach(v=>da.appendChild(mkPill(v,'delta')));
+    document.getElementById('deltaRatio').style.display='block';
+    document.getElementById('deltaRatio').innerHTML='<span class="ratio-tag g">差值只需 1 bit，后续 bit-packing 打包为 64-bit 字</span>';
+  }
+  else if (action==='comp_bitpack') {
+    document.getElementById('compSummary').style.display='block';
+    document.getElementById('compSummary').innerHTML='<div style="font-size:0.73rem;color:var(--dim);margin-bottom:5px">Bit-Packing：status 字典码(0/1)每值 1 bit → 64 个值塞入 1 个 64-bit 整数</div>'
+      +'<div style="font-size:0.73rem;color:var(--dim)">价格整数差值 Δ≤15 每值 4 bits → 16 个值塞入 1 个 64-bit 整数</div>';
+  }
+  else if (action==='comp_summary') {
+    document.getElementById('compSummary').style.display='block';
+    document.getElementById('compSummary').innerHTML='<div style="margin-bottom:6px">ClickHouse 综合压缩效果（LZ4 + 列压缩）：</div>'
+      +'<span class="ib g">✓ 列压缩比 5-20x</span><span class="ib b">LZ4 二次压缩 2-4x</span><span class="ib y">生产实测 10-40x</span><span class="ib g">压缩比 = IO 节省 = 查询加速</span>';
+  }
+}
+
+// ─── Tab 2 ────────────────────────────────────────────────────
+const PRICES = [120,95,150,88,203,115,67,180];
+function buildScalarCells(highlightIdx=-1, doneUpTo=-1) {
+  const c = document.getElementById('scalarCells'); c.innerHTML='';
+  PRICES.forEach((v,i)=>{
+    const el=document.createElement('div');
+    const cls = i<doneUpTo?'pass':(i===highlightIdx?'current':'idle');
+    el.className='iter-cell '+cls; el.textContent=v; c.appendChild(el);
+  });
+}
+function buildSimdCells(state='idle') {
+  const c = document.getElementById('simdCells'); c.innerHTML='';
+  PRICES.forEach(v=>{
+    const el=document.createElement('div');
+    const cls = state==='idle'?'idle':state==='active'?'active':(v>100?'pass':'fail');
+    el.className='simd-cell '+cls; el.textContent=v; c.appendChild(el);
+  });
+}
+function applyTab2(action) {
+  const perf = document.getElementById('perfSection');
+  const sum = document.getElementById('vecSummary');
+  if (action==='vec_reset') {
+    buildScalarCells(); buildSimdCells('idle');
+    document.getElementById('scalarStatus').textContent='—';
+    document.getElementById('simdStatus').textContent='—';
+    document.getElementById('simdLabel').textContent='一次处理 8 个值（256-bit AVX2 寄存器）：';
+    perf.style.display='none'; sum.style.display='none';
+  }
+  else if (action==='vec_scalar') {
+    buildScalarCells(0); buildSimdCells('idle');
+    document.getElementById('scalarStatus').textContent='next() #1 → 处理 price=120';
+    document.getElementById('simdStatus').textContent='—';
+    perf.style.display='none';
+  }
+  else if (action==='vec_batch') {
+    buildScalarCells(3,3); buildSimdCells('active');
+    document.getElementById('scalarStatus').textContent='已处理 3 行（3 次 next() 调用）';
+    document.getElementById('simdLabel').textContent='1 次批量 next() → 8 个值同时加载到寄存器：';
+    document.getElementById('simdStatus').textContent='8 个值已加载，等待 SIMD 指令执行...';
+    perf.style.display='none';
+  }
+  else if (action==='vec_simd') {
+    buildScalarCells(4,4); buildSimdCells('filter');
+    document.getElementById('scalarStatus').textContent='第 4 次 next()：price=88，< 100，过滤掉';
+    document.getElementById('simdStatus').textContent='VCMPPS 指令：8 个 price > 100 比较并行完成 ✓';
+    perf.style.display='none';
+  }
+  else if (action==='vec_agg') {
+    buildScalarCells(7,7); buildSimdCells('filter');
+    document.getElementById('scalarStatus').textContent='第 7 次 next()：循环处理中...';
+    document.getElementById('simdStatus').textContent='VADDPS 水平求和：8 通道并行累加 → hadd 合并结果';
+    perf.style.display='block';
+    setTimeout(()=>{
+      document.getElementById('perfScalar').style.width='12%';
+      document.getElementById('perfVector').style.width='96%';
+    }, 100);
+  }
+  else if (action==='vec_summary') {
+    buildSimdCells('filter');
+    perf.style.display='block';
+    document.getElementById('perfScalar').style.width='12%';
+    document.getElementById('perfVector').style.width='96%';
+    sum.style.display='block';
+    sum.innerHTML='<div style="margin-top:8px"><span class="ib b">向量化 vs 标量：8x SIMD + 1024x 批量 = 综合加速 20-100x</span><span class="ib g">ClickHouse 实测：300 亿行/秒 过滤聚合</span></div>';
+  }
+}
+
+// ─── Tab 3 ────────────────────────────────────────────────────
+function mkPart(id, cls, name, rows, size) {
+  const d=document.createElement('div'); d.className='part-block '+cls; d.id='part_'+id;
+  d.innerHTML=`<div class="part-name">${name}</div><div class="part-info">${rows} 行</div><div class="part-info">${size}</div>`;
+  return d;
+}
+function applyTab3(action) {
+  const pa = document.getElementById('partsArea');
+  const ma = document.getElementById('mergeArrow');
+  const qp = document.getElementById('queryPath');
+  const gr = document.getElementById('granuleRow');
+  const ps = document.getElementById('problemSection');
+  const ms = document.getElementById('mtSummary');
+
+  if (action==='mt_reset') {
+    pa.innerHTML='<div style="font-size:0.78rem;color:var(--dim);font-family:monospace;width:100%">等待写入...</div>';
+    ma.style.display='none'; qp.style.display='none'; gr.style.display='none';
+    ps.style.display='none'; ms.style.display='none';
+  }
+  else if (action==='mt_insert') {
+    pa.innerHTML='';
+    pa.appendChild(mkPart(1,'small','20240601_1_1_0','125,000 行','12 MB'));
+    ma.style.display='none'; qp.style.display='none'; gr.style.display='none';
+  }
+  else if (action==='mt_parts') {
+    pa.innerHTML='';
+    pa.appendChild(mkPart(1,'small','20240601_1_1_0','125,000 行','12 MB'));
+    pa.appendChild(mkPart(2,'small','20240601_2_2_0','98,000 行','9 MB'));
+    pa.appendChild(mkPart(3,'small','20240601_3_3_0','210,000 行','20 MB'));
+    ma.style.display='none';
+  }
+  else if (action==='mt_merge') {
+    pa.innerHTML='';
+    const p1=mkPart(1,'merging','20240601_1_1_0','125K','12 MB');
+    const p2=mkPart(2,'merging','20240601_2_2_0','98K','9 MB');
+    const p3=mkPart(3,'merging','20240601_3_3_0','210K','20 MB');
+    pa.appendChild(p1); pa.appendChild(p2); pa.appendChild(p3);
+    ma.style.display='block';
+    setTimeout(()=>{
+      pa.innerHTML='';
+      pa.appendChild(mkPart('m','large','20240601_1_3_1','433,000 行','38 MB'));
+      ma.style.display='none';
+    },1400);
+  }
+  else if (action==='mt_query') {
+    pa.innerHTML='';
+    pa.appendChild(mkPart('m','large','20240601_1_3_1','433,000 行','38 MB'));
+    qp.style.display='block';
+    gr.style.display='block';
+    const row=document.getElementById('queryPathRow'); row.innerHTML='';
+    [
+      {t:'查询 WHERE date=2024-06-01',c:'y'},
+      {t:'→',c:''},
+      {t:'primary.idx 查找范围',c:'s'},
+      {t:'→',c:''},
+      {t:'定位到 granule #12-#15',c:'g'},
+      {t:'→',c:''},
+      {t:'只扫描 4 个 granule',c:'g'},
+    ].forEach(n=>{
+      if(n.c===''){const a=document.createElement('span');a.className='qp-arr';a.textContent=n.t;row.appendChild(a);}
+      else{const nd=document.createElement('div');nd.className='qp-node '+n.c;nd.textContent=n.t;row.appendChild(nd);}
+    });
+    const gc=document.getElementById('granules'); gc.innerHTML='';
+    for(let i=0;i<20;i++){
+      const g=document.createElement('div');
+      g.className='gran '+(i>=12&&i<=15?'scan':'skip');
+      g.textContent='G'+i; gc.appendChild(g);
+    }
+  }
+  else if (action==='mt_problem') {
+    pa.innerHTML='';
+    for(let i=1;i<=12;i++) pa.appendChild(mkPart('p'+i,'problem','part_'+i,Math.floor(Math.random()*100+50)+'K','~10 MB'));
+    ps.style.display='block';
+    ps.innerHTML='<div style="margin-top:6px"><span class="ib r">⚠ Part 数量 > 300 → "Too many parts" 写入限速</span></div>'
+      +'<div style="margin-top:5px;font-size:0.73rem;color:var(--dim);font-family:monospace">原因：INSERT 过于频繁（逐行写入）或 Merge 速度跟不上。</div>'
+      +'<div style="margin-top:4px"><span class="ib y">修复：增大批量写入大小</span><span class="ib b">监控 parts_to_merge</span><span class="ib g">调整 merge_max_block_size</span></div>';
+  }
+}
+
+// ─── Core ─────────────────────────────────────────────────────
+function applyStep() {
+  const tab=TABS[curTab]; const step=tab.steps[cur];
+  document.getElementById('descBox').textContent=step.desc;
+  document.getElementById('stepCounter').textContent=`步骤 ${cur+1}/${tab.steps.length}`;
+  document.getElementById('statusBar').textContent=tab.name+' — '+step.action;
+  if(curTab===0) applyTab0(step.action);
+  else if(curTab===1) applyTab1(step.action);
+  else if(curTab===2) applyTab2(step.action);
+  else if(curTab===3) applyTab3(step.action);
+  renderDots();
+}
+function renderDots(){
+  const steps=TABS[curTab].steps;
+  const c=document.getElementById('stepDots'); c.innerHTML='';
+  steps.forEach((_,i)=>{
+    const d=document.createElement('div');
+    d.className='dot'+(i<cur?' done':'')+(i===cur?' curr':'');
+    d.onclick=()=>{cur=i;applyStep();};
+    c.appendChild(d);
+  });
+}
+function switchTab(t){
+  curTab=t;cur=0;
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',i===t));
+  ['tab0','tab1','tab2','tab3'].forEach((id,i)=>document.getElementById(id).style.display=i===t?'block':'none');
+  stopPlay(); applyStep();
+}
+function next(){if(cur<TABS[curTab].steps.length-1){cur++;applyStep();}}
+function prev(){if(cur>0){cur--;applyStep();}}
+function doReset(){cur=0;stopPlay();applyStep();}
+function setSpeed(i){
+  speedIdx=i;
+  ['sp0','sp1','sp2','sp3'].forEach((id,j)=>document.getElementById(id).classList.toggle('active',j===i));
+  if(playing){stopPlay();startPlay();}
+}
+function startPlay(){
+  if(cur>=TABS[curTab].steps.length-1){cur=0;applyStep();}
+  playing=true; document.getElementById('playBtn').textContent='⏸ 暂停';
+  timer=setInterval(()=>{ if(cur>=TABS[curTab].steps.length-1){stopPlay();return;} cur++;applyStep(); },SPEEDS[speedIdx]);
+}
+function stopPlay(){playing=false;clearInterval(timer);timer=null;document.getElementById('playBtn').textContent='▶ 播放';}
+function togglePlay(){if(playing)stopPlay();else startPlay();}
+
+switchTab(0);
+</script>
+<script src="../footer.js"></script>
+</body>
+</html>

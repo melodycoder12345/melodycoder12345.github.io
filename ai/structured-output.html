@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="LLM 结构化输出：JSON Mode、Function Calling、Constrained Decoding、Pydantic 验证、Schema 设计原则。">
+<link rel="canonical" href="https://melodycoder12345.github.io/ai/structured-output.html">
+<meta property="og:title" content="LLM 结构化输出 — 码海拾贝">
+<meta property="og:description" content="LLM 结构化输出：JSON Mode、Function Calling、Constrained Decoding、Pydantic 验证、Schema 设计原则。">
+<meta property="og:url" content="https://melodycoder12345.github.io/ai/structured-output.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="LLM 结构化输出 — 码海拾贝">
+<meta name="twitter:description" content="LLM 结构化输出：JSON Mode、Function Calling、Constrained Decoding、Pydantic 验证、Schema 设计原则。">
+<title>LLM 结构化输出 - AI</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#a78bfa;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:44px;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:116px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.side-nav a.active{color:var(--accent);background:rgba(167,139,250,.08);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(167,139,250,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(167,139,250,.12);color:var(--accent);border:1px solid rgba(167,139,250,.2);}
+.badge-adv{background:rgba(251,146,60,.12);color:#fb923c;border:1px solid rgba(251,146,60,.2);}
+.badge-warn{background:rgba(248,113,113,.12);color:#f87171;border:1px solid rgba(248,113,113,.2);}
+.badge-green{background:rgba(74,222,128,.12);color:#4ade80;border:1px solid rgba(74,222,128,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+.card-body strong{color:var(--text);}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}.op{color:#ff7b72}
+.flow-row{display:flex;align-items:stretch;gap:0;margin:12px 0;border:1px solid var(--border2);border-radius:10px;overflow:hidden;}
+.flow-cell{flex:1;padding:12px 14px;background:rgba(167,139,250,.04);}
+.flow-cell+.flow-cell{border-left:1px solid var(--border2);}
+.flow-cell .fc-label{font-size:.65rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;}
+.flow-cell .fc-content{font-size:.82rem;color:var(--text);font-weight:600;}
+.flow-cell .fc-sub{font-size:.76rem;color:var(--dim);margin-top:3px;}
+.flow-arrow-col{width:30px;display:flex;align-items:center;justify-content:center;color:var(--dim2);flex-shrink:0;font-size:1.1rem;}
+.tool-call-flow{display:grid;grid-template-columns:1fr 24px 1fr 24px 1fr;align-items:center;gap:0;margin:12px 0;}
+.tc-box{border:1px solid var(--border2);border-radius:10px;padding:14px;background:rgba(167,139,250,.04);}
+.tc-box .tc-title{font-size:.78rem;font-weight:700;color:var(--accent);margin-bottom:8px;}
+.tc-box p{font-size:.76rem;color:var(--dim);line-height:1.6;margin:0;}
+.tc-arrow{text-align:center;color:var(--dim2);font-size:1.2rem;}
+.compare-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;}
+.cmp-card{background:var(--panel2);border:1px solid var(--border2);border-radius:10px;padding:14px;}
+.cmp-card h4{font-size:.82rem;font-weight:700;color:var(--accent);margin-bottom:6px;}
+.cmp-card p{font-size:.78rem;color:var(--dim);line-height:1.6;margin:0;}
+.cmp-card code{font-size:.74rem;}
+.schema-principle{border:1px solid var(--border2);border-radius:10px;padding:14px;margin-bottom:10px;background:rgba(167,139,250,.03);}
+.schema-principle .sp-title{font-size:.84rem;font-weight:700;color:var(--text);margin-bottom:6px;display:flex;align-items:center;gap:8px;}
+.schema-principle .sp-title .tag{font-size:.65rem;padding:2px 7px;border-radius:99px;background:rgba(167,139,250,.12);color:var(--accent);}
+.schema-principle p{font-size:.8rem;color:var(--dim);line-height:1.6;margin:0;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-body{padding:12px 14px;font-size:.82rem;color:var(--dim);line-height:1.7;}
+.highlight-box{background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.2);border-radius:8px;padding:12px 14px;font-size:.82rem;color:#ddd6fe;line-height:1.7;margin-bottom:10px;}
+.good-bad{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:10px 0;}
+.good-col{background:rgba(74,222,128,.04);border:1px solid rgba(74,222,128,.2);border-radius:8px;padding:12px;}
+.bad-col{background:rgba(248,113,113,.04);border:1px solid rgba(248,113,113,.2);border-radius:8px;padding:12px;}
+.good-col .col-hd{font-size:.72rem;font-weight:700;color:#4ade80;margin-bottom:8px;}
+.bad-col .col-hd{font-size:.72rem;font-weight:700;color:#f87171;margin-bottom:8px;}
+.good-col pre,.bad-col pre{margin:0;font-size:.72rem;}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.compare-grid{grid-template-columns:1fr;}.good-bad{grid-template-columns:1fr;}.tool-call-flow{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">📐 LLM 结构化输出</span>
+  <div class="nav-tags">
+    <span class="ntag">json-mode</span>
+    <span class="ntag">function-calling</span>
+    <span class="ntag">constrained-decoding</span>
+    <span class="ntag">pydantic</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <nav class="side-nav">
+    <ul>
+      <li><a href="#problem">问题背景</a></li>
+      <li><a href="#json-mode">JSON Mode</a></li>
+      <li><a href="#function-calling">Function Calling</a></li>
+      <li><a href="#reliability">可靠性技术</a></li>
+      <li><a href="#schema-design">Schema 设计</a></li>
+      <li><a href="#pitfalls">常见误区</a></li>
+    </ul>
+  </nav>
+  <main class="main-content">
+
+    <div class="section" id="problem">
+      <div class="section-title"><div class="title-bar"></div><h2>问题背景</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>自由文本 vs 结构化数据</h3><span class="badge badge-core">[背景]</span></div>
+        <div class="card-body">
+          <p>LLM 默认输出自由文本，对人类阅读友好，但业务系统需要可编程处理的结构化数据。直接用字符串解析 LLM 输出极不可靠：</p>
+          <ul>
+            <li><strong>格式不稳定</strong>：同一个问题每次回答的格式可能不同</li>
+            <li><strong>字段缺失</strong>：模型可能漏掉某些字段</li>
+            <li><strong>类型错误</strong>：将数字返回为字符串，或将布尔值写成 "yes/no"</li>
+            <li><strong>额外文字</strong>：在 JSON 前后添加解释性文字导致解析失败</li>
+          </ul>
+          <div class="highlight-box">
+            结构化输出的目标：让 LLM 输出<strong>机器可直接消费</strong>的数据，无需后处理正则匹配，且具备强类型保证。这是构建可靠 LLM 应用的基础能力。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="json-mode">
+      <div class="section-title"><div class="title-bar"></div><h2>JSON Mode</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>强制输出有效 JSON</h3><span class="badge badge-core">[基础]</span></div>
+        <div class="card-body">
+          <p>OpenAI 的 <code>response_format={"type":"json_object"}</code> 参数强制模型只输出有效的 JSON 字符串，不会有多余的 Markdown 代码块或前置说明文字。</p>
+          <pre><span class="kw">from</span> <span class="pkg">openai</span> <span class="kw">import</span> <span class="id">OpenAI</span>
+<span class="kw">import</span> <span class="pkg">json</span>
+
+<span class="id">client</span> = <span class="id">OpenAI</span>()
+<span class="id">response</span> = <span class="id">client</span>.<span class="id">chat</span>.<span class="id">completions</span>.<span class="fn">create</span>(
+    <span class="id">model</span>=<span class="st">"gpt-4o"</span>,
+    <span class="id">response_format</span>={<span class="st">"type"</span>: <span class="st">"json_object"</span>},
+    <span class="id">messages</span>=[
+        {<span class="st">"role"</span>: <span class="st">"system"</span>, <span class="st">"content"</span>: <span class="st">"返回 JSON 格式，包含 name 和 age 字段"</span>},
+        {<span class="st">"role"</span>: <span class="st">"user"</span>,   <span class="st">"content"</span>: <span class="st">"张三，28岁"</span>}
+    ]
+)
+<span class="id">data</span> = <span class="id">json</span>.<span class="fn">loads</span>(<span class="id">response</span>.<span class="id">choices</span>[<span class="num">0</span>].<span class="id">message</span>.<span class="id">content</span>)
+<span class="cm"># {"name": "张三", "age": 28}</span></pre>
+          <div class="highlight-box">
+            <strong>注意</strong>：JSON Mode 只保证输出是有效的 JSON，不保证字段名称正确、类型符合预期或没有遗漏字段。仍需要 Schema 验证。
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>Structured Output（更强版本）</h3><span class="badge badge-adv">[进阶]</span></div>
+        <div class="card-body">
+          <p>OpenAI 的 Structured Output（<code>response_format={"type":"json_schema"}</code>）在 JSON Mode 基础上进一步约束输出必须符合指定的 JSON Schema，利用 Constrained Decoding 在解码阶段强制执行：</p>
+          <pre><span class="id">response</span> = <span class="id">client</span>.<span class="id">chat</span>.<span class="id">completions</span>.<span class="fn">create</span>(
+    <span class="id">model</span>=<span class="st">"gpt-4o"</span>,
+    <span class="id">response_format</span>={
+        <span class="st">"type"</span>: <span class="st">"json_schema"</span>,
+        <span class="st">"json_schema"</span>: {
+            <span class="st">"name"</span>: <span class="st">"person_info"</span>,
+            <span class="st">"strict"</span>: <span class="kw">True</span>,
+            <span class="st">"schema"</span>: {
+                <span class="st">"type"</span>: <span class="st">"object"</span>,
+                <span class="st">"properties"</span>: {
+                    <span class="st">"name"</span>: {<span class="st">"type"</span>: <span class="st">"string"</span>, <span class="st">"description"</span>: <span class="st">"姓名"</span>},
+                    <span class="st">"age"</span>:  {<span class="st">"type"</span>: <span class="st">"integer"</span>, <span class="st">"description"</span>: <span class="st">"年龄（岁）"</span>}
+                },
+                <span class="st">"required"</span>: [<span class="st">"name"</span>, <span class="st">"age"</span>],
+                <span class="st">"additionalProperties"</span>: <span class="kw">False</span>
+            }
+        }
+    },
+    <span class="id">messages</span>=[...]
+)</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="function-calling">
+      <div class="section-title"><div class="title-bar"></div><h2>Function Calling / Tool Use</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>执行流程</h3><span class="badge badge-core">[核心机制]</span></div>
+        <div class="card-body">
+          <p>Function Calling 是获取结构化输出的另一种机制：模型不是直接输出文本，而是输出「我想调用某个函数，参数是 ...」的结构化请求，由应用层执行后把结果返回给模型。</p>
+          <div class="tool-call-flow">
+            <div class="tc-box">
+              <div class="tc-title">① 定义函数 Schema</div>
+              <p>传入函数名称、参数描述（JSON Schema）、函数用途描述。模型据此决定何时调用。</p>
+            </div>
+            <div class="tc-arrow">→</div>
+            <div class="tc-box">
+              <div class="tc-title">② 模型决策</div>
+              <p>模型判断用户意图，若需要调用工具，返回 <code>tool_calls</code> 而非文本，包含函数名和参数 JSON。</p>
+            </div>
+            <div class="tc-arrow">→</div>
+            <div class="tc-box">
+              <div class="tc-title">③ 应用层执行</div>
+              <p>宿主系统执行函数，将结果以 <code>tool</code> 角色消息返回给模型，模型据此生成最终回复。</p>
+            </div>
+          </div>
+          <pre><span class="cm"># 定义 get_weather 工具</span>
+<span class="id">tools</span> = [{
+    <span class="st">"type"</span>: <span class="st">"function"</span>,
+    <span class="st">"function"</span>: {
+        <span class="st">"name"</span>: <span class="st">"get_weather"</span>,
+        <span class="st">"description"</span>: <span class="st">"获取指定城市的当前天气"</span>,
+        <span class="st">"parameters"</span>: {
+            <span class="st">"type"</span>: <span class="st">"object"</span>,
+            <span class="st">"properties"</span>: {
+                <span class="st">"city"</span>: {<span class="st">"type"</span>: <span class="st">"string"</span>, <span class="st">"description"</span>: <span class="st">"城市名，如 '北京'"</span>},
+                <span class="st">"unit"</span>: {<span class="st">"type"</span>: <span class="st">"string"</span>, <span class="st">"enum"</span>: [<span class="st">"celsius"</span>, <span class="st">"fahrenheit"</span>]}
+            },
+            <span class="st">"required"</span>: [<span class="st">"city"</span>]
+        }
+    }
+}]
+
+<span class="cm"># 第一次调用：模型决定是否调用工具</span>
+<span class="id">response</span> = <span class="id">client</span>.<span class="id">chat</span>.<span class="id">completions</span>.<span class="fn">create</span>(
+    <span class="id">model</span>=<span class="st">"gpt-4o"</span>, <span class="id">tools</span>=<span class="id">tools</span>,
+    <span class="id">messages</span>=[{<span class="st">"role"</span>: <span class="st">"user"</span>, <span class="st">"content"</span>: <span class="st">"北京今天天气怎么样？"</span>}]
+)
+
+<span class="cm"># 模型返回 tool_calls（而非文本）</span>
+<span class="id">tool_call</span> = <span class="id">response</span>.<span class="id">choices</span>[<span class="num">0</span>].<span class="id">message</span>.<span class="id">tool_calls</span>[<span class="num">0</span>]
+<span class="cm"># tool_call.function.name = "get_weather"</span>
+<span class="cm"># tool_call.function.arguments = '{"city": "北京", "unit": "celsius"}'</span>
+
+<span class="cm"># 应用层执行函数，将结果返回给模型</span>
+<span class="id">weather_result</span> = <span class="fn">get_weather</span>(<span class="st">"北京"</span>, <span class="st">"celsius"</span>)
+<span class="id">messages</span>.<span class="fn">append</span>({
+    <span class="st">"role"</span>: <span class="st">"tool"</span>,
+    <span class="st">"tool_call_id"</span>: <span class="id">tool_call</span>.<span class="id">id</span>,
+    <span class="st">"content"</span>: <span class="pkg">json</span>.<span class="fn">dumps</span>(<span class="id">weather_result</span>)
+})</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="reliability">
+      <div class="section-title"><div class="title-bar"></div><h2>结构化输出可靠性技术</h2></div>
+      <div class="compare-grid">
+        <div class="cmp-card">
+          <h4>Constrained Decoding</h4>
+          <p>在解码阶段使用有限状态自动机（FSM）约束每一步 token 的选择，只允许选择符合目标 Schema 的 token。从根本上保证输出合规，无需后处理验证。OpenAI Structured Output、vLLM、llama.cpp 均已内置支持。</p>
+        </div>
+        <div class="cmp-card">
+          <h4>Outlines / Guidance</h4>
+          <p>Python 库，在本地推理时实现 Constrained Decoding。<code>outlines</code> 可以约束输出为 Pydantic 模型、JSON Schema 或正则表达式；<code>guidance</code> 支持更复杂的生成逻辑（条件分支、循环）。适合本地部署场景。</p>
+        </div>
+        <div class="cmp-card">
+          <h4>Instructor 库</h4>
+          <p>封装 OpenAI / Anthropic API，将 Pydantic 模型自动转为函数 Schema，解析失败时自动携带错误信息重试（最多 N 次）。对于远程 API 调用是最实用的方案，代码最简洁。</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>Instructor 完整示例</h3><span class="badge badge-core">[推荐方式]</span></div>
+        <div class="card-body">
+          <pre><span class="kw">import</span> <span class="pkg">instructor</span>
+<span class="kw">from</span> <span class="pkg">openai</span> <span class="kw">import</span> <span class="id">OpenAI</span>
+<span class="kw">from</span> <span class="pkg">pydantic</span> <span class="kw">import</span> <span class="id">BaseModel</span>, <span class="id">Field</span>
+<span class="kw">from</span> <span class="pkg">typing</span> <span class="kw">import</span> <span class="id">Literal</span>
+
+<span class="kw">class</span> <span class="fn">OrderInfo</span>(<span class="id">BaseModel</span>):
+    <span class="id">order_id</span>: <span class="kw">str</span> = <span class="id">Field</span>(<span class="id">description</span>=<span class="st">"订单编号，格式 ORD-XXXXXX"</span>)
+    <span class="id">status</span>: <span class="id">Literal</span>[<span class="st">"pending"</span>, <span class="st">"shipped"</span>, <span class="st">"delivered"</span>, <span class="st">"cancelled"</span>]
+    <span class="id">amount</span>: <span class="kw">float</span> = <span class="id">Field</span>(<span class="id">description</span>=<span class="st">"订单金额（元）"</span>, <span class="id">gt</span>=<span class="num">0</span>)
+    <span class="id">items</span>: <span class="kw">list</span>[<span class="kw">str</span>] = <span class="id">Field</span>(<span class="id">description</span>=<span class="st">"商品名称列表"</span>)
+
+<span class="id">client</span> = <span class="id">instructor</span>.<span class="fn">from_openai</span>(<span class="id">OpenAI</span>())
+
+<span class="id">order</span> = <span class="id">client</span>.<span class="id">chat</span>.<span class="id">completions</span>.<span class="fn">create</span>(
+    <span class="id">model</span>=<span class="st">"gpt-4o"</span>,
+    <span class="id">response_model</span>=<span class="id">OrderInfo</span>,  <span class="cm"># 直接传 Pydantic 模型</span>
+    <span class="id">max_retries</span>=<span class="num">3</span>,              <span class="cm"># 验证失败时自动重试</span>
+    <span class="id">messages</span>=[{<span class="st">"role"</span>: <span class="st">"user"</span>,
+               <span class="st">"content"</span>: <span class="st">"订单 ORD-123456，已发货，共 3 件商品：手机、充电器、耳机，总价 3299 元"</span>}]
+)
+<span class="cm"># order.order_id == "ORD-123456"</span>
+<span class="cm"># order.status == "shipped"</span>
+<span class="cm"># order.amount == 3299.0</span>
+<span class="cm"># order.items == ["手机", "充电器", "耳机"]</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="schema-design">
+      <div class="section-title"><div class="title-bar"></div><h2>Schema 设计原则</h2></div>
+      <div class="schema-principle">
+        <div class="sp-title">字段描述比字段名更重要 <span class="tag">最重要</span></div>
+        <p>模型通过 <code>description</code> 理解字段含义，而非字段名。<code>amount</code> 字段如果没有 description，模型不知道单位是元还是分，是含税还是不含税。始终添加精确的 description，包括单位、取值范围、格式要求。</p>
+      </div>
+      <div class="schema-principle">
+        <div class="sp-title">用 enum 替代 free text <span class="tag">减少幻觉</span></div>
+        <p>当字段是有限取值集合时，用 <code>enum</code> 而非开放 string 类型。这不仅约束了输出，还减少了模型「创造性发挥」产生的错误拼写和同义词问题。</p>
+      </div>
+      <div class="schema-principle">
+        <div class="sp-title">避免嵌套过深 <span class="tag">稳定性</span></div>
+        <p>嵌套超过 3 层的 Schema 会增加模型出错概率。若业务必须有深嵌套，考虑拆成多次调用，每次提取一层。</p>
+      </div>
+      <div class="schema-principle">
+        <div class="sp-title">可选字段的处理 <span class="tag">类型安全</span></div>
+        <p>使用 <code>Optional[T]</code>（Python）或 JSON Schema 的 <code>nullable: true</code> 明确声明可选字段。不要让模型「猜测」应该省略还是填 null，要在 description 中说明「如果信息不存在，返回 null」。</p>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>设计对比示例</h3><span class="badge badge-core">[实践]</span></div>
+        <div class="card-body">
+          <div class="good-bad">
+            <div class="bad-col">
+              <div class="col-hd">❌ 差的 Schema 设计</div>
+              <pre><span class="kw">class</span> <span class="fn">Product</span>(<span class="id">BaseModel</span>):
+    <span class="id">name</span>: <span class="kw">str</span>       <span class="cm"># 没有 description</span>
+    <span class="id">price</span>: <span class="kw">float</span>    <span class="cm"># 单位不明确</span>
+    <span class="id">category</span>: <span class="kw">str</span>  <span class="cm"># 自由文本，幻觉多</span>
+    <span class="id">in_stock</span>: <span class="kw">str</span>  <span class="cm"># 应该是 bool</span></pre>
+            </div>
+            <div class="good-col">
+              <div class="col-hd">✅ 好的 Schema 设计</div>
+              <pre><span class="kw">class</span> <span class="fn">Product</span>(<span class="id">BaseModel</span>):
+    <span class="id">name</span>: <span class="kw">str</span> = <span class="id">Field</span>(
+        <span class="id">description</span>=<span class="st">"产品名称，2-50字"</span>)
+    <span class="id">price_yuan</span>: <span class="kw">float</span> = <span class="id">Field</span>(
+        <span class="id">description</span>=<span class="st">"价格（元，含税）"</span>, <span class="id">gt</span>=<span class="num">0</span>)
+    <span class="id">category</span>: <span class="id">Literal</span>[
+        <span class="st">"electronics"</span>, <span class="st">"clothing"</span>, <span class="st">"food"</span>]
+    <span class="id">in_stock</span>: <span class="kw">bool</span>  <span class="cm"># 明确类型</span></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" id="pitfalls">
+      <div class="section-title"><div class="title-bar"></div><h2>常见误区</h2></div>
+      <div class="pitfall">
+        <div class="pitfall-hd">❌ 误区 1：JSON Mode = Schema 验证</div>
+        <div class="pitfall-body">
+          JSON Mode 只保证输出是语法合法的 JSON（<code>json.loads</code> 不抛异常），并不保证字段完整性、类型正确性或值的合法范围。必须在 JSON 解析后用 Pydantic 或 JSON Schema 验证器进行二次验证，并在验证失败时重试。
+        </div>
+      </div>
+      <div class="pitfall">
+        <div class="pitfall-hd">❌ 误区 2：Function Calling 只能用于「调用工具」</div>
+        <div class="pitfall-body">
+          Function Calling 的本质是「让模型以结构化格式表达意图」，不一定要真正调用外部函数。可以定义一个虚构的 <code>extract_info</code> 函数，专门用来从文本中提取结构化字段——这是 Function Calling 在信息提取任务中的常见用法，与实际工具调用无关。
+        </div>
+      </div>
+      <div class="pitfall">
+        <div class="pitfall-hd">❌ 误区 3：不加 description 靠字段名传达含义</div>
+        <div class="pitfall-body">
+          字段名对模型来说只是一个字符串标识符，含义模糊。<code>ts</code> 是时间戳还是打字稿？<code>amount</code> 是金额还是数量？<code>type</code> 是类型还是打字？所有字段都必须有清晰的 description，这是模型理解 Schema 的主要信息来源。
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+(function() {
+  var links = document.querySelectorAll('.side-nav a');
+  var sections = Array.from(links).map(function(l) {
+    return document.querySelector(l.getAttribute('href'));
+  }).filter(Boolean);
+  function onScroll() {
+    var scrollY = window.scrollY + 140;
+    var current = sections[0];
+    sections.forEach(function(s) { if (s.offsetTop <= scrollY) current = s; });
+    links.forEach(function(l) {
+      l.classList.toggle('active', l.getAttribute('href') === '#' + current.id);
+    });
+  }
+  window.addEventListener('scroll', onScroll, {passive: true});
+  onScroll();
+})();
+</script>
+</body>
+</html>

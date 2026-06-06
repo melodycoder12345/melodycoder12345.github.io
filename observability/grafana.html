@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Grafana 是指标可视化和告警的统一入口，结合 Prometheus 构建 Dashboard、配置 Alerting 规则，经 Alertmanager 路由降噪后送达 Slack/PagerDuty。">
+<link rel="canonical" href="https://melodycoder12345.github.io/observability/grafana.html">
+<meta property="og:title" content="Grafana 与告警体系 — 码海拾贝">
+<meta property="og:description" content="Grafana 是指标可视化和告警的统一入口，结合 Prometheus 构建 Dashboard、配置 Alerting 规则，经 Alertmanager 路由降噪后送达 Slack/PagerDuty。">
+<meta property="og:url" content="https://melodycoder12345.github.io/observability/grafana.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Grafana 与告警体系 — 码海拾贝">
+<meta name="twitter:description" content="Grafana 是指标可视化和告警的统一入口，结合 Prometheus 构建 Dashboard、配置 Alerting 规则，经 Alertmanager 路由降噪后送达 Slack/PagerDuty。">
+<title>Grafana 与告警体系 - 可观测性</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#f472b6;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 20% 0%,color-mix(in srgb,var(--accent) 14%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1160px;margin:0 auto;padding:44px clamp(20px,4vw,58px) 76px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--dim2);margin-bottom:24px}
+.breadcrumb a{color:var(--dim2);text-decoration:none}.breadcrumb a:hover{color:var(--text)}
+.breadcrumb span{color:var(--dim2)}
+.hero{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr);gap:22px;align-items:stretch;margin-bottom:22px}
+.card,.section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.72);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.28)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,3.8rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.map{display:grid;grid-template-columns:1fr;gap:10px}
+.term{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.term strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.term span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+.grid-full{grid-column:1/-1}
+.section h2{font-size:.9rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:13px}
+.section p,.section li{color:var(--dim);font-size:.92rem;line-height:1.85}
+.section ul,.section ol{padding-left:18px;display:flex;flex-direction:column;gap:9px}
+.section p+p{margin-top:10px}
+.section p+ul,.section p+ol,.section ul+p,.section ol+p{margin-top:10px}
+.callout{margin-top:18px;border-left:3px solid var(--accent);padding:13px 15px;background:color-mix(in srgb,var(--accent) 10%,transparent);border-radius:0 12px 12px 0;color:var(--dim);line-height:1.75}
+.callout strong{color:var(--text)}
+.back-row{margin-top:24px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+pre{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.78rem;line-height:1.7;margin:12px 0}
+code{font-family:'JetBrains Mono','Fira Code',monospace;font-size:.82em;color:var(--accent)}
+pre code{color:inherit;font-size:inherit}
+.comment{color:#64748b}
+.kw{color:#f472b6}
+.str{color:#a5f3fc}
+.num{color:#fbbf24}
+.fn{color:#a78bfa}
+.label{color:#6ee7b7}
+.qa-card{border:1px solid rgba(255,255,255,.08);border-radius:14px;margin-bottom:10px;overflow:hidden}
+.qa-q{padding:13px 16px;background:rgba(244,114,182,.06);font-size:.88rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none}
+.qa-q:hover{background:rgba(244,114,182,.10)}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s}
+.qa-card.open .qa-arrow{transform:rotate(90deg)}
+.qa-a{display:none;padding:14px 16px;font-size:.86rem;color:var(--dim);line-height:1.78;border-top:1px solid var(--border)}
+.qa-card.open .qa-a{display:block}
+.pitfall{border:1px solid rgba(255,255,255,.08);border-radius:14px;margin-bottom:14px;overflow:hidden}
+.pitfall-hd{padding:10px 14px;font-size:.82rem;font-weight:700}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171}
+.pitfall-hd.tip{background:rgba(244,114,182,.07);color:#f472b6}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr}
+.pitfall-col{padding:12px 14px}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border)}
+.pitfall-col pre{font-size:.74rem}
+.pitfall-col p{font-size:.8rem;color:var(--dim);line-height:1.6;margin-top:6px}
+.state-flow{display:flex;align-items:center;gap:0;margin:14px 0;flex-wrap:wrap}
+.state-box{border-radius:10px;padding:8px 14px;font-size:.82rem;font-weight:700;white-space:nowrap}
+.state-normal{background:rgba(74,222,128,.12);border:1px solid rgba(74,222,128,.35);color:#4ade80}
+.state-pending{background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.35);color:#fbbf24}
+.state-firing{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.35);color:#f87171}
+.state-resolved{background:rgba(148,163,184,.1);border:1px solid rgba(148,163,184,.25);color:#94a3b8}
+.state-arrow{color:var(--dim2);font-size:.9rem;padding:0 8px}
+.method-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.method-card{border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:14px}
+.method-card h3{font-size:.82rem;font-weight:700;margin-bottom:8px;color:var(--text)}
+.method-card ul{padding-left:14px;display:flex;flex-direction:column;gap:6px}
+.method-card li{font-size:.82rem;color:var(--dim);line-height:1.6}
+.method-card .badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:.72rem;font-family:monospace;margin-bottom:8px}
+.badge-use{background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.3);color:#38bdf8}
+.badge-red{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);color:#f87171}
+.level-table{width:100%;border-collapse:collapse;margin-top:12px;font-size:.84rem}
+.level-table th{text-align:left;padding:8px 12px;border-bottom:1px solid var(--border);color:var(--dim2);font-size:.76rem;text-transform:uppercase;letter-spacing:.06em}
+.level-table td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--dim);vertical-align:top}
+.level-table tr:last-child td{border-bottom:none}
+.level-table td:first-child{font-weight:700;font-family:monospace;white-space:nowrap}
+.td-p0{color:#f87171}
+.td-p1{color:#fbbf24}
+.td-p2{color:#64748b}
+.route-tree{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:16px;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.78rem;line-height:1.9;margin:12px 0}
+.route-tree .route-root{color:#f472b6;font-weight:700}
+.route-tree .route-branch{color:#a78bfa}
+.route-tree .route-leaf{color:#6ee7b7}
+.route-tree .route-cmt{color:#64748b}
+@media(max-width:900px){.hero,.grid,.grid-3,.pitfall-body,.method-grid{grid-template-columns:1fr}.content{padding:30px 16px 58px}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border)}}
+</style>
+</head>
+<body>
+<main class="content" data-page-type="B">
+
+<div class="breadcrumb">
+  <a href="../index.html">首页</a>
+  <span>›</span>
+  <a href="index.html">可观测性</a>
+  <span>›</span>
+  <span>Grafana 与告警体系</span>
+</div>
+
+<section class="hero">
+  <div class="card">
+    <div class="eyebrow">Observability / Grafana / B 类型</div>
+    <h1>Grafana 与告警体系</h1>
+    <p class="summary">Grafana 是指标可视化和告警的统一入口。结合 Prometheus 数据源，构建 Dashboard 监控系统健康度，配置 Alerting 规则触发告警，经 Alertmanager 路由、分组、静默、抑制后送达 Slack/PagerDuty。理解告警的信噪比设计是 SRE 的核心能力。</p>
+    <div class="tags">
+      <span>Dashboard</span><span>Alertmanager</span><span>PromQL</span>
+      <span>USE/RED</span><span>SLO</span><span>Error Budget</span><span>Silence</span>
+    </div>
+    <div class="callout">核心认知：告警不是越多越好，<strong>面向症状而非原因</strong>告警，配合 Runbook 链接，才是高质量 oncall 体系。</div>
+  </div>
+  <div class="card map">
+    <div class="eyebrow">核心术语</div>
+    <div class="term"><strong>Grafana Alerting</strong><span>内置告警引擎，对 PromQL 查询结果求值，驱动 Normal → Pending → Firing 状态机。</span></div>
+    <div class="term"><strong>Alertmanager</strong><span>Prometheus 生态的告警路由中心，负责分组、抑制、静默和多渠道分发。</span></div>
+    <div class="term"><strong>Dashboard Variables</strong><span>参数化面板，通过 $namespace / $service 变量实现一套 Dashboard 复用多个服务。</span></div>
+    <div class="term"><strong>Burn Rate</strong><span>Error Budget 燃烧速率，SLO-based 告警的阈值基础，反映用户实际受损程度。</span></div>
+  </div>
+</section>
+
+<section class="grid">
+
+<article class="section">
+  <h2>为什么需要 Grafana</h2>
+  <p>Prometheus 本身只提供 /graph 查询 UI，功能极为简陋：</p>
+  <ul>
+    <li><strong>无法分享</strong>：每次查询都要手写 PromQL，不能持久化为可分享链接</li>
+    <li><strong>无法组合</strong>：不支持多指标并排对比，也无法在一个视图中展示不同数据源</li>
+    <li><strong>无法下钻</strong>：静态图表，点击无法跳转到相关告警或日志</li>
+  </ul>
+  <p>Grafana 作为统一可视化层，解决了这三个问题：</p>
+  <ul>
+    <li><strong>40+ 数据源</strong>：Prometheus、Loki、Elasticsearch、ClickHouse、CloudWatch、Tempo 等一站接入</li>
+    <li><strong>告警闭环</strong>：从 Dashboard 直接配置告警规则，状态变化可视化</li>
+    <li><strong>团队协作</strong>：Dashboard 版本管理（JSON model）、文件夹权限、Annotation 标注发布事件</li>
+  </ul>
+  <div class="callout">Grafana 不存储数据，它是查询层 + 展示层 + 告警入口的三合一，本身无状态可水平扩展。</div>
+</article>
+
+<article class="section">
+  <h2>Dashboard 分层架构</h2>
+  <p>好的 Dashboard 体系分三层，而不是一个面板堆砌所有指标：</p>
+  <ul>
+    <li><strong>概览层（Overview）</strong>：全服务健康一览，面向 oncall 快速发现异常。每个服务只展示 1-2 个核心指标（Error Rate、P99 Latency），颜色阈值即状态。</li>
+    <li><strong>详情层（Service Detail）</strong>：单个服务的完整 RED/USE 指标，便于初步定位。通过 Variable $service 参数化，一套 Dashboard 复用。</li>
+    <li><strong>诊断层（Debug）</strong>：原始指标 + 内部状态（GC 暂停、连接池、队列深度），供深度排查。正常情况下不需要看。</li>
+  </ul>
+  <div class="callout">层与层之间通过 <strong>Dashboard Link</strong> 和 <strong>Data Link</strong> 互相跳转，点击告警可直达诊断层 + 相关 Loki 日志。</div>
+</article>
+
+<article class="section">
+  <h2>USE 与 RED 方法论</h2>
+  <p>不同资源类型使用不同的指标选取框架：</p>
+  <div class="method-grid">
+    <div class="method-card">
+      <div class="badge badge-use">USE 方法</div>
+      <h3>面向基础设施资源</h3>
+      <ul>
+        <li><strong>U — Utilization</strong>：资源使用率（CPU 70%、磁盘 80%）</li>
+        <li><strong>S — Saturation</strong>：饱和度（等待队列深度、swap 使用量）</li>
+        <li><strong>E — Errors</strong>：错误数（网卡丢包、磁盘 IO error）</li>
+      </ul>
+      <p style="margin-top:8px;font-size:.78rem;color:var(--dim2)">适用：CPU、内存、磁盘、网卡、线程池</p>
+    </div>
+    <div class="method-card">
+      <div class="badge badge-red">RED 方法</div>
+      <h3>面向请求型服务</h3>
+      <ul>
+        <li><strong>R — Rate</strong>：请求速率（QPS / RPS）</li>
+        <li><strong>E — Errors</strong>：错误率（5xx / total）</li>
+        <li><strong>D — Duration</strong>：延迟分布（P50/P95/P99）</li>
+      </ul>
+      <p style="margin-top:8px;font-size:.78rem;color:var(--dim2)">适用：HTTP API、gRPC 服务、消息消费者</p>
+    </div>
+  </div>
+  <div class="callout">RED 是 USE 在请求处理场景的特化。两者结合：服务 RED 异常时，查对应机器/容器的 USE 指标定位根因。</div>
+</article>
+
+<article class="section">
+  <h2>Dashboard Variables 参数化</h2>
+  <p>Variables 让一套 Dashboard 变成模板，避免为每个服务复制维护：</p>
+  <pre><code><span class="comment"># 定义变量：$namespace（来自 label_values 查询）</span>
+<span class="label">变量名：</span>namespace
+<span class="label">类型：</span>Query
+<span class="label">查询：</span>label_values(kube_pod_info, namespace)
+
+<span class="comment"># 定义变量：$service（依赖 $namespace）</span>
+<span class="label">变量名：</span>service
+<span class="label">类型：</span>Query
+<span class="label">查询：</span>label_values(kube_pod_info{namespace="$namespace"}, app)
+
+<span class="comment"># Panel 中 PromQL 使用变量</span>
+sum(rate(http_requests_total{
+    namespace="$namespace",
+    app="$service",
+    status=~"5.."
+}[5m])) by (handler)</code></pre>
+  <ul>
+    <li><strong>Multi-value</strong>：变量可选多个值，PromQL 自动展开为 <code>app=~"svc-a|svc-b"</code></li>
+    <li><strong>All option</strong>：选"全部"时展示所有服务汇总视图</li>
+    <li><strong>Chained variables</strong>：$service 依赖 $namespace，下拉联动过滤</li>
+    <li><strong>时间窗口对齐</strong>：所有 Panel 绑定同一 <code>$__range</code> 变量，避免时间范围不一致导致的误判</li>
+  </ul>
+</article>
+
+<article class="section grid-full">
+  <h2>告警规则与状态机</h2>
+  <p>Grafana Alerting 对 PromQL 表达式周期性求值（默认 1m），结果驱动状态机：</p>
+  <div class="state-flow">
+    <div class="state-box state-normal">Normal</div>
+    <div class="state-arrow">→ 超阈值 →</div>
+    <div class="state-box state-pending">Pending</div>
+    <div class="state-arrow">→ 持续 for 时长 →</div>
+    <div class="state-box state-firing">Firing</div>
+    <div class="state-arrow">→ 恢复正常 →</div>
+    <div class="state-box state-resolved">Resolved</div>
+  </div>
+  <p style="margin-top:12px"><strong>Pending 期</strong>：指标超阈值但 <code>for: 5m</code> 未到，告警不发送通知。避免毛刺（短暂抖动）导致误报。</p>
+  <pre><code><span class="comment"># 告警规则示例（Grafana Alerting / Prometheus rules 格式均支持）</span>
+<span class="kw">groups</span>:
+  - <span class="kw">name</span>: api-slo
+    <span class="kw">rules</span>:
+      <span class="comment"># 错误率超过 1% 告警</span>
+      - <span class="kw">alert</span>: HighErrorRate
+        <span class="kw">expr</span>: |
+          sum(rate(http_requests_total{status=~<span class="str">"5.."</span>}[5m]))
+          /
+          sum(rate(http_requests_total[5m])) > <span class="num">0.01</span>
+        <span class="kw">for</span>: <span class="num">5m</span>       <span class="comment"># Pending 期：避免毛刺误报</span>
+        <span class="kw">labels</span>:
+          <span class="label">severity</span>: critical
+          <span class="label">team</span>: backend
+        <span class="kw">annotations</span>:
+          <span class="label">summary</span>: <span class="str">"{{ $labels.app }} 错误率 {{ $value | humanizePercentage }}"</span>
+          <span class="label">runbook_url</span>: <span class="str">"https://wiki.internal/runbooks/high-error-rate"</span>
+
+      <span class="comment"># P99 延迟超过 500ms</span>
+      - <span class="kw">alert</span>: HighP99Latency
+        <span class="kw">expr</span>: |
+          histogram_quantile(<span class="num">0.99</span>,
+            rate(http_request_duration_seconds_bucket[5m])
+          ) > <span class="num">0.5</span>
+        <span class="kw">for</span>: <span class="num">5m</span>
+        <span class="kw">labels</span>:
+          <span class="label">severity</span>: warning
+          <span class="label">team</span>: backend
+        <span class="kw">annotations</span>:
+          <span class="label">summary</span>: <span class="str">"{{ $labels.app }} P99 延迟 {{ $value | humanizeDuration }}"</span>
+          <span class="label">runbook_url</span>: <span class="str">"https://wiki.internal/runbooks/high-latency"</span>
+
+      <span class="comment"># 基于 Error Budget Burn Rate 的 SLO 告警</span>
+      - <span class="kw">alert</span>: SLOBurnRateCritical
+        <span class="kw">expr</span>: |
+          <span class="comment"># 1h 短窗口 burn rate > 14.4 倍（1h 内耗尽 30d budget）</span>
+          sum(rate(http_requests_total{status=~<span class="str">"5.."</span>}[1h]))
+          /
+          sum(rate(http_requests_total[1h]))
+          > (<span class="num">1</span> - <span class="num">0.999</span>) * <span class="num">14.4</span>
+        <span class="kw">for</span>: <span class="num">2m</span>
+        <span class="kw">labels</span>:
+          <span class="label">severity</span>: page
+          <span class="label">team</span>: backend</code></pre>
+  <p><strong>告警标签（Labels）</strong>作为路由键，Alertmanager 根据 <code>severity</code> 和 <code>team</code> 决定发送给谁、怎么发：</p>
+  <ul>
+    <li><code>severity: critical / warning / page</code>：决定告警等级和响应时效</li>
+    <li><code>team: backend / infra / data</code>：决定路由到哪个值班群组</li>
+    <li><code>env: prod / staging</code>：可在路由规则中过滤，避免 staging 噪声打扰 prod oncall</li>
+  </ul>
+</article>
+
+<article class="section">
+  <h2>Alertmanager 路由与降噪</h2>
+  <p>Alertmanager 接收 Grafana/Prometheus 推送的告警，执行路由、分组、抑制、静默：</p>
+
+  <div class="route-tree">
+<span class="route-cmt"># alertmanager.yml 路由树示意</span>
+<span class="route-root">route:                          # 根路由（兜底）</span>
+  receiver: slack-general
+  group_by: [alertname, cluster]
+  group_wait: 30s               <span class="route-cmt"># 首次通知前等待，聚合同批告警</span>
+  group_interval: 5m            <span class="route-cmt"># 同组新增告警后等待时间</span>
+  repeat_interval: 4h           <span class="route-cmt"># Firing 持续时重复通知间隔</span>
+
+  <span class="route-branch">routes:                         # 子路由（先匹配先生效）</span>
+    - <span class="route-cmt"># P0 立即叫人（PagerDuty）</span>
+      matchers: [severity=~"critical|page"]
+      receiver: pagerduty-prod
+      group_wait: 0s
+      repeat_interval: 1h
+
+    - <span class="route-cmt"># 后端团队警告（Slack #backend-alerts）</span>
+      matchers: [severity=warning, team=backend]
+      receiver: slack-backend
+      group_by: [alertname, app]
+
+    - <span class="route-cmt"># Staging 环境只发日志，不叫人</span>
+      <span class="route-leaf">matchers: [env=staging]
+      receiver: devnull</span>
+  </div>
+
+  <ul>
+    <li><strong>分组（Grouping）</strong>：<code>group_by: [alertname, app]</code> 将同一服务的多条告警合并为一条通知，防止"告警风暴"</li>
+    <li><strong>group_wait</strong>：首次通知前等待窗口，在此期间收到的同组告警合并发送</li>
+    <li><strong>repeat_interval</strong>：告警持续 Firing 时，每隔 4h 再通知一次，防止遗忘</li>
+  </ul>
+</article>
+
+<article class="section">
+  <h2>抑制（Inhibition）与静默（Silence）</h2>
+  <p>两种降噪机制面向不同场景：</p>
+  <pre><code><span class="comment"># Inhibition：集群宕机时，抑制该集群的所有服务告警</span>
+<span class="kw">inhibit_rules</span>:
+  - <span class="kw">source_matchers</span>:   <span class="comment"># 触发抑制的"源告警"</span>
+      - <span class="label">alertname</span> = ClusterDown
+      - <span class="label">severity</span> = critical
+    <span class="kw">target_matchers</span>:   <span class="comment"># 被抑制的"目标告警"</span>
+      - <span class="label">severity</span> =~ <span class="str">"warning|info"</span>
+    <span class="kw">equal</span>: [cluster]   <span class="comment"># 必须是同一集群</span>
+
+<span class="comment"># 效果：当 ClusterDown 触发时，该集群下的 warning/info 全部静音
+# 仅保留 critical 级别告警，避免"集群挂了"带出几十个服务告警</span></code></pre>
+
+  <p><strong>静默（Silence）</strong>：计划维护期间临时关闭特定告警，不修改规则，到期自动恢复：</p>
+  <pre><code><span class="comment"># amtool CLI 创建 Silence（维护窗口 2h）</span>
+amtool silence add \
+  alertname=~<span class="str">".*"</span> \
+  env=prod \
+  cluster=k8s-prod-01 \
+  --duration=<span class="str">"2h"</span> \
+  --comment=<span class="str">"周六凌晨 2 点机房维护"</span> \
+  --author=<span class="str">"ops-team"</span>
+
+<span class="comment"># 查看当前所有 Silence</span>
+amtool silence query
+
+<span class="comment"># 提前结束 Silence</span>
+amtool silence expire &lt;silence-id&gt;</code></pre>
+
+  <div class="callout"><strong>核心区别</strong>：Inhibition 是自动触发（由另一条告警驱动）；Silence 是手动创建（由运维人员在维护前配置）。两者都不删除告警，只是阻止通知发出。</div>
+</article>
+
+<article class="section">
+  <h2>SLO-based 告警：Burn Rate</h2>
+  <p>传统阈值告警（Error Rate &gt; 1%）有根本性缺陷：无法区分"短暂高峰"和"持续劣化"。基于 Error Budget Burn Rate 的告警更接近用户实际受损：</p>
+  <pre><code><span class="comment"># SLO: 99.9% 可用性（30d window）
+# Error Budget = 0.1% * 30d * 24h * 60m = 43.2 分钟</span>
+
+<span class="comment"># Burn Rate = 实际错误消耗速率 / 正常消耗速率
+# Burn Rate = 1 → 恰好在 30d 用完 budget（不告警）
+# Burn Rate = 14.4 → 1h 内消耗 1/30d 的 budget（即 1h 耗尽！）</span>
+
+<span class="comment"># 多窗口告警（Google SRE Book 推荐）：</span>
+<span class="comment"># 快窗口（敏感）：5m Burn Rate > 14.4  → 立刻叫人</span>
+<span class="comment"># 慢窗口（稳健）：1h Burn Rate > 1     → 工单处理</span>
+
+<span class="comment"># 5 分钟快速告警（P0）</span>
+sum(rate(http_requests_total{status=~<span class="str">"5.."</span>}[5m]))
+/ sum(rate(http_requests_total[5m]))
+> (<span class="num">1</span> - <span class="num">0.999</span>) * <span class="num">14.4</span>
+
+<span class="comment"># 1 小时慢速告警（P1）</span>
+sum(rate(http_requests_total{status=~<span class="str">"5.."</span>}[1h]))
+/ sum(rate(http_requests_total[1h]))
+> (<span class="num">1</span> - <span class="num">0.999</span>) * <span class="num">1</span></code></pre>
+  <div class="callout">Burn Rate 告警的优势：<strong>自动适配不同 SLO 级别的服务</strong>，99.9% 和 99.99% 的服务使用相同规则表达式，只需修改 SLO 参数。</div>
+</article>
+
+<article class="section">
+  <h2>告警等级设计</h2>
+  <p>告警不是非 0 即 1，需要分级路由和响应：</p>
+  <table class="level-table">
+    <thead>
+      <tr>
+        <th>等级</th><th>触发条件</th><th>响应要求</th><th>通知渠道</th><th>典型示例</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="td-p0">Page / P0</td>
+        <td>用户正在受损，SLO Burn Rate 超阈值</td>
+        <td>立即（&lt;5min）</td>
+        <td>PagerDuty 电话</td>
+        <td>服务宕机、错误率 &gt;5%</td>
+      </tr>
+      <tr>
+        <td class="td-p1">Ticket / P1</td>
+        <td>用户轻微受损或即将受损</td>
+        <td>当天工作时间</td>
+        <td>Slack 消息</td>
+        <td>P99 延迟升高、磁盘 &gt;85%</td>
+      </tr>
+      <tr>
+        <td class="td-p2">Log / P2</td>
+        <td>潜在风险，暂无用户影响</td>
+        <td>下次 Sprint</td>
+        <td>记录到 Jira/日志</td>
+        <td>连接池使用率 60%、证书 30d 过期</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="callout">Google SRE 原则：<strong>每一次 Page 都应该能人工处理</strong>。如果某条告警长期被忽略或自动恢复，它不应该是 P0。</div>
+</article>
+
+<article class="section grid-full">
+  <h2>面试问答</h2>
+  <div class="qa-card" onclick="toggleQA(this)">
+    <div class="qa-q">Grafana Alerting 和 Prometheus Alertmanager 各负责什么？为何不混淆？<span class="qa-arrow">&#9654;</span></div>
+    <div class="qa-a">Grafana Alerting 是告警规则引擎，负责对 PromQL/Loki 查询周期性求值，维护 Normal/Pending/Firing 状态机，并将 Firing 告警推送到 Alertmanager 或内置通知渠道。Alertmanager 是告警路由中心，负责接收来自 Prometheus/Grafana 的告警，执行分组（合并）、抑制（依赖关系）、静默（维护期），最终路由到 Slack/PagerDuty/Email。职责分离：Alerting = 判断是否告警；Alertmanager = 决定告警怎么发、发给谁。两者都有状态，需要高可用部署（Alertmanager 支持集群模式做 gossip 去重）。</div>
+  </div>
+  <div class="qa-card" onclick="toggleQA(this)">
+    <div class="qa-q">for: 5m 的 Pending 期有什么用，设多长合适？<span class="qa-arrow">&#9654;</span></div>
+    <div class="qa-a">for: 5m 要求指标持续超阈值满 5 分钟才进入 Firing 状态。作用：过滤毛刺（短暂抖动）——如某次 GC 暂停导致 P99 超阈 10 秒，不应该叫醒 oncall。选取原则：比 scrape_interval（通常 15s）和 evaluation_interval（通常 1m）大一个量级；P0 告警用 for: 2m~5m（宁可少报，不要误报夜里叫人）；P1 告警用 for: 10m~15m。注意：Pending 期本身也可触发 "Pending 过久" 的二级告警，用于发现规则遗漏。</div>
+  </div>
+  <div class="qa-card" onclick="toggleQA(this)">
+    <div class="qa-q">Alertmanager 的 group_wait / group_interval / repeat_interval 分别控制什么？<span class="qa-arrow">&#9654;</span></div>
+    <div class="qa-a">group_wait：第一次有告警进入某组时，等待该时间窗口再发送，期间同组新告警合并进来。目的：一次告警风暴不发出 100 条通知。通常 30s。group_interval：同一组已发送过通知后，新增告警再等待的时间。目的：批量追加，不立即打断。通常 5m。repeat_interval：告警持续 Firing 时，每隔多久再通知一次（防止遗忘）。P0 可设 1h，P1 可设 4h~8h。三者组合：收敛告警洪峰（group_wait + group_interval）+ 持续提醒（repeat_interval）。</div>
+  </div>
+  <div class="qa-card" onclick="toggleQA(this)">
+    <div class="qa-q">为什么说"CPU > 80% 就告警"是反模式？<span class="qa-arrow">&#9654;</span></div>
+    <div class="qa-a">原因一：不同规格机器含义不同。8 核机器 CPU 80% 和 64 核机器 CPU 80% 对系统的影响差异巨大。原因二：CPU 高不代表用户受影响。批量任务跑满 CPU 是正常现象，但 HTTP 接口延迟可能仍然正常。正确做法：告警面向症状（P99 延迟升高、Error Rate 上升），CPU 高只是可能的根因，放在 Dashboard 展示而不是主动告警。如果确实需要告警 CPU，应使用相对指标：如 CPU 饱和度（runqueue > 核数 * N），或结合 throttle 时间比例，而非绝对使用率。</div>
+  </div>
+  <div class="qa-card" onclick="toggleQA(this)">
+    <div class="qa-q">如何用 Grafana Variables 实现一个支持多服务钻取的 Dashboard？<span class="qa-arrow">&#9654;</span></div>
+    <div class="qa-a">步骤：1) 创建 $namespace 变量，类型 Query，查询 label_values(kube_pod_info, namespace)；2) 创建 $service 变量，依赖 $namespace，查询 label_values(kube_pod_info{namespace="$namespace"}, app)；3) 所有 Panel PromQL 使用 {namespace="$namespace", app="$service"}；4) 在 Dashboard Settings 中开启 "Multi-value" 让 $service 可多选，PromQL 自动生成 app=~"svc-a|svc-b"；5) 在 Panel 中配置 Data Links，点击折线可跳转到 Loki 日志查询，并携带 $__data.fields.app 作为参数。最终效果：一套 Dashboard 覆盖所有服务，通过下拉快速切换，不需要为每个服务单独维护 Dashboard。</div>
+  </div>
+  <div class="qa-card" onclick="toggleQA(this)">
+    <div class="qa-q">SLO Burn Rate 告警相比固定阈值告警有什么优势？<span class="qa-arrow">&#9654;</span></div>
+    <div class="qa-a">固定阈值（Error Rate > 1%）的问题：1) 低流量时，10 个请求 1 个错误就告警，而实际用户感知轻微；2) 高流量时，1% 错误代表巨大用户影响，但阈值一样。Burn Rate 的优势：1) 与 Error Budget 直接挂钩，Burn Rate = 14.4 意味着按这个速率 1h 就会耗尽 30 天 budget，直接量化影响；2) 自动适配流量波动，高峰期流量大，同样错误率的 Burn Rate 更高，告警更敏感；3) 支持多窗口（5m 快速 + 1h 稳健）组合，减少误报同时保证漏报率低。关键：SLO-based 告警要求你先明确定义 SLO，这是推动团队建立 SLO 文化的好方式。</div>
+  </div>
+</article>
+
+<article class="section grid-full">
+  <h2>常见误区</h2>
+
+  <div class="pitfall">
+    <div class="pitfall-hd bad">误区 1：告警阈值写死绝对值，不同规格机器全部误报</div>
+    <div class="pitfall-body">
+      <div class="pitfall-col">
+        <pre><span class="comment"># 错误：写死绝对阈值</span>
+- alert: HighCPU
+  expr: node_cpu_usage_percent > 80
+  for: 5m
+
+<span class="comment"># 问题：
+# 4核批处理机器：CPU 85% 很正常
+# 32核接口机器：CPU 85% 可能有问题
+# 规格不同，80% 含义完全不同</span></pre>
+        <p><strong>问题</strong>：绝对阈值对不同规格、不同职责的机器含义不同，导致大量误报或漏报。</p>
+      </div>
+      <div class="pitfall-col">
+        <pre><span class="comment"># 正确：面向症状的告警</span>
+- alert: ServiceLatencyHigh
+  expr: |
+    histogram_quantile(0.99,
+      rate(http_request_duration_seconds_bucket[5m])
+    ) > 0.5
+  for: 5m
+
+<span class="comment"># CPU 高放到 Dashboard 观测即可
+# 只有"用户能感知"才值得 Page
+# 诊断 CPU 是 oncall 的事，不是告警的事</span></pre>
+        <p><strong>正确</strong>：告警关注用户可感知的症状（延迟、错误率），CPU 等资源指标放 Dashboard 展示而非主动告警。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pitfall">
+    <div class="pitfall-hd bad">误区 2：for: 0 或无 for，毛刺触发 oncall 半夜电话</div>
+    <div class="pitfall-body">
+      <div class="pitfall-col">
+        <pre><span class="comment"># 错误：无 for 配置（等价于 for: 0）</span>
+- alert: HighErrorRate
+  expr: |
+    rate(errors_total[1m]) > 10
+  <span class="comment"># 没有 for！1 次 scrape 超阈就触发</span>
+
+<span class="comment"># 常见场景：
+# - 部署重启的 1-2 个请求失败
+# - GC 暂停导致的短暂超时
+# - scrape 抖动导致 rate() 计算偏差
+# 结果：夜里 2 点误报叫醒 oncall</span></pre>
+        <p><strong>问题</strong>：无 Pending 期，任何瞬间抖动都会立即触发告警。</p>
+      </div>
+      <div class="pitfall-col">
+        <pre><span class="comment"># 正确：根据告警级别设置合理 for</span>
+- alert: HighErrorRate
+  expr: |
+    rate(errors_total[5m]) > 10
+  for: 5m    <span class="comment"># P0 告警：2~5m</span>
+  labels:
+    severity: critical
+
+- alert: DiskFilling
+  expr: |
+    predict_linear(
+      disk_free_bytes[1h], 4 * 3600
+    ) < 0
+  for: 15m   <span class="comment"># 预测类告警：10~15m</span>
+  labels:
+    severity: warning</pre>
+        <p><strong>正确</strong>：P0 告警设 2~5m，P1 告警设 10~15m，避免瞬间抖动触发夜间 Page。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pitfall">
+    <div class="pitfall-hd bad">误区 3：告警只发通知，不提供 Runbook 链接</div>
+    <div class="pitfall-body">
+      <div class="pitfall-col">
+        <pre><span class="comment"># 错误：告警消息无上下文</span>
+labels:
+  alertname: HighP99Latency
+  severity: critical
+
+annotations:
+  summary: "P99 延迟过高"
+
+<span class="comment"># Slack 消息内容：
+# [FIRING] HighP99Latency
+# "P99 延迟过高"
+#
+# oncall 收到后：
+# → 该怎么查？
+# → 从哪里开始？
+# → 是否需要回滚？</span></pre>
+        <p><strong>问题</strong>：oncall 收到告警无从下手，需要翻历史 Slack 或找人询问，延误恢复时间。</p>
+      </div>
+      <div class="pitfall-col">
+        <pre><span class="comment"># 正确：告警携带完整上下文</span>
+annotations:
+  summary: |
+    {{ $labels.app }} P99={{ $value | humanizeDuration }}
+    (threshold: 500ms, namespace: {{ $labels.namespace }})
+  description: |
+    {{ $labels.app }} 的 P99 延迟持续超过 500ms，
+    可能原因：数据库慢查询、GC 暂停、依赖服务超时。
+  runbook_url: |
+    https://wiki.company.com/runbooks/high-p99-latency
+  dashboard_url: |
+    https://grafana.company.com/d/service-detail?var-app={{ $labels.app }}
+
+<span class="comment"># Runbook 应包含：
+# 1. 诊断步骤（查哪些指标）
+# 2. 常见根因及处理方式
+# 3. 回滚/降级操作流程</span></pre>
+        <p><strong>正确</strong>：每条告警携带动态摘要、可能原因、Runbook 链接和 Dashboard 直链，oncall 打开即可开始排查。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pitfall">
+    <div class="pitfall-hd bad">误区 4：所有人都收告警，等于没有人负责</div>
+    <div class="pitfall-body">
+      <div class="pitfall-col">
+        <pre><span class="comment"># 错误：所有告警广播到同一频道</span>
+receivers:
+  - name: everyone
+    slack_configs:
+      - channel: '#all-alerts'
+
+<span class="comment"># 现象：
+# #all-alerts 每天 200 条告警
+# 大家看一眼："不是我的服务"
+# 没有人 acknowledge
+# 真实问题被噪声淹没</span></pre>
+        <p><strong>问题</strong>：没有"告警主人"机制，接收面越广，响应越差。</p>
+      </div>
+      <div class="pitfall-col">
+        <pre><span class="comment"># 正确：按 team 标签路由 + 轮班表</span>
+route:
+  routes:
+    - matchers: [team=backend]
+      receiver: backend-oncall
+      <span class="comment"># PagerDuty 接 oncall 轮班表</span>
+    - matchers: [team=infra]
+      receiver: infra-oncall
+    - matchers: [team=data]
+      receiver: data-oncall
+
+<span class="comment"># 配套机制：
+# 1. 每条告警有明确 team 标签
+# 2. 轮班表（每周一人 oncall）
+# 3. SLA：P0 5min 响应，P1 2h 响应
+# 4. 未响应升级规则（escalation）</span></pre>
+        <p><strong>正确</strong>：每条告警有明确 team 归属，路由到对应值班人，配合 PagerDuty 升级链。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pitfall">
+    <div class="pitfall-hd tip">最佳实践：告警 Code Review 清单</div>
+    <div class="pitfall-body">
+      <div class="pitfall-col">
+        <pre><span class="comment"># 每条新告警上线前必须回答：</span>
+
+<span class="comment"># 1. 这条告警什么时候触发？</span>
+<span class="comment">#    能描述具体的用户影响场景吗？</span>
+
+<span class="comment"># 2. oncall 收到后应该做什么？</span>
+<span class="comment">#    有 Runbook 链接吗？</span>
+
+<span class="comment"># 3. 告警是否可操作？</span>
+<span class="comment">#    oncall 有权限处理这个问题吗？</span></pre>
+      </div>
+      <div class="pitfall-col">
+        <pre><span class="comment"># 4. for: 多少？是否经过毛刺测试？</span>
+<span class="comment">#    在 staging 环境验证过不误报吗？</span>
+
+<span class="comment"># 5. 告警等级是否匹配严重程度？</span>
+<span class="comment">#    P0 一定是"现在必须处理"吗？</span>
+
+<span class="comment"># 6. 是否和已有告警重复或矛盾？</span>
+<span class="comment">#    是否需要配置 Inhibition？</span>
+
+<span class="comment"># 7. 谁 own 这条告警？</span>
+<span class="comment">#    team 标签是否正确配置？</span></pre>
+      </div>
+    </div>
+  </div>
+</article>
+
+</section>
+
+<div class="back-row">
+  <a class="btn" href="index.html">← 可观测性</a>
+  <a class="btn" href="prometheus.html">Prometheus</a>
+  <a class="btn" href="slo.html">SLO / Error Budget</a>
+  <a class="btn" href="tracing.html">链路追踪</a>
+</div>
+</main>
+<script>function toggleQA(el){el.classList.toggle('open')}</script>
+</body>
+</html>

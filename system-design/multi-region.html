@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="多活与异地容灾：同城双活、跨区复制延迟、故障切换、脑裂仲裁。RPO/RTO 指标与 GSLB 流量调度动画演示。">
+<link rel="canonical" href="https://melodycoder12345.github.io/system-design/multi-region.html">
+<meta property="og:title" content="多活与异地容灾 — 码海拾贝">
+<meta property="og:description" content="多活与异地容灾：同城双活、跨区复制延迟、故障切换、脑裂仲裁。RPO/RTO 指标。">
+<meta property="og:url" content="https://melodycoder12345.github.io/system-design/multi-region.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="多活与异地容灾 — 码海拾贝">
+<meta name="twitter:description" content="多活与异地容灾：双活、跨区复制延迟、故障切换、脑裂仲裁。RPO/RTO 指标。">
+<title>多活与异地容灾 - 系统设计</title>
+<script src="../nav.js"></script>
+<style>
+:root{
+  --bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;
+  --text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;
+  --accent:#f59e0b;--blue:#38bdf8;--green:#4ade80;--red:#f87171;--purple:#c084fc;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;overflow:hidden}
+.layout{display:grid;grid-template-columns:260px 1fr 340px;height:calc(100vh - 44px)}
+.steps-panel{background:rgba(17,24,39,.92);border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;overflow:hidden}
+.sp-head{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,.06)}
+.sp-eyebrow{font-size:.65rem;color:var(--accent);text-transform:uppercase;letter-spacing:.14em;font-weight:700;margin-bottom:6px}
+.sp-title{font-size:1rem;font-weight:700;margin-bottom:4px}
+.sp-sub{font-size:.72rem;color:var(--dim);line-height:1.5}
+.scene-tabs{display:flex;flex-direction:column;gap:4px;padding:12px 10px;border-bottom:1px solid rgba(255,255,255,.06)}
+.scene-tab{padding:8px 12px;border-radius:8px;font-size:.78rem;cursor:pointer;border:1px solid transparent;color:var(--dim);transition:all .15s;text-align:left;background:none}
+.scene-tab.active{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.3);color:#fde68a}
+.scene-tab:hover:not(.active){background:rgba(255,255,255,.04);color:var(--text)}
+.dot-nav{display:flex;gap:7px;align-items:center;padding:12px 16px;flex-wrap:wrap}
+.dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.15);cursor:pointer;transition:all .15s;flex-shrink:0}
+.dot.active{background:var(--accent);transform:scale(1.3)}
+.dot.done{background:rgba(245,158,11,.4)}
+.controls{display:flex;gap:8px;padding:10px 16px 14px;border-top:1px solid rgba(255,255,255,.06);margin-top:auto}
+.ctrl-btn{flex:1;padding:7px 0;border-radius:7px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--text);font-size:.78rem;cursor:pointer;transition:all .15s;font-family:inherit}
+.ctrl-btn:hover{background:rgba(255,255,255,.1)}
+.ctrl-btn.play{background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.35);color:#fde68a}
+.ctrl-btn.play:hover{background:rgba(245,158,11,.25)}
+.viz-panel{display:flex;flex-direction:column;overflow:hidden;background:rgba(13,17,23,.6)}
+.viz-canvas{flex:1;position:relative;overflow:hidden}
+svg.arch{width:100%;height:100%}
+.step-desc{padding:14px 20px;border-top:1px solid rgba(255,255,255,.06);background:rgba(17,24,39,.8);min-height:72px}
+.step-desc .sd-label{font-size:.65rem;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px}
+.step-desc .sd-text{font-size:.84rem;color:var(--text);line-height:1.6}
+.detail-panel{background:rgba(17,24,39,.92);border-left:1px solid rgba(255,255,255,.07);overflow-y:auto;padding:18px 16px}
+.dp-section{margin-bottom:22px}
+.dp-title{font-size:.68rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:10px;padding-bottom:7px;border-bottom:1px solid rgba(255,255,255,.06)}
+.dp-block{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:12px 14px;margin-bottom:8px}
+.dp-block h4{font-size:.82rem;font-weight:700;margin-bottom:6px;color:var(--text)}
+.dp-block p{font-size:.77rem;color:var(--dim);line-height:1.6}
+.dp-block code{font-size:.74rem;background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;font-family:monospace;color:#fbbf24}
+.highlight-note{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:10px 12px;font-size:.78rem;color:#fde68a;line-height:1.6;margin-bottom:8px}
+.warn-note{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);border-radius:8px;padding:10px 12px;font-size:.78rem;color:#fca5a5;line-height:1.6;margin-bottom:8px}
+@media(max-width:1000px){body{overflow:auto}.layout{grid-template-columns:1fr;height:auto}.viz-panel{height:480px}.steps-panel,.detail-panel{height:auto;overflow:visible}}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="steps-panel">
+    <div class="sp-head">
+      <div class="sp-eyebrow">System Design</div>
+      <div class="sp-title">多活与异地容灾</div>
+      <div class="sp-sub">GSLB · 跨区复制 · RPO/RTO · 脑裂</div>
+    </div>
+    <div class="scene-tabs" id="sceneTabs">
+      <button class="scene-tab active" data-scene="0">🌍 正常双活</button>
+      <button class="scene-tab" data-scene="1">⏱️ 跨区同步延迟</button>
+      <button class="scene-tab" data-scene="2">🚨 故障切换</button>
+      <button class="scene-tab" data-scene="3">🔀 脑裂仲裁</button>
+    </div>
+    <div class="dot-nav" id="dotNav"></div>
+    <div class="controls">
+      <button class="ctrl-btn" id="btnPrev">◀ 上一步</button>
+      <button class="ctrl-btn play" id="btnPlay">▶ 播放</button>
+      <button class="ctrl-btn" id="btnNext">下一步 ▶</button>
+    </div>
+  </aside>
+
+  <div class="viz-panel">
+    <div class="viz-canvas" id="vizCanvas">
+      <svg class="arch" id="archSvg" viewBox="0 0 680 490" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <div class="step-desc" id="stepDesc">
+      <div class="sd-label">步骤说明</div>
+      <div class="sd-text" id="sdText">选择容灾场景，点击播放观察多活与故障切换流程。</div>
+    </div>
+  </div>
+
+  <aside class="detail-panel">
+    <div class="dp-section">
+      <div class="dp-title">核心概念</div>
+      <div class="dp-block">
+        <h4>RPO（恢复点目标）</h4>
+        <p>故障发生时能容忍丢失多少数据。RPO=0 意味着不允许丢任何数据（需要同步复制）；RPO=5min 意味着允许丢失最近 5 分钟的数据（异步复制可接受）。</p>
+      </div>
+      <div class="dp-block">
+        <h4>RTO（恢复时间目标）</h4>
+        <p>从故障发生到服务恢复的时间。RTO=30s 意味着故障后 30 秒内必须完成切换并恢复服务。RTO 越低，切换机制越复杂，成本越高。</p>
+      </div>
+      <div class="dp-block">
+        <h4>同城双活 vs 异地多活</h4>
+        <p><strong>同城双活</strong>：延迟低（1-5ms），同步复制 RPO=0 可行，切换简单。<br><strong>异地多活</strong>：跨区延迟 10-200ms，通常只能异步复制（RPO > 0），需要解决数据一致性问题。</p>
+      </div>
+    </div>
+    <div class="dp-section">
+      <div class="dp-title">流量调度</div>
+      <div class="dp-block">
+        <h4>GSLB（全局负载均衡）</h4>
+        <p>基于 DNS 或 Anycast 的全局流量调度。根据用户 IP 地理位置、延迟探测、健康检查结果，将用户路由到最近/最健康的 Region。故障时修改 DNS 解析实现流量切换（TTL 影响生效时间）。</p>
+      </div>
+      <div class="highlight-note">DNS TTL 与切换速度：TTL=60s 时，DNS 变更最多需要 60s 才能全部生效。生产环境通常设置 TTL=30-60s，在故障前提前降低 TTL 是容灾演练的重要步骤。</div>
+    </div>
+    <div class="dp-section">
+      <div class="dp-title">数据一致性挑战</div>
+      <div class="dp-block">
+        <h4>写入冲突处理</h4>
+        <p>异地多活的最大挑战：两个 Region 同时接受写入，同一数据可能被并发修改。常见策略：<strong>单 Region 写</strong>（牺牲部分可用性）、<strong>CRDT</strong>（设计可合并的数据结构）、<strong>最后写入胜</strong>（牺牲一致性）。</p>
+      </div>
+      <div class="warn-note">简单地「两个 Region 都接受任意写入」会导致不可调和的冲突，必须在架构设计时就确定冲突解决策略。</div>
+    </div>
+  </aside>
+</div>
+
+<script>
+(function(){
+'use strict';
+const NS='http://www.w3.org/2000/svg';
+const svg=document.getElementById('archSvg');
+
+function hex(h,a){const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16);return `rgba(${r},${g},${b},${a})`;}
+
+function mkGrid(){
+  svg.innerHTML='';
+  const defs=document.createElementNS(NS,'defs');
+  const pat=document.createElementNS(NS,'pattern');pat.setAttribute('id','grid');pat.setAttribute('width','32');pat.setAttribute('height','32');pat.setAttribute('patternUnits','userSpaceOnUse');
+  const pl=document.createElementNS(NS,'path');pl.setAttribute('d','M 32 0 L 0 0 0 32');pl.setAttribute('fill','none');pl.setAttribute('stroke','rgba(255,255,255,.03)');pl.setAttribute('stroke-width','0.5');
+  pat.appendChild(pl);defs.appendChild(pat);svg.appendChild(defs);
+  const bg=document.createElementNS(NS,'rect');bg.setAttribute('width','680');bg.setAttribute('height','490');bg.setAttribute('fill','url(#grid)');svg.appendChild(bg);
+}
+
+function box(x,y,w,h,color,label,sub){
+  const g=document.createElementNS(NS,'g');
+  const r=document.createElementNS(NS,'rect');r.setAttribute('x',x);r.setAttribute('y',y);r.setAttribute('width',w);r.setAttribute('height',h);r.setAttribute('rx','10');r.setAttribute('fill',hex(color,.1));r.setAttribute('stroke',color);r.setAttribute('stroke-width','1.5');g.appendChild(r);
+  const t=document.createElementNS(NS,'text');t.setAttribute('x',x+w/2);t.setAttribute('y',y+h/2-(sub?6:0));t.setAttribute('text-anchor','middle');t.setAttribute('font-size','12');t.setAttribute('font-weight','700');t.setAttribute('fill',color);t.textContent=label;g.appendChild(t);
+  if(sub){const s=document.createElementNS(NS,'text');s.setAttribute('x',x+w/2);s.setAttribute('y',y+h/2+10);s.setAttribute('text-anchor','middle');s.setAttribute('font-size','10');s.setAttribute('fill','#64748b');s.textContent=sub;g.appendChild(s);}
+  svg.appendChild(g);return g;
+}
+
+function txt(x,y,content,color,size,anchor){
+  const t=document.createElementNS(NS,'text');t.setAttribute('x',x);t.setAttribute('y',y);t.setAttribute('text-anchor',anchor||'middle');t.setAttribute('font-size',size||12);t.setAttribute('fill',color||'#94a3b8');t.textContent=content;svg.appendChild(t);return t;
+}
+
+function arrow(x1,y1,x2,y2,color,dashed){
+  const mid='m'+Math.random().toString(36).slice(2);
+  const defs=document.createElementNS(NS,'defs');
+  const mk=document.createElementNS(NS,'marker');mk.setAttribute('id',mid);mk.setAttribute('viewBox','0 0 10 10');mk.setAttribute('refX','9');mk.setAttribute('refY','5');mk.setAttribute('markerWidth','6');mk.setAttribute('markerHeight','6');mk.setAttribute('orient','auto');
+  const mp=document.createElementNS(NS,'path');mp.setAttribute('d','M 0 0 L 10 5 L 0 10 z');mp.setAttribute('fill',color);mk.appendChild(mp);defs.appendChild(mk);svg.appendChild(defs);
+  const l=document.createElementNS(NS,'line');l.setAttribute('x1',x1);l.setAttribute('y1',y1);l.setAttribute('x2',x2);l.setAttribute('y2',y2);l.setAttribute('stroke',color);l.setAttribute('stroke-width','2');if(dashed)l.setAttribute('stroke-dasharray','7 4');l.setAttribute('marker-end','url(#'+mid+')');svg.appendChild(l);
+}
+
+function rect2(x,y,w,h,fill,stroke,rx){
+  const r=document.createElementNS(NS,'rect');r.setAttribute('x',x);r.setAttribute('y',y);r.setAttribute('width',w);r.setAttribute('height',h);r.setAttribute('rx',rx||6);r.setAttribute('fill',fill);r.setAttribute('stroke',stroke||'none');svg.appendChild(r);
+}
+
+function msgLabel(x,y,text,color){
+  rect2(x-4,y-14,text.length*7.2+8,20,hex(color,.12),color,4);
+  txt(x+text.length*3.6,y-1,text,color,10);
+}
+
+// ===== 场景1: 正常双活 =====
+const normalSteps=[
+  {desc:'双活架构初始状态：Region A（上海）和 Region B（北京）同时运行，各有独立的计算层和数据库层。两个 Region 通过专线互联，实时同步数据。GSLB 负责全局流量调度。',
+   draw:()=>{
+    box(260,30,160,45,'#f59e0b','GSLB','全局负载均衡');
+    box(40,130,270,280,'#38bdf8','','');
+    txt(175,125,'Region A（上海）','#38bdf8',12);
+    box(60,150,230,80,'#38bdf8','App Servers','10台实例');
+    box(60,260,230,80,'#38bdf8','Database A','主库');
+    box(370,130,270,280,'#4ade80','','');
+    txt(505,125,'Region B（北京）','#4ade80',12);
+    box(390,150,230,80,'#4ade80','App Servers','10台实例');
+    box(390,260,230,80,'#4ade80','Database B','主库（双向同步）');
+    arrow(175,260,175,375,'#38bdf8',true);
+    arrow(505,260,505,375,'#4ade80',true);
+    arrow(290,300,390,300,'#f59e0b',true);
+    txt(340,290,'双向复制专线','#f59e0b',10);
+    txt(340,450,'两个 Region 同时接受流量，任意一个故障服务不中断','#64748b',11);
+   }},
+  {desc:'用户流量路由：上海/华东用户通过 GSLB 就近路由到 Region A，延迟约 20ms。北京/华北用户路由到 Region B，延迟约 15ms。GSLB 基于用户 IP 地理位置做路由决策。',
+   draw:()=>{
+    box(260,30,160,45,'#f59e0b','GSLB','就近路由');
+    box(50,130,130,45,'#94a3b8','上海用户','华东');
+    box(500,130,130,45,'#94a3b8','北京用户','华北');
+    arrow(115,175,270,55,'#38bdf8');
+    arrow(565,175,430,55,'#4ade80');
+    msgLabel(160,115,'latency ~20ms','#38bdf8');
+    msgLabel(440,115,'latency ~15ms','#4ade80');
+    box(60,230,240,80,'#38bdf8','Region A（上海）','App + DB');
+    box(380,230,240,80,'#4ade80','Region B（北京）','App + DB');
+    arrow(260,54,380,230,'#f59e0b',true);
+    arrow(380,54,380,230,'#4ade80');
+    arrow(260,54,260,230,'#38bdf8');
+    txt(340,390,'GSLB 路由策略：地理位置优先，延迟兜底，健康检查失效时切换','#64748b',11);
+   }},
+  {desc:'跨 Region 数据同步：Region A 的写入通过 CDC（Change Data Capture）或 binlog 复制到 Region B，反之亦然。异地延迟通常为 30-100ms，数据存在短暂不一致窗口（最终一致性）。',
+   draw:()=>{
+    box(40,50,280,200,'#38bdf8','Region A','上海');
+    box(60,75,240,60,'#38bdf8','Database A','写入: order_id=123');
+    box(60,155,240,60,'#38bdf8','CDC / binlog','变更捕获');
+    box(360,50,280,200,'#4ade80','Region B','北京');
+    box(380,75,240,60,'#4ade80','Database B','同步延迟: 50ms');
+    box(380,155,240,60,'#4ade80','Replication','接收复制流');
+    arrow(175,155,175,215,'#38bdf8');
+    arrow(505,155,505,215,'#4ade80');
+    arrow(300,215,360,215,'#f59e0b');
+    msgLabel(310,195,'binlog stream（50ms）','#f59e0b');
+    rect2(40,290,600,100,hex('#f59e0b',.06),'#f59e0b',8);
+    txt(340,315,'最终一致性窗口：写入 A → 最多 100ms 后 B 才能读到','#fde68a',11);
+    txt(340,335,'同城双活（<5ms）：可接受同步复制 RPO=0','#a7f3d0',10);
+    txt(340,355,'异地多活（50-200ms）：通常选择异步复制 RPO>0','#f59e0b',10);
+    txt(340,375,'冲突处理：通常限制同一用户数据只写一个 Region（流量亲和）','#94a3b8',10);
+   }},
+];
+
+// ===== 场景2: 跨区同步延迟 =====
+const lagSteps=[
+  {desc:'场景：用户小明在 Region A（上海）完成了一笔下单写入，订单 ID=ORDER-789 被写入 Database A。与此同时，binlog 开始向 Region B 传输。',
+   draw:()=>{
+    box(40,50,280,170,'#38bdf8','Region A（上海）','写入成功');
+    rect2(60,80,240,60,hex('#38bdf8',.12),'#38bdf8',8);
+    txt(180,105,'INSERT order_id=ORDER-789','#7dd3fc',10);
+    txt(180,120,'user_id=xiaoming, amount=299','#64748b',9);
+    txt(180,135,'写入时间 T=0','#38bdf8',10);
+    box(360,50,280,170,'#4ade80','Region B（北京）','同步中...');
+    rect2(380,80,240,60,hex('#94a3b8',.06),'#334155',8);
+    txt(500,115,'ORDER-789 尚未到达','#64748b',10);
+    txt(500,130,'（正在传输中）','#64748b',9);
+    arrow(180,200,180,240,'#38bdf8');
+    rect2(60,240,240,40,hex('#f59e0b',.1),'#f59e0b',6);
+    txt(180,265,'binlog 开始传输到 B','#fde68a',10);
+    arrow(295,260,365,260,'#f59e0b');
+    txt(340,380,'跨区延迟：上海→北京专线 ~50ms','#64748b',11);
+   }},
+  {desc:'传输进行中（T = 0 ~ 50ms）：binlog 正在网络传输途中。此时小明恰好访问了 Region B（北京）的节点（可能是请求被路由到 B，或小明有北京的网络入口）。',
+   draw:()=>{
+    box(40,50,280,170,'#38bdf8','Region A（上海）','T=0: 写入完成');
+    txt(180,105,'ORDER-789: 已提交','#4ade80',11);
+    box(360,50,280,170,'#4ade80','Region B（北京）','T=25ms: 传输中');
+    txt(500,105,'ORDER-789: 不存在','#f87171',11);
+    txt(500,120,'（binlog 还在路上）','#64748b',9);
+    const mid='t'+Date.now();
+    const defs=document.createElementNS(NS,'defs');
+    const mk=document.createElementNS(NS,'marker');mk.setAttribute('id',mid);mk.setAttribute('viewBox','0 0 10 10');mk.setAttribute('refX','9');mk.setAttribute('refY','5');mk.setAttribute('markerWidth','6');mk.setAttribute('markerHeight','6');mk.setAttribute('orient','auto');
+    const mp=document.createElementNS(NS,'path');mp.setAttribute('d','M 0 0 L 10 5 L 0 10 z');mp.setAttribute('fill','#f59e0b');mk.appendChild(mp);defs.appendChild(mk);svg.appendChild(defs);
+    const l=document.createElementNS(NS,'line');l.setAttribute('x1','320');l.setAttribute('y1','135');l.setAttribute('x2','395');l.setAttribute('y2','135');l.setAttribute('stroke','#f59e0b');l.setAttribute('stroke-width','3');l.setAttribute('marker-end','url(#'+mid+')');svg.appendChild(l);
+    rect2(315,120,80,24,hex('#f59e0b',.1),'none',0);
+    txt(355,133,'25ms...','#fde68a',9);
+    box(430,260,200,60,'#94a3b8','小明','北京节点访问');
+    arrow(500,260,500,225,'#f87171');
+    msgLabel(520,235,'GET /order/ORDER-789','#f87171');
+    rect2(360,340,280,60,hex('#f87171',.08),'#f87171',8);
+    txt(500,365,'响应：404 或旧数据','#f87171',11);
+    txt(500,380,'不一致窗口（0~50ms）','#f87171',10);
+   }},
+  {desc:'T = 50ms，binlog 到达 Region B，ORDER-789 被写入 Database B。此后小明在 B 再次查询，可以读到正确数据。不一致窗口已关闭。',
+   draw:()=>{
+    box(40,50,280,150,'#38bdf8','Region A（上海）','T=50ms');
+    txt(180,105,'ORDER-789: 存在','#4ade80',11);
+    box(360,50,280,150,'#4ade80','Region B（北京）','T=50ms: 同步完成');
+    txt(500,105,'ORDER-789: 已同步 ✓','#4ade80',11);
+    arrow(320,125,360,125,'#4ade80');
+    msgLabel(310,110,'复制完成','#4ade80');
+    box(430,260,200,60,'#94a3b8','小明','再次查询');
+    arrow(500,260,500,205,'#4ade80');
+    msgLabel(520,230,'200 OK: ORDER-789','#4ade80');
+    rect2(40,360,600,80,hex('#4ade80',.06),'#4ade80',8);
+    txt(340,385,'不一致窗口 = 跨区复制延迟（通常 30-200ms）','#4ade80',11);
+    txt(340,403,'解决方案：读自己写（Read-your-writes）—— 写入后的查询路由到同一 Region','#a7f3d0',10);
+    txt(340,421,'或：通过 Token/Version 标记让客户端感知数据新鲜度','#94a3b8',10);
+   }},
+];
+
+// ===== 场景3: 故障切换 =====
+const failoverSteps=[
+  {desc:'正常状态：Region A（上海）和 Region B（北京）同时服务。GSLB 定期向两个 Region 发送健康检查探针（HTTP/TCP，每 5s 一次）。',
+   draw:()=>{
+    box(260,30,160,45,'#f59e0b','GSLB','健康检查');
+    box(40,140,270,160,'#38bdf8','Region A（上海）','正常运行');
+    box(380,140,270,160,'#4ade80','Region B（北京）','正常运行');
+    arrow(340,75,175,140,'#4ade80',true);
+    arrow(340,75,515,140,'#4ade80',true);
+    txt(155,125,'健康 ✓','#4ade80',10);
+    txt(525,125,'健康 ✓','#4ade80',10);
+    rect2(40,330,600,50,hex('#f59e0b',.06),'#f59e0b',8);
+    txt(340,350,'GSLB 探针：每5s检查，连续3次失败才判定不健康（避免误切）','#fde68a',11);
+    txt(340,365,'（连续3次=15s 检测窗口）','#64748b',10);
+   }},
+  {desc:'Region A 发生故障（机房断电/网络中断）：GSLB 的健康检查连续 3 次（15s）无响应，判定 Region A 不可用，开始触发故障切换流程。',
+   draw:()=>{
+    box(260,30,160,45,'#f59e0b','GSLB','⚠ 检测到故障！');
+    box(40,140,270,160,'#f87171','Region A（上海）','⚠ 故障！');
+    txt(175,250,'无响应 × 3','#f87171',11);
+    box(380,140,270,160,'#4ade80','Region B（北京）','正常运行');
+    arrow(340,75,175,140,'#f87171');
+    txt(155,125,'× × ×','#f87171',11);
+    arrow(340,75,515,140,'#4ade80',true);
+    txt(525,125,'健康 ✓','#4ade80',10);
+    rect2(40,340,600,60,hex('#f87171',.06),'#f87171',8);
+    txt(340,362,'判定逻辑：连续 3 次探针失败 → 标记不健康','#f87171',11);
+    txt(340,378,'耗时 ~15s（3次×5s）→ 开始故障切换','#fca5a5',10);
+   }},
+  {desc:'GSLB 执行 DNS 切换：将原本指向 Region A 的 DNS 解析修改为全部指向 Region B，同时降低 TTL=30s 确保快速生效。A 区用户的后续请求重新解析后全部路由到 B。',
+   draw:()=>{
+    box(260,30,160,45,'#f59e0b','GSLB','DNS 切换');
+    box(40,150,270,150,'#f87171','Region A（上海）','⚠ 不可用（隔离）');
+    box(380,140,270,160,'#4ade80','Region B（北京）','承接全量流量');
+    rect2(390,165,250,60,hex('#4ade80',.08),'#4ade80',6);
+    txt(515,185,'流量 × 2','#4ade80',11);
+    txt(515,200,'扩容应对（HPA）','#64748b',9);
+    box(50,360,230,50,'#94a3b8','上海用户','重新解析 DNS');
+    box(50,430,'#94a3b8');
+    arrow(165,360,515,310,'#4ade80');
+    msgLabel(310,330,'DNS → Region B','#4ade80');
+    rect2(260,380,160,50,hex('#f59e0b',.08),'#f59e0b',8);
+    txt(340,400,'RTO 估算：','#fde68a',11);
+    txt(340,416,'~15s(检测)+30s(DNS)= 45s','#fde68a',10);
+   }},
+  {desc:'Region B 全量承载，并标注 RPO/RTO 指标。Region A 故障时 binlog 中未同步到 B 的数据即为数据丢失量（RPO）。实际切换总时间即 RTO。Region A 恢复后将作为备用节点重新加入。',
+   draw:()=>{
+    box(260,30,160,45,'#f59e0b','GSLB','切换完成');
+    box(40,130,270,160,'#f87171','Region A（上海）','恢复中...');
+    box(380,130,270,160,'#4ade80','Region B（北京）','全量主节点 ✓');
+    rect2(40,330,280,130,hex('#f87171',.06),'#f87171',8);
+    txt(180,352,'RPO（数据丢失量）','#f87171',11);
+    txt(180,370,'= 故障时刻未同步数据','#fca5a5',10);
+    txt(180,386,'异步复制：可能丢失 1-5s 数据','#fca5a5',10);
+    txt(180,402,'同步复制：RPO=0（延迟高）','#4ade80',10);
+    txt(180,418,'异地通常接受 RPO ≤ 60s','#fca5a5',10);
+    txt(180,448,'','',0);
+    rect2(360,330,290,130,hex('#4ade80',.06),'#4ade80',8);
+    txt(505,352,'RTO（恢复时间）','#4ade80',11);
+    txt(505,370,'= 检测时间 + DNS 切换时间','#a7f3d0',10);
+    txt(505,386,'检测：~15s（3次×5s）','#a7f3d0',10);
+    txt(505,402,'DNS TTL：30-60s 生效','#a7f3d0',10);
+    txt(505,418,'总 RTO：~45-75s','#fde68a',10);
+   }},
+];
+
+// ===== 场景4: 脑裂仲裁 =====
+const splitSteps=[
+  {desc:'场景：Region A 和 Region B 之间的专线发生网络分区（网络故障，两者无法互通），但各自对外服务的网络仍然正常。两个 Region 都认为对方宕机了。',
+   draw:()=>{
+    box(40,80,270,160,'#38bdf8','Region A（上海）','对外正常服务');
+    box(380,80,270,160,'#4ade80','Region B（北京）','对外正常服务');
+    const mid='x'+Date.now();
+    const defs=document.createElementNS(NS,'defs');
+    defs.appendChild(document.createElementNS(NS,'marker'));
+    svg.appendChild(defs);
+    const l=document.createElementNS(NS,'line');l.setAttribute('x1','310');l.setAttribute('y1','160');l.setAttribute('x2','380');l.setAttribute('y2','160');l.setAttribute('stroke','#f87171');l.setAttribute('stroke-width','3');l.setAttribute('stroke-dasharray','8 4');svg.appendChild(l);
+    txt(345,150,'⚡ 网络分区','#f87171',11);
+    txt(345,168,'专线中断','#f87171',10);
+    rect2(40,280,600,80,hex('#f87171',.06),'#f87171',8);
+    txt(340,305,'脑裂（Split-Brain）：两个 Region 都认为自己是唯一主节点','#f87171',12);
+    txt(340,323,'各自接受写入 → 数据不一致 → 专线恢复后产生冲突','#fca5a5',10);
+    txt(340,341,'这是分布式系统最危险的故障场景之一','#fca5a5',10);
+   }},
+  {desc:'脑裂发生：两个 Region 都将自己提升为主节点。Region A 接受了用户对 order_id=O001 的修改（status → cancelled），Region B 也接受了另一个用户对同一订单的修改（status → shipped）。冲突产生。',
+   draw:()=>{
+    box(40,50,270,170,'#f87171','Region A（上海）','自以为是主节点！');
+    rect2(60,85,230,60,hex('#f87171',.1),'#f87171',6);
+    txt(175,110,'O001: status=cancelled','#f87171',10);
+    txt(175,125,'T=100ms 写入','#64748b',9);
+    box(380,50,270,170,'#f87171','Region B（北京）','自以为是主节点！');
+    rect2(400,85,230,60,hex('#f87171',.1),'#f87171',6);
+    txt(515,110,'O001: status=shipped','#f87171',10);
+    txt(515,125,'T=80ms 写入','#64748b',9);
+    const l=document.createElementNS(NS,'line');l.setAttribute('x1','310');l.setAttribute('y1','160');l.setAttribute('x2','380');l.setAttribute('y2','160');l.setAttribute('stroke','#f87171');l.setAttribute('stroke-width','3');l.setAttribute('stroke-dasharray','8 4');svg.appendChild(l);
+    txt(345,152,'⚡ 分区','#f87171',10);
+    rect2(40,280,600,80,hex('#f87171',.08),'#f87171',8);
+    txt(340,305,'同一订单在 A 是 cancelled，在 B 是 shipped','#f87171',12);
+    txt(340,323,'专线恢复后：两份数据都存在，无法自动调和','#fca5a5',10);
+    txt(340,341,'必须有仲裁机制阻止脑裂！','#f87171',11);
+   }},
+  {desc:'仲裁机制（Quorum）：引入第三方仲裁节点（第三个 Region 或独立的 ZooKeeper/etcd 集群）。分区发生时，A 和 B 都向仲裁节点发起「我是主节点」的请求。仲裁节点只允许一个胜出。',
+   draw:()=>{
+    box(260,30,160,45,'#c084fc','仲裁节点','ZooKeeper / etcd');
+    box(40,140,270,130,'#38bdf8','Region A（上海）','向仲裁节点申请');
+    box(380,140,270,130,'#4ade80','Region B（北京）','向仲裁节点申请');
+    arrow(175,140,310,75,'#38bdf8');
+    arrow(515,140,410,75,'#4ade80');
+    msgLabel(210,100,'我是主节点！','#38bdf8');
+    msgLabel(390,100,'我也是主节点！','#4ade80');
+    const l=document.createElementNS(NS,'line');l.setAttribute('x1','310');l.setAttribute('y1','210');l.setAttribute('x2','380');l.setAttribute('y2','210');l.setAttribute('stroke','#f87171');l.setAttribute('stroke-width','3');l.setAttribute('stroke-dasharray','8 4');svg.appendChild(l);
+    txt(345,200,'⚡ 仍然分区','#f87171',10);
+    rect2(40,320,600,80,hex('#c084fc',.06),'#c084fc',8);
+    txt(340,345,'仲裁原则：先到先得（先拿到 lease/lock 的 Region 胜出）','#c084fc',11);
+    txt(340,363,'或：多数派规则（在3个 Region 场景：2/3多数胜出）','#c084fc',10);
+    txt(340,381,'仲裁节点必须部署在第三个独立机房（避免自身单点）','#64748b',10);
+   }},
+  {desc:'仲裁结果：Region A 先拿到 lease（租约），被确认为主节点。Region B 收到「获取 lease 失败」响应，必须降级为只读模式，停止接受写入，防止数据冲突。',
+   draw:()=>{
+    box(260,30,160,45,'#c084fc','仲裁节点','');
+    box(40,140,270,130,'#4ade80','Region A（上海）','⭐ 主节点（获得 lease）');
+    box(380,140,270,130,'#f87171','Region B（北京）','只读模式（降级）');
+    arrow(310,75,175,140,'#4ade80');
+    arrow(410,75,515,140,'#f87171');
+    msgLabel(185,100,'✓ lease 授予 A','#4ade80');
+    msgLabel(415,100,'✗ lease 拒绝 B','#f87171');
+    rect2(400,175,230,80,hex('#f87171',.08),'#f87171',6);
+    txt(515,200,'只读模式：','#f87171',10);
+    txt(515,216,'不接受任何写操作','#f87171',10);
+    txt(515,232,'等待分区恢复后重新同步','#64748b',9);
+    rect2(40,310,600,100,hex('#4ade80',.06),'#4ade80',8);
+    txt(340,333,'脑裂解决：只有一个 Region 可以写入，数据一致性保证','#4ade80',11);
+    txt(340,351,'代价：Region B 期间拒绝写入，可用性降低（CAP 定理 P → C）','#a7f3d0',10);
+    txt(340,369,'网络分区恢复后：B 从 A 同步 diff，重新加入多活','#a7f3d0',10);
+    txt(340,387,'Fencing Token：防止老 lease 持有者延迟写入（幽灵写）','#64748b',10);
+   }},
+];
+
+const SCENES=[
+  {name:'正常双活',steps:normalSteps},
+  {name:'跨区同步延迟',steps:lagSteps},
+  {name:'故障切换',steps:failoverSteps},
+  {name:'脑裂仲裁',steps:splitSteps},
+];
+
+let currentScene=0,currentStep=-1,playing=false,timer=null;
+
+function renderStep(idx){
+  const scene=SCENES[currentScene];
+  if(idx<0)idx=-1;
+  if(idx>=scene.steps.length)idx=scene.steps.length-1;
+  currentStep=idx;
+  mkGrid();
+  if(idx>=0){
+    const s=scene.steps[idx];
+    document.getElementById('sdText').textContent=s.desc;
+    s.draw();
+  } else {
+    document.getElementById('sdText').textContent='选择容灾场景，点击播放观察多活与故障切换流程。';
+    scene.steps[0].draw();
+  }
+  updateDots();
+}
+
+function updateDots(){
+  const scene=SCENES[currentScene];
+  const nav=document.getElementById('dotNav');
+  nav.innerHTML='';
+  scene.steps.forEach((_,i)=>{
+    const d=document.createElement('div');
+    d.className='dot'+(i===currentStep?' active':i<currentStep?' done':'');
+    d.addEventListener('click',()=>{stopPlay();renderStep(i);});
+    nav.appendChild(d);
+  });
+}
+
+function stopPlay(){playing=false;clearTimeout(timer);document.getElementById('btnPlay').textContent='▶ 播放';}
+function startPlay(){
+  playing=true;document.getElementById('btnPlay').textContent='⏸ 暂停';
+  function next(){if(!playing)return;const s=SCENES[currentScene];if(currentStep<s.steps.length-1){renderStep(currentStep+1);timer=setTimeout(next,2000);}else stopPlay();}
+  timer=setTimeout(next,400);
+}
+
+document.getElementById('sceneTabs').addEventListener('click',e=>{
+  const btn=e.target.closest('.scene-tab');if(!btn)return;
+  stopPlay();currentScene=parseInt(btn.dataset.scene);
+  document.querySelectorAll('.scene-tab').forEach((t,i)=>t.classList.toggle('active',i===currentScene));
+  renderStep(-1);
+});
+document.getElementById('btnPlay').addEventListener('click',()=>{
+  if(playing){stopPlay();return;}
+  const s=SCENES[currentScene];if(currentStep>=s.steps.length-1)renderStep(-1);
+  startPlay();
+});
+document.getElementById('btnPrev').addEventListener('click',()=>{stopPlay();renderStep(currentStep-1);});
+document.getElementById('btnNext').addEventListener('click',()=>{stopPlay();renderStep(currentStep+1);});
+
+renderStep(-1);
+})();
+</script>
+</body>
+</html>

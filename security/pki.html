@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="PKI 与证书体系：CA 签发证书、证书链验证、ACME 自动续签、证书吊销（OCSP/CRL）、内网 mTLS 与 Vault PKI。">
+<link rel="canonical" href="https://melodycoder12345.github.io/security/pki.html">
+<meta property="og:title" content="PKI 与证书体系 — 码海拾贝">
+<meta property="og:description" content="PKI 与证书体系：CA 签发证书、证书链验证、ACME 自动续签、证书吊销（OCSP/CRL）、内网 mTLS 与 Vault PKI。">
+<meta property="og:url" content="https://melodycoder12345.github.io/security/pki.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="PKI 与证书体系 — 码海拾贝">
+<meta name="twitter:description" content="PKI 与证书体系：CA 签发证书、证书链验证、ACME 自动续签、证书吊销（OCSP/CRL）、内网 mTLS 与 Vault PKI。">
+<title>PKI 与证书体系 - 安全</title>
+<script src="../nav.js"></script>
+<style>
+:root{
+  --bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;
+  --accent:#f87171;--ok:#4ade80;--warn:#fbbf24;--err:#f87171;
+  --blue:#38bdf8;--purple:#a78bfa;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  min-height:100vh;
+  background:radial-gradient(circle at 18% 0%,rgba(248,113,113,.12),transparent 36%),
+             radial-gradient(circle at 88% 14%,rgba(167,139,250,.07),transparent 28%),
+             var(--bg);
+  color:var(--text);
+  font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1280px;margin:0 auto;padding:40px 32px 80px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--dim2);margin-bottom:22px}
+.breadcrumb a{color:var(--dim2)}.breadcrumb a:hover{color:var(--text)}
+.page-title{font-size:clamp(1.7rem,3.5vw,2.8rem);letter-spacing:-.04em;margin-bottom:6px;
+  background:linear-gradient(135deg,#f8fafc,#f87171);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{color:var(--dim);font-size:.93rem;margin-bottom:28px;max-width:720px;line-height:1.8}
+
+/* === Layout === */
+.layout{display:grid;grid-template-columns:260px 1fr;gap:18px;align-items:start}
+.left-panel{
+  border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.75);
+  border-radius:18px;padding:18px;position:sticky;top:24px;
+}
+.left-panel h3{font-size:.68rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.12em;margin-bottom:12px}
+
+/* Scene tabs */
+.scene-tabs{display:flex;flex-direction:column;gap:4px;margin-bottom:16px}
+.scene-tab{
+  width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);
+  background:rgba(255,255,255,.03);color:var(--dim);
+  padding:9px 12px;border-radius:10px;cursor:pointer;font-size:.8rem;
+  font-family:inherit;transition:.15s;line-height:1.4;
+}
+.scene-tab:hover{border-color:rgba(248,113,113,.35);color:var(--text)}
+.scene-tab.active{background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.45);color:var(--text)}
+.scene-tab .scene-num{
+  display:inline-block;width:18px;height:18px;border-radius:50%;
+  background:rgba(248,113,113,.18);color:var(--accent);
+  font-size:.66rem;font-weight:700;text-align:center;line-height:18px;margin-right:7px;
+}
+.scene-tab.active .scene-num{background:rgba(248,113,113,.35)}
+
+.divider{border:none;border-top:1px solid rgba(255,255,255,.06);margin:12px 0}
+
+/* Step list */
+.step-list{display:flex;flex-direction:column;gap:3px;max-height:260px;overflow-y:auto;margin-bottom:12px}
+.step-btn{
+  width:100%;text-align:left;border:1px solid transparent;
+  background:none;color:var(--dim);padding:7px 10px;border-radius:8px;
+  cursor:pointer;font-size:.76rem;line-height:1.5;transition:.12s;
+  font-family:inherit;
+}
+.step-btn:hover{border-color:rgba(248,113,113,.25);color:var(--text)}
+.step-btn.active{background:rgba(248,113,113,.08);border-color:rgba(248,113,113,.3);color:var(--text)}
+.step-num{
+  display:inline-block;width:16px;height:16px;border-radius:50%;
+  background:rgba(248,113,113,.12);color:var(--accent);
+  font-size:.62rem;font-weight:700;text-align:center;line-height:16px;margin-right:6px;
+}
+.ctrl{display:flex;gap:6px;flex-wrap:wrap}
+.ctrl button{
+  flex:1;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);
+  color:var(--dim);border-radius:8px;padding:7px 4px;cursor:pointer;
+  font-size:.73rem;font-family:inherit;transition:.13s;
+}
+.ctrl button:hover{border-color:var(--accent);color:var(--text)}
+.ctrl button.primary{border-color:rgba(248,113,113,.4);color:var(--accent);background:rgba(248,113,113,.07)}
+
+/* === Center Panel === */
+.center-panel{
+  border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.75);
+  border-radius:18px;padding:22px;min-height:580px;display:flex;flex-direction:column;gap:14px;
+}
+.step-msg{
+  border-left:3px solid var(--accent);background:rgba(248,113,113,.06);
+  border-radius:0 10px 10px 0;padding:10px 14px;
+  font-size:.85rem;color:var(--text);line-height:1.75;white-space:pre-line;
+}
+.anim-area{flex:1;min-height:420px;position:relative}
+
+/* === Scene 1: Certificate Chain === */
+.chain-wrap{
+  display:flex;flex-direction:column;align-items:center;gap:0;
+  padding:20px 10px;
+}
+.cert-card{
+  width:420px;border:1.5px solid rgba(255,255,255,.12);
+  background:rgba(30,41,59,.7);border-radius:14px;padding:14px 18px;
+  font-size:.78rem;transition:all .4s;position:relative;
+}
+.cert-card.leaf{border-color:rgba(248,113,113,.35);background:rgba(248,113,113,.06)}
+.cert-card.intermediate{border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.04)}
+.cert-card.root{border-color:rgba(167,139,250,.35);background:rgba(167,139,250,.06)}
+.cert-card.verified{
+  border-color:rgba(74,222,128,.55)!important;
+  background:rgba(74,222,128,.08)!important;
+  box-shadow:0 0 20px rgba(74,222,128,.18);
+}
+.cert-title{
+  font-weight:700;font-size:.82rem;margin-bottom:8px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.cert-title .cert-label{font-size:.65rem;padding:2px 7px;border-radius:99px;font-weight:600}
+.cert-title .cert-label.leaf-lbl{background:rgba(248,113,113,.2);color:#fca5a5}
+.cert-title .cert-label.int-lbl{background:rgba(251,191,36,.18);color:#fde68a}
+.cert-title .cert-label.root-lbl{background:rgba(167,139,250,.2);color:#c4b5fd}
+.cert-field{display:flex;gap:6px;margin-bottom:3px;color:var(--dim);line-height:1.6}
+.cert-key{color:var(--dim2);min-width:58px}
+.cert-val{color:var(--dim);font-family:monospace;font-size:.74rem}
+.cert-val.highlight{color:var(--text)}
+.chain-arrow{
+  width:2px;height:32px;background:linear-gradient(180deg,rgba(255,255,255,.1),rgba(255,255,255,.3));
+  margin:0 auto;position:relative;
+}
+.chain-arrow::after{
+  content:'↓';position:absolute;left:50%;transform:translateX(-50%) translateY(-50%);
+  top:50%;font-size:.9rem;color:var(--dim2);background:rgba(17,24,39,.9);
+  padding:0 4px;
+}
+.chain-arrow.active::after{color:var(--ok)}
+.verify-badge{
+  position:absolute;top:10px;right:14px;
+  font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:99px;
+  opacity:0;transition:opacity .4s;
+}
+.verify-badge.show{opacity:1}
+.verify-badge.ok{background:rgba(74,222,128,.2);color:#4ade80;border:1px solid rgba(74,222,128,.3)}
+.verify-badge.fail{background:rgba(248,113,113,.2);color:#f87171;border:1px solid rgba(248,113,113,.35)}
+.trust-anchor{
+  margin-top:8px;text-align:center;font-size:.72rem;color:var(--purple);
+  background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.2);
+  border-radius:8px;padding:5px 14px;display:inline-block;opacity:0;transition:opacity .4s;
+}
+.trust-anchor.show{opacity:1}
+.chain-success{
+  margin-top:12px;text-align:center;font-size:.88rem;font-weight:700;
+  color:var(--ok);background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.25);
+  border-radius:10px;padding:10px 20px;opacity:0;transition:opacity .5s;
+}
+.chain-success.show{opacity:1}
+
+/* Browser request row */
+.browser-row{
+  display:flex;align-items:center;gap:10px;margin-bottom:14px;
+  font-size:.79rem;color:var(--dim);
+}
+.browser-box{
+  border:1px solid rgba(255,255,255,.1);background:rgba(30,41,59,.5);
+  border-radius:8px;padding:7px 12px;font-family:monospace;font-size:.74rem;
+}
+.browser-box.active{border-color:rgba(248,113,113,.4);color:var(--text)}
+.arrow-right{color:var(--dim2);font-size:1rem}
+
+/* === Scene 2: ACME Swimlane === */
+.swimlane-wrap{overflow-x:auto}
+.swimlane{display:grid;gap:0;min-width:580px}
+.swimlane-3{grid-template-columns:repeat(3,1fr)}
+.lane-header{
+  font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+  padding:8px 10px;background:rgba(255,255,255,.04);
+  border-bottom:1px solid rgba(255,255,255,.07);text-align:center;color:var(--dim);
+}
+.lane-col{
+  border-right:1px dashed rgba(255,255,255,.06);padding:6px 4px;
+  min-height:36px;position:relative;display:flex;align-items:center;justify-content:center;
+}
+.lane-col:last-child{border-right:none}
+.swim-msg{
+  display:flex;align-items:center;font-size:.72rem;font-family:monospace;
+  padding:5px 8px;border-radius:6px;white-space:normal;text-align:center;
+  opacity:0;transition:opacity .35s;width:100%;justify-content:center;line-height:1.4;
+}
+.swim-msg.show{opacity:1}
+.swim-msg.req{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);color:#fca5a5}
+.swim-msg.resp{background:rgba(74,222,128,.06);border:1px solid rgba(74,222,128,.2);color:#86efac}
+.swim-msg.action{background:rgba(56,189,248,.06);border:1px solid rgba(56,189,248,.2);color:#7dd3fc}
+.swim-msg.ok{background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.3);color:#4ade80;font-weight:700}
+.acme-timer{
+  margin-bottom:12px;display:flex;align-items:center;gap:10px;font-size:.8rem;
+}
+.timer-bar{
+  flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.08);overflow:hidden;
+}
+.timer-fill{height:100%;border-radius:3px;transition:width .4s;background:var(--warn)}
+.timer-fill.critical{background:var(--err)}
+
+/* === Scene 3: Revocation === */
+.revoke-wrap{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
+.revoke-left{flex:1;min-width:260px}
+.revoke-right{flex:1;min-width:260px}
+.cert-card-lg{
+  border:1.5px solid rgba(255,255,255,.12);background:rgba(30,41,59,.7);
+  border-radius:14px;padding:16px;font-size:.78rem;position:relative;transition:all .4s;
+}
+.revoked-badge{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-12deg);
+  font-size:1.3rem;font-weight:900;color:#f87171;
+  border:3px solid #f87171;border-radius:6px;padding:6px 16px;
+  background:rgba(17,24,39,.85);letter-spacing:.1em;
+  opacity:0;transition:opacity .5s;
+}
+.revoked-badge.show{opacity:1}
+.cert-card-lg.revoked{border-color:rgba(248,113,113,.5)!important;filter:brightness(.8)}
+
+.ocsp-row{
+  display:flex;flex-direction:column;gap:8px;margin-top:12px;
+}
+.ocsp-step{
+  display:flex;align-items:center;gap:8px;border:1px solid rgba(255,255,255,.07);
+  background:rgba(30,41,59,.4);border-radius:8px;padding:9px 12px;
+  font-size:.76rem;opacity:0;transition:opacity .35s,border-color .35s;
+}
+.ocsp-step.show{opacity:1}
+.ocsp-step.ok-step{border-color:rgba(74,222,128,.3);background:rgba(74,222,128,.04)}
+.ocsp-step.fail-step{border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.05);color:#fca5a5}
+.ocsp-icon{font-size:1rem;flex-shrink:0}
+
+.perf-compare{
+  margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:10px;
+}
+.perf-box{
+  border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.5);
+  border-radius:10px;padding:12px;font-size:.76rem;
+}
+.perf-box h4{font-size:.7rem;color:var(--dim2);text-transform:uppercase;
+  letter-spacing:.08em;margin-bottom:8px}
+.perf-bar-wrap{margin:4px 0 2px}
+.perf-bar{height:8px;border-radius:4px;transition:width .5s}
+.perf-label{font-size:.68rem;color:var(--dim2);margin-top:3px}
+
+/* === Scene 4: Internal PKI / mTLS === */
+.mtls-wrap{display:flex;flex-direction:column;gap:12px}
+.mtls-nodes{
+  display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;
+}
+.pki-node{
+  border:1.5px solid rgba(255,255,255,.1);background:rgba(30,41,59,.6);
+  border-radius:14px;padding:14px 16px;font-size:.78rem;text-align:center;
+  min-width:130px;transition:all .35s;flex:1;
+}
+.pki-node.vault{border-color:rgba(248,113,113,.35);background:rgba(248,113,113,.05)}
+.pki-node.svc{border-color:rgba(56,189,248,.3);background:rgba(56,189,248,.04)}
+.pki-node.active{
+  border-color:rgba(74,222,128,.55)!important;background:rgba(74,222,128,.08)!important;
+  box-shadow:0 0 18px rgba(74,222,128,.2);
+}
+.pki-node .node-icon{font-size:1.5rem;margin-bottom:4px}
+.pki-node .node-name{font-weight:700;font-size:.82rem;margin-bottom:4px}
+.pki-node .node-info{font-size:.68rem;color:var(--dim2);line-height:1.5}
+.mtls-arrows{
+  display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;
+}
+.flow-arrow{
+  border:1px solid rgba(255,255,255,.07);background:rgba(30,41,59,.4);
+  border-radius:8px;padding:7px 12px;font-size:.74rem;font-family:monospace;
+  opacity:0;transition:opacity .35s;display:flex;align-items:center;gap:6px;
+  white-space:nowrap;
+}
+.flow-arrow.show{opacity:1}
+.flow-arrow.req{border-color:rgba(248,113,113,.3);color:#fca5a5}
+.flow-arrow.resp{border-color:rgba(74,222,128,.3);color:#86efac}
+.flow-arrow.mtls{border-color:rgba(167,139,250,.35);color:#c4b5fd}
+.cert-ttl{
+  font-family:monospace;font-size:.72rem;
+  background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.25);
+  border-radius:6px;padding:4px 10px;color:#fde68a;display:inline-block;margin-top:6px;
+}
+.vs-table{
+  margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden;
+  font-size:.76rem;
+}
+.vs-row{display:grid;grid-template-columns:140px 1fr 1fr;border-bottom:1px solid rgba(255,255,255,.05)}
+.vs-row:last-child{border-bottom:none}
+.vs-cell{padding:8px 12px;border-right:1px solid rgba(255,255,255,.05);color:var(--dim)}
+.vs-cell:last-child{border-right:none}
+.vs-cell.hdr{color:var(--dim2);font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;background:rgba(255,255,255,.03)}
+.vs-cell.ok-cell{color:var(--ok)}
+.vs-cell.warn-cell{color:var(--warn)}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="breadcrumb">
+    <a href="../index.html">首页</a><span>/</span>
+    <a href="index.html">安全</a><span>/</span>
+    PKI 与证书体系
+  </div>
+  <h1 class="page-title">PKI 与证书体系</h1>
+  <p class="subtitle">公钥基础设施（PKI）是 HTTPS 信任链的基础。CA（证书颁发机构）为服务器签发数字证书，证书包含公钥和身份信息，浏览器通过验证证书链（叶证书→中间 CA→根 CA）确认服务器身份真实性，防止中间人攻击。</p>
+
+  <div class="layout">
+    <!-- Left Panel -->
+    <div class="left-panel">
+      <h3>场景</h3>
+      <div class="scene-tabs">
+        <button class="scene-tab active" onclick="switchScene(0)">
+          <span class="scene-num">1</span>证书链验证
+        </button>
+        <button class="scene-tab" onclick="switchScene(1)">
+          <span class="scene-num">2</span>ACME 自动续签
+        </button>
+        <button class="scene-tab" onclick="switchScene(2)">
+          <span class="scene-num">3</span>证书吊销
+        </button>
+        <button class="scene-tab" onclick="switchScene(3)">
+          <span class="scene-num">4</span>内网 PKI / mTLS
+        </button>
+      </div>
+      <hr class="divider">
+      <h3>步骤</h3>
+      <div class="step-list" id="stepList"></div>
+      <div class="ctrl">
+        <button onclick="prev()">← 上一步</button>
+        <button onclick="next()">下一步 →</button>
+        <button onclick="reset()">重置</button>
+        <button id="playBtn" class="primary" onclick="togglePlay()">▶ 播放</button>
+      </div>
+    </div>
+
+    <!-- Center Panel -->
+    <div class="center-panel">
+      <div class="step-msg" id="stepMsg">选择左侧场景，点击"下一步"或"播放"开始动画。</div>
+      <div class="anim-area" id="animArea"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+/* ===== SCENE DATA ===== */
+const SCENES = [
+
+/* ---- Scene 0: Certificate Chain Verification ---- */
+{
+  label: '证书链验证',
+  steps: [
+    {
+      label: '浏览器发起 HTTPS 请求',
+      msg: 'Step 1：浏览器访问 https://example.com，TCP 连接建立后进入 TLS 握手。服务器在握手中返回证书链（Certificate message），包含叶证书和中间 CA 证书。',
+      s: {phase:0}
+    },
+    {
+      label: '查看叶证书内容',
+      msg: 'Step 2：浏览器收到叶证书（Leaf Certificate）。\n\nSubject: CN=example.com\nIssuer: Let\'s Encrypt R3\nValid: 2024-01-01 → 2024-04-01\nPublic Key: EC 256-bit\nSignature: SHA256withECDSA（由 Let\'s Encrypt R3 私钥签名）\nSAN: DNS:example.com, DNS:www.example.com',
+      s: {phase:1}
+    },
+    {
+      label: '找到中间 CA 证书',
+      msg: 'Step 3：叶证书的 Issuer 字段指向 "Let\'s Encrypt R3"（中间 CA）。浏览器从服务器一同发来的证书链中找到这张中间 CA 证书。\n\nSubject: CN=Let\'s Encrypt R3\nIssuer: ISRG Root X1\nPublic Key: RSA 2048-bit',
+      s: {phase:2}
+    },
+    {
+      label: '验证叶证书签名 ✓',
+      msg: 'Step 4：浏览器用 Let\'s Encrypt R3 的公钥（RSA 2048）验证叶证书上的签名。\n\nVerify(R3.pubKey, leaf.signature, leaf.tbsCertificate) → OK\n\n验证通过！叶证书的内容未被篡改，且确实由 Let\'s Encrypt R3 签发。',
+      s: {phase:3, verifyLeaf:true}
+    },
+    {
+      label: '找到根 CA（Trust Anchor）',
+      msg: 'Step 5：中间 CA 的 Issuer 是 "ISRG Root X1"（Let\'s Encrypt 的根 CA）。根 CA 证书不在网络传输，而是内置在操作系统 / 浏览器的信任库中（Trust Store）。\n\n这是信任链的锚点（Trust Anchor）——无需网络即可验证。',
+      s: {phase:4}
+    },
+    {
+      label: '验证中间 CA 签名 ✓',
+      msg: 'Step 6：浏览器用 ISRG Root X1 的公钥（从本地信任库取出）验证中间 CA 证书的签名。\n\nVerify(Root.pubKey, R3.signature, R3.tbsCertificate) → OK\n\n整条证书链验证通过！TLS 握手继续，连接建立。',
+      s: {phase:5, verifyLeaf:true, verifyInt:true}
+    },
+    {
+      label: '信任链验证成功',
+      msg: 'Step 7：证书链完整验证。浏览器确认：\n① example.com 的公钥可信（由受信 CA 签发）\n② 证书未过期，域名匹配 SAN 字段\n③ 可用该公钥加密会话密钥，防止中间人攻击\n\nTLS 握手继续：发送 Finished 消息，切换对称加密。',
+      s: {phase:6, verifyLeaf:true, verifyInt:true, success:true}
+    },
+  ]
+},
+
+/* ---- Scene 1: ACME Auto-renewal ---- */
+{
+  label: 'ACME 自动续签',
+  steps: [
+    {
+      label: '证书即将到期',
+      msg: 'Step 1：证书有效期剩余 30 天，达到续签阈值。Let\'s Encrypt 证书有效期仅 90 天（强制短期化，降低私钥泄漏风险）。Certbot 定时任务（cron/systemd timer）触发续签检查。',
+      s: {timerPct:33, timerCrit:false, rows:[]}
+    },
+    {
+      label: 'Certbot 发起 Certificate Order',
+      msg: 'Step 2：Certbot 向 Let\'s Encrypt ACME 服务器（https://acme-v02.api.letsencrypt.org）发送 newOrder 请求，声明要为 example.com 申请证书。\n\nPOST /acme/new-order\n{"identifiers": [{"type": "dns", "value": "example.com"}]}',
+      s: {timerPct:33, rows:[
+        {lane:0,text:'POST /acme/new-order',cls:'req'},
+        {lane:1,text:'',cls:''},
+        {lane:2,text:'',cls:''},
+      ]}
+    },
+    {
+      label: 'ACME 下发域名验证挑战',
+      msg: 'Step 3：ACME 服务器返回 Authorization 对象，包含验证挑战（Challenge）。\n\nHTTP-01 挑战：要求在域名的 HTTP 服务上放置一个令牌文件：\nGET http://example.com/.well-known/acme-challenge/<token>\n\n这证明你控制该域名的 Web 服务。',
+      s: {timerPct:33, rows:[
+        {lane:0,text:'POST /acme/new-order',cls:'req'},
+        {lane:1,text:'← 200 authz + challenge token',cls:'resp'},
+        {lane:2,text:'',cls:''},
+      ]}
+    },
+    {
+      label: 'Certbot 创建验证文件',
+      msg: 'Step 4：Certbot 在 Web 服务器的 .well-known/acme-challenge/ 目录下创建验证文件：\n\n路径：/var/www/html/.well-known/acme-challenge/<token>\n内容：<token>.<accountKeyThumbprint>\n\nCertbot 通知 ACME 服务器：验证文件已就绪，请来验证。',
+      s: {timerPct:33, rows:[
+        {lane:0,text:'POST /acme/new-order',cls:'req'},
+        {lane:1,text:'← 200 authz + challenge token',cls:'resp'},
+        {lane:2,text:'写入 /.well-known/acme-challenge/<token>',cls:'action'},
+        {lane:0,text:'POST /acme/challenge → ready',cls:'req'},
+        {lane:1,text:'',cls:''},
+        {lane:2,text:'',cls:''},
+      ]}
+    },
+    {
+      label: 'ACME 服务器验证域名所有权',
+      msg: 'Step 5：ACME 服务器发起 HTTP GET 请求验证文件：\nGET http://example.com/.well-known/acme-challenge/<token>\n\n响应内容与预期匹配 → 域名所有权验证通过！\n\n这证明你控制 example.com 的 Web 服务（否则无法放文件）。',
+      s: {timerPct:33, rows:[
+        {lane:0,text:'POST /acme/new-order',cls:'req'},
+        {lane:1,text:'← 200 authz + challenge token',cls:'resp'},
+        {lane:2,text:'写入 /.well-known/acme-challenge/<token>',cls:'action'},
+        {lane:0,text:'POST /acme/challenge → ready',cls:'req'},
+        {lane:1,text:'GET /.well-known/acme-challenge/<token>',cls:'req'},
+        {lane:2,text:'← 200 OK（token 内容匹配）',cls:'resp'},
+      ]}
+    },
+    {
+      label: 'ACME 签发新证书（90 天）',
+      msg: 'Step 6：域名验证通过，Certbot 提交 CSR（Certificate Signing Request）：\n\nPOST /acme/finalize { csr: "<base64-DER>" }\n\nACME 服务器签发新证书（有效期 90 天），Certbot 下载证书文件：\ncertificate.pem + fullchain.pem + privkey.pem',
+      s: {timerPct:33, rows:[
+        {lane:0,text:'POST /acme/new-order',cls:'req'},
+        {lane:1,text:'← 200 authz + challenge token',cls:'resp'},
+        {lane:2,text:'写入 /.well-known/acme-challenge/<token>',cls:'action'},
+        {lane:0,text:'POST /acme/challenge → ready',cls:'req'},
+        {lane:1,text:'GET /.well-known/acme-challenge/<token>',cls:'req'},
+        {lane:2,text:'← 200 OK（token 内容匹配）',cls:'resp'},
+        {lane:0,text:'POST /acme/finalize（提交 CSR）',cls:'req'},
+        {lane:1,text:'← 新证书（90天有效期）',cls:'resp'},
+        {lane:2,text:'',cls:''},
+      ]}
+    },
+    {
+      label: 'Certbot 替换证书，Nginx reload',
+      msg: 'Step 7：Certbot 替换旧证书文件，执行 nginx -s reload（热更新，无停机时间）。\n\n新证书生效，有效期重置为 90 天。整个流程全自动，无需人工干预。\n\n最佳实践：certbot renew 每天运行 2 次（systemd timer 或 cron）。',
+      s: {timerPct:100, timerCrit:false, rows:[
+        {lane:0,text:'POST /acme/new-order',cls:'req'},
+        {lane:1,text:'← 200 authz + challenge token',cls:'resp'},
+        {lane:2,text:'写入 /.well-known/acme-challenge/<token>',cls:'action'},
+        {lane:0,text:'POST /acme/challenge → ready',cls:'req'},
+        {lane:1,text:'GET /.well-known/acme-challenge/<token>',cls:'req'},
+        {lane:2,text:'← 200 OK（token 内容匹配）',cls:'resp'},
+        {lane:0,text:'POST /acme/finalize（提交 CSR）',cls:'req'},
+        {lane:1,text:'← 新证书（90天有效期）',cls:'resp'},
+        {lane:2,text:'nginx -s reload ✓（无停机）',cls:'ok'},
+      ]}
+    },
+  ]
+},
+
+/* ---- Scene 2: Revocation ---- */
+{
+  label: '证书吊销',
+  steps: [
+    {
+      label: '私钥泄漏（安全事件）',
+      msg: 'Step 1：服务器被攻击，私钥文件泄漏。攻击者持有私钥即可伪造该服务器的身份，对用户发起中间人攻击。\n\n必须立即吊销证书！即使证书还未到期，吊销后浏览器会拒绝该证书。',
+      s: {phase:'leak'}
+    },
+    {
+      label: '管理员申请吊销证书',
+      msg: 'Step 2：管理员联系 CA（或通过 ACME revokeCert 接口）申请吊销证书：\n\nPOST /acme/revokeCert\n{"certificate": "<base64-DER>", "reason": 1}\n\nReason Code 1 = keyCompromise（密钥泄漏）',
+      s: {phase:'request'}
+    },
+    {
+      label: 'CA 更新 CRL 和 OCSP',
+      msg: 'Step 3：CA 将证书序列号加入 CRL（Certificate Revocation List，证书吊销列表）：\n\n序列号: 0x1A2B3C4D5E6F → 吊销时间: 2024-03-15 吊销原因: keyCompromise\n\nCA 同步更新 OCSP（Online Certificate Status Protocol）响应服务器。',
+      s: {phase:'revoke', steps:[0,1]}
+    },
+    {
+      label: '服务器获取 OCSP Stapling',
+      msg: 'Step 4：OCSP Stapling（装订）：Web 服务器定期（每小时）主动向 OCSP 服务器查询自己证书的状态，缓存带 CA 签名的 OCSP 响应。\n\n优势：浏览器无需额外请求 OCSP，减少 1 次 RTT，提升性能和隐私（CA 不知道哪些用户在访问哪些网站）。',
+      s: {phase:'stapling', steps:[0,1,2]}
+    },
+    {
+      label: '浏览器查询 OCSP 状态',
+      msg: 'Step 5：浏览器验证证书时检查 OCSP 状态（通过 Stapling 直接从服务器获取，或主动向 OCSP 服务器查询）。\n\nOCSP 响应：thisUpdate: 2024-03-15, certStatus: revoked, revocationTime: 2024-03-15\n\n证书已被吊销！',
+      s: {phase:'check', steps:[0,1,2,3]}
+    },
+    {
+      label: '浏览器拒绝连接 ✗',
+      msg: 'Step 6：浏览器显示「此证书已被吊销」安全警告，拒绝建立 TLS 连接。\n\nERR_CERT_REVOKED\n\n即使攻击者持有私钥，吊销后的证书也无法通过验证，有效限制了私钥泄漏的损害。',
+      s: {phase:'blocked', steps:[0,1,2,3,4]}
+    },
+    {
+      label: 'OCSP Stapling vs 主动查询',
+      msg: 'OCSP Stapling（推荐）vs 浏览器主动 OCSP 查询的性能对比：\n\nOCSP Stapling：服务器预缓存 OCSP 响应，浏览器从 TLS 握手中直接获取，额外延迟 ≈ 0ms，且保护用户隐私。\n\n主动查询：浏览器需要额外发起一个 HTTP 请求到 CA 的 OCSP 服务器，额外延迟 50–200ms，且 CA 可以追踪访问行为。',
+      s: {phase:'compare', steps:[0,1,2,3,4]}
+    },
+  ]
+},
+
+/* ---- Scene 3: Internal PKI / mTLS ---- */
+{
+  label: '内网 PKI / mTLS',
+  steps: [
+    {
+      label: '公司内网需要内部 CA',
+      msg: 'Step 1：公司内网服务间通信（Service A → Service B）。不能用公网 CA（域名是 service-b.internal），自签名证书又缺乏信任管理。\n\n解决方案：使用 HashiCorp Vault PKI Secrets Engine 搭建内部 CA，统一签发和管理内网证书。',
+      s: {phase:0, arrows:[]}
+    },
+    {
+      label: 'Vault PKI 引擎搭建内部 CA',
+      msg: 'Step 2：Vault PKI 引擎初始化：\n\nvault secrets enable pki\nvault write pki/root/generate/internal \\\n  common_name="Company Internal CA" \\\n  ttl=87600h  # 10 年根 CA\n\nvault write pki/roles/service-cert \\\n  max_ttl=24h allowed_domains="*.internal"',
+      s: {phase:1, arrows:[]}
+    },
+    {
+      label: '服务启动时申请短期证书',
+      msg: 'Step 3：Service A 启动时，通过 Vault Agent 或 SDK 申请证书：\n\nvault write pki/issue/service-cert \\\n  common_name="service-a.internal" ttl=24h\n\nVault 内部 CA 签发证书，TTL=24h（24 小时后自动过期）。\n短期证书：私钥泄漏的影响时间窗口最多 24 小时。',
+      s: {phase:2, arrows:['req']}
+    },
+    {
+      label: 'Vault 签发短期证书',
+      msg: 'Step 4：Vault 签发证书（certificate + private_key + issuing_ca），Service A 获得：\n\nCN: service-a.internal\nTTL: 24h（到期时间: 当前时间 + 24h）\n签发者: Company Internal CA\n\n证书和私钥仅保存在内存中，不落盘。',
+      s: {phase:2, arrows:['req','resp']}
+    },
+    {
+      label: 'mTLS 双向认证（零信任）',
+      msg: 'Step 5：mTLS（双向 TLS）握手：\n\n① Service A → Service B：发送自己的证书\n② Service B 验证 Service A 的证书（由 Company Internal CA 签发）\n③ Service B → Service A：发送自己的证书\n④ Service A 验证 Service B 的证书\n\n双方都需要提供证书，任何未持有有效证书的服务都无法通信。这是零信任网络的基础。',
+      s: {phase:3, arrows:['req','resp','mtls']}
+    },
+    {
+      label: '证书自动续签（24h 轮转）',
+      msg: 'Step 6：证书到期前，Vault Agent 自动续签（cert rotation）：\n\n每 12h 检查证书有效期 → 剩余 < 1/3 TTL 时触发续签 → 无停机替换证书\n\n与长期证书（1 年）对比：私钥泄漏的影响时间窗口从 1 年缩短到 24 小时，极大降低安全风险。',
+      s: {phase:4, arrows:['req','resp','mtls','renew']}
+    },
+    {
+      label: '长期证书 vs 短期证书',
+      msg: '长期证书（公网，1 年）vs 短期证书（内网 Vault，24h）的工程权衡：\n\n短期证书的优势：私钥泄漏影响时间窗口小、无需 CRL/OCSP（直接过期）、强制定期轮转降低积累风险。\n\n短期证书的代价：需要自动化续签基础设施（Vault/SPIFFE）、服务启动依赖 Vault 可用性。\n\n零信任场景：Istio/Envoy 用 SPIFFE/SPIRE 实现 mTLS，证书 TTL 通常 1h。',
+      s: {phase:4, arrows:['req','resp','mtls','renew'], showTable:true}
+    },
+  ]
+},
+
+]; /* end SCENES */
+
+/* ===== State ===== */
+let sceneIdx = 0, stepIdx = -1, timer = null;
+
+function switchScene(i){
+  sceneIdx = i;
+  stepIdx = -1;
+  stopPlay();
+  document.querySelectorAll('.scene-tab').forEach((t,j)=>t.classList.toggle('active',i===j));
+  renderAll();
+}
+
+function renderAll(){
+  buildStepList();
+  renderStepMsg();
+  renderAnim();
+}
+
+function buildStepList(){
+  const scene = SCENES[sceneIdx];
+  const list = document.getElementById('stepList');
+  list.innerHTML = '';
+  scene.steps.forEach((s,i)=>{
+    const b = document.createElement('button');
+    b.className = 'step-btn'+(i===stepIdx?' active':'');
+    b.innerHTML = `<span class="step-num">${i+1}</span>${s.label}`;
+    b.onclick = ()=>{ stepIdx=i; stopPlay(); renderAll(); };
+    list.appendChild(b);
+  });
+}
+
+function renderStepMsg(){
+  const scene = SCENES[sceneIdx];
+  const el = document.getElementById('stepMsg');
+  if(stepIdx < 0){
+    el.textContent = `场景 ${sceneIdx+1}：${scene.label}。点击"下一步"或"播放"开始。`;
+  } else {
+    el.textContent = scene.steps[stepIdx].msg;
+  }
+}
+
+/* ===== Render Animation by Scene ===== */
+function renderAnim(){
+  const area = document.getElementById('animArea');
+  if(sceneIdx===0) renderScene0(area);
+  else if(sceneIdx===1) renderScene1(area);
+  else if(sceneIdx===2) renderScene2(area);
+  else if(sceneIdx===3) renderScene3(area);
+}
+
+/* --- Scene 0: Certificate Chain --- */
+function renderScene0(area){
+  const s = stepIdx >= 0 ? SCENES[0].steps[stepIdx].s : {phase:-1};
+  const phase = s.phase !== undefined ? s.phase : -1;
+
+  area.innerHTML = `
+  <div class="chain-wrap">
+    <!-- Browser request -->
+    <div class="browser-row" style="margin-bottom:10px;justify-content:center">
+      <div class="browser-box${phase>=0?' active':''}">🌐 https://example.com</div>
+      ${phase>=0?'<span class="arrow-right">→</span><div class="browser-box active">TLS 握手 + 证书链</div>':''}
+    </div>
+
+    <!-- Leaf Certificate -->
+    <div class="cert-card leaf${s.verifyLeaf?' verified':''}">
+      <div class="cert-title">
+        <span>叶证书 (Leaf Certificate)</span>
+        <span class="cert-label leaf-lbl">LEAF</span>
+      </div>
+      ${phase>=1?`
+      <div class="cert-field"><span class="cert-key">Subject</span><span class="cert-val highlight">CN=example.com</span></div>
+      <div class="cert-field"><span class="cert-key">Issuer</span><span class="cert-val">Let's Encrypt R3</span></div>
+      <div class="cert-field"><span class="cert-key">Valid</span><span class="cert-val">2024-01-01 → 2024-04-01</span></div>
+      <div class="cert-field"><span class="cert-key">PubKey</span><span class="cert-val">EC P-256</span></div>
+      <div class="cert-field"><span class="cert-key">Sig Alg</span><span class="cert-val">SHA256withECDSA</span></div>
+      `:'<div class="cert-field" style="color:var(--dim2);font-size:.74rem">服务器在 TLS 握手中发送此证书...</div>'}
+      <div class="verify-badge${s.verifyLeaf?' show ok':''}">✓ 签名验证通过</div>
+    </div>
+
+    <!-- Arrow down -->
+    <div class="chain-arrow${phase>=3?' active':''}"></div>
+
+    <!-- Intermediate CA -->
+    <div class="cert-card intermediate${s.verifyInt?' verified':''}">
+      <div class="cert-title">
+        <span>中间 CA (Intermediate CA)</span>
+        <span class="cert-label int-lbl">INTERMEDIATE</span>
+      </div>
+      ${phase>=2?`
+      <div class="cert-field"><span class="cert-key">Subject</span><span class="cert-val highlight">CN=Let's Encrypt R3</span></div>
+      <div class="cert-field"><span class="cert-key">Issuer</span><span class="cert-val">ISRG Root X1</span></div>
+      <div class="cert-field"><span class="cert-key">Valid</span><span class="cert-val">2020-09-04 → 2025-09-15</span></div>
+      <div class="cert-field"><span class="cert-key">PubKey</span><span class="cert-val">RSA 2048-bit</span></div>
+      `:'<div class="cert-field" style="color:var(--dim2);font-size:.74rem">由服务器一同发送（Chain Certificate）...</div>'}
+      <div class="verify-badge${s.verifyInt?' show ok':''}">✓ 签名验证通过</div>
+    </div>
+
+    <!-- Arrow down -->
+    <div class="chain-arrow${phase>=5?' active':''}"></div>
+
+    <!-- Root CA -->
+    <div class="cert-card root${phase>=5?' verified':''}">
+      <div class="cert-title">
+        <span>根 CA (Root CA)</span>
+        <span class="cert-label root-lbl">ROOT</span>
+      </div>
+      ${phase>=4?`
+      <div class="cert-field"><span class="cert-key">Subject</span><span class="cert-val highlight">CN=ISRG Root X1</span></div>
+      <div class="cert-field"><span class="cert-key">Issuer</span><span class="cert-val highlight">CN=ISRG Root X1</span><span class="cert-val" style="margin-left:4px;color:var(--purple)">(自签名)</span></div>
+      <div class="cert-field"><span class="cert-key">Valid</span><span class="cert-val">2015-06-04 → 2035-06-04</span></div>
+      `:'<div class="cert-field" style="color:var(--dim2);font-size:.74rem">内置于操作系统 / 浏览器信任库...</div>'}
+      ${phase>=4?'<div class="verify-badge show ok">✓ 签名验证通过</div>':''}
+    </div>
+
+    <div class="trust-anchor${phase>=4?' show':''}">🔒 Trust Anchor — 内置于 OS/浏览器，无需网络验证</div>
+    <div class="chain-success${s.success?' show':''}">🎉 证书链验证成功！TLS 握手继续，连接安全建立</div>
+  </div>`;
+}
+
+/* --- Scene 1: ACME --- */
+function renderScene1(area){
+  const step = stepIdx >= 0 ? SCENES[1].steps[stepIdx] : null;
+  const s = step ? step.s : {rows:[], timerPct:33};
+  const rows = s.rows || [];
+  const pct = s.timerPct || 33;
+  const isNew = s.timerPct===100;
+
+  // Build rows grouped by 3
+  let rowsHTML = '';
+  for(let i=0;i<rows.length;i+=3){
+    rowsHTML += '<div class="swimlane swimlane-3" style="border-bottom:1px solid rgba(255,255,255,.04)">';
+    for(let c=0;c<3;c++){
+      const cell = rows[i+c];
+      if(cell && cell.text){
+        rowsHTML += `<div class="lane-col"><div class="swim-msg show ${cell.cls}">${cell.text}</div></div>`;
+      } else {
+        rowsHTML += `<div class="lane-col"></div>`;
+      }
+    }
+    rowsHTML += '</div>';
+  }
+
+  area.innerHTML = `
+  <div>
+    <div class="acme-timer">
+      <span style="font-size:.76rem;color:var(--dim2);white-space:nowrap">证书有效期</span>
+      <div class="timer-bar">
+        <div class="timer-fill${pct<=33&&!isNew?' critical':''}" style="width:${isNew?100:pct}%;background:${isNew?'var(--ok)':pct<=33?'var(--err)':'var(--warn)'}"></div>
+      </div>
+      <span style="font-size:.74rem;color:${isNew?'var(--ok)':pct<=33?'var(--err)':'var(--warn)'}">
+        ${isNew?'已续签（90天）':pct<=33?'剩余 ~30天（触发续签）':'正常'}
+      </span>
+    </div>
+    <div class="swimlane-wrap">
+      <div class="swimlane swimlane-3">
+        <div class="lane-header">Certbot（客户端）</div>
+        <div class="lane-header">ACME Server（Let's Encrypt）</div>
+        <div class="lane-header">Web Server（Nginx）</div>
+      </div>
+      ${rowsHTML}
+    </div>
+  </div>`;
+}
+
+/* --- Scene 2: Revocation --- */
+function renderScene2(area){
+  const step = stepIdx >= 0 ? SCENES[2].steps[stepIdx] : null;
+  const s = step ? step.s : {phase:'init', steps:[]};
+  const showSteps = s.steps || [];
+  const phase = s.phase||'init';
+
+  const isRevoked = ['revoke','stapling','check','blocked','compare'].includes(phase);
+  const isBlocked = phase==='blocked';
+  const isCompare = phase==='compare';
+
+  const ocspSteps = [
+    {icon:'🔑', text:'私钥泄漏 → 管理员申请吊销', cls:''},
+    {icon:'📋', text:'CA 将序列号加入 CRL，更新 OCSP', cls:'ok-step'},
+    {icon:'🔄', text:'Web Server 主动查询 OCSP，缓存响应（Stapling）', cls:'ok-step'},
+    {icon:'🔍', text:'浏览器从握手中获取 OCSP Stapling 响应', cls:''},
+    {icon:'🚫', text:'OCSP 响应：certStatus = revoked → 拒绝连接', cls:'fail-step'},
+  ];
+
+  area.innerHTML = `
+  <div class="revoke-wrap">
+    <div class="revoke-left">
+      <div class="cert-card-lg${isRevoked?' revoked':''}">
+        <div class="cert-title" style="font-size:.82rem;font-weight:700;margin-bottom:10px">
+          <span>example.com 证书</span>
+          ${isRevoked?'<span style="font-size:.65rem;color:var(--err)">⚠ 已吊销</span>':''}
+        </div>
+        <div class="cert-field"><span class="cert-key">Serial</span><span class="cert-val">0x1A2B3C4D5E6F</span></div>
+        <div class="cert-field"><span class="cert-key">Subject</span><span class="cert-val">CN=example.com</span></div>
+        <div class="cert-field"><span class="cert-key">Issuer</span><span class="cert-val">Let's Encrypt R3</span></div>
+        <div class="cert-field"><span class="cert-key">Valid</span><span class="cert-val">2024-01-01 → 2024-04-01</span></div>
+        ${phase==='leak'?`<div style="margin-top:10px;font-size:.72rem;color:var(--err);border:1px solid rgba(248,113,113,.3);border-radius:6px;padding:6px 10px;background:rgba(248,113,113,.06)">⚠ privkey.pem 已被攻击者获取！</div>`:''}
+        <div class="revoked-badge${isRevoked?' show':''}">REVOKED</div>
+      </div>
+
+      ${isBlocked?`
+      <div style="margin-top:12px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);border-radius:10px;padding:12px;font-size:.78rem;color:#fca5a5;text-align:center">
+        <div style="font-size:1rem;margin-bottom:4px">🚫</div>
+        <div style="font-weight:700">ERR_CERT_REVOKED</div>
+        <div style="color:var(--dim);font-size:.72rem;margin-top:4px">此证书已被吊销，连接不安全</div>
+      </div>`:''}
+    </div>
+
+    <div class="revoke-right">
+      <div style="font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">吊销流程</div>
+      <div class="ocsp-row">
+        ${ocspSteps.map((o,i)=>`
+          <div class="ocsp-step${showSteps.includes(i)?' show':''} ${showSteps.includes(i)?o.cls:''}">
+            <span class="ocsp-icon">${o.icon}</span>
+            <span>${o.text}</span>
+          </div>
+        `).join('')}
+      </div>
+
+      ${isCompare?`
+      <div style="font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin:14px 0 8px">性能对比</div>
+      <div class="perf-compare">
+        <div class="perf-box">
+          <h4>OCSP Stapling</h4>
+          <div class="perf-bar-wrap">
+            <div class="perf-bar" style="width:8%;background:var(--ok)"></div>
+          </div>
+          <div class="perf-label" style="color:var(--ok)">额外延迟 ≈ 0ms</div>
+          <div style="font-size:.7rem;color:var(--dim2);margin-top:6px;line-height:1.6">服务器预取缓存<br>握手中直接附带<br>✓ 保护用户隐私</div>
+        </div>
+        <div class="perf-box">
+          <h4>主动 OCSP 查询</h4>
+          <div class="perf-bar-wrap">
+            <div class="perf-bar" style="width:75%;background:var(--warn)"></div>
+          </div>
+          <div class="perf-label" style="color:var(--warn)">额外延迟 50–200ms</div>
+          <div style="font-size:.7rem;color:var(--dim2);margin-top:6px;line-height:1.6">浏览器额外 HTTP 请求<br>依赖 CA 服务器可用<br>✗ CA 可追踪访问行为</div>
+        </div>
+      </div>`:''}
+    </div>
+  </div>`;
+}
+
+/* --- Scene 3: Internal PKI / mTLS --- */
+function renderScene3(area){
+  const step = stepIdx >= 0 ? SCENES[3].steps[stepIdx] : null;
+  const s = step ? step.s : {phase:0, arrows:[]};
+  const phase = s.phase || 0;
+  const arrows = s.arrows || [];
+  const showTable = s.showTable || false;
+
+  area.innerHTML = `
+  <div class="mtls-wrap">
+    <div class="mtls-nodes">
+      <div class="pki-node vault${phase>=1?' active':''}">
+        <div class="node-icon">🏛️</div>
+        <div class="node-name">Vault PKI</div>
+        <div class="node-info">内部 CA<br>TTL: 24h roles</div>
+        ${phase>=1?`<div class="cert-ttl">Root CA: 10yr</div>`:''}
+      </div>
+
+      <div class="pki-node svc${phase>=2?' active':''}">
+        <div class="node-icon">⚙️</div>
+        <div class="node-name">Service A</div>
+        <div class="node-info">请求方<br>service-a.internal</div>
+        ${phase>=2?`<div class="cert-ttl">cert TTL: 24h</div>`:''}
+      </div>
+
+      <div class="pki-node svc${phase>=3?' active':''}">
+        <div class="node-icon">📦</div>
+        <div class="node-name">Service B</div>
+        <div class="node-info">响应方<br>service-b.internal</div>
+        ${phase>=3?`<div class="cert-ttl">cert TTL: 24h</div>`:''}
+      </div>
+    </div>
+
+    <div class="mtls-arrows">
+      ${arrows.includes('req')?`<div class="flow-arrow req show">A → Vault: pki/issue/service-cert cn=service-a.internal ttl=24h</div>`:''}
+      ${arrows.includes('resp')?`<div class="flow-arrow resp show">Vault → A: { certificate, private_key, issuing_ca }</div>`:''}
+      ${arrows.includes('mtls')?`<div class="flow-arrow mtls show">mTLS: A ↔ B — 双方互相验证证书（零信任）</div>`:''}
+      ${arrows.includes('renew')?`<div class="flow-arrow resp show">12h 后：Vault Agent 自动续签 → 无停机轮转</div>`:''}
+    </div>
+
+    ${phase>=3?`
+    <div style="background:rgba(167,139,250,.06);border:1px solid rgba(167,139,250,.2);border-radius:10px;padding:12px;font-size:.76rem;color:#c4b5fd;line-height:1.7">
+      <strong>mTLS 握手（双向认证）：</strong><br>
+      ① A → B: Client Hello + A 的证书<br>
+      ② B 验证 A 的证书（由 Company Internal CA 签发）✓<br>
+      ③ B → A: Server Hello + B 的证书 + CertificateRequest<br>
+      ④ A 验证 B 的证书 ✓ → 双方共享对称密钥，连接建立
+    </div>`:''}
+
+    ${showTable?`
+    <div class="vs-table">
+      <div class="vs-row">
+        <div class="vs-cell hdr">对比项</div>
+        <div class="vs-cell hdr">公网长期证书（1 年）</div>
+        <div class="vs-cell hdr">内网短期证书（24h）</div>
+      </div>
+      <div class="vs-row">
+        <div class="vs-cell" style="color:var(--dim2)">私钥泄漏影响窗口</div>
+        <div class="vs-cell warn-cell">最长 1 年</div>
+        <div class="vs-cell ok-cell">最长 24 小时</div>
+      </div>
+      <div class="vs-row">
+        <div class="vs-cell" style="color:var(--dim2)">吊销机制</div>
+        <div class="vs-cell warn-cell">需要 CRL/OCSP</div>
+        <div class="vs-cell ok-cell">直接过期，无需吊销</div>
+      </div>
+      <div class="vs-row">
+        <div class="vs-cell" style="color:var(--dim2)">续签方式</div>
+        <div class="vs-cell warn-cell">ACME 每 60 天手动/自动</div>
+        <div class="vs-cell ok-cell">Vault Agent 全自动轮转</div>
+      </div>
+      <div class="vs-row">
+        <div class="vs-cell" style="color:var(--dim2)">适用场景</div>
+        <div class="vs-cell" style="color:var(--dim)">公网 HTTPS 服务</div>
+        <div class="vs-cell" style="color:var(--dim)">内网 mTLS / 零信任</div>
+      </div>
+    </div>`:''}
+  </div>`;
+}
+
+/* ===== Controls ===== */
+function next(){
+  const scene = SCENES[sceneIdx];
+  if(stepIdx < scene.steps.length-1){ stepIdx++; renderAll(); }
+  else stopPlay();
+}
+function prev(){
+  if(stepIdx > -1){ stepIdx--; renderAll(); }
+}
+function reset(){
+  stepIdx = -1;
+  stopPlay();
+  renderAll();
+}
+function togglePlay(){
+  if(timer) stopPlay();
+  else startPlay();
+}
+function startPlay(){
+  document.getElementById('playBtn').textContent = '⏸ 暂停';
+  timer = setInterval(()=>{
+    const scene = SCENES[sceneIdx];
+    if(stepIdx < scene.steps.length-1){ stepIdx++; renderAll(); }
+    else stopPlay();
+  }, 2400);
+}
+function stopPlay(){
+  if(timer){ clearInterval(timer); timer=null; }
+  document.getElementById('playBtn').textContent = '▶ 播放';
+}
+
+/* Initial render */
+renderAll();
+</script>
+<script>if(window.NavTracker) NavTracker.track('PKI 与证书体系', window.location.href, '🔐', '安全');</script>
+<script src="../footer.js"></script>
+</body>
+</html>

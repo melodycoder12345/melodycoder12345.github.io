@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="OpenTelemetry 统一 API 和 SDK，一次插桩同时采集 Trace、Metric、Log 三类信号，通过 Collector 做统一处理和路由，输出到任意后端（Jaeger/Prometheus/Loki）。">
+<link rel="canonical" href="https://melodycoder12345.github.io/observability/opentelemetry.html">
+<meta property="og:title" content="OpenTelemetry — 码海拾贝">
+<meta property="og:description" content="OpenTelemetry 统一 API 和 SDK，一次插桩同时采集 Trace、Metric、Log 三类信号，通过 Collector 路由到任意后端。">
+<meta property="og:url" content="https://melodycoder12345.github.io/observability/opentelemetry.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="OpenTelemetry — 码海拾贝">
+<meta name="twitter:description" content="OpenTelemetry 统一 API 和 SDK，一次插桩同时采集 Trace、Metric、Log 三类信号，通过 Collector 路由到任意后端。">
+<title>OpenTelemetry - 可观测性</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#34d399;--ok:#4ade80;--warn:#fbbf24;--err:#f87171;--blue:#38bdf8;--purple:#a78bfa;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:radial-gradient(circle at 20% 0%,rgba(52,211,153,.1),transparent 40%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1300px;margin:0 auto;padding:40px 32px 80px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--dim2);margin-bottom:24px}
+.breadcrumb a{color:var(--dim2)}.breadcrumb a:hover{color:var(--text)}
+.page-title{font-size:clamp(1.6rem,3.5vw,2.8rem);letter-spacing:-.04em;margin-bottom:6px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{color:var(--dim);font-size:.95rem;margin-bottom:28px;max-width:720px;line-height:1.75}
+.layout{display:grid;grid-template-columns:268px 1fr;gap:20px}
+.left-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:18px;align-self:start;position:sticky;top:20px}
+.tab-nav{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px}
+.tab-btn{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:10px;padding:9px 6px;cursor:pointer;font-size:.7rem;transition:.15s;text-align:center;line-height:1.45}
+.tab-btn:hover{border-color:rgba(52,211,153,.3);color:var(--text)}
+.tab-btn.active{background:rgba(52,211,153,.12);border-color:rgba(52,211,153,.45);color:var(--accent);font-weight:700}
+.left-panel h3{font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
+.step-btn{width:100%;text-align:left;border:1px solid transparent;background:none;color:var(--dim);padding:7px 10px;border-radius:8px;cursor:pointer;font-size:.76rem;line-height:1.4;transition:.15s;margin-bottom:3px;display:flex;align-items:flex-start}
+.step-btn:hover{border-color:rgba(52,211,153,.3);color:var(--text)}
+.step-btn.active{background:rgba(52,211,153,.1);border-color:rgba(52,211,153,.4);color:var(--text)}
+.step-index{display:inline-block;min-width:17px;height:17px;border-radius:50%;background:rgba(52,211,153,.15);color:var(--accent);font-size:.63rem;font-weight:700;text-align:center;line-height:17px;margin-right:6px;flex-shrink:0}
+.ctrl{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+.ctrl button{flex:1;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:8px;padding:7px 4px;cursor:pointer;font-size:.72rem;transition:.15s;min-width:50px}
+.ctrl button:hover{border-color:var(--accent);color:var(--text)}
+.center-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:22px;display:flex;flex-direction:column;gap:14px}
+.step-msg{border-left:3px solid var(--accent);background:rgba(52,211,153,.06);border-radius:0 10px 10px 0;padding:10px 14px;font-size:.86rem;color:var(--text);line-height:1.7}
+.scene{display:none}.scene.active{display:flex;flex-direction:column;gap:14px}
+.sec-lbl{font-size:.68rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:7px;font-weight:700}
+
+/* ── Scene 0: Trace Propagation ── */
+.svc-chain{display:flex;align-items:stretch;width:100%}
+.svc-box{flex:1;min-width:0;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.03);border-radius:12px;padding:12px 10px;text-align:center;transition:.3s}
+.svc-box.sv-active{border-color:rgba(52,211,153,.5);background:rgba(52,211,153,.08)}
+.svc-box.sv-creating{border-color:var(--warn);background:rgba(251,191,36,.06)}
+.svc-box.sv-error{border-color:var(--err) !important;background:rgba(248,113,113,.06) !important}
+.svc-box.sv-done{border-color:rgba(52,211,153,.2);background:rgba(52,211,153,.03);opacity:.7}
+.sv-name{font-size:.75rem;font-weight:700;margin-bottom:4px}
+.sv-sdk{font-size:.59rem;color:var(--accent);background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.2);border-radius:4px;padding:1px 5px;margin-bottom:7px;display:inline-block}
+.sv-info{font-size:.62rem;color:var(--dim2);font-family:monospace;min-height:32px;line-height:1.65;text-align:left}
+.chain-arr{padding:0 5px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:62px}
+.arr-line{height:2px;width:100%;background:rgba(255,255,255,.1);position:relative;transition:.3s}
+.arr-line.arr-on{background:var(--accent)}
+.arr-line::after{content:'▶';position:absolute;right:-6px;top:-8px;font-size:.63rem;color:rgba(255,255,255,.1);transition:.3s}
+.arr-line.arr-on::after{color:var(--accent)}
+.arr-lbl{font-size:.57rem;color:var(--dim2);text-align:center;max-width:62px;line-height:1.3;transition:.3s}
+.arr-lbl.lbl-on{color:var(--accent)}
+.hdr-box{font-family:monospace;font-size:.72rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:10px 12px;line-height:1.9;min-height:46px}
+.hk{color:var(--accent)}.hv{color:var(--warn)}.hd{color:var(--dim2)}
+/* waterfall */
+.wf-hdr{display:flex;font-size:.63rem;color:var(--dim2);margin-bottom:6px;padding-left:155px}
+.wf-tick{flex:1;text-align:center;border-left:1px solid rgba(255,255,255,.05)}
+.sp-row{display:flex;align-items:center;margin-bottom:5px;opacity:0;transition:.4s}
+.sp-row.sp-show{opacity:1}
+.sp-nm{width:150px;font-size:.7rem;color:var(--dim);flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:6px}
+.sp-nm.sp-hi{color:var(--text);font-weight:700}
+.sp-wrap{flex:1;height:22px;position:relative}
+.sp-bar{position:absolute;height:18px;border-radius:4px;top:2px;transition:width .5s,left .5s;display:flex;align-items:center;padding:0 6px;font-size:.62rem;color:rgba(255,255,255,.9);font-weight:600}
+
+/* ── Scene 1: Collector Pipeline ── */
+.pipeline{display:flex;flex-direction:column;gap:5px;align-items:center;width:100%}
+.pipe-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;width:100%}
+.pipe-box{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.03);border-radius:10px;padding:9px 11px;text-align:center;transition:.3s;display:flex;flex-direction:column;justify-content:center;min-height:52px}
+.pipe-box.pb-on{border-color:rgba(52,211,153,.5);background:rgba(52,211,153,.08);box-shadow:0 0 12px rgba(52,211,153,.1)}
+.pb-title{font-size:.72rem;font-weight:700;margin-bottom:2px}
+.pb-sub{font-size:.61rem;color:var(--dim2);transition:.3s;line-height:1.4}
+.pipe-dn{display:flex;justify-content:center;font-size:1.1rem;color:rgba(255,255,255,.1);transition:.3s;line-height:1}
+.pipe-dn.pd-on{color:var(--accent)}
+
+/* ── Scene 2: Tail Sampling ── */
+.samp-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.samp-col{border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:13px;display:flex;flex-direction:column;gap:8px}
+.sc-danger{border-color:rgba(248,113,113,.25);background:rgba(248,113,113,.02)}
+.sc-safe{border-color:rgba(52,211,153,.25);background:rgba(52,211,153,.02)}
+.samp-hd{font-size:.74rem;font-weight:700;text-align:center;padding:5px;border-radius:7px}
+.sh-danger{background:rgba(248,113,113,.1);color:var(--err)}
+.sh-safe{background:rgba(52,211,153,.1);color:var(--accent)}
+.t-item{border:1px solid rgba(255,255,255,.08);border-radius:7px;padding:7px 9px;font-size:.68rem;font-family:monospace;transition:.3s;margin-bottom:4px;line-height:1.5}
+.ti-err{border-color:rgba(248,113,113,.35);background:rgba(248,113,113,.05);color:var(--err)}
+.ti-ok{border-color:rgba(52,211,153,.2);background:rgba(52,211,153,.03);color:var(--dim)}
+.ti-kept{border-color:var(--accent);background:rgba(52,211,153,.1);color:var(--text)}
+.ti-drop{opacity:.28}
+.samp-buf{border:1px dashed rgba(255,255,255,.13);border-radius:8px;padding:9px 10px;min-height:60px;font-size:.67rem;color:var(--dim2);font-family:monospace;white-space:pre-line;line-height:1.65}
+.samp-dec{font-size:.73rem;font-weight:700;text-align:center;padding:7px;border-radius:8px;min-height:32px;display:flex;align-items:center;justify-content:center}
+.sd-keep{background:rgba(52,211,153,.12);color:var(--accent)}
+.sd-drop{background:rgba(100,116,139,.1);color:var(--dim2)}
+.sd-wait{background:rgba(251,191,36,.08);color:var(--warn)}
+.samp-note{font-size:.78rem;color:var(--dim);line-height:1.7;border:1px solid rgba(52,211,153,.2);background:rgba(52,211,153,.04);border-radius:8px;padding:10px 13px;display:none}
+.samp-note.sn-show{display:block}
+
+/* ── Scene 3: Multi-signal Correlation ── */
+.sig-section{display:flex;flex-direction:column;gap:10px}
+.sig-row{border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:12px;transition:.3s}
+.sig-row.sr-hl{border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.04)}
+.sig-row.sr-err{border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.04)}
+.sig-hdr{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.sig-badge{font-size:.61rem;font-weight:800;padding:2px 8px;border-radius:4px;letter-spacing:.07em}
+.sb-t{background:rgba(167,139,250,.15);color:var(--purple)}
+.sb-m{background:rgba(56,189,248,.15);color:var(--blue)}
+.sb-l{background:rgba(251,191,36,.15);color:var(--warn)}
+.sig-name{font-size:.78rem;font-weight:700}
+.sig-body{display:flex;gap:10px;align-items:flex-end}
+.sig-bars{display:flex;gap:3px;align-items:flex-end;height:38px;flex-shrink:0}
+.sig-bar{width:12px;border-radius:2px 2px 0 0;transition:.3s;background:rgba(52,211,153,.45)}
+.sig-bar.sb-high{background:var(--err);box-shadow:0 0 6px rgba(248,113,113,.4)}
+.sig-cnt{font-family:monospace;font-size:.68rem;color:var(--dim);background:rgba(255,255,255,.02);border-radius:6px;padding:7px 9px;line-height:1.7;flex:1}
+.sc-hl{color:var(--accent);font-weight:700}
+.sc-err{color:var(--err);font-weight:700}
+.sc-warn{color:var(--warn)}
+.corr-banner{border:2px dashed rgba(52,211,153,.35);border-radius:8px;text-align:center;padding:9px 14px;font-size:.74rem;color:var(--accent);background:rgba(52,211,153,.04);line-height:1.6;display:none}
+.corr-banner.cb-on{display:block}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">可观测性</a><span>/</span>OpenTelemetry</div>
+  <h1 class="page-title">OpenTelemetry</h1>
+  <p class="subtitle">可观测性领域的统一标准。OpenTelemetry（OTel）提供统一的 API 和 SDK，一次插桩同时采集 Trace、Metric、Log 三类信号，通过 Collector 做统一处理和路由，输出到任意后端（Jaeger / Prometheus / Loki / Datadog）。彻底解决各厂商 SDK 不兼容、迁移成本高的问题。</p>
+
+  <div class="layout">
+    <div class="left-panel">
+      <div class="tab-nav">
+        <button class="tab-btn active" onclick="switchTab(0)">🔗 Trace<br>传播</button>
+        <button class="tab-btn" onclick="switchTab(1)">⚡ Collector<br>Pipeline</button>
+        <button class="tab-btn" onclick="switchTab(2)">🎯 Tail<br>Sampling</button>
+        <button class="tab-btn" onclick="switchTab(3)">🔮 多信号<br>关联</button>
+      </div>
+      <h3>步骤</h3>
+      <div id="stepList"></div>
+      <div class="ctrl">
+        <button onclick="prev()">← 上一步</button>
+        <button onclick="next()">下一步 →</button>
+        <button onclick="reset()">重置</button>
+        <button id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      </div>
+    </div>
+
+    <div class="center-panel">
+      <div class="step-msg" id="stepMsg">选择上方场景标签，点击"下一步"开始动画演示。</div>
+
+      <!-- ===== Scene 0: Trace Propagation ===== -->
+      <div class="scene active" id="scene0">
+        <div>
+          <div class="sec-lbl">服务调用链（OTel SDK 自动插桩）</div>
+          <div class="svc-chain" id="svcChain"></div>
+        </div>
+        <div>
+          <div class="sec-lbl">HTTP 请求头（W3C Trace Context）</div>
+          <div class="hdr-box" id="hdrBox">等待请求...</div>
+        </div>
+        <div id="wfSec" style="display:none">
+          <div class="sec-lbl">Trace 瀑布图（上报后可视化）</div>
+          <div class="wf-hdr" id="wfHdr"></div>
+          <div id="wfRows"></div>
+        </div>
+      </div>
+
+      <!-- ===== Scene 1: Collector Pipeline ===== -->
+      <div class="scene" id="scene1">
+        <div class="sec-lbl">Collector Pipeline（OTLP → Receiver → Processors → Exporters → 后端）</div>
+        <div class="pipeline">
+          <div class="pipe-row3">
+            <div class="pipe-box" id="psdk0"><div class="pb-title">API Gateway SDK</div><div class="pb-sub" id="psdk0s">OTLP gRPC</div></div>
+            <div class="pipe-box" id="psdk1"><div class="pb-title">Order SDK</div><div class="pb-sub" id="psdk1s">OTLP gRPC</div></div>
+            <div class="pipe-box" id="psdk2"><div class="pb-title">Payment SDK</div><div class="pb-sub" id="psdk2s">OTLP gRPC</div></div>
+          </div>
+          <div class="pipe-dn" id="pd0">↓</div>
+          <div style="width:100%">
+            <div class="pipe-box" id="pRecv"><div class="pb-title">Receiver（OTLP gRPC :4317）</div><div class="pb-sub" id="pRecvs">等待数据...</div></div>
+          </div>
+          <div class="pipe-dn" id="pd1">↓</div>
+          <div style="width:100%">
+            <div class="pipe-box" id="pProc0"><div class="pb-title">Processor 1 — Batch</div><div class="pb-sub" id="pProc0s">积攒 1000 条或等待 5s</div></div>
+          </div>
+          <div class="pipe-dn" id="pd2">↓</div>
+          <div style="width:100%">
+            <div class="pipe-box" id="pProc1"><div class="pb-title">Processor 2 — Sampling</div><div class="pb-sub" id="pProc1s">Tail / Head 采样过滤</div></div>
+          </div>
+          <div class="pipe-dn" id="pd3">↓</div>
+          <div style="width:100%">
+            <div class="pipe-box" id="pProc2"><div class="pb-title">Processor 3 — Attribute Enrichment</div><div class="pb-sub" id="pProc2s">添加 k8s / env 属性</div></div>
+          </div>
+          <div class="pipe-dn" id="pd4">↓</div>
+          <div class="pipe-row3">
+            <div class="pipe-box" id="pExp0"><div class="pb-title">Jaeger Exporter</div><div class="pb-sub" id="pExp0s">Trace → Jaeger</div></div>
+            <div class="pipe-box" id="pExp1"><div class="pb-title">Prometheus Exporter</div><div class="pb-sub" id="pExp1s">Metric → Remote Write</div></div>
+            <div class="pipe-box" id="pExp2"><div class="pb-title">Loki Exporter</div><div class="pb-sub" id="pExp2s">Log → Loki</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Scene 2: Tail Sampling ===== -->
+      <div class="scene" id="scene2">
+        <div class="sec-lbl">采样策略对比（Head Sampling vs Tail Sampling）</div>
+        <div class="samp-grid">
+          <div class="samp-col sc-danger">
+            <div class="samp-hd sh-danger">Head Sampling（入口随机采样）</div>
+            <div id="headTraces"></div>
+            <div id="headDec"></div>
+          </div>
+          <div class="samp-col sc-safe">
+            <div class="samp-hd sh-safe">Tail Sampling（等完整 Trace）</div>
+            <div class="samp-buf" id="tailBuf">Tail Sampler 缓冲区：等待所有 Span...</div>
+            <div id="tailTraces"></div>
+            <div id="tailDec"></div>
+          </div>
+        </div>
+        <div class="samp-note" id="sampNote"></div>
+      </div>
+
+      <!-- ===== Scene 3: Multi-signal Correlation ===== -->
+      <div class="scene" id="scene3">
+        <div class="sec-lbl">三大信号关联（Trace + Metric + Log via TraceId）</div>
+        <div class="sig-section">
+          <div class="sig-row" id="sigTrace">
+            <div class="sig-hdr"><span class="sig-badge sb-t">TRACE</span><span class="sig-name">分布式链路追踪</span></div>
+            <div class="sig-cnt" id="sigTrC">— 等待请求 —</div>
+          </div>
+          <div class="sig-row" id="sigMetric">
+            <div class="sig-hdr"><span class="sig-badge sb-m">METRIC</span><span class="sig-name">时序指标</span></div>
+            <div class="sig-body">
+              <div class="sig-bars" id="sigBars"></div>
+              <div class="sig-cnt" id="sigMtC">— 等待数据 —</div>
+            </div>
+          </div>
+          <div class="sig-row" id="sigLog">
+            <div class="sig-hdr"><span class="sig-badge sb-l">LOG</span><span class="sig-name">结构化日志</span></div>
+            <div class="sig-cnt" id="sigLgC">— 等待日志 —</div>
+          </div>
+          <div class="corr-banner" id="corrBanner"></div>
+        </div>
+      </div>
+
+    </div><!-- /center-panel -->
+  </div><!-- /layout -->
+</main>
+
+<script>
+/* ===================================================================
+   DATA
+=================================================================== */
+
+/* Scene 0: Trace Propagation — 9 steps */
+const S0 = [
+  {
+    msg:'三个微服务均已集成 OTel SDK（自动插桩）。无需修改业务代码——SDK 在框架层拦截 HTTP / gRPC 调用，自动采集 Trace、Metric 和 Log 三类遥测信号。',
+    svcs:[{},{},{}], arrows:[false,false], lbls:['',''],
+    hdr:null, wfc:0
+  },
+  {
+    msg:'用户浏览器发起 HTTP POST /orders 到 API Gateway。OTel SDK 检查请求头，未发现 traceparent —— 确认 API Gateway 是本次 Trace 的起点（Root）。',
+    svcs:[{active:true,creating:true},{},{}], arrows:[false,false], lbls:['',''],
+    hdr:{type:'info',text:'（初始）请求头中无 traceparent，API Gateway 将作为 Root Span 起点'},
+    wfc:0
+  },
+  {
+    msg:'OTel SDK 自动生成全局唯一 TraceId（abc123ff…）和 Root Span 的 SpanId（001a）。Root Span 没有父节点，是整个链路的根节点，代表用户的完整请求。',
+    svcs:[{active:true,span:'SpanId: 001a\nParent: Root Span\nOp: HTTP POST /orders'},{},{}],
+    arrows:[false,false], lbls:['',''],
+    hdr:{type:'trace',text:'traceparent: 00-abc123ff…-001a-01'},
+    wfc:0
+  },
+  {
+    msg:'API Gateway 调用 Order Service 时，OTel SDK 自动注入 W3C Trace Context 头（traceparent），携带当前 traceId 和 spanId（001a），无需任何业务代码改动。',
+    svcs:[{active:true,span:'SpanId: 001a\nParent: Root'},{active:true,span:'（接收中…）'},{}],
+    arrows:[true,false], lbls:['traceparent:\n…-001a-01',''],
+    hdr:{type:'trace',text:'traceparent: 00-abc123ff…-001a-01'},
+    wfc:0
+  },
+  {
+    msg:'Order Service 的 SDK 从 traceparent 解析出 traceId（不变）和父 spanId（001a），创建子 Span（SpanId=002b，Parent=001a）。同一 TraceId 已串联两个服务。',
+    svcs:[{active:true,span:'SpanId: 001a'},{active:true,creating:true,span:'SpanId: 002b\nParent: 001a\nOp: gRPC CreateOrder'},{}],
+    arrows:[true,false], lbls:['已传播 ✓',''],
+    hdr:{type:'trace',text:'traceparent: 00-abc123ff…-002b-01'},
+    wfc:0
+  },
+  {
+    msg:'Order Service 调用 Payment Service（gRPC）。SDK 再次注入 traceparent，此时 parentSpanId 是 Order 的 SpanId（002b），形成三层调用层级。',
+    svcs:[{active:true,span:'SpanId: 001a'},{active:true,span:'SpanId: 002b\nParent: 001a'},{active:true,span:'（接收中…）'}],
+    arrows:[true,true], lbls:['已传播 ✓','traceparent:\n…-002b-01'],
+    hdr:{type:'trace',text:'traceparent: 00-abc123ff…-002b-01'},
+    wfc:0
+  },
+  {
+    msg:'Payment Service 创建子 Span（SpanId=003c，Parent=002b）。调用支付 DB 时发生连接超时（2300ms），Span 被标记 status=ERROR，属性中记录错误详情和 db.host。',
+    svcs:[{active:true,span:'SpanId: 001a'},{active:true,span:'SpanId: 002b'},{active:true,creating:true,error:true,span:'SpanId: 003c\nParent: 002b\nstatus=ERROR\nduration=2300ms'}],
+    arrows:[true,true], lbls:['已传播 ✓','已传播 ✓'],
+    hdr:{type:'trace',text:'traceparent: 00-abc123ff…-003c-01'},
+    wfc:0
+  },
+  {
+    msg:'请求结束，三个服务的 Span 通过 OTLP gRPC 批量上报到 OTel Collector。Collector 完成处理后路由到 Jaeger / Grafana Tempo 存储，完整 Trace 链路数据落盘。',
+    svcs:[{done:true,span:'上报 ✓'},{done:true,span:'上报 ✓'},{done:true,span:'上报 ✓'}],
+    arrows:[false,false], lbls:['',''],
+    hdr:{type:'info',text:'所有 Span 已上报 → OTel Collector → Jaeger / Tempo'},
+    wfc:0
+  },
+  {
+    msg:'在 Jaeger / Grafana Tempo 中展示完整 Trace 瀑布图：TraceId=abc123ff…，三层嵌套 Span。一眼识别 Payment（003c）耗时 2300ms 且有 ERROR 标记，是优化首选目标。',
+    svcs:[{},{},{}], arrows:[false,false], lbls:['',''],
+    hdr:{type:'info',text:'TraceId: abc123ff… | 总耗时 2350ms | 3 个 Span | 1 个 ERROR'},
+    wfc:3
+  },
+];
+
+/* Scene 1: Collector Pipeline — 9 steps */
+const S1 = [
+  {msg:'初始状态：三个服务已集成 OTel SDK，准备向同一个 OTel Collector 实例发送所有遥测数据（Trace + Metric + Log）。Collector 是 OTel 生态的核心枢纽。',
+   act:[], subs:{}},
+  {msg:'三个服务的 OTel SDK 并行发送 OTLP gRPC 数据流，包含 Trace（调用链 Span）、Metric（计数器 / 直方图）和 Log（结构化日志）。统一发往 Collector :4317 端口。',
+   act:['psdk0','psdk1','psdk2','pd0'], subs:{psdk0:'发送 Trace+Metric+Log…',psdk1:'发送 Trace+Metric+Log…',psdk2:'发送 Trace+Metric+Log…'}},
+  {msg:'Collector Receiver 监听 OTLP gRPC（:4317），接收并解析所有信号。单一接收端点极大简化 SDK 配置——SDK 只需知道 Collector 地址，与后端完全解耦。',
+   act:['psdk0','psdk1','psdk2','pd0','pRecv'], subs:{pRecv:'已接收 Trace + Metric + Log'}},
+  {msg:'Processor 1 —— Batch 处理器：将数据积攒到 1000 条，或等待 5 秒后批量发送。显著减少网络连接数和下游背压，生产环境 Trace 吞吐从每秒几次降至批量发送。',
+   act:['pRecv','pd1','pProc0'], subs:{pProc0:'批量中：已积攒 743/1000 条，剩余 3.2s…'}},
+  {msg:'Processor 2 —— Sampling 处理器：对 Trace 进行尾部采样，丢弃采样率 < 1% 的普通 Trace，保留 ERROR Trace（100%）和 p99 > 1s 的慢 Trace（100%）。',
+   act:['pProc0','pd2','pProc1'], subs:{pProc1:'采样中：ERROR Trace 100% 保留 + 正常 Trace 0.5% 保留'}},
+  {msg:'Processor 3 —— Attribute Enrichment：为每条遥测数据自动注入 Kubernetes 上下文（pod name、namespace）和 deployment.environment，无需任何业务代码修改，实现基础设施语义统一。',
+   act:['pProc1','pd3','pProc2'], subs:{pProc2:'增强中：注入 k8s.pod="api-gw-7d9f"  env="prod"'}},
+  {msg:'Exporter 1 —— Jaeger：将处理后的 Trace 数据以 OTLP 格式发往 Jaeger Collector，在 Jaeger UI 中渲染为瀑布图，支持按 TraceId、服务名、标签查询。',
+   act:['pProc2','pd4','pExp0'], subs:{pExp0:'导出到 Jaeger :14250 / OTLP'}},
+  {msg:'Exporter 2 —— Prometheus Remote Write：将 Metric 数据（Counter、Histogram、Gauge）写入 Prometheus 兼容后端（Prometheus / Thanos），供 Grafana Dashboard 展示和告警规则评估。',
+   act:['pProc2','pd4','pExp1'], subs:{pExp1:'写入 Prometheus :9090/api/v1/write'}},
+  {msg:'三路 Exporter 同时工作，单一 Collector 将三类信号扇出到不同后端。这正是 OTel 核心价值：一次插桩，多后端自由切换，彻底解除对任何厂商（Datadog / New Relic）的锁定。',
+   act:['pProc2','pd4','pExp0','pExp1','pExp2'], subs:{pExp0:'→ Jaeger ✓',pExp1:'→ Prometheus ✓',pExp2:'→ Loki :3100 ✓'}},
+];
+
+/* Scene 2: Tail Sampling — 6 steps */
+const S2 = [
+  {msg:'生产系统中，99% 的请求正常运行，只有约 1% 带有错误（超时、5xx 等）。如何以最低采样代价保留所有关键错误 Trace？这是可观测性的核心挑战。',
+   ht:[], buf:'Tail Sampler 缓冲区：等待 Span…', tt:[], hd:null, td:null, note:''},
+  {msg:'Head Sampling（头部采样）：请求进入时立即按概率决定是否采样（如 1%），实现简单、CPU 开销极低。致命缺陷：随机采样不区分正常 / 异常请求，ERROR Trace 极易被丢弃。',
+   ht:[{c:'ti-ok',l:'Trace #1：正常请求   45ms'},{c:'ti-ok',l:'Trace #2：正常请求   38ms'},{c:'ti-err',l:'Trace #3：ERROR ❌  2300ms'}],
+   buf:'（Head Sampling 不使用缓冲区，\n在请求入口立即做出决策）',
+   tt:[],
+   hd:{cls:'sd-drop',t:'随机 1% 采样 → Trace #3 ERROR 同样被丢弃！'},
+   td:null,
+   note:'Head Sampling 的致命缺陷：无法保证 ERROR Trace 被保留，排查问题时缺少关键证据。'},
+  {msg:'Tail Sampling 的关键：先在内存缓冲区中收集完整 Trace 的所有 Span（通常等待 30s），等全部到齐后，再根据规则（是否含 ERROR、延迟是否超阈值）决定保留还是丢弃。',
+   ht:[],
+   buf:'缓冲中（等待 30s 超时或所有 Span 到齐）：\n• Span 001a  api-gateway   2350ms  ✓\n• Span 002b  order-svc     2340ms  ✓\n• Span 003c  payment-svc   2300ms  ⏳',
+   tt:[],
+   hd:null,
+   td:{cls:'sd-wait',t:'等待中（已缓冲 2/3 个 Span，等待 003c…）'},
+   note:''},
+  {msg:'带 ERROR 的 Trace 全部 Span 到齐：payment-svc 的 Span 003c 标记 status=ERROR（DB 超时 2300ms）。Tail Sampler 评估规则命中"有 ERROR Span"→ 触发保留策略，整条 Trace 被完整保存。',
+   ht:[],
+   buf:'已收集完整 Trace（abc123ff）：\n• 001a  api-gateway    2350ms  ✓ OK\n• 002b  order-svc      2340ms  ✓ OK\n• 003c  payment-svc    2300ms  ⚠️ ERROR',
+   tt:[{c:'ti-kept',l:'TraceId: abc123ff… ⚠️ 含 ERROR Span'}],
+   hd:null,
+   td:{cls:'sd-keep',t:'决策：ERROR Trace → 保留完整 Trace ✓'},
+   note:''},
+  {msg:'对比：一个完全正常的 Trace 到来（无 ERROR，延迟 45ms）。Tail Sampler 评估：无 ERROR，无慢 Span → 按配置概率（0.5%）随机保留，99.5% 丢弃。正常 Trace 大幅节省存储。',
+   ht:[],
+   buf:'已收集正常 Trace（def456ff）：\n• 011a  api-gateway     45ms  ✓ OK\n• 012b  order-svc       38ms  ✓ OK\n• 013c  payment-svc     12ms  ✓ OK',
+   tt:[{c:'ti-kept',l:'TraceId: abc123ff… (ERROR) → 已保留 ✓'},{c:'ti-ok ti-drop',l:'TraceId: def456ff… (正常) → 按 0.5% 概率丢弃'}],
+   hd:null,
+   td:{cls:'sd-drop',t:'决策：正常 Trace → 按 0.5% 概率保留，99.5% 丢弃'},
+   note:''},
+  {msg:'对比总结：Tail Sampling 精确保留所有 ERROR 和慢 Trace，大幅节省正常 Trace 的存储成本。代价是需要额外内存缓冲（生产建议 ≥ 8GB）和有状态路由（同 TraceId 的 Span 必须到同一 Collector）。',
+   ht:[{c:'ti-err ti-drop',l:'ERROR Trace → 随机丢弃（Head 的缺陷）'},{c:'ti-ok',l:'正常 Trace → 随机保留（浪费存储）'}],
+   buf:'Tail Sampler 规则（优先级从高到低）：\n• status = ERROR  → 保留率 100%\n• p99 > 1s 慢 Trace → 保留率 100%\n• 正常 Trace      → 保留率 0.5%',
+   tt:[{c:'ti-kept',l:'所有 ERROR Trace → 全部保留 ✓'},{c:'ti-ok',l:'正常 Trace → 按 0.5% 保留（成本可控）'}],
+   hd:{cls:'sd-drop',t:'缺陷：可能随机丢失 ERROR Trace'},
+   td:{cls:'sd-keep',t:'优势：精确保留异常，存储成本可控 ✓'},
+   note:'Tail Sampling 权衡：需要足够内存（缓冲 30s 的全量 Span），且 Collector 需要有状态路由——同一 TraceId 的 Span 必须路由到同一 Collector 实例，否则决策不完整。'},
+];
+
+/* Scene 3: Multi-signal Correlation — 7 steps */
+const S3 = [
+  {msg:'系统运行正常：API 每秒处理 1200 个请求，Trace / Metric / Log 均以正常频率产生。三类信号独立存储在 Jaeger / Prometheus / Loki，通过共同的 TraceId 可以互相关联。',
+   tr:false, mr:false, lr:false, corr:false,
+   tc:'TraceId: —  |  正常请求流  |  p99: 42ms  |  ERROR 率: 0%',
+   bars:[3,4,3,5,4,4,3,5,4], alert:false,
+   mc:'payment_latency_p99: 42ms\nhttp_requests_total: 1203/s\n状态：正常 ✓',
+   lc:'[INFO] 14:31:59 order-service  Request processed ok (43ms)\n[INFO] 14:32:01 payment-svc    Payment gateway ok (40ms)',
+   cb:''},
+  {msg:'14:32:05 —— 异常请求进入系统。OTel SDK 在 API Gateway 创建 Root Span（TraceId=abc123ff），Order Service 随后创建子 Span（002b）。此时 Metric 和 Log 尚无异常。',
+   tr:true, mr:false, lr:false, corr:false,
+   tc:'TraceId: <span class="sc-hl">abc123ff…</span>   t=14:32:05\nSpan 001a  api-gateway  → HTTP POST /orders   2350ms\nSpan 002b  order-svc    → gRPC CreateOrder     2340ms\nSpan 003c  payment-svc  → DB Transaction       <span class="sc-warn">进行中...</span>',
+   bars:[3,4,3,5,4,4,3,5,4], alert:false,
+   mc:'payment_latency_p99: 42ms（正常）\nhttp_requests_total: 1204/s',
+   lc:'[INFO] 14:32:04 order-service  Request processed ok\n[INFO] 14:32:05 payment-svc    Calling DB (10.0.1.5:5432)...',
+   cb:''},
+  {msg:'Payment Service 的 Span 003c 遭遇 DB 连接超时（2300ms），被标记 status=ERROR。Span 属性中记录了 error.message="DB connection timeout" 和 db.host，供后续排查使用。',
+   tr:true, mr:false, lr:false, corr:false,
+   tc:'TraceId: <span class="sc-hl">abc123ff…</span>\n<span class="sc-warn">Span 003c  payment-svc → DB Transaction   2300ms</span>\n<span class="sc-err">status = ERROR</span>\nerror.message = "DB connection timeout"\ndb.host = 10.0.1.5:5432',
+   bars:[3,4,3,5,4,4,3,5,4], alert:false,
+   mc:'payment_latency_p99: 42ms（正常）\nhttp_requests_total: 1204/s',
+   lc:'[WARN] 14:32:06 payment-svc    Slow DB query: 1200ms elapsed\n[WARN] 14:32:07 payment-svc    Retrying DB connection (2/3)...',
+   cb:''},
+  {msg:'同一时刻 Metric 发生突变：payment_latency_p99 从正常的 42ms 飙升到 2300ms（上涨 5381%），触发 Prometheus 告警规则（PaymentLatencyHigh）。运维人员收到 PagerDuty 告警。',
+   tr:true, mr:true, lr:false, corr:false,
+   tc:'TraceId: <span class="sc-hl">abc123ff…</span>\n<span class="sc-err">Span 003c  status=ERROR   duration=2300ms</span>',
+   bars:[3,4,3,5,4,4,3,5,18], alert:true,
+   mc:'<span class="sc-err">payment_latency_p99: 2300ms  ⚠️ 上涨 5381%</span>\n<span class="sc-warn">ALERT FIRING: PaymentLatencyHigh</span>\n告警阈值: p99 > 500ms 持续 5 分钟',
+   lc:'[WARN] 14:32:07 payment-svc    Retrying DB connection (3/3)...',
+   cb:''},
+  {msg:'Log 同时输出 ERROR：payment-service 打印"DB connection timeout"，日志中携带 trace_id=abc123ff 和 span_id=003c，与 Trace 数据精确对应。三类信号均指向同一个 TraceId。',
+   tr:true, mr:true, lr:true, corr:false,
+   tc:'TraceId: <span class="sc-hl">abc123ff…</span>\n<span class="sc-err">Span 003c  status=ERROR   2300ms</span>',
+   bars:[3,4,3,5,4,4,3,5,18], alert:true,
+   mc:'<span class="sc-err">payment_latency_p99: 2300ms  ⚠️</span>\n<span class="sc-warn">ALERT FIRING: PaymentLatencyHigh</span>',
+   lc:'<span class="sc-err">[ERROR] 14:32:07 payment-svc  DB connection timeout</span>\n<span class="sc-hl">  trace_id=abc123ff…   span_id=003c</span>\n  db.host=10.0.1.5:5432  pool.size=10  pool.active=10',
+   cb:''},
+  {msg:'OTel 统一三大支柱的价值：三类信号共享同一 TraceId（abc123ff）。在 Grafana 中，运维从 Metric 告警点 drill-down 到对应 Trace，再跳转到精确的 ERROR 日志——链路闭环。',
+   tr:true, mr:true, lr:true, corr:true,
+   tc:'TraceId: <span class="sc-hl">abc123ff…</span>\n<span class="sc-err">Span 003c  status=ERROR   2300ms</span>\n→ <span class="sc-hl">点击 Span → 跳转关联 Log</span>',
+   bars:[3,4,3,5,4,4,3,5,18], alert:true,
+   mc:'<span class="sc-err">payment_latency_p99: 2300ms ⚠️</span>\n→ <span class="sc-hl">点击告警点 → Grafana Explore → 跳转 Jaeger</span>',
+   lc:'<span class="sc-err">[ERROR] 14:32:07 payment-svc  DB connection timeout</span>\n<span class="sc-hl">  trace_id=abc123ff…   span_id=003c</span>\n<span class="sc-warn">  db.host=10.0.1.5:5432  pool.active=10/10</span>',
+   cb:'🔗 TraceId abc123ff…  |  Trace（ERROR Span 2300ms）⟷ Metric（p99 突增 5381%）⟷ Log（DB pool 满载详情）'},
+  {msg:'根因定位完成：DB 连接池耗尽（pool.size=10，pool.active=10）导致 Payment 超时，引发 p99 指标告警。OTel 统一三大支柱，平均定位时间 < 2 分钟（对比传统手动关联 30+ 分钟）。',
+   tr:true, mr:true, lr:true, corr:true,
+   tc:'TraceId: <span class="sc-hl">abc123ff…</span>\n<span class="sc-err">Span 003c  status=ERROR  2300ms</span>\n<span class="sc-warn">根因：DB 连接池耗尽（pool.active=10/10）</span>',
+   bars:[3,4,3,5,4,4,3,5,18], alert:true,
+   mc:'<span class="sc-err">payment_latency_p99: 2300ms</span>\n修复方案：扩大连接池 pool.size=50\n或升级 DB 实例规格',
+   lc:'<span class="sc-err">[ERROR] 14:32:07 payment-svc  DB connection timeout</span>\n<span class="sc-hl">  trace_id=abc123ff…</span>\n<span class="sc-warn">  root cause: pool exhausted  pool.active=10/10</span>\n  建议：kubectl rollout restart deployment/payment-svc',
+   cb:'✅ 根因定位：DB 连接池（pool.size=10）满载 → Payment 超时 → p99 指标告警\n平均定位时间：< 2 分钟  |  传统手动关联方式：30+ 分钟'},
+];
+
+const ALL_STEPS = [S0, S1, S2, S3];
+
+const LBLS = [
+  ['SDK 就绪','收到请求','创建 Root Span','传播到 Order','Order 子 Span','传播到 Payment','Payment ERROR','上报 Collector','Trace 瀑布图'],
+  ['初始状态','SDK 发送','Receiver 接收','Batch 处理','Sampling 过滤','属性增强','Jaeger 导出','Prometheus 导出','多后端扇出'],
+  ['流量分布','Head Sampling','Tail 缓冲机制','ERROR Trace 决策','正常 Trace 决策','对比总结'],
+  ['系统正常','异常请求','Trace ERROR','Metric 告警','Log 异常','信号关联','根因定位'],
+];
+
+const WF_SPANS = [
+  {nm:'api-gateway', op:'HTTP POST /orders', s:0,  d:235, c:'#34d399', dep:0},
+  {nm:'order-svc',   op:'gRPC CreateOrder',  s:5,  d:225, c:'#38bdf8', dep:1},
+  {nm:'payment-svc', op:'DB Transaction',    s:10, d:230, c:'#f87171', dep:2, err:true},
+];
+const WF_TOTAL = 250;
+
+const PIPE_IDS  = ['psdk0','psdk1','psdk2','pd0','pRecv','pd1','pProc0','pd2','pProc1','pd3','pProc2','pd4','pExp0','pExp1','pExp2'];
+const PIPE_DEFS = {
+  psdk0:'OTLP gRPC',  psdk1:'OTLP gRPC',  psdk2:'OTLP gRPC',
+  pRecv:'等待数据…',
+  pProc0:'积攒 1000 条或等待 5s',
+  pProc1:'Tail / Head 采样过滤',
+  pProc2:'添加 k8s / env 属性',
+  pExp0:'Trace → Jaeger',
+  pExp1:'Metric → Remote Write',
+  pExp2:'Log → Loki',
+};
+
+/* ===================================================================
+   STATE
+=================================================================== */
+let activeTab = 0, cur = -1, timer = null;
+
+/* ===================================================================
+   SCENE 0 RENDER
+=================================================================== */
+function renderS0(step) {
+  const svcs  = step ? step.svcs  : [{},{},{}];
+  const arrs  = step ? step.arrows : [false,false];
+  const lbls  = step ? step.lbls   : ['',''];
+  const nms   = ['API Gateway','Order Service','Payment Service'];
+  let html = '';
+  nms.forEach((nm, i) => {
+    const s = svcs[i] || {};
+    let cls = 'svc-box';
+    if (s.active)   cls += ' sv-active';
+    if (s.creating) cls += ' sv-creating';
+    if (s.error)    cls += ' sv-error';
+    if (s.done)     cls += ' sv-done';
+    const lines = (s.span || '').split('\n').filter(Boolean).map(l => {
+      const ci = l.indexOf(':');
+      if (ci > -1)
+        return `<div><span style="color:var(--dim2)">${l.slice(0,ci)}:</span> <span style="color:${s.error?'var(--err)':'var(--warn)'}">${l.slice(ci+1).trim()}</span></div>`;
+      return `<div style="color:var(--dim2)">${l}</div>`;
+    }).join('');
+    html += `<div class="${cls}">
+      <div class="sv-name">${nm}</div>
+      <div class="sv-sdk">OTel SDK</div>
+      <div class="sv-info">${lines || '<span style="color:var(--dim2);font-size:.6rem">待机</span>'}</div>
+    </div>`;
+    if (i < 2) {
+      const on  = arrs[i];
+      const lbl = (lbls[i]||'').replace(/\n/g,'<br>');
+      html += `<div class="chain-arr">
+        <div class="arr-line${on?' arr-on':''}"></div>
+        <div class="arr-lbl${on?' lbl-on':''}">${lbl}</div>
+      </div>`;
+    }
+  });
+  document.getElementById('svcChain').innerHTML = html;
+
+  /* header */
+  const hb = document.getElementById('hdrBox');
+  if (!step || !step.hdr) { hb.innerHTML = '等待请求...'; }
+  else if (step.hdr.type === 'trace') {
+    const m = step.hdr.text.match(/traceparent:\s*([\w]+)-([\w…]+)-([\w…]+)-([\w]+)/);
+    if (m)
+      hb.innerHTML = `<span class="hk">traceparent</span>: <span class="hd">${m[1]}</span>-<span class="hv">${m[2]}</span>-<span class="hk">${m[3]}</span>-<span class="hd">${m[4]}</span><br><span style="color:var(--dim2);font-size:.66rem">version=${m[1]} | traceId=${m[2]} | parentSpanId=${m[3]} | sampled=${m[4]}</span>`;
+    else hb.textContent = step.hdr.text;
+  } else {
+    hb.innerHTML = `<span class="hd">${step.hdr.text}</span>`;
+  }
+
+  /* waterfall */
+  const wfc = step ? (step.wfc || 0) : 0;
+  const wfSec = document.getElementById('wfSec');
+  if (!wfc) { wfSec.style.display='none'; return; }
+  wfSec.style.display = '';
+  const ticks = [0,50,100,150,200,250];
+  document.getElementById('wfHdr').innerHTML = ticks.map(t=>`<div class="wf-tick">${t}ms</div>`).join('');
+  const rows = document.getElementById('wfRows');
+  rows.innerHTML = '';
+  WF_SPANS.slice(0, wfc).forEach(sp => {
+    const row = document.createElement('div');
+    row.className = 'sp-row sp-show';
+    const lp = (sp.s / WF_TOTAL)*100, wp = (sp.d / WF_TOTAL)*100;
+    const pad = '\u00a0\u00a0'.repeat(sp.dep);
+    row.innerHTML = `<div class="sp-nm sp-hi">${pad}${sp.nm}<span style="color:var(--dim2);font-size:.58rem"> ${sp.op.slice(0,13)}</span></div>
+      <div class="sp-wrap"><div class="sp-bar" style="left:${lp}%;width:${wp}%;background:${sp.c}">${sp.d}ms${sp.err?' ⚠️':''}</div></div>`;
+    rows.appendChild(row);
+  });
+}
+
+/* ===================================================================
+   SCENE 1 RENDER
+=================================================================== */
+function renderS1(step) {
+  PIPE_IDS.forEach(id => {
+    const el = document.getElementById(id); if (!el) return;
+    el.classList.remove('pb-on','pd-on');
+    const sub = document.getElementById(id+'s');
+    if (sub && PIPE_DEFS[id]) sub.textContent = PIPE_DEFS[id];
+  });
+  if (!step) return;
+  (step.act || []).forEach(id => {
+    const el = document.getElementById(id); if (!el) return;
+    el.classList.add(id.startsWith('pd') ? 'pd-on' : 'pb-on');
+  });
+  Object.entries(step.subs || {}).forEach(([id, txt]) => {
+    const sub = document.getElementById(id+'s');
+    if (sub) sub.textContent = txt;
+  });
+}
+
+/* ===================================================================
+   SCENE 2 RENDER
+=================================================================== */
+function tItem(t) {
+  return `<div class="t-item ${t.c}">${t.l}</div>`;
+}
+function decHtml(d) {
+  if (!d) return '';
+  return `<div class="samp-dec ${d.cls||''}">${d.t}</div>`;
+}
+function renderS2(step) {
+  if (!step) {
+    document.getElementById('headTraces').innerHTML  = '';
+    document.getElementById('tailBuf').textContent   = 'Tail Sampler 缓冲区：等待 Span…';
+    document.getElementById('tailTraces').innerHTML  = '';
+    document.getElementById('headDec').innerHTML     = '';
+    document.getElementById('tailDec').innerHTML     = '';
+    const n = document.getElementById('sampNote');
+    n.textContent = ''; n.className = 'samp-note';
+    return;
+  }
+  document.getElementById('headTraces').innerHTML  = (step.ht||[]).map(tItem).join('');
+  document.getElementById('tailBuf').innerHTML     = (step.buf||'').replace(/\n/g,'<br>');
+  document.getElementById('tailTraces').innerHTML  = (step.tt||[]).map(tItem).join('');
+  document.getElementById('headDec').innerHTML     = decHtml(step.hd);
+  document.getElementById('tailDec').innerHTML     = decHtml(step.td);
+  const n = document.getElementById('sampNote');
+  n.textContent = step.note || '';
+  n.className = 'samp-note' + (step.note ? ' sn-show' : '');
+}
+
+/* ===================================================================
+   SCENE 3 RENDER
+=================================================================== */
+function renderBars(bars, alert) {
+  const el = document.getElementById('sigBars'); el.innerHTML='';
+  const mx = Math.max(...bars, 1);
+  bars.forEach(v => {
+    const b = document.createElement('div');
+    b.className = 'sig-bar';
+    const hi = v > 10;
+    b.style.height = Math.max((v/mx)*36,4)+'px';
+    b.style.background = hi && alert ? 'var(--err)' : hi ? 'var(--warn)' : 'rgba(52,211,153,.5)';
+    if (hi && alert) b.classList.add('sb-high');
+    el.appendChild(b);
+  });
+}
+function renderS3(step) {
+  if (!step) {
+    ['sigTrace','sigMetric','sigLog'].forEach(id => document.getElementById(id).className='sig-row');
+    document.getElementById('sigTrC').innerHTML='— 等待请求 —';
+    document.getElementById('sigMtC').innerHTML='— 等待数据 —';
+    document.getElementById('sigLgC').innerHTML='— 等待日志 —';
+    renderBars([3,4,3,5,4,4,3,5,4], false);
+    document.getElementById('corrBanner').className='corr-banner';
+    return;
+  }
+  const trErr = step.tc && step.tc.includes('ERROR');
+  document.getElementById('sigTrace').className  = 'sig-row' + (step.tr ? (trErr?' sr-err':' sr-hl') : '');
+  document.getElementById('sigMetric').className = 'sig-row' + (step.mr ? ' sr-err' : '');
+  document.getElementById('sigLog').className    = 'sig-row' + (step.lr ? (step.lc&&step.lc.includes('ERROR')?' sr-err':' sr-hl') : '');
+  document.getElementById('sigTrC').innerHTML = step.tc || '—';
+  document.getElementById('sigMtC').innerHTML = step.mc || '—';
+  document.getElementById('sigLgC').innerHTML = step.lc || '—';
+  renderBars(step.bars || [], step.alert);
+  const cb = document.getElementById('corrBanner');
+  cb.innerHTML  = (step.cb || '').replace(/\n/g,'<br>');
+  cb.className  = 'corr-banner' + (step.corr && step.cb ? ' cb-on' : '');
+}
+
+/* ===================================================================
+   MAIN RENDER & CONTROLS
+=================================================================== */
+function render() {
+  const steps = ALL_STEPS[activeTab];
+  const step  = cur >= 0 ? steps[cur] : null;
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i===activeTab));
+  ['scene0','scene1','scene2','scene3'].forEach((id,i) =>
+    document.getElementById(id).className = 'scene' + (i===activeTab ? ' active' : ''));
+  document.getElementById('stepMsg').textContent = step ? step.msg : '选择上方场景标签，点击"下一步"开始动画演示。';
+  buildStepList();
+  if      (activeTab===0) renderS0(step);
+  else if (activeTab===1) renderS1(step);
+  else if (activeTab===2) renderS2(step);
+  else                    renderS3(step);
+}
+
+function buildStepList() {
+  const labels = LBLS[activeTab];
+  const list = document.getElementById('stepList');
+  list.innerHTML = '';
+  ALL_STEPS[activeTab].forEach((_, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-btn' + (i===cur ? ' active' : '');
+    btn.innerHTML = `<span class="step-index">${i+1}</span>${labels[i] || '步骤'+(i+1)}`;
+    btn.onclick = () => { cur=i; render(); };
+    list.appendChild(btn);
+  });
+}
+
+function switchTab(idx) { activeTab=idx; cur=-1; stopPlay(); render(); }
+function next()  { const s=ALL_STEPS[activeTab]; if(cur<s.length-1){cur++;render();} }
+function prev()  { if(cur>-1){cur--;render();} }
+function reset() { cur=-1; stopPlay(); render(); }
+function togglePlay() { if(timer) stopPlay(); else startPlay(); }
+function startPlay() {
+  document.getElementById('playBtn').textContent='⏸ 暂停';
+  timer = setInterval(()=>{
+    const s=ALL_STEPS[activeTab];
+    if(cur<s.length-1){cur++;render();}else stopPlay();
+  }, 2500);
+}
+function stopPlay() {
+  if(timer){clearInterval(timer);timer=null;}
+  document.getElementById('playBtn').textContent='▶ 播放';
+}
+
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Quorum 模型：W+R>N 的数学保证，写 W 个副本、读 R 个，确保读到最新值。Cassandra/DynamoDB 的一致性调节旋钮，读修复原理。">
+<link rel="canonical" href="https://melodycoder12345.github.io/distributed/quorum.html">
+<meta property="og:title" content="Quorum 读写模型 — 码海拾贝">
+<meta property="og:description" content="W+R>N 保证至少一个副本同时参与了最近写和当前读，确保读到最新值。Cassandra/DynamoDB 一致性调节。">
+<meta property="og:url" content="https://melodycoder12345.github.io/distributed/quorum.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Quorum 读写模型 — 码海拾贝">
+<meta name="twitter:description" content="W+R>N 保证至少一个副本同时参与了最近写和当前读，确保读到最新值。Cassandra/DynamoDB 一致性调节。">
+<title>Quorum 读写模型 - 分布式可视化</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#818cf8;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.scene-tabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.scene-tab{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:10px;padding:8px 16px;cursor:pointer;font-family:inherit;font-size:.82rem;transition:all .16s}
+.scene-tab:hover{color:var(--text);border-color:var(--accent)}
+.scene-tab.active{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.lab{display:grid;grid-template-columns:260px minmax(0,1fr) 280px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:480px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;font-size:.82rem;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:440px;display:flex;flex-direction:column;padding:16px}
+.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:rgba(15,23,42,.64);overflow:hidden}
+#vizCanvas{display:block}
+.step-msg{margin-top:12px;padding:12px 14px;border:1px solid rgba(255,255,255,.07);border-radius:12px;background:rgba(255,255,255,.03);font-size:.87rem;color:var(--dim);min-height:44px;line-height:1.65}
+.status{padding:14px}
+.status-inner{border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status-inner h2{font-size:.95rem;margin-bottom:8px;color:var(--text)}
+.status-inner p{color:var(--dim);font-size:.85rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.fail{border-color:#f87171;color:#f87171}
+.badge.warn{border-color:#fbbf24;color:#fbbf24}
+.badge.ok{border-color:#4ade80;color:#4ade80}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit;font-size:.85rem}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+@media(max-width:1060px){.lab{grid-template-columns:1fr}.hero,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"W+R>N","body":"写 W 个副本成功才返回，读 R 个副本再取最新——当 W+R>N 时，写和读的副本集合必有重叠，至少一个副本既在写集又在读集，确保读到最新值。","tag":"term"},
+  {"title":"读修复（Read Repair）","body":"读到版本不一致的副本时，将最新值异步写回落后的副本，使其追平，无需额外的后台同步进程。","tag":"term"},
+  {"title":"版本向量（Version Vector）","body":"用向量时钟或时间戳比较不同副本的新旧程度，Quorum 读到多个副本后需要确定哪个版本最新才能返回给客户端。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">分布式 / Quorum / C 类型</div>
+      <h1>Quorum 读写模型</h1>
+      <p class="summary">W + R > N 的数学保证：写入 W 个副本、读取 R 个副本，当 W+R 超过总副本数 N 时，至少有一个副本同时参与了最近一次写和这次读，确保能读到最新值。Cassandra、DynamoDB 的一致性调节旋钮，强一致性和高可用性之间的精准调节。</p>
+      <div class="tags"><span>W+R>N</span><span>N=3</span><span>读修复</span><span>版本号</span><span>Cassandra</span><span>DynamoDB</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>W+R>N（Quorum 条件）</strong><span>写 W 副本成功才确认，读 R 副本取最新值。W+R>N 时写集和读集有重叠，保证读到最新写。</span></li>
+        <li><strong>读修复（Read Repair）</strong><span>读到旧版本副本时，将最新值异步写回，使落后副本追平，Cassandra 的主要一致性补充机制。</span></li>
+        <li><strong>版本号/时间戳</strong><span>每次写入时递增版本号，读取 R 个副本后比较版本号取最大，确定最新值并返回给客户端。</span></li>
+        <li><strong>Hinted Handoff</strong><span>写目标副本不可用时暂存在代理节点，副本恢复后代理节点将数据补发，Cassandra 用于提高写可用性。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="scene-tabs" id="sceneTabs"></div>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">Step Timeline</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <canvas id="vizCanvas"></canvas>
+      </div>
+      <div class="step-msg" id="stepMsg">选择场景开始演示</div>
+      <div class="controls">
+        <button class="ctrl" id="btnReset" onclick="doReset()">重置</button>
+        <button class="ctrl" id="btnPrev" onclick="doPrev()">上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="doToggle()">播放</button>
+        <button class="ctrl" id="btnNext" onclick="doNext()">下一步</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-hd">当前状态</div>
+      <div class="status">
+        <div class="status-inner">
+          <span class="badge" id="stateBadge">normal</span>
+          <h2 id="stepTitle">等待开始</h2>
+          <p id="stepDesc">点击播放或步骤按钮。</p>
+          <p id="stepDetail" style="margin-top:8px;font-size:.82rem;color:var(--dim2)"></p>
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>W+R>N 数学原理</h2>
+      <p>N=3 是最常见配置。W+R>N 等价于写集合和读集合的交集非空（鸽巢原理）：<br><br>
+      — W=3,R=1：强写，每次写 3 个节点都成功。读任意 1 个节点必能读到最新值（不容忍写失败但读最快）<br>
+      — W=2,R=2：平衡，写 2 个成功，读 2 个取最大版本。容忍 1 个副本落后，也容忍 1 个节点不可用<br>
+      — W=1,R=3：强读，写任意 1 个成功（最快），读所有节点取最大版本（读最慢但写可用性最高）<br>
+      — W=1,R=2：W+R=3=N，不满足条件，不保证强一致，可能脏读<br><br>
+      Cassandra 用 ONE/TWO/THREE/QUORUM/ALL 作为一致性级别别名，QUORUM = ⌊N/2⌋+1。</p>
+    </section>
+    <section>
+      <h2>常见误区</h2>
+      <ul>
+        <li>Quorum 保证的是"读到最近一次完成的写"，不保证线性一致性（Linearizability）。如果写正在进行（还没拿到 W 个 ACK），Quorum 读可能读到旧值。</li>
+        <li>Cassandra 默认使用 Last-Write-Wins 时间戳而非版本向量，时钟不同步会导致正确的写被旧时间戳的写覆盖。</li>
+        <li>W+R>N 只在写操作完全完成后才有保证。网络分区期间，写只成功了部分副本（< W），不保证后续 Quorum 读能读到这次写。</li>
+        <li>读修复是异步的，读期间的修复不影响本次读的返回时间，但如果在修复完成前再次读，可能还会读到旧值。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>工程场景</h2>
+      <ul>
+        <li><strong>Cassandra</strong>：写 LOCAL_QUORUM（本地 DC 多数派），读 LOCAL_QUORUM，保证 DC 内强一致。跨 DC 用 EACH_QUORUM。</li>
+        <li><strong>DynamoDB</strong>：强一致读（ConsistentRead=true）内部等价于 Quorum=2/3，最终一致读（ConsistentRead=false）只读一个副本，可能读到旧值。</li>
+        <li><strong>ZooKeeper</strong>：写操作必须多数派 follower 确认，读可以从任意节点（默认），启用 sync() 可强制从 leader 读。</li>
+        <li><strong>etcd</strong>：写强制 Raft 多数派（W=⌊N/2⌋+1），线性读走 leader（强一致），串行读允许 stale。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>一致性权衡</h2>
+      <p>调节 W 和 R 实现不同权衡：<br><br>
+      <strong>高写可用（W=1）</strong>：写 1 个节点成功即可，极少写失败，但读需要联系更多副本（R=N）来保证一致性，读延迟高。适合写多读少且对写延迟敏感的场景。<br><br>
+      <strong>高读可用（R=1）</strong>：读 1 个节点即可（极快），写需要联系所有副本（W=N），写容错差。适合读多写少且对读延迟极敏感的场景（如计数器）。<br><br>
+      <strong>平衡（W=R=⌊N/2⌋+1）</strong>：最常见配置，均衡读写延迟和一致性保证。</p>
+    </section>
+  </section>
+</main>
+
+<script>
+function rr(ctx,x,y,w,h,r,fill,stroke,lw){
+  ctx.beginPath();ctx.roundRect(x,y,w,h,r);
+  if(fill){ctx.fillStyle=fill;ctx.fill();}
+  if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||1.5;ctx.stroke();}
+}
+function txt(ctx,t,x,y,size,color,align,weight){
+  ctx.font=`${weight||'400'} ${size}px system-ui,sans-serif`;
+  ctx.fillStyle=color;ctx.textAlign=align||'center';ctx.textBaseline='middle';
+  ctx.fillText(t,x,y);
+}
+function arrow(ctx,x1,y1,x2,y2,color,dashed){
+  ctx.strokeStyle=color;ctx.lineWidth=2;
+  ctx.setLineDash(dashed?[5,4]:[]);
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  ctx.setLineDash([]);
+  const a=Math.atan2(y2-y1,x2-x1);
+  ctx.fillStyle=color;ctx.beginPath();
+  ctx.moveTo(x2,y2);ctx.lineTo(x2-10*Math.cos(a-.35),y2-10*Math.sin(a-.35));
+  ctx.lineTo(x2-10*Math.cos(a+.35),y2-10*Math.sin(a+.35));ctx.closePath();ctx.fill();
+}
+function replicaNode(ctx,x,y,label,ver,color,hl,active){
+  const w=96,h=52;
+  const bg=hl?color.replace('1)','0.15)'):'rgba(30,41,59,0.85)';
+  rr(ctx,x-w/2,y-h/2,w,h,10,bg,hl?color:'rgba(255,255,255,0.12)',hl?2:1.5);
+  txt(ctx,label,x,y-10,11,'#e2e8f0','center','700');
+  txt(ctx,ver,x,y+8,9.5,color,'center','600');
+  if(active){
+    ctx.strokeStyle=color;ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.arc(x+38,y-18,5,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle=color;ctx.fill();
+  }
+}
+function clientNode(ctx,x,y){
+  rr(ctx,x-44,y-22,88,44,10,'rgba(129,140,248,0.1)','rgba(129,140,248,0.5)',1.5);
+  txt(ctx,'Client',x,y-5,11,'#818cf8','center','700');
+  txt(ctx,'写/读入口',x,y+10,8.5,'#64748b','center');
+}
+
+// TAB 0: W=2,R=2,N=3 write
+const TAB0=[
+  {
+    title:'初始状态：3 个副本，版本 v0',
+    badge:'normal',
+    desc:'系统有 3 个副本节点（N=3），当前数据版本均为 v0。Client 要写入新值，一致性级别 QUORUM（W=2）。',
+    detail:'N=3 是最常见的副本数，容忍 1 个节点失败。QUORUM = ⌊3/2⌋+1 = 2，写/读都需要 2 个副本确认。',
+    draw(ctx,W,H){drawWrite(ctx,W,H,0);}
+  },
+  {
+    title:'Client 发写请求到 3 个副本',
+    badge:'normal',
+    desc:'Client 并行向所有 3 个副本发送写请求（value=v1）。为提高可用性，通常并行写而不是串行，等待最快的 W 个副本返回 ACK。',
+    detail:'Cassandra 写请求由协调者（Coordinator）分发，协调者不一定持有数据，只负责路由。',
+    draw(ctx,W,H){drawWrite(ctx,W,H,1);}
+  },
+  {
+    title:'副本 1/2 写成功，ACK 到达（W=2）',
+    badge:'normal',
+    desc:'副本 1 和副本 2 写入成功并 ACK 回 Client（或协调者）。满足 W=2 的要求，Client 收到写成功响应。副本 3 可能稍慢，继续异步写入。',
+    detail:'注意：副本 3 此时还没有 v1（仍是 v0）。这在短暂时间内会造成不一致，但 Quorum 读时可以感知并修复。',
+    draw(ctx,W,H){drawWrite(ctx,W,H,2);}
+  },
+  {
+    title:'副本 3 异步追平（最终一致）',
+    badge:'ok',
+    desc:'副本 3 在稍后写入 v1 成功。此时所有 3 个副本都是 v1，达到一致状态。总共经历了 W=2 个 ACK 的延迟，副本 3 的延迟不影响 Client 响应时间。',
+    detail:'这就是"最终一致性"：短暂不一致，但最终所有副本会收敛到相同值。Quorum 读在此期间通过多读副本+取最大版本来应对不一致。',
+    draw(ctx,W,H){drawWrite(ctx,W,H,3);}
+  }
+];
+
+function drawWrite(ctx,W,H,step){
+  ctx.clearRect(0,0,W,H);
+  const cX=W*0.12, rX=[W*0.44,W*0.68,W*0.88], rY=H*0.45;
+  clientNode(ctx,cX,rY);
+  // Params label
+  rr(ctx,W*0.28,H*0.08,W*0.48,H*0.14,8,'rgba(129,140,248,0.07)','rgba(129,140,248,0.2)',1);
+  txt(ctx,'N=3, W=2 (QUORUM), 写 2 个副本即返回',W*0.52,H*0.15,9.5,'#818cf8','center','600');
+  const vers=[
+    ['v0','v0','v0'],
+    ['v0','v0','v0'],
+    ['v1','v1','v0'],
+    ['v1','v1','v1'],
+  ][step];
+  const hls=[
+    [false,false,false],
+    [false,false,false],
+    [true,true,false],
+    [true,true,true],
+  ][step];
+  const cols=['rgba(52,211,153,1)','rgba(56,189,248,1)','rgba(196,132,252,1)'];
+  rX.forEach((x,i)=>{
+    replicaNode(ctx,x,rY,`副本 ${i+1}`,vers[i],cols[i],hls[i],hls[i]);
+    if(step>=1) arrow(ctx,cX+44,rY-8+(i-1)*8,x-48,rY,'rgba(129,140,248,0.6)',false);
+  });
+  if(step>=2){
+    arrow(ctx,rX[0]-48,rY+8,cX+44,rY+8,'rgba(52,211,153,0.9)',false);
+    arrow(ctx,rX[1]-48,rY+12,cX+44,rY+12,'rgba(56,189,248,0.9)',false);
+    txt(ctx,'ACK ✓ (满足 W=2)',W*0.28,rY+28,9,'#34d399','center','700');
+    if(step===2){
+      txt(ctx,'副本 3: 异步中…',rX[2],rY+36,8.5,'#64748b','center');
+    }
+  }
+  if(step>=3){
+    rr(ctx,cX-44,rY+38,88,22,6,'rgba(52,211,153,0.1)','rgba(52,211,153,0.4)',1);
+    txt(ctx,'写入成功 ✓',cX,rY+49,9,'#34d399','center','600');
+    txt(ctx,'最终一致：所有副本均为 v1',W*0.6,H*0.82,9.5,'#34d399','center','700');
+  }
+}
+
+// TAB 1: Read guarantees freshness
+const TAB1=[
+  {
+    title:'写后读：副本 3 尚未同步',
+    badge:'warn',
+    desc:'刚完成写操作（W=2，副本 1/2 为 v2，副本 3 仍为 v1）。现在有客户端要读，R=2（QUORUM）。',
+    detail:'这是 Quorum 读的经典场景：写刚完成，但有一个副本还没追平，读操作能保证读到最新值吗？',
+    draw(ctx,W,H){drawRead(ctx,W,H,0);}
+  },
+  {
+    title:'Client 读取副本 1 和副本 3（R=2）',
+    badge:'normal',
+    desc:'Client 随机从 3 个副本中选取 2 个发读请求，这次选到了副本 1（v2）和副本 3（v1）。两个副本返回了不同版本。',
+    detail:'Quorum 读到的副本集合是随机的，不一定包含所有最新副本，但 W+R>N 保证至少一个副本是最新的。',
+    draw(ctx,W,H){drawRead(ctx,W,H,1);}
+  },
+  {
+    title:'比较版本号，取最新值 v2',
+    badge:'ok',
+    desc:'客户端（或协调者）比较两个副本的版本号：v2 > v1，选择 v2 作为最终返回值。W+R=2+2=4 > N=3，读集 {副本1,副本3} 和写集 {副本1,副本2} 必有重叠（副本1），确保能读到 v2。',
+    detail:'Quorum 的数学保证：写集大小 W，读集大小 R，总副本数 N，W+R>N → 交集非空。交集中的副本一定是最新值，读时取最大版本即可正确读取。',
+    draw(ctx,W,H){drawRead(ctx,W,H,2);}
+  },
+  {
+    title:'读修复：异步写回 v2 到副本 3',
+    badge:'ok',
+    desc:'协调者发现副本 3 是旧版本（v1），在返回给 Client 后，异步将最新值 v2 写回副本 3（Read Repair），使其追平。此操作不阻塞 Client 响应。',
+    detail:'Read Repair 是 Cassandra 一致性的核心补充机制。频繁的读可以快速修复不一致，冷数据长期不读则依赖后台的 Anti-Entropy（Merkle Tree 对比）。',
+    draw(ctx,W,H){drawRead(ctx,W,H,3);}
+  }
+];
+
+function drawRead(ctx,W,H,step){
+  ctx.clearRect(0,0,W,H);
+  const cX=W*0.12, rX=[W*0.44,W*0.68,W*0.88], rY=H*0.45;
+  clientNode(ctx,cX,rY);
+  rr(ctx,W*0.28,H*0.08,W*0.48,H*0.14,8,'rgba(129,140,248,0.07)','rgba(129,140,248,0.2)',1);
+  txt(ctx,'N=3, W=2, R=2 → W+R=4>3, 读到最新保证',W*0.52,H*0.15,9.5,'#818cf8','center','600');
+  const vers=['v2','v2','v1'];
+  const baseHL=[true,true,false];
+  const cols=['rgba(52,211,153,1)','rgba(56,189,248,1)','rgba(196,132,252,1)'];
+  // R=2 read: r1 and r3
+  const readSet=[0,2]; // replica indices being read
+  rX.forEach((x,i)=>{
+    const hl = step>=1 && readSet.includes(i);
+    const finalVer = step>=3&&i===2?'v2':vers[i];
+    replicaNode(ctx,x,rY,`副本 ${i+1}`,finalVer,cols[i],hl||baseHL[i],false);
+    if(step>=1 && readSet.includes(i)){
+      arrow(ctx,cX+44,rY-4+(i===2?8:0),x-48,rY,'rgba(129,140,248,0.6)',false);
+    }
+  });
+  // Replies
+  if(step>=1){
+    arrow(ctx,rX[0]-48,rY+8,cX+44,rY+4,'rgba(52,211,153,0.9)',false);
+    txt(ctx,'v2',rX[0]-60,rY,9,'#34d399','center','700');
+    arrow(ctx,rX[2]-48,rY+8,cX+44,rY+12,'rgba(196,132,252,0.7)',false);
+    txt(ctx,'v1 (旧)',rX[2]-60,rY+14,9,'#c084fc','center');
+  }
+  // Winner
+  if(step>=2){
+    rr(ctx,cX-44,rY+38,88,24,6,'rgba(52,211,153,0.1)','rgba(52,211,153,0.4)',1.5);
+    txt(ctx,'返回 v2 ✓ (最新)',cX,rY+50,9,'#34d399','center','600');
+    txt(ctx,'v2 > v1，取版本号较大值',W*0.3,H*0.78,9,'#818cf8','center');
+  }
+  // Read repair
+  if(step>=3){
+    arrow(ctx,cX+44,rY+18,rX[2]-48,rY+18,'rgba(52,211,153,0.5)',true);
+    txt(ctx,'异步 Read Repair: 写 v2 → 副本3',W*0.5,H*0.78,9,'#34d399','center','600');
+  }
+}
+
+// TAB 2: Read repair detail
+const TAB2=[
+  {
+    title:'读到不一致：v1 和 v2',
+    badge:'warn',
+    desc:'Quorum 读（R=2）从副本 1（v2）和副本 2（v1）读到两个不同版本。这是"最终一致性"系统的正常状态：写刚完成，部分副本尚未同步。',
+    detail:'不一致的原因可能是：网络延迟（副本 2 的写请求延迟到达）、节点重启后落后（需要 Hinted Handoff 补数据）、网络分区期间的写。',
+    draw(ctx,W,H){drawRepair(ctx,W,H,0);}
+  },
+  {
+    title:'取最新版本 v2 返回 Client',
+    badge:'ok',
+    desc:'协调者比较版本号，v2 > v1，将 v2 返回给 Client。这一步完成后 Client 已经获得了正确的最新值。',
+    detail:'版本比较方式：Cassandra 用写入时间戳（last-write-wins），DynamoDB 用版本号或向量时钟（condition writes），MongoDB 用 oplog 时间戳。',
+    draw(ctx,W,H){drawRepair(ctx,W,H,1);}
+  },
+  {
+    title:'异步 Read Repair：补写 v2 到副本 2',
+    badge:'ok',
+    desc:'协调者在返回 Client 后，异步将 v2 写回副本 2，修复不一致。这个操作不在 Client 的关键路径上，不影响响应延迟。',
+    detail:'Read Repair 有两种模式：① 阻塞（blocking）——修复完成再返回，保证下次读一致但延迟高；② 后台异步（background repair）——先返回再修复，延迟低但短暂不一致。Cassandra 默认异步。',
+    draw(ctx,W,H){drawRepair(ctx,W,H,2);}
+  }
+];
+
+function drawRepair(ctx,W,H,step){
+  ctx.clearRect(0,0,W,H);
+  const cX=W*0.14, rX=[W*0.5,W*0.78], rY=H*0.42;
+  clientNode(ctx,cX,rY);
+  const cols=['rgba(52,211,153,1)','rgba(56,189,248,1)'];
+  const finalVers=[step>=1?'v2':'v2', step>=2?'v2':'v1'];
+  replicaNode(ctx,rX[0],rY,'副本 1','v2',cols[0],true,false);
+  replicaNode(ctx,rX[1],rY,'副本 2',finalVers[1],cols[1],step===0,false);
+  // Initial read
+  arrow(ctx,cX+44,rY-8,rX[0]-48,rY-8,'rgba(129,140,248,0.6)',false);
+  arrow(ctx,cX+44,rY+8,rX[1]-48,rY+8,'rgba(129,140,248,0.6)',false);
+  txt(ctx,'R=2 读请求',W*0.32,rY-28,9,'#818cf8','center');
+  // Replies (step 0)
+  if(step>=0){
+    arrow(ctx,rX[0]-48,rY+14,cX+44,rY+12,'rgba(52,211,153,0.9)',false);
+    txt(ctx,'v2',rX[0]-60,rY+20,9,'#34d399','center','700');
+    arrow(ctx,rX[1]-48,rY+18,cX+44,rY+16,'rgba(56,189,248,0.7)',false);
+    txt(ctx,step>=2?'v2 (修复后)':'v1 (旧)',rX[1]-65,rY+22,9,step>=2?'#34d399':'#64748b','center');
+  }
+  if(step>=1){
+    rr(ctx,cX-44,rY+36,88,22,6,'rgba(52,211,153,0.1)','rgba(52,211,153,0.4)',1.5);
+    txt(ctx,'返回 v2 ✓',cX,rY+47,9,'#34d399','center','600');
+  }
+  if(step>=2){
+    arrow(ctx,rX[0]-48,rY-20,rX[1]-48,rY-20,'rgba(52,211,153,0.7)',true);
+    txt(ctx,'Read Repair: v2 → 副本2 (异步)',W*0.64,rY-38,9,'#34d399','center','600');
+  }
+  txt(ctx,'Read Repair 在返回 Client 后异步修复落后副本',W*0.5,H*0.85,9.5,'#64748b','center');
+}
+
+// TAB 3: W+R=N dirty read risk
+const TAB3=[
+  {
+    title:'W+R=N 风险设置：W=1, R=2',
+    badge:'warn',
+    desc:'设置 W=1, R=2, N=3。W+R=3=N，不满足 W+R>N。写只成功 1 个副本，读 2 个副本，存在写集和读集不重叠的可能。',
+    detail:'W=1 意味着写只需 1 个节点确认（最高写可用性），但读 2 个节点不一定能覆盖到那个 1 个写成功的节点。',
+    draw(ctx,W,H){drawDirtyRead(ctx,W,H,0);}
+  },
+  {
+    title:'写到副本 1（W=1，仅此 1 个）',
+    badge:'warn',
+    desc:'Client A 写 v2，只有副本 1 成功（W=1 满足，立即返回成功）。副本 2/3 此时仍然是 v1。',
+    detail:'W=1 让写操作最快（只等一个节点），但也最脆弱：写成功后那个节点宕机，数据可能丢失（ACK 了但只有 1 份副本）。',
+    draw(ctx,W,H){drawDirtyRead(ctx,W,H,1);}
+  },
+  {
+    title:'读副本 2 和副本 3（R=2，没覆盖副本1）',
+    badge:'fail',
+    desc:'Client B 读 R=2，随机选中了副本 2 和副本 3（均为 v1）。两个副本版本一致（都是 v1），Client B 以为读到了最新值，但其实 v2 已经写入了副本 1！',
+    detail:'这就是"脏读"：W+R=N 时，写集 {副本1} 和读集 {副本2,副本3} 不相交，读操作错过了最新写。',
+    draw(ctx,W,H){drawDirtyRead(ctx,W,H,2);}
+  },
+  {
+    title:'结论：W+R>N 是强一致性必要条件',
+    badge:'normal',
+    desc:'要避免脏读，必须保证 W+R>N。对于 N=3，安全配置是：W=2,R=2 (QUORUM) 或 W=3,R=1 (ALL写) 或 W=1,R=3 (ALL读)。W=1,R=2 或 W=2,R=1 均不安全。',
+    detail:'Cassandra 的 ONE 一致性级别（R=1 或 W=1）就是放弃了 Quorum 保证，换取最低延迟，适合可以容忍短暂不一致的场景（如访问计数）。',
+    draw(ctx,W,H){drawDirtyRead(ctx,W,H,3);}
+  }
+];
+
+function drawDirtyRead(ctx,W,H,step){
+  ctx.clearRect(0,0,W,H);
+  const rX=[W*0.34,W*0.6,W*0.86], rY=H*0.45;
+  const caX=W*0.1, cbX=W*0.1;
+  // Params
+  const safeColor=step<2?'#fbbf24':'#f87171';
+  rr(ctx,W*0.24,H*0.08,W*0.52,H*0.14,8,step<3?'rgba(251,191,36,0.07)':'rgba(248,113,113,0.07)',step<3?'rgba(251,191,36,0.2)':'rgba(248,113,113,0.2)',1);
+  txt(ctx,`N=3, W=1, R=2 → W+R=3${step>=2?'=N ⚠':'=N'}（不满足 W+R>N）`,W*0.5,H*0.15,9.5,safeColor,'center','700');
+  const cols=['rgba(52,211,153,1)','rgba(56,189,248,1)','rgba(196,132,252,1)'];
+  const vers=step>=1?['v2','v1','v1']:['v1','v1','v1'];
+  rX.forEach((x,i)=>{
+    const hl=step===1&&i===0||step===2&&i>0;
+    replicaNode(ctx,x,rY,`副本 ${i+1}`,vers[i],cols[i],hl,false);
+  });
+  // Client A write (step 1)
+  if(step>=1){
+    const caY=rY-50;
+    rr(ctx,caX-40,caY-16,80,32,8,'rgba(129,140,248,0.1)','rgba(129,140,248,0.4)',1);
+    txt(ctx,'Client A 写',caX,caY-4,9,'#818cf8','center','600');
+    txt(ctx,'v2',caX,caY+10,8.5,'#818cf8','center');
+    arrow(ctx,caX+40,caY,rX[0]-48,rY-10,'rgba(129,140,248,0.8)',false);
+    txt(ctx,'W=1 ✓',rX[0],rY+36,8.5,'#34d399','center','600');
+    // crosses on r2/r3
+    txt(ctx,'✗',rX[1]+2,rY-28,14,'#f87171','center');
+    txt(ctx,'✗',rX[2]+2,rY-28,14,'#f87171','center');
+  }
+  // Client B read (step 2)
+  if(step>=2){
+    const cbY=rY+50;
+    rr(ctx,caX-40,cbY-16,80,32,8,'rgba(248,113,113,0.1)','rgba(248,113,113,0.4)',1);
+    txt(ctx,'Client B 读',caX,cbY-4,9,'#f87171','center','600');
+    txt(ctx,'R=2',caX,cbY+10,8.5,'#f87171','center');
+    arrow(ctx,caX+40,cbY,rX[1]-48,rY+10,'rgba(248,113,113,0.7)',false);
+    arrow(ctx,caX+40,cbY+4,rX[2]-48,rY+14,'rgba(248,113,113,0.7)',false);
+    arrow(ctx,rX[1]-48,rY+18,caX+40,cbY+8,'rgba(248,113,113,0.7)',false);
+    arrow(ctx,rX[2]-48,rY+22,caX+40,cbY+12,'rgba(248,113,113,0.7)',false);
+    rr(ctx,caX-44,cbY+28,88,22,6,'rgba(248,113,113,0.1)','rgba(248,113,113,0.4)',1.5);
+    txt(ctx,'读到 v1 (脏读!)',caX,cbY+39,8.5,'#f87171','center','700');
+    txt(ctx,'⚠ 写集{副本1}∩读集{副本2,副本3}=∅',W*0.55,H*0.83,9.5,'#f87171','center','700');
+  }
+  if(step>=3){
+    rr(ctx,W*0.26,H*0.88,W*0.48,H*0.1,8,'rgba(52,211,153,0.07)','rgba(52,211,153,0.2)',1);
+    txt(ctx,'安全: W=2,R=2 或 W=3,R=1 或 W=1,R=3 (均满足 W+R>N=3)',W*0.5,H*0.93,9,'#34d399','center');
+  }
+}
+
+const TABS=[
+  {label:'W=2,R=2 写入',steps:TAB0},
+  {label:'读取保证新鲜度',steps:TAB1},
+  {label:'读修复原理',steps:TAB2},
+  {label:'W+R=N 脏读风险',steps:TAB3},
+];
+
+let tabIdx=0,stepIdx=0,timer=null;
+const canvas=document.getElementById('vizCanvas');
+const ctx=canvas.getContext('2d');
+
+function resizeCanvas(){
+  const stage=document.getElementById('stage');
+  const rect=stage.getBoundingClientRect();
+  const dpr=window.devicePixelRatio||1;
+  canvas.width=rect.width*dpr; canvas.height=rect.height*dpr;
+  canvas.style.width=rect.width+'px'; canvas.style.height=rect.height+'px';
+  ctx.scale(dpr,dpr); draw();
+}
+function draw(){
+  const s=TABS[tabIdx].steps[stepIdx];
+  const rect=canvas.getBoundingClientRect();
+  s.draw(ctx,rect.width,rect.height);
+  document.getElementById('stepMsg').textContent=s.desc;
+  document.getElementById('stepTitle').textContent=s.title;
+  document.getElementById('stepDesc').textContent=s.desc;
+  document.getElementById('stepDetail').textContent=s.detail;
+  const b=s.badge||'normal';
+  document.getElementById('stateBadge').textContent=b;
+  document.getElementById('stateBadge').className='badge'+(b==='fail'?' fail':b==='warn'?' warn':b==='ok'?' ok':'');
+  document.querySelectorAll('.step-btn').forEach((btn,i)=>btn.classList.toggle('active',i===stepIdx));
+  document.getElementById('btnPrev').disabled=stepIdx===0;
+  document.getElementById('btnNext').disabled=stepIdx===TABS[tabIdx].steps.length-1;
+}
+function buildStepList(){
+  document.getElementById('stepList').innerHTML=TABS[tabIdx].steps.map((s,i)=>
+    `<button class="step-btn${i===stepIdx?' active':''}" data-i="${i}"><b>Step ${i+1}</b>${s.title}</button>`
+  ).join('');
+  document.getElementById('stepList').querySelectorAll('button').forEach(b=>b.onclick=()=>{stepIdx=+b.dataset.i;doPause();draw();buildStepList();});
+}
+function buildTabs(){
+  document.getElementById('sceneTabs').innerHTML=TABS.map((t,i)=>
+    `<button class="scene-tab${i===tabIdx?' active':''}" onclick="switchTab(${i})">${t.label}</button>`
+  ).join('');
+}
+function switchTab(i){tabIdx=i;stepIdx=0;doPause();buildTabs();buildStepList();resizeCanvas();}
+function doNext(){if(stepIdx<TABS[tabIdx].steps.length-1){stepIdx++;draw();buildStepList();}else doPause();}
+function doPrev(){if(stepIdx>0){stepIdx--;draw();buildStepList();}}
+function doReset(){doPause();stepIdx=0;draw();buildStepList();}
+function doPause(){if(timer){clearInterval(timer);timer=null;document.getElementById('btnPlay').textContent='播放';}}
+function doToggle(){if(timer){doPause();}else{document.getElementById('btnPlay').textContent='暂停';timer=setInterval(doNext,2200);}}
+
+buildTabs();buildStepList();
+window.addEventListener('resize',resizeCanvas);
+window.addEventListener('load',()=>setTimeout(resizeCanvas,50));
+setTimeout(resizeCanvas,80);
+</script>
+<script>if(window.NavTracker) NavTracker.track('Quorum 读写模型', window.location.href, '⚖️', '分布式');</script>
+<script src="../footer.js"></script>
+</body>
+</html>

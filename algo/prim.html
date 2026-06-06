@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="从任意起始节点出发，每次从已选节点的相邻边中选择权重最小的边，将新节点纳入生成树，直到覆盖所有节点。O(E log V) 配合优先队列。">
+<link rel="canonical" href="https://melodycoder12345.github.io/algo/prim.html">
+<meta property="og:title" content="Prim 最小生成树 — 码海拾贝">
+<meta property="og:description" content="从任意起始节点出发，每次选择候选边中权重最小的边加入生成树。O(E log V) 配合优先队列。">
+<meta property="og:url" content="https://melodycoder12345.github.io/algo/prim.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Prim 最小生成树 — 码海拾贝">
+<meta name="twitter:description" content="从任意起始节点出发，每次选择候选边中权重最小的边加入生成树。">
+<title>Prim 最小生成树 - 算法可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;transition:color 0.15s;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}
+.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.badge.time{background:rgba(56,189,248,0.15);color:var(--blue);}
+.badge.space{background:rgba(196,132,252,0.15);color:var(--purple);}
+/* layout */
+.layout{display:grid;grid-template-columns:242px 1fr 368px;flex:1;overflow:hidden;}
+/* left */
+.left-panel{border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.scene-tabs{display:flex;flex-direction:column;gap:3px;padding:10px 10px 8px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.scene-label{font-size:0.68rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--dim);margin-bottom:4px;font-weight:600;}
+.tab-btn{background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--dim);padding:7px 10px;border-radius:7px;cursor:pointer;font-size:0.78rem;text-align:left;transition:all 0.15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tab-btn:hover{background:rgba(255,255,255,0.08);color:var(--text);}
+.tab-btn.active{background:rgba(167,139,250,0.15);border-color:rgba(167,139,250,0.4);color:#a78bfa;}
+.pq-area{flex:1;overflow-y:auto;padding:10px 12px;min-height:0;}
+.area-title{font-size:0.68rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--dim);margin-bottom:7px;font-weight:600;}
+.pq-entry{display:flex;justify-content:space-between;align-items:center;padding:5px 8px;border-radius:5px;margin-bottom:3px;font-family:monospace;font-size:0.78rem;border:1px solid transparent;transition:all 0.2s;}
+.pq-entry.pq-fresh{border-color:rgba(251,146,60,0.25);background:rgba(251,146,60,0.06);}
+.pq-entry.pq-stale{opacity:0.35;text-decoration:line-through;}
+.pq-entry.pq-cur{border-color:rgba(251,191,36,0.45);background:rgba(251,191,36,0.12);color:var(--yellow);}
+.pq-badge{font-size:0.6rem;padding:1px 5px;border-radius:3px;flex-shrink:0;}
+.b-fresh{background:rgba(251,146,60,0.2);color:var(--orange);}
+.b-stale{background:rgba(148,163,184,0.2);color:var(--dim);}
+.b-cur{background:rgba(251,191,36,0.22);color:var(--yellow);}
+.mst-box{padding:9px 12px;border-top:1px solid var(--border);flex-shrink:0;}
+.mst-box-label{font-size:0.68rem;color:var(--dim);margin-bottom:2px;}
+.mst-box-val{color:var(--green);font-weight:700;font-size:1rem;font-family:monospace;}
+.compare-box{display:none;padding:9px 12px;border-top:1px solid var(--border);flex-shrink:0;}
+.compare-title{font-size:0.68rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--dim);margin-bottom:7px;}
+.warn-box{display:none;margin:6px 0;padding:8px 10px;background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);border-radius:6px;font-size:0.77rem;color:var(--red);}
+.step-box{padding:9px 12px;border-top:1px solid var(--border);flex-shrink:0;}
+.step-ctr{font-size:0.72rem;color:var(--dim);margin-bottom:5px;}
+.step-desc{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:7px;padding:9px 11px;font-size:0.79rem;line-height:1.65;min-height:62px;}
+.ctrl-row{display:flex;gap:6px;padding:9px 12px;border-top:1px solid var(--border);flex-shrink:0;align-items:center;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:6px 13px;border-radius:6px;cursor:pointer;font-size:0.82rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}
+.btn.primary{background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.3);color:var(--blue);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-row{display:flex;align-items:center;gap:7px;padding:6px 12px;border-top:1px solid var(--border);font-size:0.74rem;color:var(--dim);flex-shrink:0;}
+input[type=range]{-webkit-appearance:none;width:80px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--blue);cursor:pointer;}
+/* mid */
+.mid-panel{display:flex;flex-direction:column;overflow:hidden;}
+.legend{display:flex;gap:12px;padding:8px 20px;border-bottom:1px solid var(--border);flex-wrap:wrap;flex-shrink:0;}
+.leg{display:flex;align-items:center;gap:5px;font-size:0.71rem;color:var(--dim);}
+.leg-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
+.graph-area{flex:1;overflow:hidden;position:relative;}
+svg#graphSvg{width:100%;height:100%;display:block;}
+/* right */
+.code-panel{border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.code-hdr{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.78rem;line-height:1.7;}
+.code-line.active{background:rgba(251,191,36,0.1);}
+.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:44px;padding:0 10px 0 14px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.76rem;}
+.lc{padding:0 14px 0 2px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.id{color:#e6edf3;}.cm{color:#8b949e;}
+@media(max-width:900px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;overflow-x:hidden;}
+  .layout{grid-template-columns:1fr!important;height:auto!important;}
+  .graph-area{height:280px!important;min-height:280px!important;}
+  .code-panel{height:320px!important;}
+  .left-panel{max-height:none!important;}
+  .pq-area{max-height:180px!important;}
+}
+</style>
+<script src="../nav.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>Prim 最小生成树</h1>
+  <div class="complexity">
+    <span class="badge time">时间 O(E log V)</span>
+    <span class="badge space">空间 O(V+E)</span>
+  </div>
+</nav>
+<div class="layout">
+<!-- ═══ LEFT ═══ -->
+<div class="left-panel">
+  <div class="scene-tabs">
+    <div class="scene-label">场景</div>
+    <button class="tab-btn active" id="tab0" onclick="switchScene(0)">① 正常流程（5节点图）</button>
+    <button class="tab-btn" id="tab1" onclick="switchScene(1)">② 与 Kruskal 对比</button>
+    <button class="tab-btn" id="tab2" onclick="switchScene(2)">③ 不连通图</button>
+  </div>
+  <div class="pq-area">
+    <div class="area-title">优先队列（候选边）</div>
+    <div id="pqList"></div>
+    <div class="warn-box" id="warnBox">⚠ 优先队列已空，但图中仍有节点未被访问。<br>图不连通，无法构建完整 MST。</div>
+  </div>
+  <div class="mst-box">
+    <div class="mst-box-label">MST 总权重</div>
+    <div class="mst-box-val" id="mstWeightVal">0</div>
+  </div>
+  <div class="compare-box" id="compareBox">
+    <div class="compare-title">Prim vs Kruskal — 选边顺序对比（同一图）</div>
+    <div id="compareContent"></div>
+  </div>
+  <div class="step-box">
+    <div class="step-ctr" id="stepCtr">步骤 0 / 0</div>
+    <div class="step-desc" id="stepDesc">点击「▶ 播放」开始演示</div>
+  </div>
+  <div class="ctrl-row">
+    <button class="btn" id="btnReset" onclick="reset()">⏮</button>
+    <button class="btn" id="btnPrev" onclick="prev()">◀</button>
+    <button class="btn primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+    <button class="btn" id="btnNext" onclick="next()">▶▶</button>
+  </div>
+  <div class="speed-row">
+    <span>🐢</span>
+    <input type="range" id="speedRange" min="1" max="5" value="3">
+    <span>🐇</span>
+  </div>
+</div>
+<!-- ═══ MIDDLE ═══ -->
+<div class="mid-panel">
+  <div class="legend">
+    <div class="leg"><div class="leg-dot" style="background:#4ade80;border-radius:50%;border:2px solid #4ade80"></div>已在 MST</div>
+    <div class="leg"><div class="leg-dot" style="background:#38bdf8;border-radius:50%"></div>当前加入节点</div>
+    <div class="leg"><div class="leg-dot" style="background:#fbbf24"></div>当前检查边</div>
+    <div class="leg"><div class="leg-dot" style="background:#fb923c;border:1px dashed #fb923c"></div>候选边（PQ中）</div>
+    <div class="leg"><div class="leg-dot" style="background:#4ade80"></div>MST 边</div>
+  </div>
+  <div class="graph-area">
+    <svg id="graphSvg"></svg>
+  </div>
+</div>
+<!-- ═══ RIGHT ═══ -->
+<div class="code-panel">
+  <div class="code-hdr">
+    <div class="code-dot" style="background:#ff5f57"></div>
+    <div class="code-dot" style="background:#febc2e"></div>
+    <div class="code-dot" style="background:#28c840"></div>
+    <span style="margin-left:4px">prim.go</span>
+  </div>
+  <div class="code-body" id="codeBody"></div>
+</div>
+</div>
+<script>
+// ──────────────────────────────────────────
+// Code Lines (Go)
+// ──────────────────────────────────────────
+const CODE_LINES = [
+  {html:`<span class="kw">package</span> <span class="pkg">main</span>`},                                          // 0
+  {html:``},                                                                                                  // 1
+  {html:`<span class="kw">import</span> <span class="st">"container/heap"</span>`},                           // 2
+  {html:``},                                                                                                  // 3
+  {html:`<span class="kw">type</span> <span class="id">Edge</span> <span class="kw">struct</span> { from, to, w <span class="kw">int</span> }`},    // 4
+  {html:``},                                                                                                  // 5
+  {html:`<span class="kw">type</span> <span class="id">PQ</span> []<span class="id">Edge</span>`},              // 6
+  {html:`<span class="kw">func</span> (h <span class="id">PQ</span>) <span class="fn">Len</span>() <span class="kw">int</span>           { <span class="kw">return</span> <span class="fn">len</span>(h) }`},               // 7
+  {html:`<span class="kw">func</span> (h <span class="id">PQ</span>) <span class="fn">Less</span>(i, j <span class="kw">int</span>) <span class="kw">bool</span> { <span class="kw">return</span> h[i].w &lt; h[j].w }`},        // 8
+  {html:`<span class="kw">func</span> (h <span class="id">PQ</span>) <span class="fn">Swap</span>(i, j <span class="kw">int</span>)      { h[i], h[j] = h[j], h[i] }`},           // 9
+  {html:`<span class="kw">func</span> (h *<span class="id">PQ</span>) <span class="fn">Push</span>(x <span class="kw">any</span>) { *h = <span class="fn">append</span>(*h, x.(<span class="id">Edge</span>)) }`},           // 10
+  {html:`<span class="kw">func</span> (h *<span class="id">PQ</span>) <span class="fn">Pop</span>() <span class="kw">any</span>  { old:=*h; n:=<span class="fn">len</span>(old); x:=old[n<span class="num">-1</span>]; *h=old[:n<span class="num">-1</span>]; <span class="kw">return</span> x }`}, // 11
+  {html:``},                                                                                                  // 12
+  {html:`<span class="kw">func</span> <span class="fn">prim</span>(graph [][]<span class="id">Edge</span>, n, src <span class="kw">int</span>) []<span class="id">Edge</span> {`},  // 13
+  {html:`&nbsp;&nbsp;inMST := <span class="fn">make</span>([]<span class="kw">bool</span>, n)`},                                      // 14
+  {html:`&nbsp;&nbsp;pq := &amp;<span class="id">PQ</span>{}`},                                                  // 15
+  {html:`&nbsp;&nbsp;<span class="fn">heap</span>.<span class="fn">Init</span>(pq)`},                                                   // 16
+  {html:``},                                                                                                  // 17
+  {html:`&nbsp;&nbsp;inMST[src] = <span class="kw">true</span>                  <span class="cm">// 起点加入</span>`},          // 18
+  {html:`&nbsp;&nbsp;<span class="kw">for</span> _, e := <span class="kw">range</span> graph[src] {   <span class="cm">// 推入邻边</span>`},          // 19
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">heap</span>.<span class="fn">Push</span>(pq, e)`},                                              // 20
+  {html:`&nbsp;&nbsp;}`},                                                                                      // 21
+  {html:``},                                                                                                  // 22
+  {html:`&nbsp;&nbsp;<span class="kw">var</span> mst []<span class="id">Edge</span>`},                                          // 23
+  {html:`&nbsp;&nbsp;<span class="kw">for</span> pq.<span class="fn">Len</span>() &gt; <span class="num">0</span> {`},                                  // 24
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;e := <span class="fn">heap</span>.<span class="fn">Pop</span>(pq).(<span class="id">Edge</span>)      <span class="cm">// 取最小边</span>`},         // 25
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> inMST[e.to] { <span class="kw">continue</span> }  <span class="cm">// 过期条目</span>`},          // 26
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;mst = <span class="fn">append</span>(mst, e)         <span class="cm">// 加入 MST</span>`},         // 27
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;inMST[e.to] = <span class="kw">true</span>`},                                              // 28
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> _, next := <span class="kw">range</span> graph[e.to] {`},                            // 29
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> !inMST[next.to] {`},                                          // 30
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">heap</span>.<span class="fn">Push</span>(pq, next)      <span class="cm">// 扩展邻边</span>`},         // 31
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},                                                                      // 32
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},                                                                          // 33
+  {html:`&nbsp;&nbsp;}`},                                                                                      // 34
+  {html:`&nbsp;&nbsp;<span class="kw">return</span> mst`},                                                         // 35
+  {html:`}`},                                                                                                  // 36
+];
+
+// ──────────────────────────────────────────
+// Scenario Data
+// ──────────────────────────────────────────
+// Scenario 1 & 2: A-B(4), A-C(2), B-C(1), B-D(5), C-D(8), C-E(10), D-E(2)
+const S12_NODES = ['A','B','C','D','E'];
+const S12_POS   = [{x:.13,y:.50},{x:.40,y:.18},{x:.60,y:.58},{x:.76,y:.83},{x:.88,y:.42}];
+const S12_EDGES = [[0,1,4],[0,2,2],[1,2,1],[1,3,5],[2,3,8],[2,4,10],[3,4,2]];
+
+// Prim from A (scenario 1): A-C(2), B-C(1), B-D(5), D-E(2)
+// Kruskal:                   B-C(1), A-C(2), D-E(2), B-D(5)
+const KRUSKAL_ORDER = ['B-C(1)','A-C(2)','D-E(2)','B-D(5)'];
+const PRIM_ORDER    = ['A-C(2)','B-C(1)','B-D(5)','D-E(2)'];
+
+// Scenario 3: disconnected — {A,B,C} and {D,E}
+const S3_NODES = ['A','B','C','D','E'];
+const S3_POS   = [{x:.15,y:.50},{x:.38,y:.28},{x:.38,y:.72},{x:.68,y:.28},{x:.68,y:.72}];
+const S3_EDGES = [[0,1,3],[0,2,5],[3,4,4]];
+
+// Active scenario state
+let curScene = 0, curNodes, curPos, curEdges;
+let steps = [], cur = 0, playing = false, timer = null;
+const SPEED = [900,550,320,175,75];
+
+// ──────────────────────────────────────────
+// Step Generation
+// ──────────────────────────────────────────
+function ek(u,v){ return `${Math.min(u,v)}-${Math.max(u,v)}`; }
+
+function generateSteps(nodeNames, edgesRaw, start) {
+  const n = nodeNames.length;
+  const adj = Array.from({length:n}, ()=>[]);
+  for (const [u,v,w] of edgesRaw) {
+    adj[u].push({from:u,to:v,w});
+    adj[v].push({from:v,to:u,w});
+  }
+  const S = [];
+  const inMST = Array(n).fill(false);
+  const mstEdgeKeys = new Set();
+  let pqEntries = [];
+  let mstWeight = 0;
+
+  function snap(extra={}){
+    return {
+      inMST:[...inMST], mstEdgeKeys:new Set(mstEdgeKeys),
+      pqEntries:pqEntries.map(e=>({...e})),
+      currentEdge:null, mstWeight, disconnected:false, ...extra
+    };
+  }
+  function sortPQ(arr){ return [...arr].sort((a,b)=>a.w-b.w); }
+  function pqStr(){ return pqEntries.map(e=>`${nodeNames[e.from]}→${nodeNames[e.to]}(${e.w})`).join(', ')||'空'; }
+
+  S.push(snap({hl:[14,15,16], desc:`初始化：从节点 <strong style="color:var(--blue)">${nodeNames[start]}</strong> 出发，初始化 inMST 数组和优先队列（最小堆）。`}));
+
+  inMST[start] = true;
+  for (const e of adj[start]) pqEntries.push({...e});
+  pqEntries = sortPQ(pqEntries);
+
+  S.push(snap({hl:[18,19,20], desc:`将 <strong style="color:var(--green)">${nodeNames[start]}</strong> 标记为已在 MST，推入所有邻边。优先队列：[${pqStr()}]`}));
+
+  while (pqEntries.length > 0) {
+    const e = pqEntries.shift();
+
+    S.push(snap({currentEdge:{...e}, hl:[24,25], desc:`弹出权重最小的边 <strong style="color:var(--yellow)">${nodeNames[e.from]}→${nodeNames[e.to]}(${e.w})</strong>，检查目标节点 ${nodeNames[e.to]} 是否已在 MST 中。`}));
+
+    if (inMST[e.to]) {
+      S.push(snap({currentEdge:{...e}, hl:[26], desc:`<strong style="color:var(--red)">跳过过期条目</strong>：节点 ${nodeNames[e.to]} 已在 MST 中，此边无需处理。PQ 剩余 ${pqEntries.length} 项。`}));
+      continue;
+    }
+
+    mstEdgeKeys.add(ek(e.from,e.to));
+    inMST[e.to] = true;
+    mstWeight += e.w;
+
+    S.push(snap({currentEdge:{...e}, hl:[27,28], desc:`<strong style="color:var(--green)">${nodeNames[e.to]}</strong> 加入 MST！边 ${nodeNames[e.from]}-${nodeNames[e.to]}(${e.w}) 纳入生成树。总权重 = <strong style="color:var(--green)">${mstWeight}</strong>`}));
+
+    const newEdges = [];
+    for (const nx of adj[e.to]) {
+      if (!inMST[nx.to]) { pqEntries.push({...nx}); newEdges.push(nx); }
+    }
+    pqEntries = sortPQ(pqEntries);
+
+    if (newEdges.length > 0) {
+      S.push(snap({hl:[29,30,31], desc:`扩展节点 ${nodeNames[e.to]}，推入邻边：${newEdges.map(e=>`${nodeNames[e.from]}→${nodeNames[e.to]}(${e.w})`).join(', ')}。PQ 现有 ${pqEntries.length} 项：[${pqStr()}]`}));
+    }
+
+    if (inMST.every(v=>v)) {
+      S.push(snap({hl:[35], desc:`🎉 <strong style="color:var(--green)">MST 构建完成！</strong>所有 ${n} 个节点已覆盖。MST 边集：{${[...mstEdgeKeys].map(k=>{const[a,b]=k.split('-').map(Number);return nodeNames[a]+'-'+nodeNames[b];}).join(', ')}}，总权重 = <strong style="color:var(--green)">${mstWeight}</strong>`}));
+      break;
+    }
+  }
+
+  if (!inMST.every(v=>v)) {
+    const unreachable = nodeNames.filter((_,i)=>!inMST[i]).join(', ');
+    S.push(snap({disconnected:true, hl:[34], desc:`<strong style="color:var(--red)">⚠ 图不连通！</strong>优先队列已空，但节点 [${unreachable}] 仍未被访问。Prim 只能覆盖起始节点的连通分量，整图 MST 不存在。`}));
+  }
+  return S;
+}
+
+// ──────────────────────────────────────────
+// Rendering
+// ──────────────────────────────────────────
+function getEdgeState(u, v, step) {
+  const key = ek(u,v);
+  if (step.mstEdgeKeys.has(key)) return 'mst';
+  if (step.currentEdge) {
+    if (ek(step.currentEdge.from, step.currentEdge.to) === key) return 'current';
+  }
+  for (const e of step.pqEntries) {
+    if ((e.from===u&&e.to===v)||(e.from===v&&e.to===u)) {
+      return step.inMST[e.to] ? 'stale' : 'candidate';
+    }
+  }
+  return 'normal';
+}
+
+function renderGraph(step) {
+  const svg = document.getElementById('graphSvg');
+  const W = svg.clientWidth || svg.parentElement.clientWidth || 400;
+  const H = svg.clientHeight || svg.parentElement.clientHeight || 300;
+  const R = Math.min(W, H) * 0.055;
+  let html = '<defs><filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
+
+  for (const [u,v,w] of curEdges) {
+    const x1=curPos[u].x*W, y1=curPos[u].y*H;
+    const x2=curPos[v].x*W, y2=curPos[v].y*H;
+    const mx=(x1+x2)/2, my=(y1+y2)/2;
+    const state = getEdgeState(u,v,step);
+    let stroke='#2d3f55', sw=1.5, dash='', opacity=0.5, wCol='#4b5563';
+
+    if      (state==='mst')       { stroke='#4ade80'; sw=3; opacity=1; wCol='#4ade80'; }
+    else if (state==='current')   { stroke='#fbbf24'; sw=3.5; opacity=1; wCol='#fbbf24'; }
+    else if (state==='candidate') { stroke='#fb923c'; sw=2; dash='7,4'; opacity=0.85; wCol='#fb923c'; }
+    else if (state==='stale')     { stroke='#475569'; sw=1; dash='4,4'; opacity=0.3; wCol='#475569'; }
+
+    const filter = state==='current' ? ' filter="url(#glow)"' : '';
+    html += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${stroke}" stroke-width="${sw}" stroke-dasharray="${dash}" opacity="${opacity}" stroke-linecap="round"${filter}/>`;
+    const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy)||1;
+    const ox=-dy/len*12, oy=dx/len*12;
+    html += `<text x="${mx+ox}" y="${my+oy}" text-anchor="middle" dominant-baseline="middle" font-size="${R*0.48}" font-family="monospace" fill="${wCol}" opacity="${opacity*0.9}">${w}</text>`;
+  }
+
+  for (let i=0; i<curNodes.length; i++) {
+    const x=curPos[i].x*W, y=curPos[i].y*H;
+    const inMST = step.inMST[i];
+    const isCur = step.currentEdge && step.currentEdge.to===i && !step.inMST[i];
+    let fill='#1e293b', stroke='#475569', tc='#94a3b8', sw=2;
+    if (inMST)  { fill='#14532d'; stroke='#4ade80'; tc='#4ade80'; }
+    if (isCur)  { fill='#0c2a4a'; stroke='#38bdf8'; tc='#38bdf8'; sw=2.5; }
+    const filter = (inMST||isCur) ? ' filter="url(#glow)"' : '';
+    html += `<circle cx="${x}" cy="${y}" r="${R}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"${filter}/>`;
+    html += `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" font-size="${R*0.58}" font-weight="700" font-family="system-ui" fill="${tc}">${curNodes[i]}</text>`;
+  }
+  svg.innerHTML = html;
+}
+
+function renderPQ(step) {
+  const list = document.getElementById('pqList');
+  let html = '';
+
+  if (step.currentEdge) {
+    const e = step.currentEdge;
+    html += `<div class="pq-entry pq-cur"><span>${curNodes[e.from]}→${curNodes[e.to]}(${e.w})</span><span class="pq-badge b-cur">检查中</span></div>`;
+  }
+  if (step.pqEntries.length === 0 && !step.currentEdge) {
+    html = '<div style="color:var(--dim);font-size:0.78rem;padding:4px 0;font-style:italic;">队列为空</div>';
+  } else {
+    for (const e of step.pqEntries) {
+      const stale = step.inMST[e.to];
+      const cls = stale ? 'pq-stale' : 'pq-fresh';
+      const badge = stale ? '<span class="pq-badge b-stale">过期</span>' : '<span class="pq-badge b-fresh">候选</span>';
+      html += `<div class="pq-entry ${cls}"><span>${curNodes[e.from]}→${curNodes[e.to]}(${e.w})</span>${badge}</div>`;
+    }
+  }
+  list.innerHTML = html;
+  document.getElementById('warnBox').style.display = step.disconnected ? '' : 'none';
+}
+
+function renderCompare(step) {
+  const mstKeys = step.mstEdgeKeys;
+  function isSelected(edgeStr, mstK, nodeNames) {
+    // edge str like "A-C(2)" or "B-C(1)"
+    const m = edgeStr.match(/^(\w+)-(\w+)\((\d+)\)$/);
+    if (!m) return false;
+    const u = nodeNames.indexOf(m[1]), v = nodeNames.indexOf(m[2]);
+    if (u<0||v<0) return false;
+    return mstK.has(ek(u,v));
+  }
+  let html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:0.76rem;">';
+  html += '<div><div style="color:var(--blue);margin-bottom:5px;font-size:0.7rem;">Prim 顺序（从A）</div>';
+  for (const e of PRIM_ORDER) {
+    const sel = isSelected(e, mstKeys, S12_NODES);
+    html += `<div style="font-family:monospace;padding:2px 0;color:${sel?'var(--green)':'var(--dim)'}">${sel?'✓ ':''} ${e}</div>`;
+  }
+  html += '</div>';
+  html += '<div><div style="color:var(--yellow);margin-bottom:5px;font-size:0.7rem;">Kruskal 顺序</div>';
+  for (const e of KRUSKAL_ORDER) {
+    const sel = isSelected(e, mstKeys, S12_NODES);
+    html += `<div style="font-family:monospace;padding:2px 0;color:${sel?'var(--green)':'var(--dim)'}">${sel?'✓ ':''} ${e}</div>`;
+  }
+  html += '</div></div>';
+  html += '<div style="font-size:0.7rem;color:var(--dim);margin-top:8px;padding-top:6px;border-top:1px solid var(--border)">结果相同（MST权重=10），选边<em style="color:var(--text)">顺序不同</em>：Prim 从节点出发扩展，Kruskal 全局贪心选边。</div>';
+  document.getElementById('compareContent').innerHTML = html;
+}
+
+function renderCode() {
+  const step = steps[cur];
+  const hl = step ? (step.hl||[]) : [];
+  const body = document.getElementById('codeBody');
+  body.innerHTML = CODE_LINES.map((line,i) => {
+    const active = hl.includes(i) ? ' active' : '';
+    return `<div class="code-line${active}"><span class="ln">${i+1}</span><span class="lc">${line.html||'&nbsp;'}</span></div>`;
+  }).join('');
+  const el = body.querySelector('.code-line.active');
+  if (el) el.scrollIntoView({block:'nearest'});
+}
+
+function render() {
+  if (!steps.length) return;
+  const s = steps[cur];
+  renderGraph(s);
+  renderPQ(s);
+  renderCode();
+  document.getElementById('stepDesc').innerHTML = s.desc;
+  document.getElementById('stepCtr').textContent = `步骤 ${cur+1} / ${steps.length}`;
+  document.getElementById('mstWeightVal').textContent = s.mstWeight;
+  document.getElementById('btnPrev').disabled = cur === 0;
+  document.getElementById('btnNext').disabled = cur === steps.length-1;
+  const cmpBox = document.getElementById('compareBox');
+  cmpBox.style.display = curScene===1 ? '' : 'none';
+  if (curScene===1) renderCompare(s);
+}
+
+// ──────────────────────────────────────────
+// Controls
+// ──────────────────────────────────────────
+function switchScene(idx) {
+  stopPlay();
+  curScene = idx;
+  for (let i=0;i<3;i++) document.getElementById(`tab${i}`).classList.toggle('active', i===idx);
+  if (idx===0||idx===1) { curNodes=S12_NODES; curPos=S12_POS; curEdges=S12_EDGES; }
+  else                  { curNodes=S3_NODES;  curPos=S3_POS;  curEdges=S3_EDGES; }
+  steps = generateSteps(curNodes, curEdges, 0);
+  cur = 0;
+  render();
+}
+
+function prev() { if(cur>0){ cur--; render(); } }
+function next() { if(cur<steps.length-1){ cur++; render(); } }
+function reset() { stopPlay(); cur=0; render(); }
+
+function stopPlay() {
+  playing = false;
+  clearInterval(timer); timer = null;
+  document.getElementById('btnPlay').textContent = '▶ 播放';
+}
+
+function togglePlay() {
+  if (!playing && cur >= steps.length-1) { cur=0; render(); }
+  if (playing) { stopPlay(); return; }
+  playing = true;
+  document.getElementById('btnPlay').textContent = '⏸ 暂停';
+  const spd = SPEED[parseInt(document.getElementById('speedRange').value)-1];
+  timer = setInterval(()=>{ if(cur>=steps.length-1){stopPlay();return;} cur++; render(); }, spd);
+}
+
+document.getElementById('speedRange').oninput = () => { if(playing){ stopPlay(); togglePlay(); }};
+window.addEventListener('resize', ()=>{ if(steps.length) renderGraph(steps[cur]); });
+
+// Init
+switchScene(0);
+</script>
+</body>
+</html>

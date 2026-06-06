@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="主动在生产环境注入故障，通过实验验证系统在真实异常条件下的行为，发现薄弱点并提高可靠性。混沌工程：稳态假说 + 故障注入 + 偏差观察 + 修复验证。">
+<link rel="canonical" href="https://melodycoder12345.github.io/observability/chaos.html">
+<meta property="og:title" content="混沌工程 — 码海拾贝">
+<meta property="og:description" content="主动在生产环境注入故障，通过实验验证系统在真实异常条件下的行为，发现薄弱点并提高可靠性。">
+<meta property="og:url" content="https://melodycoder12345.github.io/observability/chaos.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="混沌工程 — 码海拾贝">
+<meta name="twitter:description" content="主动在生产环境注入故障，通过实验验证系统在真实异常条件下的行为，发现薄弱点并提高可靠性。">
+<title>混沌工程 - 可观测性</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#fb923c;--ok:#4ade80;--warn:#fbbf24;--err:#f87171;--blue:#38bdf8}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:radial-gradient(circle at 20% 0%,rgba(251,146,60,.12),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1280px;margin:0 auto;padding:40px 32px 80px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--dim2);margin-bottom:24px}
+.breadcrumb a{color:var(--dim2)}.breadcrumb a:hover{color:var(--text)}
+.page-title{font-size:clamp(1.6rem,3.5vw,2.8rem);letter-spacing:-.04em;margin-bottom:8px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{color:var(--dim);font-size:.9rem;margin-bottom:28px;max-width:820px;line-height:1.85}
+.layout{display:grid;grid-template-columns:272px 1fr;gap:20px}
+
+/* Left panel */
+.left-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:16px}
+.scene-tabs{display:flex;flex-direction:column;gap:4px;margin-bottom:16px}
+.tab-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.02);color:var(--dim);padding:8px 10px;border-radius:10px;cursor:pointer;font-size:.75rem;line-height:1.45;transition:.15s}
+.tab-btn:hover{border-color:rgba(251,146,60,.3);color:var(--text)}
+.tab-btn.active{background:rgba(251,146,60,.12);border-color:var(--accent);color:var(--text);font-weight:600}
+.left-panel h3{font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
+.step-btn{width:100%;text-align:left;border:1px solid transparent;background:none;color:var(--dim);padding:7px 10px;border-radius:8px;cursor:pointer;font-size:.77rem;line-height:1.45;transition:.15s;margin-bottom:3px;display:block}
+.step-btn:hover{border-color:rgba(251,146,60,.25);color:var(--text)}
+.step-btn.active{background:rgba(251,146,60,.1);border-color:rgba(251,146,60,.4);color:var(--text)}
+.step-index{display:inline-block;width:16px;height:16px;border-radius:50%;background:rgba(251,146,60,.15);color:var(--accent);font-size:.62rem;font-weight:700;text-align:center;line-height:16px;margin-right:6px}
+.ctrl{display:flex;gap:5px;margin-top:14px;flex-wrap:wrap}
+.ctrl button{flex:1;min-width:42px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:8px;padding:7px 3px;cursor:pointer;font-size:.7rem;transition:.15s}
+.ctrl button:hover{border-color:var(--accent);color:var(--text)}
+
+/* Center panel */
+.center-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:22px;min-height:580px;display:flex;flex-direction:column;gap:12px}
+.step-msg{border-left:3px solid var(--accent);background:rgba(251,146,60,.06);border-radius:0 10px 10px 0;padding:10px 14px;font-size:.85rem;color:var(--text);line-height:1.75}
+.sec-label{font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px}
+
+/* Hypothesis box */
+.hyp-box{border:2px dashed rgba(74,222,128,.3);border-radius:10px;padding:9px 14px;font-size:.79rem;color:var(--dim);display:flex;align-items:center;gap:10px;transition:all .4s}
+.hyp-box.active{border-color:rgba(74,222,128,.6);background:rgba(74,222,128,.04);color:var(--ok)}
+.hyp-box.exceeded{border-color:var(--err);background:rgba(248,113,113,.05);color:var(--err);animation:hypBlink 1s infinite}
+.hyp-box.verified{border-color:var(--ok);background:rgba(74,222,128,.07);color:var(--ok)}
+.hyp-box.failed{border-color:var(--err);background:rgba(248,113,113,.07);color:var(--err)}
+@keyframes hypBlink{0%,100%{box-shadow:none}50%{box-shadow:0 0 16px rgba(248,113,113,.2)}}
+
+/* Chart */
+.chart-svg{width:100%;height:auto;display:block;overflow:visible}
+
+/* Inject banner */
+.inj-banner{display:flex;align-items:center;gap:10px;padding:7px 13px;border-radius:10px;font-size:.78rem;border:1px solid;transition:all .4s}
+.inj-fault{border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.06);color:var(--err)}
+.inj-warn{border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.05);color:var(--warn)}
+.inj-ok{border-color:rgba(74,222,128,.3);background:rgba(74,222,128,.05);color:var(--ok)}
+.inj-info{border-color:rgba(56,189,248,.3);background:rgba(56,189,248,.05);color:var(--blue)}
+
+/* SVG node styles */
+.nc-ok{fill:rgba(74,222,128,.12);stroke:#4ade80;stroke-width:2;transition:all .4s}
+.nc-fault{fill:rgba(248,113,113,.18);stroke:#f87171;stroke-width:2.5;animation:nFault .65s infinite alternate}
+.nc-warn{fill:rgba(251,146,60,.12);stroke:#fb923c;stroke-width:2;transition:all .4s}
+.nc-recover{fill:rgba(251,191,36,.12);stroke:#fbbf24;stroke-width:2;transition:all .4s}
+.nc-stop{fill:rgba(100,116,139,.08);stroke:#64748b;stroke-width:1.5;stroke-dasharray:4,3}
+.nc-degrade{fill:rgba(251,146,60,.1);stroke:#fb923c;stroke-width:1.5;stroke-dasharray:3,2;transition:all .4s}
+@keyframes nFault{from{stroke-opacity:.45;fill-opacity:.07}to{stroke-opacity:1;fill-opacity:.22}}
+.nl{font-size:10px;font-family:'Segoe UI',sans-serif;text-anchor:middle;dominant-baseline:central;font-weight:600;pointer-events:none}
+.nl-sub{font-size:9px;font-family:'Segoe UI',sans-serif;text-anchor:middle;fill:#64748b;pointer-events:none}
+.e-line{stroke:rgba(100,116,139,.2);stroke-width:1.5;fill:none}
+.e-ok{stroke:rgba(74,222,128,.4);stroke-width:2}
+.e-fault{stroke:rgba(248,113,113,.5);stroke-width:2;stroke-dasharray:5,3}
+.e-warn{stroke:rgba(251,146,60,.4);stroke-width:1.5;stroke-dasharray:4,3}
+.e-active{stroke:rgba(56,189,248,.4);stroke-width:2}
+
+/* Datacenter layout */
+.dc-wrap{display:grid;grid-template-columns:1fr 6px 1fr;border:1px solid rgba(255,255,255,.08);border-radius:12px;overflow:hidden;min-height:185px}
+.dc-a{background:rgba(56,189,248,.03);padding:14px}
+.dc-b{background:rgba(74,222,128,.03);padding:14px}
+.dc-divider{position:relative;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.04)}
+.partition-vis{position:absolute;top:0;bottom:0;left:0;right:0;opacity:0;transition:opacity .5s;background:repeating-linear-gradient(180deg,#f87171 0 8px,transparent 8px 14px)}
+.partition-vis.on{opacity:1}
+.partition-lbl{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(15,23,42,.92);border:1px solid var(--err);color:var(--err);font-size:.65rem;font-weight:700;padding:4px 7px;border-radius:7px;white-space:nowrap;opacity:0;transition:opacity .5s;z-index:2;text-align:center;width:62px}
+.partition-lbl.on{opacity:1}
+.dc-title{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
+.dca-t{color:var(--blue)}.dcb-t{color:var(--ok)}
+.dcn{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;margin-bottom:6px;font-size:.76rem;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.02);transition:all .4s}
+.dcn.ok{border-color:rgba(74,222,128,.3);background:rgba(74,222,128,.05)}
+.dcn.fault{border-color:rgba(248,113,113,.45);background:rgba(248,113,113,.07);animation:dcnBlink .8s infinite alternate}
+.dcn.warn{border-color:rgba(251,146,60,.3);background:rgba(251,146,60,.05)}
+.dcn.recover{border-color:rgba(56,189,248,.25);background:rgba(56,189,248,.04)}
+@keyframes dcnBlink{from{background:rgba(248,113,113,.04)}to{background:rgba(248,113,113,.13)}}
+.dcd{width:7px;height:7px;border-radius:50%;flex-shrink:0;transition:background .4s}
+.dcd-ok{background:var(--ok)}.dcd-fault{background:var(--err)}.dcd-warn{background:var(--warn)}.dcd-dim{background:var(--dim2)}.dcd-blue{background:var(--blue)}
+.dc-req-tag{font-size:.68rem;padding:2px 8px;border-radius:5px;margin-top:5px;display:inline-block;margin-right:4px}
+.rt-ok{background:rgba(74,222,128,.1);color:var(--ok)}.rt-fail{background:rgba(248,113,113,.1);color:var(--err)}.rt-warn{background:rgba(251,146,60,.1);color:var(--warn)}
+
+/* Call chain */
+.cc-wrap{border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:10px 14px;background:rgba(30,41,59,.4)}
+.cc-title{font-size:.72rem;color:var(--dim2);margin-bottom:8px}
+.cc-item{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:7px;font-size:.74rem;margin-bottom:4px;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.02);transition:all .4s}
+.cc-item.slow{border-color:rgba(248,113,113,.3);background:rgba(248,113,113,.05)}
+.cc-item.fixed{border-color:rgba(74,222,128,.25);background:rgba(74,222,128,.04)}
+.cc-dur{font-family:monospace;margin-left:auto;font-size:.72rem}
+.cc-dur.slow{color:var(--err)}.cc-dur.fast{color:var(--ok)}
+
+/* GameDay dashboard */
+.gd-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.svc-card{border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 12px;transition:all .4s;background:rgba(255,255,255,.02)}
+.svc-card.ok{border-color:rgba(74,222,128,.25);background:rgba(74,222,128,.03)}
+.svc-card.fault{border-color:rgba(248,113,113,.45);background:rgba(248,113,113,.06);animation:scFault .8s infinite alternate}
+.svc-card.warn{border-color:rgba(251,146,60,.35);background:rgba(251,146,60,.04)}
+.svc-card.degraded{border-color:rgba(251,146,60,.3);background:rgba(251,146,60,.04)}
+.svc-card.recover{border-color:rgba(56,189,248,.25);background:rgba(56,189,248,.03)}
+@keyframes scFault{from{box-shadow:none}to{box-shadow:0 0 12px rgba(248,113,113,.22)}}
+.svc-name{font-size:.76rem;font-weight:700;margin-bottom:3px}
+.svc-st{font-size:.67rem;margin-bottom:4px}
+.svc-metric{font-size:.7rem;font-family:monospace;color:var(--dim)}
+.svc-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.sd-ok{background:var(--ok)}.sd-fault{background:var(--err)}.sd-warn{background:var(--warn)}.sd-blue{background:var(--blue)}.sd-dim{background:var(--dim2)}
+
+/* Report */
+.report-box{border:1px solid rgba(251,146,60,.2);background:rgba(251,146,60,.03);border-radius:12px;padding:14px}
+.report-box h4{color:var(--accent);font-size:.8rem;font-weight:700;margin-bottom:10px}
+.mttr-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:.74rem}
+.mttr-name{color:var(--dim);min-width:130px}
+.mttr-bar-bg{flex:1;height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden}
+.mttr-bar-fill{height:100%;border-radius:3px;background:var(--accent);transition:width .7s}
+.mttr-time{font-family:monospace;color:var(--warn);min-width:50px;text-align:right}
+.finding-list{margin-top:10px;font-size:.74rem;line-height:1.8;color:var(--dim)}
+.finding-item{display:flex;gap:6px;margin-bottom:3px}
+.finding-item::before{content:'›';color:var(--accent)}
+
+/* Action box */
+.action-box{border:1px solid rgba(56,189,248,.2);background:rgba(56,189,248,.03);border-radius:10px;padding:10px 14px;font-size:.77rem;line-height:1.8;color:var(--dim)}
+.action-box h5{color:var(--blue);font-size:.77rem;margin-bottom:6px}
+.action-item{display:flex;gap:6px;margin-bottom:2px}
+.action-item::before{content:'→';color:var(--blue)}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">可观测性</a><span>/</span>混沌工程</div>
+  <h1 class="page-title">混沌工程</h1>
+  <p class="subtitle">主动在生产环境注入故障，通过实验验证系统在真实异常条件下的行为。混沌工程的核心是：先定义「稳态假说」（系统应在什么范围内工作），然后注入压力，观察偏差，发现薄弱点并修复，以提高系统可靠性。</p>
+
+  <div class="layout">
+    <div class="left-panel">
+      <div class="scene-tabs" id="sceneTabs"></div>
+      <h3>步骤</h3>
+      <div id="stepList"></div>
+      <div class="ctrl">
+        <button onclick="goPrev()">← 上一步</button>
+        <button onclick="goNext()">下一步 →</button>
+        <button onclick="doReset()">重置</button>
+        <button id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      </div>
+    </div>
+
+    <div class="center-panel">
+      <div class="step-msg" id="stepMsg">选择场景后点击「下一步」开始混沌工程实验演示。</div>
+
+      <!-- ===== Scene 0: Normal Flow ===== -->
+      <div id="sc0">
+        <div style="margin-bottom:10px">
+          <div class="sec-label">稳态假说</div>
+          <div class="hyp-box" id="hyp0">
+            <span id="hico0">📋</span><span id="htxt0">等待实验开始...</span>
+          </div>
+        </div>
+        <div style="margin-bottom:10px">
+          <div class="sec-label">错误率监控 <span style="color:var(--dim2);font-size:.68rem;font-weight:normal;text-transform:none">（阈值 0.1%）</span></div>
+          <svg id="chart0" class="chart-svg" viewBox="0 0 520 128" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+        <div style="margin-bottom:8px">
+          <div class="sec-label">服务组件状态</div>
+          <svg id="nodes0" viewBox="0 0 520 172" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible"></svg>
+        </div>
+        <div id="inj0" style="display:none"><div class="inj-banner" id="injb0"></div></div>
+      </div>
+
+      <!-- ===== Scene 1: Weakness Discovery ===== -->
+      <div id="sc1" style="display:none">
+        <div style="margin-bottom:10px">
+          <div class="sec-label">稳态假说</div>
+          <div class="hyp-box" id="hyp1">
+            <span id="hico1">📋</span><span id="htxt1">等待实验开始...</span>
+          </div>
+        </div>
+        <div style="margin-bottom:10px">
+          <div class="sec-label">API 响应时间监控 <span style="color:var(--dim2);font-size:.68rem;font-weight:normal;text-transform:none">（阈值 200ms）</span></div>
+          <svg id="chart1" class="chart-svg" viewBox="0 0 520 128" xmlns="http://www.w3.org/2000/svg"></svg>
+        </div>
+        <div style="margin-bottom:8px">
+          <div class="sec-label">服务依赖拓扑</div>
+          <svg id="nodes1" viewBox="0 0 520 188" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;overflow:visible"></svg>
+        </div>
+        <div id="cc1" style="display:none;margin-bottom:8px">
+          <div class="sec-label">Redis 串行调用分析</div>
+          <div class="cc-wrap"><div class="cc-title">购物车服务对 Redis 发起 5 次串行调用（无超时配置）：</div><div id="ccItems1"></div></div>
+        </div>
+        <div id="inj1" style="display:none"><div class="inj-banner" id="injb1"></div></div>
+      </div>
+
+      <!-- ===== Scene 2: Network Partition ===== -->
+      <div id="sc2" style="display:none">
+        <div style="margin-bottom:10px">
+          <div class="sec-label">稳态假说</div>
+          <div class="hyp-box" id="hyp2">
+            <span id="hico2">📋</span><span id="htxt2">等待实验开始...</span>
+          </div>
+        </div>
+        <div style="margin-bottom:10px">
+          <div class="sec-label">双机房网络拓扑</div>
+          <div class="dc-wrap">
+            <div class="dc-a">
+              <div class="dc-title dca-t">机房 A</div>
+              <div id="dca1" class="dcn"><span class="dcd dcd-ok"></span>app-server-a</div>
+              <div id="dca2" class="dcn"><span class="dcd dcd-ok"></span>replica-db-a</div>
+              <div id="dcaReqs" style="margin-top:7px;display:none">
+                <span class="dc-req-tag rt-ok" id="rARead">✓ 读请求正常</span>
+                <span class="dc-req-tag rt-fail" id="rAWrite" style="display:none">✗ 写请求失败 (500)</span>
+              </div>
+            </div>
+            <div class="dc-divider">
+              <div class="partition-vis" id="partVis"></div>
+              <div class="partition-lbl" id="partLbl">网络<br>分区</div>
+            </div>
+            <div class="dc-b">
+              <div class="dc-title dcb-t">机房 B</div>
+              <div id="dcb1" class="dcn"><span class="dcd dcd-ok"></span>app-server-b</div>
+              <div id="dcb2" class="dcn"><span class="dcd dcd-ok"></span>primary-db-b</div>
+              <div id="dcbReqs" style="margin-top:7px;display:none">
+                <span class="dc-req-tag rt-ok">✓ 读/写正常</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="inj2" style="display:none;margin-bottom:8px"><div class="inj-banner" id="injb2"></div></div>
+        <div id="act2" style="display:none">
+          <div class="sec-label">后续修复行动</div>
+          <div class="action-box"><h5>发现问题 → 规划修复</h5><div id="actItems2"></div></div>
+        </div>
+      </div>
+
+      <!-- ===== Scene 3: GameDay ===== -->
+      <div id="sc3" style="display:none">
+        <div style="margin-bottom:10px">
+          <div class="sec-label">稳态假说</div>
+          <div class="hyp-box" id="hyp3">
+            <span id="hico3">📋</span><span id="htxt3">等待演练开始...</span>
+          </div>
+        </div>
+        <div style="margin-bottom:10px">
+          <div class="sec-label">服务健康看板 — Checkout 流程</div>
+          <div class="gd-grid" id="gdGrid"></div>
+        </div>
+        <div id="gdPanel" style="display:none">
+          <div class="sec-label" id="gdLabel">故障注入记录</div>
+          <div id="gdContent"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+// =====================================================================
+//  DATA
+// =====================================================================
+
+const SCENE_LABELS = [
+  '场景1：正常流程',
+  '场景2：发现薄弱点',
+  '场景3：网络分区',
+  '场景4：GameDay',
+];
+
+// Chart: SVG viewBox "0 0 520 128"
+// Plot area: x[45,505]  y[12,112]
+// threshY = SVG y of threshold line
+// pts = polyline "x,y x,y ..."
+
+const S0 = [
+  { label:'定义稳态基线',
+    msg:'建立稳态基线：P99 延迟 < 200ms，错误率 < 0.1%。通过 Prometheus 查询近 24h 历史数据，确认系统处于正常运行状态，将当前指标记录为实验基准。稳态是混沌工程的起点——没有基线就无法判断偏差。',
+    pts:'45,98 96,97 147,98 198,99 249,97 300,98 351,99 402,97 453,98 504,98',
+    exc:false, injPt:false,
+    hyp:{s:'active', t:'假说：即使一个 order-service Pod 宕机，系统错误率仍 < 0.1%'},
+    n:{k8s:'ok',p1:'ok',p2:'ok',cli:'ok',db:'ok'}, inj:null },
+  { label:'设计实验假说',
+    msg:'设计假说：「即使一个 order-service Pod 宕机，系统整体错误率仍 < 0.1%」。假说成立依赖于：① K8s 会自动检测 Pod 不健康并重启；② 另一个 order-service 副本承接全部流量。实验工具：Chaos Mesh PodChaos。',
+    pts:'45,98 96,97 147,98 198,99 249,97 300,98 351,99 402,97 453,98 504,98',
+    exc:false, injPt:false,
+    hyp:{s:'active', t:'假说：即使一个 order-service Pod 宕机，错误率仍 < 0.1%（即将验证）'},
+    n:{k8s:'ok',p1:'ok',p2:'ok',cli:'ok',db:'ok'}, inj:null },
+  { label:'注入故障',
+    msg:'⚡ Chaos Mesh PodChaos 执行：随机 Kill order-pod-1。Pod 被强制终止，K8s 立即探测到 Not Ready 状态，开始重启流程。少量路由到 pod-1 的请求出现瞬时连接失败，错误率小幅上升。',
+    pts:'45,98 96,97 147,98 198,97 249,95 300,90 351,84 402,79 453,75 504,73',
+    exc:false, injPt:true,
+    hyp:{s:'active', t:'假说验证中：错误率开始上升，监控观察中...'},
+    n:{k8s:'warn',p1:'fault',p2:'ok',cli:'ok',db:'ok'},
+    inj:{cls:'inj-fault', t:'⚡ Chaos Mesh PodChaos：Kill order-pod-1'} },
+  { label:'监控指标变化',
+    msg:'Prometheus 实时数据：错误率从 0.02% 升至约 0.05%，仍低于 0.1% 阈值（安全区）。K8s 已将流量全部切至 order-pod-2，发起 ContainerCreating 重启 order-pod-1。Prometheus 告警规则 HighErrorRate 未触发。',
+    pts:'45,98 96,97 147,97 198,97 249,94 300,88 351,81 402,76 453,72 504,70',
+    exc:false, injPt:true,
+    hyp:{s:'active', t:'假说验证中：当前错误率 0.05% < 0.1% 阈值，处于安全区'},
+    n:{k8s:'warn',p1:'stop',p2:'ok',cli:'ok',db:'ok'},
+    inj:{cls:'inj-fault', t:'⚡ order-pod-1 宕机，K8s 重启中（ContainerCreating）'} },
+  { label:'观察恢复过程',
+    msg:'K8s Controller 重启 order-pod-1：ContainerCreating → Running → Ready（耗时 ~38s）。错误率在 Pod Ready 后开始回落。可以看到「峰值-恢复」曲线：0.02% → 0.05% → 0.02%，系统展现出弹性自愈能力。',
+    pts:'45,98 96,97 147,97 198,96 249,93 300,86 351,79 402,74 453,79 504,86',
+    exc:false, injPt:true,
+    hyp:{s:'active', t:'假说验证中：峰值 0.05% < 0.1%，Pod 正在恢复，曲线下降中...'},
+    n:{k8s:'ok',p1:'recover',p2:'ok',cli:'ok',db:'ok'},
+    inj:{cls:'inj-warn', t:'🔄 order-pod-1 重启中（Running，等待 Readiness Probe）'} },
+  { label:'假说验证成立',
+    msg:'✅ 假说成立！order-pod-1 完全恢复（Running & Ready），错误率降至 0.02%。整个实验过程中错误率始终 < 0.1% 阈值，K8s 自愈机制按预期工作。本次实验提升了对系统弹性的置信度。',
+    pts:'45,98 96,97 147,97 198,96 249,93 300,88 351,84 402,89 453,94 504,97',
+    exc:false, injPt:true,
+    hyp:{s:'verified', t:'✅ 假说成立：K8s 自愈后错误率 0.02%，全程未超过 0.1% 阈值'},
+    n:{k8s:'ok',p1:'ok',p2:'ok',cli:'ok',db:'ok'},
+    inj:{cls:'inj-ok', t:'✅ 实验完成：order-pod-1 已恢复，所有 Pod Running & Ready'} },
+  { label:'记录实验结果',
+    msg:'实验报告：MTTR = 38s，错误率峰值 0.05%，低于阈值 0.1%。弹性置信度 +1。建议后续实验：① 同时 Kill 两个 Pod（测试极限）；② 测试 Pod OOMKilled 场景；③ 模拟节点宕机（Node Failure）。更新 Runbook：order-service 弹性已验证。',
+    pts:'45,98 96,98 147,98 198,98 249,98 300,97 351,98 402,97 453,98 504,98',
+    exc:false, injPt:false,
+    hyp:{s:'verified', t:'✅ 结论：MTTR 38s｜峰值 0.05%｜弹性置信度 ↑1｜建议扩大实验范围'},
+    n:{k8s:'ok',p1:'ok',p2:'ok',cli:'ok',db:'ok'}, inj:null },
+];
+
+const S1 = [
+  { label:'定义稳态基线',
+    msg:'稳态基线：购物车 API 平均响应时间 50ms，P99 < 200ms。Redis 命中率 > 95%。历史上从未出现 Redis 超时（开发者认为「Redis 一直很快，不需要超时配置」）。这种经验主义正是混沌工程要打破的。',
+    pts:'45,100 96,99 147,100 198,100 249,99 300,100 351,100 402,99 453,100 504,100',
+    exc:false, injPt:false,
+    hyp:{s:'active', t:'假说：Redis 网络延迟增加 100ms，系统响应时间仍 < 200ms'},
+    n:{gw:'ok',cart:'ok',redis:'ok',cache:false}, cc:false, inj:null },
+  { label:'注入 Redis 网络延迟',
+    msg:'⚡ Chaos Mesh NetworkChaos：向 Redis 注入 100ms 固定网络延迟。底层使用 Linux tc（traffic control）在 Pod 的 veth 接口上注入延迟，精准可控。Redis 服务本身正常，只是增加了网络往返时间。',
+    pts:'45,100 96,99 147,100 198,99 249,96 300,89 351,76 402,58 453,42 504,34',
+    exc:true, injPt:true,
+    hyp:{s:'exceeded', t:'⚠ 假说验证中：响应时间快速上升，接近阈值...'},
+    n:{gw:'ok',cart:'warn',redis:'warn',cache:false}, cc:false,
+    inj:{cls:'inj-fault', t:'⚡ NetworkChaos：Redis Pod 注入 100ms 固定网络延迟'} },
+  { label:'监控：响应时间飙升',
+    msg:'🚨 API 响应时间从 50ms 飙升至 3000ms！购物车服务对 Redis 发起 5 次串行调用，每次 100ms 延迟，合计 500ms 串行阻塞。加上 Go goroutine 调度、网络重传等额外开销，P99 达到 3000ms。假说证伪。',
+    pts:'45,100 96,97 147,90 198,75 249,50 300,24 351,15 402,12 453,14 504,13',
+    exc:true, injPt:true,
+    hyp:{s:'exceeded', t:'🚨 假说证伪！响应时间 3000ms，远超 200ms 阈值'},
+    n:{gw:'warn',cart:'fault',redis:'warn',cache:false}, cc:true,
+    inj:{cls:'inj-fault', t:'🚨 购物车 P99 响应时间 3000ms，超阈值 15 倍！假说证伪'} },
+  { label:'发现薄弱点',
+    msg:'根因分析：① 无 Redis 超时配置（redis.SetTimeout 未设置），请求会无限期等待；② 购物车服务对 Redis 采用串行调用模式（5 个商品依次查询），延迟线性叠加；③ 没有本地缓存或降级策略。这三个问题共同导致了雪崩效应。',
+    pts:'45,92 96,75 147,38 198,14 249,12 300,12 351,13 402,14 453,13 504,12',
+    exc:true, injPt:true,
+    hyp:{s:'failed', t:'❌ 假说证伪：发现薄弱点 — 无超时 + 串行调用 + 无降级'},
+    n:{gw:'warn',cart:'fault',redis:'warn',cache:false}, cc:true,
+    inj:{cls:'inj-fault', t:'❌ 根因：5 次串行 Redis 调用，每次 100ms → 总延迟 500ms+'} },
+  { label:'自动停止实验',
+    msg:'爆炸半径（Blast Radius）控制生效：当 P99 > 1000ms 持续超过 30s，Chaos Mesh 自动回滚实验，移除 Redis 延迟注入。这是混沌工程的重要安全机制，防止实验演变成真实故障，避免影响真实用户。',
+    pts:'45,14 96,24 147,42 198,60 249,73 300,83 351,90 402,95 453,99 504,100',
+    exc:false, injPt:true,
+    hyp:{s:'failed', t:'⏸ 实验已自动停止（爆炸半径控制）：响应时间逐渐恢复'},
+    n:{gw:'ok',cart:'warn',redis:'ok',cache:false}, cc:false,
+    inj:{cls:'inj-warn', t:'⏸ 自动停止：Chaos Mesh 移除注入，爆炸半径控制生效'} },
+  { label:'修复：超时 + 并发 + 降级',
+    msg:'修复方案（已部署）：① Redis 读超时设为 50ms（超时立即返回降级数据）；② 5 次 Redis 调用改为 goroutine 并发（并行执行，总耗时 ≈ max(单次延迟)）；③ 添加本地内存缓存（Redis 超时时返回缓存数据）。',
+    pts:'45,100 96,100 147,100 198,100 249,100 300,100 351,100 402,100 453,100 504,100',
+    exc:false, injPt:false,
+    hyp:{s:'active', t:'修复后重新验证：Redis 超时 50ms + 并发调用 + 本地降级缓存'},
+    n:{gw:'ok',cart:'ok',redis:'ok',cache:true}, cc:false,
+    inj:{cls:'inj-ok', t:'✅ 修复已部署：超时 50ms + goroutine 并发 + 本地降级缓存'} },
+  { label:'重新实验验证',
+    msg:'重新注入 100ms Redis 延迟后，API 响应时间保持在 < 80ms。并发调用使延迟不再叠加，50ms 超时配置在延迟 100ms 时触发，本地缓存提供降级返回。假说重新验证通过。系统对 Redis 延迟的容忍能力从 0ms 提升至 200ms+。',
+    pts:'45,100 96,99 147,100 198,100 249,99 300,99 351,100 402,100 453,99 504,100',
+    exc:false, injPt:true,
+    hyp:{s:'verified', t:'✅ 修复后假说成立：响应时间 < 80ms，远低于 200ms 阈值'},
+    n:{gw:'ok',cart:'ok',redis:'ok',cache:true}, cc:false,
+    inj:{cls:'inj-ok', t:'✅ 重新实验通过：响应时间 < 80ms，具备 Redis 延迟容忍能力'} },
+  { label:'记录与改进',
+    msg:'实验报告：发现并修复 3 个问题（无超时 / 串行调用 / 无降级），系统对 Redis 延迟的容忍度从 0ms 提升到 200ms+。更新 Engineering Runbook：所有外部依赖调用强制配置超时 + 降级策略。将此实验加入 CI，每次发版自动回归。',
+    pts:'45,100 96,100 147,99 198,100 249,100 300,100 351,99 402,100 453,100 504,100',
+    exc:false, injPt:false,
+    hyp:{s:'verified', t:'✅ 弹性提升：Redis 容忍 0ms → 200ms+，串行 → 并发，无超时 → 50ms'},
+    n:{gw:'ok',cart:'ok',redis:'ok',cache:true}, cc:false, inj:null },
+];
+
+const ACTIONS2 = [
+  '写操作返回 503 + 友好提示（「服务暂时不可用，请稍后重试」）',
+  '写操作本地队列缓存 + 网络恢复后异步重试（最终一致性）',
+  '跨机房写超时从 30s 降至 2s（防止线程池耗尽）',
+  '增加机房隔离告警：网络分区后 30s 内通知 SRE on-call',
+  '评估是否将主库迁移至机房 A（提升机房 A 写可用性）',
+];
+
+const S2 = [
+  { label:'定义稳态假说',
+    hyp:{s:'active', t:'假说：机房 A 与机房 B 网络断开，各自能独立提供读写服务'},
+    msg:'设计假说：「当机房 A 与机房 B 之间的网络中断时，两个机房的应用服务仍能各自独立处理读写请求，用户不受影响」。架构背景：机房 B 持有 MySQL 主库（写），机房 A 持有只读副本（读）。',
+    part:false, nA:{a1:'ok',a2:'ok'}, nB:{b1:'ok',b2:'ok'}, rA:{r:false,w:false}, rB:false, inj:null, act:false },
+  { label:'注入网络分区',
+    hyp:{s:'exceeded', t:'假说验证中：网络已断开（双向），观察两机房独立服务能力...'},
+    msg:'⚡ Chaos Mesh NetworkChaos：在机房 A 和机房 B 的 Pod CIDR 之间注入网络分区（双向不可达）。底层通过 iptables DROP 规则实现精确的流量屏蔽。这是经典的「脑裂」（Split-Brain）测试场景。',
+    part:true, nA:{a1:'ok',a2:'ok'}, nB:{b1:'ok',b2:'ok'}, rA:{r:false,w:false}, rB:false,
+    inj:{cls:'inj-fault', t:'⚡ NetworkChaos：机房 A ↔ 机房 B 网络分区（双向 iptables 屏蔽）'}, act:false },
+  { label:'机房A：读请求正常',
+    hyp:{s:'exceeded', t:'假说部分成立：机房 A 读请求正常（从本地 replica-db-a 读取）'},
+    msg:'机房 A 的读请求从本地 replica-db-a 读取，无需跨机房网络，响应时间正常（< 10ms）。读操作完全隔离于机房 B。这一部分假说成立，机房 A 具备独立读能力。',
+    part:true, nA:{a1:'ok',a2:'ok'}, nB:{b1:'ok',b2:'ok'}, rA:{r:true,w:false}, rB:false,
+    inj:{cls:'inj-warn', t:'⚠ 机房 A 读请求：✓ 正常（本地副本）| 写请求：待测'}, act:false },
+  { label:'机房A：写请求失败',
+    hyp:{s:'failed', t:'❌ 假说证伪：写请求失败，无降级策略，用户直接看到 500 错误'},
+    msg:'🚨 机房 A 的写请求需要写入 primary-db-b（在机房 B），但网络已断开，连接超时（默认 30s）后返回 500 Internal Server Error。系统没有实现写操作降级，用户无友好提示。假说在写操作部分证伪。',
+    part:true, nA:{a1:'ok',a2:'warn'}, nB:{b1:'ok',b2:'ok'}, rA:{r:true,w:true}, rB:false,
+    inj:{cls:'inj-fault', t:'🚨 机房 A 写请求：✗ 连接超时 30s → 500 Error（primary-db-b 不可达）'}, act:false },
+  { label:'发现薄弱点：无写降级',
+    hyp:{s:'failed', t:'❌ 假说证伪：发现薄弱点 — 写请求 30s 超时 + 无降级 + 无友好提示'},
+    msg:'根因分析：① 数据库连接超时未设置（默认 30s），写操作占用线程 30s；② 没有为写操作实现降级策略（如返回友好错误、写入本地队列）；③ 用户直接看到 500 错误。这是网络分区场景中最常见的薄弱点。',
+    part:true, nA:{a1:'fault',a2:'fault'}, nB:{b1:'ok',b2:'ok'}, rA:{r:true,w:true}, rB:false,
+    inj:{cls:'inj-fault', t:'❌ 发现薄弱点：写请求超时 30s + 无降级 + 500 Error 直接暴露给用户'}, act:false },
+  { label:'恢复网络，一致性检查',
+    hyp:{s:'failed', t:'网络恢复：检查是否产生数据不一致（脑裂），同步 replication lag'},
+    msg:'恢复网络后立即执行一致性检查：机房 A 在分区期间只有读操作（未写本地），无脑裂风险。replica-db-a 存在 replication lag（分区期间积压的 binlog），需同步补偿。写操作未实现降级，分区期间所有写失败。',
+    part:false, nA:{a1:'ok',a2:'recover'}, nB:{b1:'ok',b2:'ok'}, rA:{r:false,w:false}, rB:false,
+    inj:{cls:'inj-warn', t:'🔄 网络恢复：replica-db-a 追赶 replication lag（同步 binlog）'}, act:false },
+  { label:'后续修复行动',
+    hyp:{s:'failed', t:'实验完成：规划 5 项修复，提升写操作网络分区容错能力'},
+    msg:'实验结论：读操作假说成立（✓ 机房 A 本地读），写操作假说证伪（✗ 无降级）。本次实验发现的核心问题：缺乏写操作的网络分区容忍设计。按优先级规划 5 项修复行动。',
+    part:false, nA:{a1:'ok',a2:'ok'}, nB:{b1:'ok',b2:'ok'}, rA:{r:false,w:false}, rB:false,
+    inj:null, act:true },
+];
+
+const GD_SVCS_INIT = [
+  {id:'api-gw',name:'API Gateway',metric:'P99: 45ms',st:'ok'},
+  {id:'payment',name:'Payment Service',metric:'P99: 120ms',st:'ok'},
+  {id:'inventory',name:'Inventory Service',metric:'Pod: 2/2 ✓',st:'ok'},
+  {id:'order',name:'Order Service',metric:'P99: 65ms',st:'ok'},
+  {id:'db-primary',name:'DB Primary',metric:'QPS: 1200',st:'ok'},
+  {id:'db-replica',name:'DB Replica',metric:'Lag: 2ms',st:'ok'},
+];
+
+const S3 = [
+  { label:'设定演练范围',
+    msg:'GameDay 演练范围：完整 Checkout 购买流程（API Gateway → Payment → Inventory → Order → DB）。参与人员：SRE×3 + Dev×4。演练目标：找出多故障并发时的系统薄弱点，测量每个故障的 MTTR，产出修复 Action Items。',
+    hyp:{s:'active', t:'演练假说：多服务同时故障，Checkout 流程仍能通过降级提供服务'},
+    svcs:GD_SVCS_INIT, panel:false, panelContent:'' },
+  { label:'注入故障1：Payment延迟',
+    msg:'⚡ 注入故障1：payment-service 所有 Pod 添加 2000ms 固定延迟。Checkout P99 从 200ms 飙升至 2200ms，用户明显感知变慢。Payment 超时配置为 3000ms，暂未触发超时降级，服务仍在响应（只是很慢）。',
+    hyp:{s:'exceeded', t:'假说验证中：故障1已注入，Checkout P99 2200ms，用户体验下降'},
+    svcs:[
+      {id:'api-gw',name:'API Gateway',metric:'P99: 2200ms',st:'warn'},
+      {id:'payment',name:'Payment Service',metric:'P99: 2100ms ⚡',st:'fault'},
+      {id:'inventory',name:'Inventory Service',metric:'Pod: 2/2 ✓',st:'ok'},
+      {id:'order',name:'Order Service',metric:'P99: 2300ms',st:'warn'},
+      {id:'db-primary',name:'DB Primary',metric:'QPS: 1180',st:'ok'},
+      {id:'db-replica',name:'DB Replica',metric:'Lag: 3ms',st:'ok'},
+    ], panel:true, panelLabel:'故障1 注入记录',
+    panelContent:'fault1' },
+  { label:'注入故障2：Inventory重启',
+    msg:'⚡ 注入故障2：同时 Kill inventory-service 的 2 个 Pod。库存查询短暂不可用，Checkout 返回错误：「商品库存查询失败」，无法提交订单。K8s 开始重启 Pod。两个故障叠加，错误率升至 15%。',
+    hyp:{s:'exceeded', t:'假说部分证伪：Inventory 全部宕机导致 Checkout 中断（无库存降级）'},
+    svcs:[
+      {id:'api-gw',name:'API Gateway',metric:'错误率 15%',st:'fault'},
+      {id:'payment',name:'Payment Service',metric:'P99: 2100ms ⚡',st:'fault'},
+      {id:'inventory',name:'Inventory Service',metric:'Pod: 0/2 ⚡',st:'fault'},
+      {id:'order',name:'Order Service',metric:'500 Error',st:'fault'},
+      {id:'db-primary',name:'DB Primary',metric:'QPS: 820',st:'ok'},
+      {id:'db-replica',name:'DB Replica',metric:'Lag: 5ms',st:'ok'},
+    ], panel:true, panelLabel:'故障1+2 同时存在',
+    panelContent:'fault2' },
+  { label:'注入故障3：DB主从切换',
+    msg:'⚡ 注入故障3：触发 DB 主从切换（模拟主库 OOM 故障）。切换过程约 15-30s，写操作全部失败（新主库就绪前无法写入）。三个故障叠加，Checkout 错误率超过 30%，超出系统预设回滚阈值。SRE 介入评估。',
+    hyp:{s:'failed', t:'❌ 假说证伪：三故障叠加，错误率 32% 超过可接受阈值 (20%)'},
+    svcs:[
+      {id:'api-gw',name:'API Gateway',metric:'错误率 32%',st:'fault'},
+      {id:'payment',name:'Payment Service',metric:'P99: 2100ms',st:'fault'},
+      {id:'inventory',name:'Inventory Service',metric:'Pod: 1/2 ↻',st:'recover'},
+      {id:'order',name:'Order Service',metric:'DB 写失败',st:'fault'},
+      {id:'db-primary',name:'DB Primary',metric:'主从切换中 ⚡',st:'fault'},
+      {id:'db-replica',name:'DB Replica',metric:'提升为主库',st:'warn'},
+    ], panel:true, panelLabel:'3 个故障同时存在',
+    panelContent:'fault3' },
+  { label:'SRE 手动干预降级',
+    msg:'SRE 发现系统无法自动恢复至可接受水平（错误率 > 30% 持续 2 分钟），手动触发全局降级模式：① Feature Flag 关闭购买功能；② 用户看到友好维护提示；③ 保留浏览/搜索功能。错误率归零，等待各服务恢复。',
+    hyp:{s:'failed', t:'SRE 介入降级：购买功能暂停，错误率 → 0%，等待恢复'},
+    svcs:[
+      {id:'api-gw',name:'API Gateway',metric:'降级模式 ↓',st:'degraded'},
+      {id:'payment',name:'Payment Service',metric:'已降级',st:'degraded'},
+      {id:'inventory',name:'Inventory Service',metric:'Pod: 2/2 ✓',st:'ok'},
+      {id:'order',name:'Order Service',metric:'已降级',st:'degraded'},
+      {id:'db-primary',name:'DB Primary',metric:'新主库就绪',st:'warn'},
+      {id:'db-replica',name:'DB Replica',metric:'同步追赶中',st:'recover'},
+    ], panel:true, panelLabel:'SRE 人工介入',
+    panelContent:'manual' },
+  { label:'演练结束：Chaos Report',
+    msg:'GameDay 演练结束！全部服务已恢复正常。产出 Chaos Report：记录各故障 MTTR、峰值错误率、人工介入点。发现 3 个核心问题并规划修复。本次演练的最大收获：在真实故障发生前，团队已掌握系统弱点。',
+    hyp:{s:'verified', t:'演练完成：发现 3 个薄弱点，产出修复 Action Items，MTTR 已记录'},
+    svcs:[
+      {id:'api-gw',name:'API Gateway',metric:'P99: 48ms',st:'ok'},
+      {id:'payment',name:'Payment Service',metric:'P99: 118ms',st:'ok'},
+      {id:'inventory',name:'Inventory Service',metric:'Pod: 2/2 ✓',st:'ok'},
+      {id:'order',name:'Order Service',metric:'P99: 68ms',st:'ok'},
+      {id:'db-primary',name:'DB Primary',metric:'QPS: 1210',st:'ok'},
+      {id:'db-replica',name:'DB Replica',metric:'Lag: 2ms',st:'ok'},
+    ], panel:true, panelLabel:'Chaos Report',
+    panelContent:'report' },
+];
+
+// =====================================================================
+//  STATE
+// =====================================================================
+const SCENES = [S0, S1, S2, S3];
+let activeScene = 0;
+let curStep = -1;
+let timer = null;
+
+// =====================================================================
+//  BOOT
+// =====================================================================
+function init() {
+  buildSceneTabs();
+  switchScene(0);
+}
+
+function buildSceneTabs() {
+  const c = document.getElementById('sceneTabs');
+  c.innerHTML = '';
+  SCENE_LABELS.forEach((lbl, i) => {
+    const b = document.createElement('button');
+    b.className = 'tab-btn' + (i === 0 ? ' active' : '');
+    b.textContent = lbl;
+    b.onclick = () => switchScene(i);
+    c.appendChild(b);
+  });
+}
+
+function switchScene(idx) {
+  stopPlay();
+  activeScene = idx;
+  curStep = -1;
+  document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', i === idx));
+  ['sc0','sc1','sc2','sc3'].forEach((id, i) => {
+    document.getElementById(id).style.display = i === idx ? '' : 'none';
+  });
+  const defaultMsgs = [
+    '场景1：观察 K8s 如何应对 Pod 宕机，验证多副本弹性和自愈能力。',
+    '场景2：发现购物车服务的 Redis 依赖薄弱点，修复并验证。',
+    '场景3：测试双机房网络分区下的读写行为，找出降级缺失。',
+    '场景4：模拟 GameDay 多故障同时注入，测量 MTTR 并发现薄弱点。',
+  ];
+  document.getElementById('stepMsg').textContent = defaultMsgs[idx];
+  renderDefault(idx);
+  buildStepList();
+}
+
+// =====================================================================
+//  RENDER
+// =====================================================================
+function buildStepList() {
+  const steps = SCENES[activeScene];
+  const list = document.getElementById('stepList');
+  list.innerHTML = '';
+  steps.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-btn' + (i === curStep ? ' active' : '');
+    btn.innerHTML = `<span class="step-index">${i+1}</span>${s.label}`;
+    btn.onclick = () => { curStep = i; render(); };
+    list.appendChild(btn);
+  });
+}
+
+function renderDefault(sceneIdx) {
+  if (sceneIdx === 0) {
+    drawChart('chart0','45,98 96,97 147,98 198,99 249,97 300,98 351,99 402,97 453,98 504,98',48,false,'0.1%',false);
+    drawNodes0({k8s:'ok',p1:'ok',p2:'ok',cli:'ok',db:'ok'});
+    setHyp(0,'','📋','等待实验开始...');
+    document.getElementById('inj0').style.display='none';
+  } else if (sceneIdx === 1) {
+    drawChart('chart1','45,100 96,99 147,100 198,100 249,99 300,100 351,100 402,99 453,100 504,100',72,false,'200ms',false);
+    drawNodes1({gw:'ok',cart:'ok',redis:'ok',cache:false});
+    setHyp(1,'','📋','等待实验开始...');
+    document.getElementById('cc1').style.display='none';
+    document.getElementById('inj1').style.display='none';
+  } else if (sceneIdx === 2) {
+    setHyp(2,'','📋','等待实验开始...');
+    updateDCNode('dca1','ok'); updateDCNode('dca2','ok');
+    updateDCNode('dcb1','ok'); updateDCNode('dcb2','ok');
+    setPartition(false);
+    document.getElementById('dcaReqs').style.display='none';
+    document.getElementById('dcbReqs').style.display='none';
+    document.getElementById('inj2').style.display='none';
+    document.getElementById('act2').style.display='none';
+  } else {
+    setHyp(3,'','📋','等待演练开始...');
+    renderDashboard(GD_SVCS_INIT);
+    document.getElementById('gdPanel').style.display='none';
+  }
+}
+
+function render() {
+  buildStepList();
+  if (curStep < 0) { renderDefault(activeScene); return; }
+  const step = SCENES[activeScene][curStep];
+  document.getElementById('stepMsg').innerHTML = step.msg;
+  if (activeScene === 0) renderS0(step);
+  else if (activeScene === 1) renderS1(step);
+  else if (activeScene === 2) renderS2(step);
+  else renderS3(step);
+}
+
+// =====================================================================
+//  SCENE 0
+// =====================================================================
+function renderS0(step) {
+  drawChart('chart0', step.pts, 48, step.exc, '0.1%', step.injPt);
+  drawNodes0(step.n);
+  const icon = step.hyp.s==='verified'?'✅':step.hyp.s==='failed'?'❌':step.hyp.s==='exceeded'?'⚠':'🧪';
+  setHyp(0, step.hyp.s, icon, step.hyp.t);
+  showInj('inj0','injb0', step.inj);
+}
+
+function drawNodes0(n) {
+  const svg = document.getElementById('nodes0');
+  const c = (cx,cy,r,st,l1,l2) => nc(cx,cy,r,st,l1,l2);
+  const li = (x1,y1,x2,y2,cls) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="e-line ${cls}"/>`;
+  const p1c = n.p1==='fault'||n.p1==='stop' ? 'e-fault' : '';
+  svg.innerHTML = `
+    ${li(90,110,148,110,p1c)}
+    ${li(202,110,302,110,'')}
+    ${li(348,110,420,110,'')}
+    ${li(255,48,205,88,'')}
+    ${li(285,48,342,88,'')}
+    ${c(65,110,30,'ok','Client','用户')}
+    ${c(175,110,30,n.p1==='stop'?'stop':n.p1,'Pod-1','order-svc')}
+    ${c(325,110,30,n.p2,'Pod-2','order-svc')}
+    ${c(270,35,28,n.k8s,'K8s','Ctrl')}
+    ${c(450,110,30,n.db,'MySQL','')}
+    ${n.p1==='fault'?badgeAt(195,80,'#f87171','⚡'):''}
+    ${n.p1==='stop'?badgeAt(195,80,'#64748b','⊘'):''}
+    ${n.p1==='recover'?badgeAt(195,80,'#fbbf24','↻'):''}
+    ${n.k8s==='warn'?badgeAt(290,12,'#fb923c','⚠'):''}
+    <text x="65" y="148" style="font-size:8px;fill:#475569;text-anchor:middle">client</text>
+    <text x="450" y="148" style="font-size:8px;fill:#475569;text-anchor:middle">database</text>
+  `;
+}
+
+// =====================================================================
+//  SCENE 1
+// =====================================================================
+function renderS1(step) {
+  drawChart('chart1', step.pts, 72, step.exc, '200ms', step.injPt);
+  drawNodes1(step.n);
+  const icon = step.hyp.s==='verified'?'✅':step.hyp.s==='failed'?'❌':step.hyp.s==='exceeded'?'⚠':'🧪';
+  setHyp(1, step.hyp.s, icon, step.hyp.t);
+  showInj('inj1','injb1', step.inj);
+  if (step.cc) {
+    document.getElementById('cc1').style.display='';
+    renderCallChain(step.n);
+  } else {
+    document.getElementById('cc1').style.display='none';
+  }
+}
+
+function drawNodes1(n) {
+  const svg = document.getElementById('nodes1');
+  const c = (cx,cy,r,st,l1,l2) => nc(cx,cy,r,st,l1,l2);
+  const li = (x1,y1,x2,y2,cls) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="e-line ${cls}"/>`;
+  const gwCls = (n.gw==='warn') ? 'e-warn' : '';
+  const redisCls = (n.cart==='fault'||n.redis==='warn') ? 'e-fault' : '';
+  svg.innerHTML = `
+    ${li(90,78,147,78,gwCls)}
+    ${li(203,78,312,78,redisCls)}
+    ${n.cache ? li(175,106,175,128,'e-ok') : ''}
+    ${c(60,78,28,n.gw,'GW','api-gw')}
+    ${c(175,78,28,n.cart,'Cart','cart-svc')}
+    ${c(340,78,28,n.redis,'Redis','')}
+    ${n.cache
+      ? c(175,152,22,'ok','Cache','local')
+      : `<circle cx="175" cy="152" r="20" fill="none" stroke="rgba(100,116,139,.15)" stroke-width="1" stroke-dasharray="3,3"/>
+         <text x="175" y="154" class="nl-sub" style="font-size:8px">no-cache</text>`}
+    ${n.redis==='warn'?badgeAt(358,50,'#fbbf24','⚡'):''}
+    ${n.cart==='fault'?badgeAt(193,50,'#f87171','🔥'):''}
+    ${n.cache?badgeAt(188,118,'#4ade80','↓'):''}
+  `;
+}
+
+function renderCallChain(n) {
+  const isSlow = n.cart==='fault' || n.redis==='warn';
+  const isFixed = n.cart==='ok' && n.redis==='ok' && n.cache;
+  const cls = isFixed ? 'fixed' : isSlow ? 'slow' : '';
+  const dur = isFixed ? '~12ms' : '100ms+';
+  const dCls = isFixed ? 'fast' : 'slow';
+  const totalMsg = isFixed
+    ? '总耗时 ~12ms（goroutine 并发，超时 50ms 保护）'
+    : '串行阻塞 500ms+（5次 × 100ms）→ P99 飙升至 3000ms';
+  document.getElementById('ccItems1').innerHTML =
+    Array.from({length:5},(_,i)=>`
+      <div class="cc-item ${cls}">
+        <span>Redis GET cart:item:${i+1}</span>
+        <span class="cc-dur ${dCls}">${dur}</span>
+      </div>`).join('') +
+    `<div style="border-top:1px solid rgba(255,255,255,.07);margin-top:6px;padding-top:6px;font-size:.74rem;color:${isFixed?'var(--ok)':'var(--err)'}">
+       ${totalMsg}
+     </div>`;
+}
+
+// =====================================================================
+//  SCENE 2
+// =====================================================================
+function renderS2(step) {
+  const icon = step.hyp.s==='verified'?'✅':step.hyp.s==='failed'?'❌':step.hyp.s==='exceeded'?'⚠':'🧪';
+  setHyp(2, step.hyp.s, icon, step.hyp.t);
+  updateDCNode('dca1', step.nA.a1);
+  updateDCNode('dca2', step.nA.a2);
+  updateDCNode('dcb1', step.nB.b1);
+  updateDCNode('dcb2', step.nB.b2);
+  setPartition(step.part);
+
+  const dcaReqs = document.getElementById('dcaReqs');
+  if (step.rA.r || step.rA.w) {
+    dcaReqs.style.display='';
+    document.getElementById('rARead').style.display = step.rA.r ? '' : 'none';
+    document.getElementById('rAWrite').style.display = step.rA.w ? '' : 'none';
+  } else {
+    dcaReqs.style.display='none';
+  }
+
+  const dcbReqs = document.getElementById('dcbReqs');
+  dcbReqs.style.display = step.rB ? '' : 'none';
+
+  showInj('inj2','injb2', step.inj);
+
+  if (step.act) {
+    document.getElementById('act2').style.display='';
+    document.getElementById('actItems2').innerHTML =
+      ACTIONS2.map(a=>`<div class="action-item">${a}</div>`).join('');
+  } else {
+    document.getElementById('act2').style.display='none';
+  }
+}
+
+function updateDCNode(id, status) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'dcn ' + status;
+  const dot = el.querySelector('.dcd');
+  if (dot) {
+    dot.className = 'dcd ' + {ok:'dcd-ok',fault:'dcd-fault',warn:'dcd-warn',recover:'dcd-blue'}[status] || 'dcd-dim';
+  }
+}
+
+function setPartition(on) {
+  document.getElementById('partVis').classList.toggle('on', on);
+  document.getElementById('partLbl').classList.toggle('on', on);
+}
+
+// =====================================================================
+//  SCENE 3
+// =====================================================================
+function renderS3(step) {
+  const icon = step.hyp.s==='verified'?'✅':step.hyp.s==='failed'?'❌':step.hyp.s==='exceeded'?'⚠':'🧪';
+  setHyp(3, step.hyp.s, icon, step.hyp.t);
+  renderDashboard(step.svcs);
+  if (step.panel) {
+    document.getElementById('gdPanel').style.display='';
+    document.getElementById('gdLabel').textContent = step.panelLabel;
+    document.getElementById('gdContent').innerHTML = buildPanelContent(step.panelContent);
+  } else {
+    document.getElementById('gdPanel').style.display='none';
+  }
+}
+
+function renderDashboard(svcs) {
+  const dotCls={ok:'sd-ok',fault:'sd-fault',warn:'sd-warn',degraded:'sd-warn',recover:'sd-blue'};
+  const stLabel={ok:'正常运行',fault:'故障 ⚡',warn:'性能劣化',degraded:'降级模式',recover:'恢复中 ↻'};
+  const stColor={ok:'var(--ok)',fault:'var(--err)',warn:'var(--warn)',degraded:'var(--warn)',recover:'var(--blue)'};
+  document.getElementById('gdGrid').innerHTML = svcs.map(s=>`
+    <div class="svc-card ${s.st}">
+      <div class="svc-name"><span class="svc-dot ${dotCls[s.st]||'sd-dim'}"></span>${s.name}</div>
+      <div class="svc-st" style="color:${stColor[s.st]||'var(--dim)'}">${stLabel[s.st]||s.st}</div>
+      <div class="svc-metric">${s.metric}</div>
+    </div>`).join('');
+}
+
+function buildPanelContent(key) {
+  const clsMap={fault1:'inj-fault',fault2:'inj-fault',fault3:'inj-fault',manual:'inj-warn'};
+  const textMap={
+    fault1:'⚡ <b>故障1 — Payment 2000ms 延迟</b>：Checkout P99 2200ms，超时配置 3000ms，服务仍在响应但极慢，用户流失率激增。发现问题：超时配置过长（3s 应降至 1s）',
+    fault2:'⚡ <b>故障1+2 叠加 — Payment 延迟 + Inventory 全宕</b>：错误率 15%，Checkout 中断。发现问题：Inventory 无降级设计（应允许预下单，库存最终一致）',
+    fault3:'🚨 <b>三故障叠加 — 错误率 32%，超回滚阈值</b>：Payment 慢 + Inventory 重启中 + DB 主从切换。系统无法自动恢复，SRE 准备介入。发现问题：DB Failover 无自动触发机制',
+    manual:'👤 <b>SRE 手动降级</b>：触发 Feature Flag 关闭购买功能，用户看到友好维护页面，错误率归零。MTTR 计时：payment=2m30s，inventory=45s，db-failover=28s',
+  };
+  if (key === 'report') return buildReport();
+  return `<div class="inj-banner ${clsMap[key]||'inj-info'}">${textMap[key]||''}</div>`;
+}
+
+function buildReport() {
+  const rows=[
+    ['Payment 故障 MTTR','2m 30s',100],
+    ['Inventory 重启 MTTR','45s',30],
+    ['DB Failover MTTR','28s',19],
+    ['人工降级响应时间','4m 00s', 100],
+  ];
+  const findings=[
+    'Payment 超时过长（3s → 建议 1s + 断路器）',
+    'Inventory 无降级：宕机期间应允许预下单（最终一致）',
+    'DB Failover 依赖人工：引入 Orchestrator 自动主从切换',
+  ];
+  return `
+    <div class="report-box">
+      <h4>📊 Chaos Report — GameDay Checkout 演练</h4>
+      <div style="font-size:.74rem;color:var(--dim);margin-bottom:10px">演练时长：45min｜参与：SRE×3 + Dev×4｜错误率峰值：32%</div>
+      ${rows.map(([n,t,p])=>`
+        <div class="mttr-row">
+          <span class="mttr-name">${n}</span>
+          <div class="mttr-bar-bg"><div class="mttr-bar-fill" style="width:${p}%"></div></div>
+          <span class="mttr-time">${t}</span>
+        </div>`).join('')}
+      <div class="finding-list">
+        <div style="font-size:.72rem;color:var(--accent);font-weight:700;margin:10px 0 6px">发现问题 Action Items：</div>
+        ${findings.map(f=>`<div class="finding-item">${f}</div>`).join('')}
+      </div>
+    </div>`;
+}
+
+// =====================================================================
+//  SHARED UTILS
+// =====================================================================
+function setHyp(idx, state, icon, text) {
+  const el = document.getElementById('hyp'+idx);
+  if (!el) return;
+  el.className = 'hyp-box' + (state ? ' '+state : '');
+  const ico = document.getElementById('hico'+idx);
+  const txt = document.getElementById('htxt'+idx);
+  if (ico) ico.textContent = icon;
+  if (txt) txt.textContent = text;
+}
+
+function showInj(divId, bannerKey, inj) {
+  const div = document.getElementById(divId);
+  if (!div) return;
+  if (inj) {
+    div.style.display='';
+    const b = document.getElementById(bannerKey);
+    if (b) { b.className='inj-banner '+inj.cls; b.innerHTML=inj.t; }
+  } else {
+    div.style.display='none';
+  }
+}
+
+function nc(cx, cy, r, status, line1, line2) {
+  const cls={ok:'nc-ok',fault:'nc-fault',warn:'nc-warn',recover:'nc-recover',stop:'nc-stop',degraded:'nc-degrade'}[status]||'nc-ok';
+  const col={ok:'#4ade80',fault:'#f87171',warn:'#fb923c',recover:'#fbbf24',stop:'#64748b',degraded:'#fb923c'}[status]||'#4ade80';
+  const fs = line1.length > 6 ? 8 : 10;
+  return `
+    <circle cx="${cx}" cy="${cy}" r="${r}" class="${cls}"/>
+    <text x="${cx}" y="${cy-(line2?5:0)}" class="nl" style="fill:${col};font-size:${fs}px">${line1}</text>
+    ${line2?`<text x="${cx}" y="${cy+12}" class="nl-sub">${line2}</text>`:''}`;
+}
+
+function badgeAt(x, y, color, ch) {
+  return `<text x="${x}" y="${y}" fill="${color}" font-size="13" font-weight="700" style="font-family:sans-serif">${ch}</text>`;
+}
+
+function drawChart(svgId, pts, threshY, exceeded, threshLabel, showInjPt) {
+  const svg = document.getElementById(svgId);
+  if (!svg) return;
+  const px=45, py=12, pw=460, ph=96;
+  const tx=px+pw, by=py+ph;
+  const ptsArr = pts.trim().split(' ');
+  const fx = ptsArr[0].split(',')[0];
+  const lx = ptsArr[ptsArr.length-1].split(',')[0];
+  const polyPts = `${fx},${by} ${pts} ${lx},${by}`;
+  const lineCol = exceeded ? '#f87171' : '#fb923c';
+  const zoneCol = exceeded ? 'rgba(248,113,113,.05)' : 'rgba(74,222,128,.04)';
+  const tCol = exceeded ? '#f87171' : '#4ade80';
+  const injX = 275;
+
+  svg.innerHTML = `
+    <rect x="${px}" y="${threshY}" width="${pw}" height="${by-threshY}" fill="${zoneCol}" rx="2"/>
+    <line x1="${px}" y1="${py}" x2="${tx}" y2="${py}" stroke="rgba(255,255,255,.04)" stroke-width="1"/>
+    <line x1="${px}" y1="${py+ph/3}" x2="${tx}" y2="${py+ph/3}" stroke="rgba(255,255,255,.04)" stroke-width="1"/>
+    <line x1="${px}" y1="${py+ph*2/3}" x2="${tx}" y2="${py+ph*2/3}" stroke="rgba(255,255,255,.04)" stroke-width="1"/>
+    <line x1="${px}" y1="${by}" x2="${tx}" y2="${by}" stroke="rgba(255,255,255,.07)" stroke-width="1"/>
+    <line x1="${px}" y1="${py}" x2="${px}" y2="${by}" stroke="rgba(255,255,255,.08)" stroke-width="1"/>
+    <rect x="${px}" y="${threshY}" width="${pw}" height="${by-threshY}"
+          fill="none" stroke="${tCol}" stroke-width="1.5" stroke-dasharray="6,4" rx="3"/>
+    <text x="${px+5}" y="${threshY-4}" fill="${tCol}" font-size="9" font-family="monospace">阈值 ${threshLabel}</text>
+    ${showInjPt?`
+      <line x1="${injX}" y1="${py}" x2="${injX}" y2="${by}" stroke="rgba(248,113,113,.35)" stroke-width="1.5" stroke-dasharray="4,3"/>
+      <text x="${injX+3}" y="${py+9}" fill="#f87171" font-size="8" font-family="monospace">注入点</text>`:''}
+    <polygon points="${polyPts}" fill="${exceeded?'rgba(248,113,113,.06)':'rgba(251,146,60,.05)'}"/>
+    <polyline points="${pts}" fill="none" stroke="${lineCol}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${fx}" cy="${ptsArr[0].split(',')[1]}" r="3" fill="${lineCol}" opacity=".7"/>
+    <circle cx="${lx}" cy="${ptsArr[ptsArr.length-1].split(',')[1]}" r="3" fill="${lineCol}" opacity=".7"/>
+    <text x="${px}" y="${by+14}" fill="#475569" font-size="8" font-family="monospace">T-5m</text>
+    ${showInjPt?`<text x="${injX-14}" y="${by+14}" fill="#64748b" font-size="8" font-family="monospace">注入</text>`:''}
+    <text x="${tx-16}" y="${by+14}" fill="#475569" font-size="8" font-family="monospace">T+5m</text>
+    <text x="6" y="${py+6}" fill="#475569" font-size="8" font-family="monospace">↑高</text>
+    <text x="6" y="${by}" fill="#475569" font-size="8" font-family="monospace">↓低</text>
+  `;
+}
+
+// =====================================================================
+//  NAVIGATION
+// =====================================================================
+function goNext() {
+  if (curStep < SCENES[activeScene].length-1) { curStep++; render(); }
+}
+function goPrev() {
+  if (curStep > -1) { curStep--; render(); }
+}
+function doReset() {
+  stopPlay();
+  curStep = -1;
+  render();
+}
+function togglePlay() {
+  if (timer) stopPlay(); else startPlay();
+}
+function startPlay() {
+  document.getElementById('playBtn').textContent='⏸ 暂停';
+  timer = setInterval(() => {
+    if (curStep < SCENES[activeScene].length-1) { curStep++; render(); }
+    else stopPlay();
+  }, 2400);
+}
+function stopPlay() {
+  if (timer) { clearInterval(timer); timer=null; }
+  document.getElementById('playBtn').textContent='▶ 播放';
+}
+
+init();
+</script>
+</body>
+</html>

@@ -23,6 +23,7 @@
 - 更新页脚识别：`footer.js` 中补 module 路由识别，避免新增目录无法被全局组件识别。
 - 更新模块关系文档：`modules-map.md` 如涉及顶级模块、迁移关系或架构层级，需要同步。
 - 更新本规范的三级页面登记表：新增或调整三级页面时必须记录页面类型。
+- 同步 Obsidian 笔记：在 Obsidian Vault 对应目录下创建该 module 的子目录和 `README.md`，并在 Vault 根目录 `README.md` 补充入口；后续每新增三级页面都需同步对应 `.md` 笔记，遵守 `docs/obsidian-sync.md` 规范。
 
 ## Graph Node 规范
 
@@ -74,6 +75,13 @@
 - 步骤文案必须和画面同步，不能出现文字说的是上一步、画面停在下一步的情况。
 - 视觉要好看：布局稳定、颜色克制、层级清楚、动画节奏可理解。
 
+场景覆盖要求（缺少任何一类视为不完整）：
+
+1. **正常路径** — 核心算法或操作流程的 happy path，逐步展示状态变化。
+2. **边界情况** — 空输入、单元素、相同元素、极端参数（最大/最小规模），验证算法在边界仍正确。
+3. **故障/异常路径** — 负权边、重复键、冲突插入、写失败、节点崩溃等异常分支。
+4. **恢复/对比** — 故障后的自动修复过程，或与另一种算法/实现方案的执行步骤对比，帮助读者理解设计取舍。
+
 参考方向：`algo/binary-search.html`、`algo/quick-sort.html` 等算法动画页。
 
 ### B 类型：文字 / 代码 / 长文概念页
@@ -115,6 +123,13 @@
 - 动画内部节点和边的标签尽量精简，优先用视觉编码（颜色、虚线、高亮、大小）表达状态，避免在 SVG 中堆积长文字。
 - 不允许只画静态示意图冒充动画演示。
 
+场景覆盖要求（缺少任何一类视为不完整）：
+
+1. **正常路径** — 核心协议或系统流程的 happy path，角色和消息流清晰可见。
+2. **边界情况** — 单节点、空集群、零请求、TTL 恰好到期等边界状态。
+3. **故障/异常路径** — 节点宕机、网络分区、消息丢失、超时、脑裂、冲突写入等真实故障场景；协议类必须覆盖选举冲突或日志不一致，系统流程类必须覆盖写失败或服务不可用。
+4. **恢复/对比** — 故障后的自动恢复和状态收敛过程，或展示与其他协议/架构方案的关键差异（如 CP vs AP、推模式 vs 拉模式），帮助读者理解设计取舍。
+
 参考方向：可复用 `algo` 模块的 step / controls / highlight 模式，内容深度参考 `golang` 模块长文页面。
 
 ## 三级页面登记表
@@ -153,8 +168,11 @@
 | `algo/dijkstra.html` | `algo` | `dijkstra` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |
 | `algo/bellman-ford.html` | `algo` | `algo-bellman-ford` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |
 | `algo/kruskal.html` | `algo` | `algo-kruskal` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |
+| `algo/prim.html` | `algo` | `algo-prim` | A | 是 | 是 | 图算法动画页，SVG 图 + 优先队列可视化 + 3 场景（正常流程/Kruskal对比/不连通图） |
 | `algo/knapsack.html` | `algo` | `algo-knapsack` | A | 是 | 是 | 动态规划表格过程动画页 |
 | `algo/lcs.html` | `algo` | `algo-lcs` | A | 是 | 是 | LCS 动态规划表格过程动画页 |
+| `algo/edit-distance.html` | `algo` | `algo-edit-distance` | A | 是 | 是 | 编辑距离 DP 填表+回溯动画页，3 场景（正常填表/回溯路径/边界情况） |
+| `algo/interval-dp.html` | `algo` | `algo-interval-dp` | A | 是 | 是 | 区间 DP 上三角表格动画页，3 场景（矩阵链乘/合并石子/边界初始化） |
 | `algo/lis.html` | `algo` | `algo-lis` | A | 是 | 是 | LIS DP / patience sorting 过程动画页 |
 | `db/db-architecture.html` | `db` | `db-architecture` | C | 是 | 是 | C 类型系统架构页，覆盖连接层→解析→优化→执行→存储层级走查 |
 | `db/query-path.html` | `db` | `query-path` | C | 是 | 是 | C 类型系统流程页，覆盖 SQL 执行全路径各阶段 |
@@ -171,6 +189,9 @@
 | `db/transaction.html` | `db` | `locks` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |
 | `db/distributed-db.html` | `db` | `distributed-db` | C | 是 | 是 | C 类型系统流程页，覆盖分片、复制和 CAP 三场景 |
 | `db/cache-layers.html` | `db` | `cache-layers` | C | 是 | 是 | C 类型系统架构页，覆盖硬件缓存层级和数据库缓存体系 |
+| `db/timeseries.html` | `db` | `db-timeseries` | C | 是 | 否 | C 类型系统流程页，覆盖 TSM 写入路径、Delta-of-Delta 压缩、时间范围分区剪枝、降采样与 OOO 四场景 |
+| `db/column-store.html` | `db` | `db-column-store` | C | 是 | 否 | C 类型系统架构页，覆盖行列存 IO 对比、RLE/字典/Delta 列压缩、SIMD 向量化执行、MergeTree 写入合并四场景 |
+| `db/graph-db.html` | `db` | `db-graph-db` | C | 是 | 否 | C 类型系统流程页，覆盖存储模型对比、单跳查询、多跳 BFS 与笛卡尔积对比、最短路径四场景 |
 | `redis/data-types.html` | `redis` | `redis-types` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |
 | `redis/persistence.html` | `redis` | `redis-persistence` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |
 | `redis/eviction.html` | `redis` | `redis-eviction` | A | 是 | 是 | 过程 / 代码动画页，保留现有交互结构 |
@@ -338,15 +359,59 @@
 | `cloud-native/k8s-scheduling.html` | `cloud-native` | `cn-scheduling` | C | 是 | 否 | C 类型动画页，Filter 淘汰不满足节点（显示原因）、Score 多插件加权打分、Bind |
 | `cloud-native/k8s-networking.html` | `cloud-native` | `cn-networking` | C | 是 | 否 | C 类型动画页，Pod→veth→cbr0→iptables DNAT→VXLAN→目标 Pod 网络包路径 |
 | `cloud-native/k8s-hpa.html` | `cloud-native` | `cn-hpa` | C | 是 | 否 | C 类型动画页，CPU 指标折线、desiredReplicas 公式计算、Pod 阶梯增减和冷却倒计时 |
+| `cloud-native/serverless.html` | `cloud-native` | `cn-serverless` | C | 是 | 否 | C 类型动画页，冷启动分段耗时、scale-to-zero、并发扩容、事件驱动 |
+| `cloud-native/gitops.html` | `cloud-native` | `cn-gitops` | C | 是 | 否 | C 类型动画页，4 场景：正常同步、Drift 检测、回滚、多环境管理，Git/ArgoCD/K8s 三列可视化 |
 | `observability/index.html` | `observability` | `observability` | - | 否 | 否 | 模块首页，可观测性三大支柱入口，含学习路径 |
 | `observability/prometheus.html` | `observability` | `obs-prometheus` | C | 是 | 否 | C 类型动画页，15s Scrape 拉取、TSDB 内存块压缩到磁盘、Alertmanager 规则评估 |
 | `observability/tracing.html` | `observability` | `obs-tracing` | C | 是 | 否 | C 类型动画页，traceparent 跨服务传播、子 Span 创建、OTLP 批量上报瀑布图 |
 | `observability/slo.html` | `observability` | `obs-slo` | C | 是 | 否 | C 类型动画页，Error Budget 月燃尽图、告警事件陡降、Budget 耗尽冻结发布按钮 |
+| `observability/logging.html` | `observability` | `obs-logging` | C | 是 | 否 | C 类型动画页，4 场景：ELK 写入与检索（倒排索引可视化）、Loki 架构流程（标签路由+Chunk 压缩）、Agent 崩溃从 checkpoint 恢复、日志洪峰背压与级别过滤 |
 | `security/index.html` | `security` | `security` | - | 否 | 否 | 模块首页，安全基础四主题入口，含学习路径 |
 | `security/crypto.html` | `security` | `sec-crypto` | C | 是 | 否 | C 类型动画页，AES-CBC 链式加密可视化、RSA 加密/签名方向区分 |
 | `security/oauth.html` | `security` | `sec-oauth` | C | 是 | 否 | C 类型动画页，四角色泳道图消息流动、Code 一次性变灰、Token 过期倒计时 |
 | `security/web-attacks.html` | `security` | `sec-web-attacks` | C | 是 | 否 | C 类型动画页，SQL 注入代码/数据颜色区分、XSS 脚本注入、CSRF Cookie 跨站 |
 | `security/jwt.html` | `security` | `sec-jwt` | C | 是 | 否 | C 类型动画页，三段 Base64 解码结构展示、HMAC-SHA256 签名验证、alg:none 漏洞 |
+| `security/secrets.html` | `security` | `sec-secrets` | C | 是 | 否 | C 类型动画页，4 Tab 场景：静态凭据风险链、Vault 动态凭据泳道图（TTL 倒计时圆环）、凭据自动轮换时间线、泄漏应急响应级联吊销 |
+| `security/zero-trust.html` | `security` | `sec-zero-trust` | C | 是 | 否 | C 类型动画页，4 Tab 场景：传统边界缺陷（同心圆攻击演示）、零信任验证链（IAP 三关卡）、mTLS 服务双向认证（证书流动）、异常访问阻断（Impossible Travel 告警）|
+| `network/ip.html` | `network` | `network-ip` | C | 是 | 否 | C 类型动画页，4 Tab：ARP 同子网广播/单播回复/缓存、跨子网 3 跳路由 MAC 重封、TTL 递减 Traceroute 路径探测、CIDR /24 拆分 /25 广播域隔离 |
+| `network/vxlan.html` | `network` | `network-vxlan` | C | 是 | 否 | C 类型动画页，4 Tab：跨主机 Pod VXLAN 封包/解包、EVPN BGP 分发 MAC-IP 消除泛洪、VNI 租户隔离、VTEP 故障 EVPN 路由撤回流量切换 |
+| `distributed/lease.html` | `distributed` | `dist-lease` | C | 是 | 否 | C 类型动画页，4 Tab：正常心跳续约 TTL 倒计时重置、崩溃后 TTL 归零自动释放、Fencing Token 防脑裂旧 Leader 写入被拒、惊群效应随机抖动错峰 |
+| `distributed/quorum.html` | `distributed` | `dist-quorum` | C | 是 | 否 | C 类型动画页，4 Tab：W=2/R=2/N=3 写 2 副本 ACK、W+R>N 保证读到最新值、Read Repair 异步修复落后副本、W+R=N 脏读风险演示 |
+| `linux/io-uring.html` | `linux` | `linux-io-uring` | C | 是 | 否 | C 类型动画页，4 Tab：epoll 每个 I/O 一次 syscall 基准、SQ/CQ 双环批量提交一次 syscall、注册固定缓冲区 DMA 直写、SQE 独立失败不影响其他请求 |
+| `linux/dpdk.html` | `linux` | `linux-dpdk` | B | 否 | 是 | B 类型概念页，PMD 轮询绕过中断、HugePage 减少 TLB miss、CPU 绑核 NUMA 感知、mbuf 零拷贝、内核栈 vs DPDK 对比表、工程场景和误区 |
+| `ai/guardrails.html` | `ai` | `ai-guardrails` | B | 否 | 是 | B 类型概念页，Prompt Injection/越狱攻击模式、多层护栏（输入过滤+Prompt 加固+输出检测+审计）、Llama Guard 等护栏框架 |
+| `ai/inference-optimization.html` | `ai` | `ai-inference-opt` | C | 是 | 是 | C 类型系统流程页，FlashAttention IO 感知分块、Speculative Decoding 草稿验证加速、PagedAttention 分页显存管理、Continuous Batching |
+| `ai/structured-output.html` | `ai` | `ai-structured-output` | B | 否 | 是 | B 类型概念页，JSON mode 强制输出有效 JSON、Function Calling 结构化调用、Constrained Decoding token 约束、Schema 校验和工程实践 |
+| `cloud-native/helm.html` | `cloud-native` | `cn-helm` | B | 否 | 否 | B 类型概念页，Chart 目录结构、values.yaml 参数化模板、Release 生命周期管理、Helm Hook 顺序控制、升级和回滚策略 |
+| `cloud-native/k8s-storage.html` | `cloud-native` | `cn-storage` | C | 是 | 否 | C 类型动画页，StorageClass→CSI Driver 动态 PV 供给、PVC 申请绑定生命周期、Pod 重调度数据持久、在线扩容流程 |
+| `cloud-native/operator.html` | `cloud-native` | `cn-operator` | C | 是 | 否 | C 类型动画页，CRD 描述期望状态、Controller Reconcile 循环将实际状态收敛到期望、状态机转换和错误重试 |
+| `cloud-native/service-mesh.html` | `cloud-native` | `cn-service-mesh` | C | 是 | 否 | C 类型动画页，Sidecar 代理拦截流量、Istiod 通过 xDS 下发路由/限流/熔断/mTLS 策略、流量治理和可观测性集成 |
+| `golang/build.html` | `golang` | `go-build` | B | 否 | 是 | B 类型概念页，build tag 条件编译、GOOS/GOARCH 交叉编译、go:generate 代码生成、内容寻址 build cache、go work 多模块工作区 |
+| `golang/cgo.html` | `golang` | `go-cgo` | B | 否 | 是 | B 类型概念页，Go 调 C 需切换到 OS 线程约 100ns 开销、阻塞 C 调用触发新 M、内存管理边界、不支持交叉编译和工程建议 |
+| `observability/chaos.html` | `observability` | `obs-chaos` | C | 是 | 否 | C 类型动画页，稳态假说→故障注入→观测偏差→修复循环、Chaos Mesh Pod Kill/网络延迟/分区注入、实验范围控制和回滚 |
+| `observability/grafana.html` | `observability` | `obs-grafana` | B | 否 | 否 | B 类型概念页，Dashboard USE/RED 分层设计、Alertmanager 路由/分组/抑制/静默、告警信噪比优化和 SLO 联动 |
+| `observability/opentelemetry.html` | `observability` | `obs-otel` | C | 是 | 否 | C 类型动画页，统一 SDK 采集 Trace/Metric/Log、Collector Pipeline 批量处理、Tail Sampling 按完整 Trace 决策、多 Exporter 扇出 |
+| `security/container-security.html` | `security` | `sec-container` | B | 否 | 否 | B 类型概念页，镜像 CVE 扫描（Trivy）、securityContext 权限限制、Seccomp/AppArmor syscall 过滤、K8s RBAC 最小权限原则 |
+| `security/pki.html` | `security` | `sec-pki` | C | 是 | 否 | C 类型动画页，CA 层级签发证书链、浏览器从叶证书向上验证到根 CA、ACME 自动续签流程、OCSP 吊销检查和 mTLS 双向认证 |
+| `security/supply-chain.html` | `security` | `sec-supply-chain` | B | 否 | 否 | B 类型概念页，SBOM 软件物料清单、Cosign 对镜像摘要签名、K8s Admission Webhook 强制验签、依赖审计和真实攻击案例 |
+| `system-design/config-center.html` | `system-design` | `sd-config-center` | C | 是 | 否 | C 类型动画页，集中管理配置、Long Poll 推送变更、服务热更新不重启、灰度推送按实例分批、宕机时降级读本地缓存 |
+| `system-design/multi-region.html` | `system-design` | `sd-multi-region` | C | 是 | 否 | C 类型动画页，GSLB 就近路由双 Region、CDC 跨区同步延迟窗口、故障切换 RTO/RPO 保障、仲裁节点防脑裂 |
+| `ai/speculative-decoding.html` | `ai` | `ai-spec-decode` | C | 是 | 是 | C 类型动画页，4 场景：正常接受/部分拒绝/草稿崩溃/与自回归对比，Draft Model 生成+Target Model 并行验证流程 |
+| `ai/llm-reasoning.html` | `ai` | `ai-llm-reasoning` | C | 是 | 是 | C 类型动画页，4 场景：Zero-shot CoT/Few-shot CoT/Tree of Thought 搜索树/ReAct 工具调用循环 |
+| `ai/model-merging.html` | `ai` | `ai-model-merging` | B | 否 | 是 | B 类型概念页，SLERP 球形插值、Task Arithmetic 向量加减、TIES/DARE 稀疏化冲突参数，无需重训练组合能力 |
+| `algo/suffix-array.html` | `algo` | `algo-suffix-array` | A | 是 | 是 | A 类型动画页，3 场景：SA-IS 构建后缀数组/LCP 数组计算/子串二分查找 |
+| `algo/tarjan-scc.html` | `algo` | `algo-tarjan-scc` | A | 是 | 是 | A 类型动画页，3 场景：正常 SCC 识别/单节点 SCC/复杂环形图 |
+| `algo/bipartite-matching.html` | `algo` | `algo-bipartite` | A | 是 | 是 | A 类型动画页，3 场景：完美匹配增广路/部分匹配/无增广路失败，匈牙利算法过程 |
+| `algo/hld.html` | `algo` | `algo-hld` | A | 是 | 是 | A 类型动画页，3 场景：构建重链/路径查询/子树更新，树链剖分配合线段树完整过程 |
+| `system-design/recommendation.html` | `system-design` | `sd-recommendation` | C | 是 | 否 | C 类型动画页，4 场景：协同过滤/双塔向量召回/粗排精排漏斗/实时特征反馈闭环 |
+| `system-design/live-streaming.html` | `system-design` | `sd-live-streaming` | C | 是 | 否 | C 类型动画页，4 场景：RTMP 推流/多分辨率转码/CDN 拉流/弹幕 WebSocket 同步 |
+| `system-design/search-engine.html` | `system-design` | `sd-search-engine` | C | 是 | 否 | C 类型动画页，4 场景：爬取索引构建/倒排合并/BM25 查询打分/PageRank 链接分析 |
+| `distributed/3pc.html` | `distributed` | `dist-3pc` | C | 是 | 否 | C 类型动画页，4 场景：正常三阶段提交/协调者故障参与者超时自提交/参与者超时处理/与 2PC 对比 |
+| `distributed/spanner.html` | `distributed` | `dist-spanner` | B | 否 | 是 | B 类型概念页，TrueTime API 有界误差时间戳、commit-wait 外部一致性、Paxos 分组架构、全球强一致事务 |
+| `golang/performance-tuning.html` | `golang` | `go-perf-tuning` | B | 否 | 是 | B 类型概念页，CPU 火焰图→内存分配→goroutine 泄漏→mutex 竞争，pprof/trace/benchstat 工具链调优方法论 |
+| `golang/go-assembly.html` | `golang` | `go-assembly` | B | 否 | 是 | B 类型概念页，Plan 9 汇编语法、寄存器传参 ABI、栈帧结构、伪寄存器 FP/SP/PC/SB，理解编译器输出 |
+| `cs/gpu-architecture.html` | `cs` | `cs-gpu-arch` | C | 是 | 是 | C 类型动画页，4 场景：SIMT 并行/Warp 分叉效率下降/HBM 显存带宽瓶颈/CPU-GPU PCIe 流水线传输 |
+| `db/nosql.html` | `db` | `db-nosql` | B | 否 | 否 | B 类型概念页，文档/宽列/KV/图四类 NoSQL 数据模型、CAP 定位、典型系统选型矩阵和工程误区 |
 
 新增页面登记规则：
 
@@ -394,4 +459,6 @@
 - 从 module 首页进入页面后，返回入口能回到 module 首页。
 - 动画页的播放、暂停、上一步、下一步、重置稳定。
 - 动画覆盖了正常路径、边界情况和异常或特殊分支。
+- 动画 A/C 类型页面已覆盖四类场景：正常路径、边界情况、故障/异常路径、恢复/对比，缺少任何一类须补齐。
 - 三级页面登记表已经同步。
+- Obsidian Vault 中对应笔记已创建或更新，`[[wiki 链接]]` 指向已存在的笔记，无悬空链接。

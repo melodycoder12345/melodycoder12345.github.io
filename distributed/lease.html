@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="分布式租约通过心跳续约和 TTL 到期保证资源的有时效性占用，Fencing Token 防止脑裂，是分布式 Leader 选举和分片所有权的基础。">
+<link rel="canonical" href="https://melodycoder12345.github.io/distributed/lease.html">
+<meta property="og:title" content="分布式租约 — 码海拾贝">
+<meta property="og:description" content="分布式租约通过心跳续约和 TTL 到期保证资源的有时效性占用，Fencing Token 防止脑裂，是分布式 Leader 选举和分片所有权的基础。">
+<meta property="og:url" content="https://melodycoder12345.github.io/distributed/lease.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="分布式租约 — 码海拾贝">
+<meta name="twitter:description" content="分布式租约通过心跳续约和 TTL 到期保证资源的有时效性占用，Fencing Token 防止脑裂，是分布式 Leader 选举和分片所有权的基础。">
+<title>分布式租约 - 分布式可视化</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#818cf8;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.scene-tabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.scene-tab{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:10px;padding:8px 16px;cursor:pointer;font-family:inherit;font-size:.82rem;transition:all .16s}
+.scene-tab:hover{color:var(--text);border-color:var(--accent)}
+.scene-tab.active{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.lab{display:grid;grid-template-columns:260px minmax(0,1fr) 280px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:480px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;font-size:.82rem;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:440px;display:flex;flex-direction:column;padding:16px}
+.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:rgba(15,23,42,.64);overflow:hidden}
+#vizCanvas{display:block}
+.step-msg{margin-top:12px;padding:12px 14px;border:1px solid rgba(255,255,255,.07);border-radius:12px;background:rgba(255,255,255,.03);font-size:.87rem;color:var(--dim);min-height:44px;line-height:1.65}
+.status{padding:14px}
+.status-inner{border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status-inner h2{font-size:.95rem;margin-bottom:8px;color:var(--text)}
+.status-inner p{color:var(--dim);font-size:.85rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.fail{border-color:#f87171;color:#f87171}
+.badge.warn{border-color:#fbbf24;color:#fbbf24}
+.badge.ok{border-color:#4ade80;color:#4ade80}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit;font-size:.85rem}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+@media(max-width:1060px){.lab{grid-template-columns:1fr}.hero,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"租约（Lease）","body":"对资源的有时效性占用凭证。持有者必须在 TTL 内通过心跳续约，否则租约自动过期释放，防止持有者崩溃后资源永久被锁。","tag":"term"},
+  {"title":"Fencing Token","body":"单调递增的令牌，每次租约被抢占时递增。存储层拒绝携带旧 Token 的写操作，防止脑裂时旧 Leader 的延迟操作覆盖新 Leader 的数据。","tag":"term"},
+  {"title":"惊群效应（Thundering Herd）","body":"大量节点同时监听租约过期事件，租约释放瞬间同时发起抢占，造成 Zookeeper/etcd 瞬间负载激增。随机抖动（jitter）可有效缓解。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">分布式 / 租约 / C 类型</div>
+      <h1>分布式租约</h1>
+      <p class="summary">分布式系统中对资源（锁、Leader 资格、分片所有权）的有时效性占用凭证。通过心跳续约保活，TTL 到期自动释放，防止持有者崩溃后资源被永久占用。Fencing Token 防止脑裂时旧 Leader 的延迟写操作造成数据损坏。</p>
+      <div class="tags"><span>TTL</span><span>心跳续约</span><span>Fencing Token</span><span>脑裂防护</span><span>etcd Lease</span><span>ZK 临时节点</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>租约（Lease）</strong><span>持有者必须每隔 T（通常 TTL/3）发心跳续约，否则 TTL 到期后租约自动释放，其他节点可抢占。</span></li>
+        <li><strong>Fencing Token</strong><span>单调递增令牌，每次新租约颁发时递增。存储层拒绝旧 Token 写入，防止脑裂时旧 Leader 的操作覆盖新 Leader。</span></li>
+        <li><strong>惊群效应</strong><span>多节点同时竞争过期租约，导致 Zookeeper/etcd 瞬间高负载。加随机抖动（0–3s）可分散请求。</span></li>
+        <li><strong>etcd Lease / ZK 临时节点</strong><span>etcd Lease 是显式 TTL 机制；ZK 临时节点在会话断开时自动删除，本质相同。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="scene-tabs" id="sceneTabs"></div>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">Step Timeline</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <canvas id="vizCanvas"></canvas>
+      </div>
+      <div class="step-msg" id="stepMsg">选择场景开始演示</div>
+      <div class="controls">
+        <button class="ctrl" id="btnReset" onclick="doReset()">重置</button>
+        <button class="ctrl" id="btnPrev" onclick="doPrev()">上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="doToggle()">播放</button>
+        <button class="ctrl" id="btnNext" onclick="doNext()">下一步</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-hd">当前状态</div>
+      <div class="status">
+        <div class="status-inner">
+          <span class="badge" id="stateBadge">normal</span>
+          <h2 id="stepTitle">等待开始</h2>
+          <p id="stepDesc">点击播放或步骤按钮。</p>
+          <p id="stepDetail" style="margin-top:8px;font-size:.82rem;color:var(--dim2)"></p>
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>背景与机制</h2>
+      <p>租约解决的核心问题：<strong>节点崩溃后如何自动释放资源？</strong> 传统互斥锁如果持有者崩溃，锁永远无法释放（死锁）。租约引入 TTL，持有者必须周期性心跳续约，停止心跳后 TTL 到期自动释放。<br><br>
+      <strong>etcd Lease</strong>：<code>etcdctl lease grant 10</code> 创建 10 秒租约，返回 leaseID。节点用 <code>keepalive</code> 续约，挂载租约的 key 随租约自动删除。<br><br>
+      <strong>ZooKeeper 临时节点</strong>：会话存活期间节点存在，会话超时（通常 30s）或主动断开时节点被删除，监听者收到 NodeDeleted 事件。两者本质都是租约机制。</p>
+    </section>
+    <section>
+      <h2>常见误区</h2>
+      <ul>
+        <li>租约过期 ≠ 持有者死亡。网络抖动（GC 暂停、高负载）都可能导致心跳超时，应选择足够宽松的 TTL 避免误判。</li>
+        <li>没有 Fencing Token 的租约在脑裂时不安全。旧 Leader 的心跳延迟到达、导致租约被他人抢走后，旧 Leader 用旧凭证继续操作资源，会覆盖新 Leader 的数据。</li>
+        <li>Fencing Token 只能解决<strong>存储层支持版本检查</strong>的场景。如果存储层不能检查 Token，就需要用 epoch 协议或分布式 Compare-And-Swap 保证安全。</li>
+        <li>不要用业务代码实现租约——用 etcd/ZK/Consul 等经过生产验证的系统，自制租约在时钟漂移、网络分区时有很多边界 case。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>工程场景</h2>
+      <ul>
+        <li><strong>Leader 选举（Kafka Controller）</strong>：多个 Broker 竞争 ZK 临时节点 /controller，抢到的成为 Controller Leader，节点失联后临时节点消失，触发重新选举。</li>
+        <li><strong>etcd 集群成员管理</strong>：etcd 成员注册时创建租约，Leader 追踪各成员的租约健康状态，租约过期触发成员移除。</li>
+        <li><strong>分片所有权</strong>：分布式数据库（TiKV/CockroachDB）用租约确定 Region 的主副本（Leaseholder），所有读写都路由到 Leaseholder，租约转移时等待前任过期。</li>
+        <li><strong>K8s Node Heartbeat</strong>：Kubelet 每 10 秒更新 Node Lease 对象，Controller Manager 检测到 40 秒无更新时标记节点为 NotReady，驱逐 Pod。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>TTL 设置权衡</h2>
+      <p>TTL 是关键参数：<br><br>
+      <strong>TTL 太短</strong>：网络抖动（GC 暂停、高负载）导致频繁误判，Leader 不断切换，系统抖动严重。<br><br>
+      <strong>TTL 太长</strong>：持有者真正崩溃后，其他节点等待时间长，资源被长时间锁定，降低可用性。<br><br>
+      经验法则：TTL = 3×心跳间隔，心跳间隔 = TTL/3。K8s Node Lease TTL=40s，心跳 10s；etcd 默认推荐 TTL=5–60s。核心原则：<strong>宁可 TTL 长一点，不要频繁误判</strong>。</p>
+    </section>
+  </section>
+</main>
+
+<script>
+function rr(ctx,x,y,w,h,r,fill,stroke,lw){
+  ctx.beginPath();ctx.roundRect(x,y,w,h,r);
+  if(fill){ctx.fillStyle=fill;ctx.fill();}
+  if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||1.5;ctx.stroke();}
+}
+function txt(ctx,t,x,y,size,color,align,weight){
+  ctx.font=`${weight||'400'} ${size}px system-ui,sans-serif`;
+  ctx.fillStyle=color;ctx.textAlign=align||'center';ctx.textBaseline='middle';
+  ctx.fillText(t,x,y);
+}
+function arrow(ctx,x1,y1,x2,y2,color,dashed){
+  ctx.strokeStyle=color;ctx.lineWidth=2;
+  ctx.setLineDash(dashed?[5,4]:[]);
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  ctx.setLineDash([]);
+  const a=Math.atan2(y2-y1,x2-x1);
+  ctx.fillStyle=color;ctx.beginPath();
+  ctx.moveTo(x2,y2);ctx.lineTo(x2-10*Math.cos(a-.35),y2-10*Math.sin(a-.35));
+  ctx.lineTo(x2-10*Math.cos(a+.35),y2-10*Math.sin(a+.35));ctx.closePath();ctx.fill();
+}
+function node(ctx,x,y,w,h,label,sub,color,hl){
+  const bg=hl?color.replace('1)','0.15)'):'rgba(30,41,59,0.9)';
+  rr(ctx,x-w/2,y-h/2,w,h,10,bg,hl?color:'rgba(255,255,255,0.12)',hl?2:1.5);
+  txt(ctx,label,x,y-6,11,'#e2e8f0','center','600');
+  if(sub)txt(ctx,sub,x,y+8,8.5,'#94a3b8','center');
+}
+function ttlBar(ctx,x,y,w,ttl,maxTtl,color){
+  rr(ctx,x-w/2,y-8,w,16,4,'rgba(255,255,255,0.05)','rgba(255,255,255,0.1)',1);
+  const pct=Math.max(0,ttl/maxTtl);
+  if(pct>0)rr(ctx,x-w/2,y-8,w*pct,16,4,color,'none');
+  txt(ctx,`TTL: ${ttl}s`,x,y+20,8.5,color,'center');
+}
+
+// TAB 0: Normal heartbeat renewal
+const TTL_MAX=10;
+const hbSteps=[0,10,7,10,7,10,7,10];
+const TAB0=[
+  {
+    title:'节点 A 申请租约（TTL=10s）',
+    badge:'normal',
+    desc:'节点 A 向 etcd/ZK 申请租约，TTL=10s，获得 leaseID。同时获得 Fencing Token=1（单调递增）。租约生效后，A 拥有了资源的排他访问权。',
+    detail:'etcd: lease grant 10 → {leaseID: 7587869289009002528, TTL: 10}。ZK: 创建临时节点 /lock，会话心跳超时=10s。',
+    ttl:10,token:1,
+    draw(ctx,W,H){drawNormal(ctx,W,H,10,1,false);}
+  },
+  {
+    title:'t=3s：第 1 次心跳续约，TTL 重置',
+    badge:'normal',
+    desc:'A 每隔 3s（TTL/3）发送一次心跳续约请求，etcd 收到后将 TTL 重置为 10s。只要心跳正常，A 持续持有租约。',
+    detail:'etcd: lease keepalive {leaseID} → TTL 重置为 10s。心跳间隔应远小于 TTL，通常设为 TTL/3，防止单次网络抖动导致误判。',
+    ttl:10,token:1,
+    draw(ctx,W,H){drawNormal(ctx,W,H,10,1,true);}
+  },
+  {
+    title:'t=6s：第 2 次心跳，资源持续可用',
+    badge:'normal',
+    desc:'第 2 次心跳到达，TTL 再次重置为 10s。节点 A 持续持有锁，正常处理业务。在心跳周期内 TTL 可能降到 7s 左右，续约后立即恢复。',
+    detail:'TTL 倒计时是在协调服务端（etcd/ZK）进行的，客户端只需要保证心跳按时到达即可。',
+    ttl:10,token:1,
+    draw(ctx,W,H){drawNormal(ctx,W,H,10,1,true);}
+  },
+  {
+    title:'t=9s：第 3 次心跳，持续续约',
+    badge:'normal',
+    desc:'A 继续正常工作并按时续约。只要 A 不崩溃且网络正常，租约永远不会过期，A 持续持有资源。',
+    detail:'这是分布式租约的正常工作流程：申请 → 使用 → 心跳 → 使用 → 心跳 → ... → 主动释放（或崩溃后 TTL 到期自动释放）。',
+    ttl:10,token:1,
+    draw(ctx,W,H){drawNormal(ctx,W,H,10,1,true);}
+  }
+];
+
+function drawNormal(ctx,W,H,ttl,token,heartbeat){
+  ctx.clearRect(0,0,W,H);
+  const aX=W*0.3, etcdX=W*0.72, midY=H*0.4;
+  // etcd
+  rr(ctx,etcdX-55,midY-24,110,48,10,'rgba(251,191,36,0.08)','rgba(251,191,36,0.4)',1.5);
+  txt(ctx,'etcd / ZK',etcdX,midY-8,11,'#fbbf24','center','700');
+  txt(ctx,'协调服务',etcdX,midY+8,9,'#94a3b8','center');
+  // Node A
+  node(ctx,aX,midY,110,48,'节点 A (Leader)','持有租约','rgba(129,140,248,1)',true);
+  // Token badge
+  rr(ctx,aX-40,midY+32,80,20,5,'rgba(129,140,248,0.1)','rgba(129,140,248,0.4)',1);
+  txt(ctx,`Fencing Token = ${token}`,aX,midY+42,8,'#818cf8','center','600');
+  // TTL bar
+  ttlBar(ctx,etcdX,midY+42,100,ttl,TTL_MAX,'#34d399');
+  // Heartbeat arrow
+  if(heartbeat){
+    arrow(ctx,aX+55,midY-10,etcdX-55,midY-10,'rgba(129,140,248,0.8)',false);
+    rr(ctx,W/2-42,midY-28,84,18,5,'rgba(129,140,248,0.15)','rgba(129,140,248,0.4)',1);
+    txt(ctx,'心跳续约 keepalive',W/2,midY-19,8,'#818cf8','center');
+    // Reset arrow back
+    arrow(ctx,etcdX-55,midY+6,aX+55,midY+6,'rgba(52,211,153,0.8)',false);
+    txt(ctx,'TTL 重置 ✓',W/2,midY+18,8,'#34d399','center','600');
+  }
+  // Resource box
+  rr(ctx,W*0.44,H*0.72,W*0.12,H*0.16,10,'rgba(52,211,153,0.07)','rgba(52,211,153,0.3)',1.5);
+  txt(ctx,'资源',W*0.5,H*0.79,10,'#34d399','center','700');
+  txt(ctx,'(锁/Leader)',W*0.5,H*0.86,8,'#64748b','center');
+  arrow(ctx,aX,midY+24,W*0.44,H*0.75,'rgba(52,211,153,0.5)',true);
+  txt(ctx,'持有',W*0.36,H*0.65,8,'#34d399','center');
+  txt(ctx,'心跳间隔 = TTL/3 = 3s，保障单次抖动不影响续约',W/2,H*0.93,9,'#64748b','center');
+}
+
+// TAB 1: Lease expiry and failover
+const TAB1=[
+  {
+    title:'节点 A 持有租约（正常）',
+    badge:'normal',
+    desc:'节点 A 持有租约（TTL=10s），正常处理请求。节点 B 在等待，监听租约状态。',
+    detail:'A 和 B 都是系统中的节点，同一时刻只有持有租约的节点（A）才能操作共享资源。',
+    draw(ctx,W,H){drawExpiry(ctx,W,H,0);}
+  },
+  {
+    title:'A 崩溃，停止发送心跳',
+    badge:'fail',
+    desc:'节点 A 发生故障（进程崩溃/网络分区），停止发送心跳续约。etcd/ZK 开始倒计时，等待 TTL 到期。',
+    detail:'这段时间（TTL 倒计时）是"不确定期"——A 可能真的崩了，也可能只是暂时网络抖动。系统选择等 TTL 到期而不是立即切换，避免误判。',
+    draw(ctx,W,H){drawExpiry(ctx,W,H,1);}
+  },
+  {
+    title:'TTL 归零，租约自动释放',
+    badge:'fail',
+    desc:'TTL 倒计时归零，etcd 自动删除租约（挂载的 key 一并删除）。此时资源被释放，等待者（B）收到 Watch 通知。',
+    detail:'etcd 的租约过期是由 etcd 服务端保证的，不依赖客户端行为。即使 A 完全失联，etcd 也会在 TTL 到期后自动清理。',
+    draw(ctx,W,H){drawExpiry(ctx,W,H,2);}
+  },
+  {
+    title:'节点 B 抢到租约，获得新 Token',
+    badge:'ok',
+    desc:'B 竞争并获得新租约，Fencing Token 递增为 2（每次租约颁发都递增）。B 现在是新的 Leader，使用 Token=2 操作资源。',
+    detail:'Token 单调递增是关键：Token=1（A 的旧令牌）< Token=2（B 的新令牌），存储层可以据此拒绝旧 Token 的操作，防止脑裂。',
+    draw(ctx,W,H){drawExpiry(ctx,W,H,3);}
+  }
+];
+
+function drawExpiry(ctx,W,H,step){
+  ctx.clearRect(0,0,W,H);
+  const aX=W*0.18, bX=W*0.5, etcdX=W*0.82, midY=H*0.42;
+  // etcd
+  rr(ctx,etcdX-52,midY-24,104,48,10,'rgba(251,191,36,0.08)','rgba(251,191,36,0.4)',1.5);
+  txt(ctx,'etcd',etcdX,midY-9,11,'#fbbf24','center','700');
+  const ttls=[10,5,0,-1];
+  const ttlNow=ttls[Math.min(step,3)];
+  if(ttlNow>0) ttlBar(ctx,etcdX,midY+40,96,ttlNow,10,'#34d399');
+  else if(ttlNow===0){
+    rr(ctx,etcdX-48,midY+30,96,20,5,'rgba(248,113,113,0.15)','rgba(248,113,113,0.4)',1);
+    txt(ctx,'TTL = 0  租约已释放',etcdX,midY+40,8,'#f87171','center','700');
+  } else {
+    rr(ctx,etcdX-48,midY+30,96,20,5,'rgba(74,222,128,0.1)','rgba(74,222,128,0.4)',1);
+    txt(ctx,'新租约 Token=2',etcdX,midY+40,8,'#4ade80','center','700');
+  }
+  // Node A
+  const aAlive=step<=1;
+  const aColor=aAlive?'rgba(129,140,248,1)':'rgba(248,113,113,1)';
+  node(ctx,aX,midY,106,44,'节点 A',aAlive?'持有租约 Token=1':'💀 崩溃',aColor,step===0);
+  // Node B
+  const bActive=step>=3;
+  node(ctx,bX,midY,106,44,'节点 B',bActive?'持有租约 Token=2':'等待中',bActive?'rgba(52,211,153,1)':'rgba(148,163,184,1)',bActive);
+  if(bActive){
+    rr(ctx,bX-46,midY+30,92,18,5,'rgba(52,211,153,0.1)','rgba(52,211,153,0.4)',1);
+    txt(ctx,'Fencing Token = 2',bX,midY+39,8,'#34d399','center','600');
+  }
+  // Heartbeat (step 0)
+  if(step===0){
+    arrow(ctx,aX+53,midY-8,etcdX-52,midY-8,'rgba(129,140,248,0.8)',false);
+    txt(ctx,'keepalive',W*0.5,midY-20,8,'#818cf8','center');
+    // B watching
+    arrow(ctx,bX+53,midY,etcdX-52,midY,'rgba(148,163,184,0.4)',true);
+    txt(ctx,'Watch',W*0.66,midY+12,8,'#64748b','center');
+  }
+  // A crash (step 1)
+  if(step===1){
+    txt(ctx,'✗ 心跳停止，TTL 倒计时 5s…',W*0.44,midY-32,9,'#f87171','center','700');
+  }
+  // Expiry notification (step 2)
+  if(step===2){
+    arrow(ctx,etcdX-52,midY+8,bX+53,midY+8,'rgba(248,113,113,0.9)',false);
+    txt(ctx,'Watch 通知：租约过期',W*0.66,midY+24,8,'#f87171','center','600');
+  }
+  // B wins (step 3)
+  if(step>=3){
+    arrow(ctx,bX+53,midY-8,etcdX-52,midY-8,'rgba(52,211,153,0.8)',false);
+    txt(ctx,'申请新租约 →',W*0.66,midY-22,8,'#34d399','center','600');
+  }
+}
+
+// TAB 2: Fencing Token
+const TAB2=[
+  {
+    title:'正常：A 持有租约 Token=1',
+    badge:'normal',
+    desc:'节点 A 持有租约（Token=1），向存储节点写入数据。存储层记录"最后接受的 Token = 1"。',
+    detail:'Fencing Token 是 Martin Kleppmann 在《设计数据密集型应用》中提出的租约安全增强方案，解决"延迟心跳导致的脑裂"问题。',
+    draw(ctx,W,H){drawFencing(ctx,W,H,0);}
+  },
+  {
+    title:'A 心跳延迟（如 GC 暂停），B 抢到租约',
+    badge:'warn',
+    desc:'A 因 JVM GC 暂停 15 秒，心跳超时，etcd 认为 A 已死，租约被 B 抢走。B 获得 Token=2，开始操作资源。但 A 的 GC 暂停结束后，A 不知道自己的租约已经失效。',
+    detail:'这是经典脑裂场景：A 认为自己还持有锁（从 A 的视角，GC 暂停是瞬间的），同时 B 也持有锁。不加 Fencing Token 会导致双写覆盖。',
+    draw(ctx,W,H){drawFencing(ctx,W,H,1);}
+  },
+  {
+    title:'B 用 Token=2 写入成功',
+    badge:'normal',
+    desc:'B 用 Token=2 向存储层写入新数据，存储层接受（2 >= 1），更新"最后接受的 Token = 2"。',
+    detail:'存储层的检查逻辑：if (request.token >= last_accepted_token) { accept; last_accepted_token = request.token; }',
+    draw(ctx,W,H){drawFencing(ctx,W,H,2);}
+  },
+  {
+    title:'A 用旧 Token=1 写入被拒绝',
+    badge:'fail',
+    desc:'A 的 GC 暂停结束后，用旧 Token=1 尝试写入存储层。存储层检测到 Token=1 < last_accepted_token=2，拒绝请求，返回错误。A 的写操作被安全阻断，新 Leader B 的数据不被覆盖。',
+    detail:'A 收到拒绝后，应该知道自己不再是 Leader（Token 落后），应停止操作并主动降级。这是 Fencing Token 安全保证的关键。',
+    draw(ctx,W,H){drawFencing(ctx,W,H,3);}
+  }
+];
+
+function drawFencing(ctx,W,H,step){
+  ctx.clearRect(0,0,W,H);
+  const aX=W*0.14, bX=W*0.5, storeX=W*0.82, midY=H*0.42;
+  // Storage
+  rr(ctx,storeX-52,midY-24,104,48,10,'rgba(56,189,248,0.08)','rgba(56,189,248,0.4)',1.5);
+  txt(ctx,'存储层',storeX,midY-9,11,'#38bdf8','center','700');
+  const lastToken=step>=2?2:1;
+  txt(ctx,`last token = ${lastToken}`,storeX,midY+8,8.5,'#94a3b8','center');
+  // Node A
+  const aGC=step>=1;
+  node(ctx,aX,midY,106,44,'节点 A',aGC?'GC 暂停后恢复':'持有 Token=1',aGC&&step<=2?'rgba(251,191,36,1)':step>=3?'rgba(248,113,113,1)':'rgba(129,140,248,1)',true);
+  rr(ctx,aX-40,midY+28,80,18,5,step>=1?'rgba(248,113,113,0.1)':'rgba(129,140,248,0.1)',step>=1?'rgba(248,113,113,0.4)':'rgba(129,140,248,0.4)',1);
+  txt(ctx,'Token = 1 (旧)',aX,midY+37,8,step>=1?'#f87171':'#818cf8','center');
+  // Node B
+  if(step>=1){
+    node(ctx,bX,midY,106,44,'节点 B','持有 Token=2','rgba(52,211,153,1)',true);
+    rr(ctx,bX-40,midY+28,80,18,5,'rgba(52,211,153,0.1)','rgba(52,211,153,0.4)',1);
+    txt(ctx,'Token = 2 (新)',bX,midY+37,8,'#34d399','center');
+  }
+  // Step 0: A writes ok
+  if(step===0){
+    arrow(ctx,aX+53,midY-5,storeX-52,midY-5,'rgba(129,140,248,0.8)',false);
+    txt(ctx,'写入 (Token=1) ✓',W*0.48,midY-22,8.5,'#818cf8','center','600');
+  }
+  // Step 1: GC pause
+  if(step===1){
+    rr(ctx,aX-52,midY-52,104,20,5,'rgba(251,191,36,0.15)','rgba(251,191,36,0.4)',1.5);
+    txt(ctx,'JVM GC 暂停 15s…',aX,midY-42,8.5,'#fbbf24','center','700');
+    txt(ctx,'B 抢到租约 Token=2',W*0.5,H*0.18,9,'#34d399','center','700');
+  }
+  // Step 2: B writes
+  if(step===2){
+    arrow(ctx,bX+53,midY-5,storeX-52,midY-5,'rgba(52,211,153,0.8)',false);
+    txt(ctx,'写入 (Token=2) ✓',W*0.66,midY-22,8.5,'#34d399','center','600');
+    txt(ctx,'2 ≥ 1，接受',storeX,H*0.72,9,'#34d399','center');
+  }
+  // Step 3: A rejected
+  if(step===3){
+    arrow(ctx,aX+53,midY+5,storeX-52,H*0.62,'rgba(248,113,113,0.7)',false);
+    txt(ctx,'写入 (Token=1)',W*0.35,H*0.6,8.5,'#f87171','center');
+    // rejection X
+    arrow(ctx,storeX-52,H*0.62,aX+53,midY+5,'rgba(248,113,113,0.9)',false);
+    txt(ctx,'拒绝！Token=1 < last=2',W*0.45,H*0.72,9,'#f87171','center','700');
+  }
+}
+
+// TAB 3: Thundering herd
+const TAB3=[
+  {
+    title:'大量节点等待同一租约过期',
+    badge:'warn',
+    desc:'节点 A 持有租约，10 个节点（B–K）全部监听租约过期事件（Watch）。一旦 A 的租约过期，所有监听者会同时收到通知。',
+    detail:'ZooKeeper 的临时节点 Watch 和 etcd 的 Watch 机制都可能触发惊群：大量节点同时被唤醒，同时发起竞争请求。',
+    draw(ctx,W,H){drawHerd(ctx,W,H,0);}
+  },
+  {
+    title:'租约过期：所有节点同时被唤醒',
+    badge:'fail',
+    desc:'A 的租约到期，etcd/ZK 发出 Watch 通知。10 个等待节点同时收到通知，同时尝试抢占租约，对协调服务产生瞬间突发请求。',
+    detail:'在节点数量多（如 100+ 节点）时，惊群可能导致 etcd/ZooKeeper 过载，反而导致所有请求超时，让续约者也受影响。',
+    draw(ctx,W,H){drawHerd(ctx,W,H,1);}
+  },
+  {
+    title:'加入随机抖动（Jitter）',
+    badge:'normal',
+    desc:'各节点收到通知后，不立即抢占，而是等待随机时间（如 0–3 秒随机抖动）后再发起请求。这样请求被分散在 3 秒内，避免瞬间并发冲击。',
+    detail:'抖动公式：delay = rand(0, max_jitter)，max_jitter 通常设为 TTL/3–TTL/2。Redis 等分布式锁实现会在重试前加 10–50ms 随机抖动。',
+    draw(ctx,W,H){drawHerd(ctx,W,H,2);}
+  },
+  {
+    title:'节点 C 在抖动后最先到达，抢到租约',
+    badge:'ok',
+    desc:'随机抖动后，节点 C 的等待时间最短（0.3s），最先发出请求并抢到租约。其他节点在竞争失败后继续进入等待状态，不会反复争抢。',
+    detail:'除了随机抖动，还可以用 ZK 有序临时节点（Sequential Ephemeral Node）实现公平排队，避免惊群——序号最小的节点自动成为下一任 Leader。',
+    draw(ctx,W,H){drawHerd(ctx,W,H,3);}
+  }
+];
+
+function drawHerd(ctx,W,H,step){
+  ctx.clearRect(0,0,W,H);
+  const etcdX=W*0.82, midY=H*0.42;
+  const wX=W*0.16, wY=midY;
+  rr(ctx,etcdX-52,wY-24,104,48,10,'rgba(251,191,36,0.08)','rgba(251,191,36,0.4)',1.5);
+  txt(ctx,'etcd',etcdX,wY-9,11,'#fbbf24','center','700');
+  txt(ctx,step<1?'租约将过期':'租约已过期',etcdX,wY+8,8.5,step<1?'#34d399':'#f87171','center');
+  // Waiting nodes in a column
+  const nodeCount=5;
+  const nX=W*0.16;
+  const gap=H*0.14;
+  const startY=H*0.2;
+  const labels=['B','C','D','E','F','G','H'];
+  const jitters=[2.1,0.3,1.8,2.7,1.2];
+  for(let i=0;i<nodeCount;i++){
+    const ny=startY+i*gap;
+    const isWinner=step>=3&&i===1;
+    const color=isWinner?'rgba(52,211,153,1)':'rgba(129,140,248,1)';
+    node(ctx,nX,ny,72,34,`节点 ${labels[i]}`,step>=2?`抖动 ${jitters[i]}s`:'等待中',color,isWinner);
+    // Watch arrows (step 0-1)
+    if(step<=1){
+      ctx.strokeStyle='rgba(129,140,248,0.2)'; ctx.lineWidth=1; ctx.setLineDash([4,3]);
+      ctx.beginPath(); ctx.moveTo(nX+36,ny); ctx.lineTo(etcdX-52,wY); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    // Thundering herd arrows (step 1)
+    if(step===1){
+      arrow(ctx,nX+36,ny,etcdX-52,wY,'rgba(248,113,113,0.6)',false);
+    }
+    // Jitter arrows (step 2)
+    if(step===2){
+      ctx.strokeStyle='rgba(148,163,184,0.3)'; ctx.lineWidth=1; ctx.setLineDash([4,3]);
+      ctx.beginPath(); ctx.moveTo(nX+36,ny); ctx.lineTo(etcdX-52,wY); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    // Winner arrow (step 3)
+    if(step===3&&i===1){
+      arrow(ctx,nX+36,ny,etcdX-52,wY,'rgba(52,211,153,1)',false);
+    }
+  }
+  // Labels
+  if(step===1) txt(ctx,'同时冲击！瞬间 500+ 请求',W*0.5,H*0.78,10,'#f87171','center','700');
+  if(step===2) txt(ctx,'每节点随机等待 0–3s，错峰发起',W*0.5,H*0.78,9.5,'#818cf8','center','600');
+  if(step===3) txt(ctx,'节点 C (抖动最短 0.3s) 最先到达，抢到租约 ✓',W*0.5,H*0.78,9.5,'#34d399','center','700');
+}
+
+const TABS=[
+  {label:'正常续约',steps:TAB0},
+  {label:'租约过期',steps:TAB1},
+  {label:'Fencing Token',steps:TAB2},
+  {label:'惊群效应',steps:TAB3},
+];
+
+let tabIdx=0,stepIdx=0,timer=null;
+const canvas=document.getElementById('vizCanvas');
+const ctx=canvas.getContext('2d');
+
+function resizeCanvas(){
+  const stage=document.getElementById('stage');
+  const rect=stage.getBoundingClientRect();
+  const dpr=window.devicePixelRatio||1;
+  canvas.width=rect.width*dpr; canvas.height=rect.height*dpr;
+  canvas.style.width=rect.width+'px'; canvas.style.height=rect.height+'px';
+  ctx.scale(dpr,dpr); draw();
+}
+function draw(){
+  const s=TABS[tabIdx].steps[stepIdx];
+  const rect=canvas.getBoundingClientRect();
+  s.draw(ctx,rect.width,rect.height);
+  document.getElementById('stepMsg').textContent=s.desc;
+  document.getElementById('stepTitle').textContent=s.title;
+  document.getElementById('stepDesc').textContent=s.desc;
+  document.getElementById('stepDetail').textContent=s.detail;
+  const b=s.badge||'normal';
+  document.getElementById('stateBadge').textContent=b;
+  document.getElementById('stateBadge').className='badge'+(b==='fail'?' fail':b==='warn'?' warn':b==='ok'?' ok':'');
+  document.querySelectorAll('.step-btn').forEach((btn,i)=>btn.classList.toggle('active',i===stepIdx));
+  document.getElementById('btnPrev').disabled=stepIdx===0;
+  document.getElementById('btnNext').disabled=stepIdx===TABS[tabIdx].steps.length-1;
+}
+function buildStepList(){
+  document.getElementById('stepList').innerHTML=TABS[tabIdx].steps.map((s,i)=>
+    `<button class="step-btn${i===stepIdx?' active':''}" data-i="${i}"><b>Step ${i+1}</b>${s.title}</button>`
+  ).join('');
+  document.getElementById('stepList').querySelectorAll('button').forEach(b=>b.onclick=()=>{stepIdx=+b.dataset.i;doPause();draw();buildStepList();});
+}
+function buildTabs(){
+  document.getElementById('sceneTabs').innerHTML=TABS.map((t,i)=>
+    `<button class="scene-tab${i===tabIdx?' active':''}" onclick="switchTab(${i})">${t.label}</button>`
+  ).join('');
+}
+function switchTab(i){tabIdx=i;stepIdx=0;doPause();buildTabs();buildStepList();resizeCanvas();}
+function doNext(){if(stepIdx<TABS[tabIdx].steps.length-1){stepIdx++;draw();buildStepList();}else doPause();}
+function doPrev(){if(stepIdx>0){stepIdx--;draw();buildStepList();}}
+function doReset(){doPause();stepIdx=0;draw();buildStepList();}
+function doPause(){if(timer){clearInterval(timer);timer=null;document.getElementById('btnPlay').textContent='播放';}}
+function doToggle(){if(timer){doPause();}else{document.getElementById('btnPlay').textContent='暂停';timer=setInterval(doNext,2200);}}
+
+buildTabs();buildStepList();
+window.addEventListener('resize',resizeCanvas);
+window.addEventListener('load',()=>setTimeout(resizeCanvas,50));
+setTimeout(resizeCanvas,80);
+</script>
+<script>if(window.NavTracker) NavTracker.track('分布式租约', window.location.href, '🔑', '分布式');</script>
+<script src="../footer.js"></script>
+</body>
+</html>

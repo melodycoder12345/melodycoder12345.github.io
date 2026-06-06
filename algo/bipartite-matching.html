@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="匈牙利算法通过不断寻找增广路求二分图最大匹配，时间复杂度 O(V·E)。">
+<link rel="canonical" href="https://melodycoder12345.github.io/algo/bipartite-matching.html">
+<meta property="og:title" content="二分图匹配 — 码海拾贝">
+<meta property="og:description" content="匈牙利算法通过不断寻找增广路求二分图最大匹配，时间复杂度 O(V·E)。">
+<meta property="og:url" content="https://melodycoder12345.github.io/algo/bipartite-matching.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="二分图匹配 — 码海拾贝">
+<meta name="twitter:description" content="匈牙利算法通过不断寻找增广路求二分图最大匹配，时间复杂度 O(V·E)。">
+<title>二分图匹配（匈牙利算法）- 算法可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.badge.time{background:rgba(251,191,36,0.15);color:var(--yellow);}.badge.space{background:rgba(56,189,248,0.15);color:var(--blue);}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.op-row{display:flex;gap:8px;padding:10px 24px;border-bottom:1px solid var(--border);align-items:center;flex-wrap:wrap;}
+.sc-label{font-size:0.82rem;color:var(--dim);white-space:nowrap;}
+.sc-btns{display:flex;gap:4px;flex-wrap:wrap;}
+.sc-btn{background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--text);padding:4px 12px;border-radius:5px;cursor:pointer;font-size:0.8rem;transition:all 0.15s;}
+.sc-btn:hover{background:rgba(255,255,255,0.1);}.sc-btn.active{background:rgba(56,189,248,0.15);border-color:var(--blue);color:var(--blue);}
+.legend{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap;}
+.leg{display:flex;align-items:center;gap:4px;font-size:0.72rem;color:var(--dim);}
+.leg-dot{width:10px;height:10px;border-radius:50%;}
+.leg-line{width:20px;height:3px;border-radius:2px;}
+.viz-area{flex:1;overflow:hidden;position:relative;}
+svg#graphSvg{width:100%;height:100%;}
+.info-overlay{position:absolute;bottom:8px;left:16px;right:16px;display:flex;gap:10px;flex-wrap:wrap;}
+.info-box{background:rgba(15,23,42,0.88);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:0.78rem;}
+.info-box-label{color:var(--dim);margin-bottom:4px;font-size:0.72rem;}
+.info-box-val{font-family:monospace;display:flex;gap:4px;flex-wrap:wrap;align-items:center;}
+.tag{padding:1px 7px;border-radius:3px;font-size:0.75rem;font-weight:700;font-family:monospace;}
+.match-num{font-size:1.6rem;font-weight:700;font-family:monospace;}
+.desc-box{padding:10px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:44%;min-width:370px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}
+.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;font-style:italic;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.3);color:var(--yellow);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--yellow);cursor:pointer;}
+@media(max-width:768px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;overflow-x:hidden;}
+  nav{flex-wrap:wrap;padding:10px 16px;gap:6px;height:auto!important;}
+  nav h1{font-size:1rem;flex:1;}
+  .complexity{margin-left:0!important;width:100%;order:3;margin-top:4px;}
+  .main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}
+  .viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:300px!important;min-height:300px!important;flex:none!important;}
+  .code-panel{width:100%!important;min-width:unset!important;height:360px!important;flex:none!important;}
+  .code-line{font-size:0.76rem!important;}
+  .controls{flex-wrap:wrap!important;gap:6px!important;height:auto!important;}
+  .btn{padding:6px 10px!important;font-size:0.8rem!important;}
+  .speed-wrap{margin-left:0!important;width:100%;justify-content:flex-end;}
+}
+</style>
+<script src="../nav.js"></script>
+<script src="../lang.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>二分图匹配（匈牙利算法）</h1>
+  <div class="complexity"><span class="badge time">O(V·E)</span><span class="badge space">O(V+E)</span></div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="op-row">
+      <span class="sc-label">场景：</span>
+      <div class="sc-btns" id="scBtns">
+        <button class="sc-btn active" data-idx="0">①完美匹配</button>
+        <button class="sc-btn" data-idx="1">②部分匹配</button>
+        <button class="sc-btn" data-idx="2">③增广路失败</button>
+      </div>
+      <div class="legend">
+        <div class="leg"><div class="leg-line" style="background:var(--green)"></div>已匹配边</div>
+        <div class="leg"><div class="leg-line" style="background:var(--yellow);border-top:2px dashed var(--yellow);background:none"></div>增广路探索</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--orange)"></div>已 visited</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--blue)"></div>当前处理</div>
+      </div>
+    </div>
+    <div class="viz-area">
+      <svg id="graphSvg"></svg>
+      <div class="info-overlay">
+        <div class="info-box">
+          <div class="info-box-label">当前匹配数</div>
+          <div class="info-box-val"><span class="match-num" id="matchCountDisplay" style="color:var(--green)">0</span></div>
+        </div>
+        <div class="info-box">
+          <div class="info-box-label">visited 右节点</div>
+          <div class="info-box-val" id="visitedDisplay"><span style="color:#475569">—</span></div>
+        </div>
+        <div class="info-box">
+          <div class="info-box-label">match[右节点→左节点]</div>
+          <div class="info-box-val" id="matchDisplay"><span style="color:#475569">—</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="desc-box">
+      <span id="descText">选择场景，观察匈牙利算法寻找增广路的过程</span>
+      <span class="step-counter" id="stepCounter"></span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px" data-base="bipartite">bipartite.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+// ─── Code Lines ────────────────────────────────────────────────────────────
+const CODE_LINES = [
+  {html:`<span class="kw">var</span> match []<span class="kw">int</span> <span class="cm">// match[r]=l，右节点r匹配了左节点l，-1表示未匹配</span>`},
+  {html:`<span class="kw">var</span> visited []<span class="kw">bool</span> <span class="cm">// 每轮DFS的访问标记，防止环路</span>`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">dfs</span>(u <span class="kw">int</span>, adj [][]<span class="kw">int</span>) <span class="kw">bool</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> _, v := <span class="kw">range</span> adj[u] { <span class="cm">// 遍历u的所有可选右节点</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> !visited[v] {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;visited[v] = <span class="kw">true</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> match[v] == -<span class="num">1</span> || <span class="fn">dfs</span>(match[v], adj) {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;match[v] = u <span class="cm">// 更新匹配</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="kw">true</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> <span class="kw">false</span> <span class="cm">// 找不到增广路</span>`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="kw">func</span> <span class="fn">maxMatching</span>(n, m <span class="kw">int</span>, adj [][]<span class="kw">int</span>) <span class="kw">int</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;match = <span class="fn">make</span>([]<span class="kw">int</span>, m)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> i := <span class="kw">range</span> match { match[i] = -<span class="num">1</span> }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;result := <span class="num">0</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> u := <span class="num">0</span>; u &lt; n; u++ {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;visited = <span class="fn">make</span>([]<span class="kw">bool</span>, m)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> <span class="fn">dfs</span>(u, adj) { result++ }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> result`},
+  {html:`}`},
+];
+
+// ─── Scenarios ─────────────────────────────────────────────────────────────
+// Step format: {matchR, visitedR, augEdges, activeL, activeR, matchCount, hl, desc}
+// matchR[r] = l (-1 unmatched)
+// augEdges = [[l,r], ...] yellow dashed
+// visitedR = [r, ...] orange border on right nodes
+
+const SCENARIOS = [
+  // ── Scenario 0: Perfect Matching (3L, 3R) ──────────────────────────────
+  {
+    name: '完美匹配',
+    leftLabels: ['A','B','C'],
+    rightLabels: ['1','2','3'],
+    leftDesc: '工人',
+    rightDesc: '任务',
+    adj: [[0,1],[0,1,2],[1,2]],
+    steps: [
+      {matchR:[-1,-1,-1],visitedR:[],augEdges:[],activeL:-1,activeR:-1,matchCount:0,
+       hl:[16,17,18,19],desc:'初始化：match 数组全为 -1，所有节点未匹配'},
+      {matchR:[-1,-1,-1],visitedR:[],augEdges:[],activeL:0,activeR:-1,matchCount:0,
+       hl:[20,21],desc:'处理工人 A（u=0），重置 visited 数组'},
+      {matchR:[-1,-1,-1],visitedR:[0],augEdges:[[0,0]],activeL:0,activeR:0,matchCount:0,
+       hl:[4,5,6],desc:'A 尝试任务1，visited[任务1]=true'},
+      {matchR:[0,-1,-1],visitedR:[0],augEdges:[],activeL:0,activeR:0,matchCount:1,
+       hl:[7,8,9],desc:'任务1未被占用（match[任务1]==-1），A ↔ 任务1 匹配成功！匹配数=1'},
+      {matchR:[0,-1,-1],visitedR:[],augEdges:[],activeL:1,activeR:-1,matchCount:1,
+       hl:[20,21],desc:'处理工人 B（u=1），重置 visited 数组'},
+      {matchR:[0,-1,-1],visitedR:[0],augEdges:[[1,0]],activeL:1,activeR:0,matchCount:1,
+       hl:[4,5,6],desc:'B 尝试任务1，visited[任务1]=true'},
+      {matchR:[0,-1,-1],visitedR:[0],augEdges:[[1,0]],activeL:0,activeR:-1,matchCount:1,
+       hl:[7],desc:'任务1被 A 占用，递归 DFS(A) 让 A 寻找其他任务'},
+      {matchR:[0,-1,-1],visitedR:[0,1],augEdges:[[1,0],[0,1]],activeL:0,activeR:1,matchCount:1,
+       hl:[4,5,6],desc:'A 跳过任务1（已visited），尝试任务2，visited[任务2]=true'},
+      {matchR:[1,0,-1],visitedR:[0,1],augEdges:[],activeL:1,activeR:-1,matchCount:2,
+       hl:[8,9,22],desc:'增广路完成：B ↔ 任务1，A ↔ 任务2。匹配数=2'},
+      {matchR:[1,0,-1],visitedR:[],augEdges:[],activeL:2,activeR:-1,matchCount:2,
+       hl:[20,21],desc:'处理工人 C（u=2），重置 visited 数组'},
+      {matchR:[1,0,-1],visitedR:[1],augEdges:[[2,1]],activeL:2,activeR:1,matchCount:2,
+       hl:[4,5,6],desc:'C 尝试任务2，visited[任务2]=true'},
+      {matchR:[1,0,-1],visitedR:[1],augEdges:[[2,1]],activeL:0,activeR:-1,matchCount:2,
+       hl:[7],desc:'任务2被 A 占用，递归 DFS(A) 让 A 寻找其他任务'},
+      {matchR:[1,0,-1],visitedR:[0,1],augEdges:[[2,1],[0,0]],activeL:0,activeR:0,matchCount:2,
+       hl:[4,5,6],desc:'A 尝试任务1，visited[任务1]=true'},
+      {matchR:[1,0,-1],visitedR:[0,1],augEdges:[[2,1],[0,0]],activeL:1,activeR:-1,matchCount:2,
+       hl:[7],desc:'任务1被 B 占用，递归 DFS(B) 让 B 寻找其他任务'},
+      {matchR:[1,0,-1],visitedR:[0,1,2],augEdges:[[2,1],[0,0],[1,2]],activeL:1,activeR:2,matchCount:2,
+       hl:[4,5,6],desc:'B 跳过已visited节点，尝试任务3，visited[任务3]=true'},
+      {matchR:[0,2,1],visitedR:[],augEdges:[],activeL:-1,activeR:-1,matchCount:3,
+       hl:[8,9,22],desc:'增广路 C→任务2←A→任务1←B→任务3 成功！完美匹配达成，匹配数=3'},
+      {matchR:[0,2,1],visitedR:[],augEdges:[],activeL:-1,activeR:-1,matchCount:3,
+       hl:[24,25],desc:'最大匹配=3：{A↔任务1，B↔任务3，C↔任务2}（完美匹配）'},
+    ]
+  },
+
+  // ── Scenario 1: Partial Matching (2L, 3R, max=1) ───────────────────────
+  {
+    name: '部分匹配（最大匹配=1）',
+    leftLabels: ['A','B'],
+    rightLabels: ['1','2','3'],
+    leftDesc: '工人',
+    rightDesc: '任务',
+    adj: [[0],[0]],
+    steps: [
+      {matchR:[-1,-1,-1],visitedR:[],augEdges:[],activeL:-1,activeR:-1,matchCount:0,
+       hl:[16,17,18,19],desc:'初始化：两位工人都只能做任务1（边少，图稀疏）'},
+      {matchR:[-1,-1,-1],visitedR:[],augEdges:[],activeL:0,activeR:-1,matchCount:0,
+       hl:[20,21],desc:'处理工人 A，重置 visited'},
+      {matchR:[-1,-1,-1],visitedR:[0],augEdges:[[0,0]],activeL:0,activeR:0,matchCount:0,
+       hl:[4,5,6],desc:'A 尝试任务1，visited[任务1]=true'},
+      {matchR:[0,-1,-1],visitedR:[0],augEdges:[],activeL:0,activeR:0,matchCount:1,
+       hl:[7,8,9],desc:'A ↔ 任务1，匹配数=1'},
+      {matchR:[0,-1,-1],visitedR:[],augEdges:[],activeL:1,activeR:-1,matchCount:1,
+       hl:[20,21],desc:'处理工人 B，重置 visited'},
+      {matchR:[0,-1,-1],visitedR:[0],augEdges:[[1,0]],activeL:1,activeR:0,matchCount:1,
+       hl:[4,5,6],desc:'B 尝试任务1，任务1已被 A 占用'},
+      {matchR:[0,-1,-1],visitedR:[0],augEdges:[[1,0]],activeL:0,activeR:-1,matchCount:1,
+       hl:[7],desc:'递归 DFS(A)，让 A 寻找其他任务'},
+      {matchR:[0,-1,-1],visitedR:[0],augEdges:[],activeL:0,activeR:-1,matchCount:1,
+       hl:[13],desc:'DFS(A)：adj[A]=[任务1] 且 visited，无路可走，return false'},
+      {matchR:[0,-1,-1],visitedR:[],augEdges:[],activeL:1,activeR:-1,matchCount:1,
+       hl:[13,22],desc:'B 无法匹配：A 无法改配，增广路不存在'},
+      {matchR:[0,-1,-1],visitedR:[],augEdges:[],activeL:-1,activeR:-1,matchCount:1,
+       hl:[24,25],desc:'最大匹配=1：仅 {A↔任务1}。图的结构决定了无法更高——B 没有其他可选任务'},
+    ]
+  },
+
+  // ── Scenario 2: No Augmenting Path (3L, 2R) ────────────────────────────
+  {
+    name: '增广路失败（右部节点不足）',
+    leftLabels: ['A','B','C'],
+    rightLabels: ['1','2'],
+    leftDesc: '工人',
+    rightDesc: '任务',
+    adj: [[0,1],[0,1],[0,1]],
+    steps: [
+      {matchR:[0,1],visitedR:[],augEdges:[],activeL:-1,activeR:-1,matchCount:2,
+       hl:[],desc:'已有匹配 A↔任务1，B↔任务2。尝试给工人 C 寻找增广路（右节点只有2个）'},
+      {matchR:[0,1],visitedR:[],augEdges:[],activeL:2,activeR:-1,matchCount:2,
+       hl:[20,21],desc:'处理工人 C（u=2），重置 visited'},
+      {matchR:[0,1],visitedR:[0],augEdges:[[2,0]],activeL:2,activeR:0,matchCount:2,
+       hl:[4,5,6],desc:'C 尝试任务1，visited[任务1]=true'},
+      {matchR:[0,1],visitedR:[0],augEdges:[[2,0]],activeL:0,activeR:-1,matchCount:2,
+       hl:[7],desc:'任务1被 A 占，递归 DFS(A) 让 A 改配'},
+      {matchR:[0,1],visitedR:[0,1],augEdges:[[2,0],[0,1]],activeL:0,activeR:1,matchCount:2,
+       hl:[4,5,6],desc:'DFS(A)：尝试任务2，visited[任务2]=true'},
+      {matchR:[0,1],visitedR:[0,1],augEdges:[[2,0],[0,1]],activeL:1,activeR:-1,matchCount:2,
+       hl:[7],desc:'任务2被 B 占，递归 DFS(B) 让 B 改配'},
+      {matchR:[0,1],visitedR:[0,1],augEdges:[[2,0]],activeL:1,activeR:-1,matchCount:2,
+       hl:[13],desc:'DFS(B)：任务1和2均已 visited，无路可走，return false'},
+      {matchR:[0,1],visitedR:[0,1],augEdges:[],activeL:0,activeR:-1,matchCount:2,
+       hl:[13],desc:'DFS(A)：通过任务2的路径失败，return false'},
+      {matchR:[0,1],visitedR:[0,1],augEdges:[],activeL:2,activeR:-1,matchCount:2,
+       hl:[4,5],desc:'C 尝试任务2（visited[任务2]=true 已在子DFS中标记，直接跳过！）'},
+      {matchR:[0,1],visitedR:[],augEdges:[],activeL:2,activeR:-1,matchCount:2,
+       hl:[13,22],desc:'DFS(C)：所有边均已 visited，return false。C 无法匹配'},
+      {matchR:[0,1],visitedR:[],augEdges:[],activeL:-1,activeR:-1,matchCount:2,
+       hl:[24,25],desc:'最大匹配=2（受右节点数限制）。visited 机制避免重复访问，是匈牙利算法高效性的关键'},
+    ]
+  }
+];
+
+// ─── State ─────────────────────────────────────────────────────────────────
+let curSc = 0, cur = 0, playing = false, timer = null;
+const SPEED = [800,500,300,180,80];
+
+// ─── DOM ───────────────────────────────────────────────────────────────────
+const graphSvg = document.getElementById('graphSvg');
+const codeBody = document.getElementById('codeBody');
+const descText = document.getElementById('descText');
+const stepCounter = document.getElementById('stepCounter');
+const matchCountDisplay = document.getElementById('matchCountDisplay');
+const visitedDisplay = document.getElementById('visitedDisplay');
+const matchDisplay = document.getElementById('matchDisplay');
+const btnPlay = document.getElementById('btnPlay');
+const btnPrev = document.getElementById('btnPrev');
+const btnNext = document.getElementById('btnNext');
+const btnReset = document.getElementById('btnReset');
+const speedRange = document.getElementById('speedRange');
+
+// ─── Code Rendering ────────────────────────────────────────────────────────
+function buildCode() {
+  codeBody.innerHTML = CODE_LINES.map((l,i) =>
+    `<div class="code-line" data-line="${i}"><span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
+  ).join('');
+}
+
+function highlightCode(lines) {
+  codeBody.querySelectorAll('.code-line').forEach(el => el.classList.remove('active'));
+  lines.forEach(ln => {
+    const el = codeBody.querySelector(`[data-line="${ln}"]`);
+    if (el) el.classList.add('active');
+  });
+  if (lines.length > 0) {
+    const f = codeBody.querySelector(`[data-line="${lines[0]}"]`);
+    if (f) f.scrollIntoView({block:'nearest'});
+  }
+}
+
+// ─── SVG Rendering ─────────────────────────────────────────────────────────
+const NODE_R = 26;
+
+function drawBipartite(scenario, step) {
+  graphSvg.innerHTML = '';
+  const rect = graphSvg.getBoundingClientRect();
+  const W = rect.width || 680, H = rect.height || 380;
+
+  const {leftLabels, rightLabels, adj, leftDesc, rightDesc} = scenario;
+  const {matchR, visitedR, augEdges, activeL, activeR} = step;
+  const NL = leftLabels.length, NR = rightLabels.length;
+
+  // Compute matchL from matchR
+  const matchL = new Array(NL).fill(-1);
+  matchR.forEach((l, r) => { if (l !== -1) matchL[l] = r; });
+
+  const lx = W * 0.22;
+  const rx = W * 0.78;
+  const lpos = leftLabels.map((_, i) => H * (i + 1) / (NL + 1));
+  const rpos = rightLabels.map((_, i) => H * (i + 1) / (NR + 1));
+
+  // Edge state sets
+  const matchedEdgeSet = new Set();
+  matchR.forEach((l, r) => { if (l !== -1) matchedEdgeSet.add(`${l},${r}`); });
+  const augEdgeSet = new Set(augEdges.map(([l,r]) => `${l},${r}`));
+  const visitedSet = new Set(visitedR);
+
+  // Glow filter
+  const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+  defs.innerHTML = `<filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+  graphSvg.appendChild(defs);
+
+  // Column labels
+  function addLabel(x, y, text, anchor, color) {
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x', x); t.setAttribute('y', y);
+    t.setAttribute('fill', color||'#64748b'); t.setAttribute('font-size','11');
+    t.setAttribute('text-anchor', anchor||'middle'); t.setAttribute('font-family','system-ui');
+    graphSvg.appendChild(t); t.textContent = text;
+  }
+  addLabel(lx, 18, `◀ ${leftDesc}（左部）`, 'middle', '#475569');
+  addLabel(rx, 18, `${rightDesc}（右部）▶`, 'middle', '#475569');
+
+  // Draw edges first (so nodes appear on top)
+  adj.forEach((rights, l) => {
+    rights.forEach(r => {
+      const key = `${l},${r}`;
+      const isMatched = matchedEdgeSet.has(key);
+      const isAug = augEdgeSet.has(key);
+      const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1', lx); line.setAttribute('y1', lpos[l]);
+      line.setAttribute('x2', rx); line.setAttribute('y2', rpos[r]);
+      if (isAug) {
+        line.setAttribute('stroke','#fbbf24');
+        line.setAttribute('stroke-width','2.5');
+        line.setAttribute('stroke-dasharray','7,5');
+        line.setAttribute('filter','url(#glow)');
+      } else if (isMatched) {
+        line.setAttribute('stroke','#4ade80');
+        line.setAttribute('stroke-width','2.5');
+      } else {
+        line.setAttribute('stroke','#2d3f55');
+        line.setAttribute('stroke-width','1.5');
+      }
+      graphSvg.appendChild(line);
+    });
+  });
+
+  // Draw left nodes
+  leftLabels.forEach((label, i) => {
+    const x = lx, y = lpos[i];
+    const isActive = i === activeL;
+    const isMatched = matchL[i] !== -1;
+    let fill = '#1e293b', stroke = '#475569', textCol = '#94a3b8';
+    if (isMatched) { fill = 'rgba(74,222,128,0.18)'; stroke = '#4ade80'; textCol = '#4ade80'; }
+    if (isActive) { fill = 'rgba(56,189,248,0.22)'; stroke = '#38bdf8'; textCol = '#38bdf8'; }
+
+    const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', NODE_R);
+    c.setAttribute('fill', fill); c.setAttribute('stroke', stroke); c.setAttribute('stroke-width','2');
+    if (isActive) c.setAttribute('filter','url(#glow)');
+    graphSvg.appendChild(c);
+
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x', x); t.setAttribute('y', y+6);
+    t.setAttribute('fill', textCol); t.setAttribute('font-size','16'); t.setAttribute('font-weight','700');
+    t.setAttribute('text-anchor','middle'); t.setAttribute('font-family','monospace');
+    t.textContent = label; graphSvg.appendChild(t);
+
+    // Side label
+    const tl = document.createElementNS('http://www.w3.org/2000/svg','text');
+    tl.setAttribute('x', x - NODE_R - 10); tl.setAttribute('y', y+5);
+    tl.setAttribute('fill','#4b5563'); tl.setAttribute('font-size','11');
+    tl.setAttribute('text-anchor','end'); tl.setAttribute('font-family','system-ui');
+    tl.textContent = `${leftDesc}${label}`; graphSvg.appendChild(tl);
+  });
+
+  // Draw right nodes
+  rightLabels.forEach((label, i) => {
+    const x = rx, y = rpos[i];
+    const isActive = i === activeR;
+    const isVisited = visitedSet.has(i);
+    const isMatched = matchR[i] !== -1;
+    let fill = '#1e293b', stroke = '#475569', textCol = '#94a3b8', sw = '2';
+    if (isMatched) { fill = 'rgba(74,222,128,0.18)'; stroke = '#4ade80'; textCol = '#4ade80'; }
+    if (isVisited && !isActive) { stroke = '#fb923c'; textCol = '#fb923c'; sw = '2.5'; }
+    if (isActive) { fill = 'rgba(251,191,36,0.2)'; stroke = '#fbbf24'; textCol = '#fbbf24'; sw = '2.5'; }
+
+    const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', NODE_R);
+    c.setAttribute('fill', fill); c.setAttribute('stroke', stroke); c.setAttribute('stroke-width', sw);
+    if (isActive) c.setAttribute('filter','url(#glow)');
+    graphSvg.appendChild(c);
+
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x', x); t.setAttribute('y', y+6);
+    t.setAttribute('fill', textCol); t.setAttribute('font-size','16'); t.setAttribute('font-weight','700');
+    t.setAttribute('text-anchor','middle'); t.setAttribute('font-family','monospace');
+    t.textContent = label; graphSvg.appendChild(t);
+
+    // Match annotation (which left node it's matched to)
+    if (matchR[i] !== -1) {
+      const lbl = leftLabels[matchR[i]];
+      const ta = document.createElementNS('http://www.w3.org/2000/svg','text');
+      ta.setAttribute('x', x + NODE_R + 10); ta.setAttribute('y', y - 6);
+      ta.setAttribute('fill','#4ade80'); ta.setAttribute('font-size','10');
+      ta.setAttribute('text-anchor','start'); ta.setAttribute('font-family','monospace');
+      ta.textContent = `↔${lbl}`; graphSvg.appendChild(ta);
+    }
+
+    const tr = document.createElementNS('http://www.w3.org/2000/svg','text');
+    tr.setAttribute('x', x + NODE_R + 10); tr.setAttribute('y', y+6);
+    tr.setAttribute('fill','#4b5563'); tr.setAttribute('font-size','11');
+    tr.setAttribute('text-anchor','start'); tr.setAttribute('font-family','system-ui');
+    tr.textContent = `${rightDesc}${label}`; graphSvg.appendChild(tr);
+  });
+}
+
+// ─── Info Boxes ────────────────────────────────────────────────────────────
+function renderInfo(scenario, step) {
+  const {rightLabels, leftLabels} = scenario;
+  const {matchR, visitedR, matchCount} = step;
+
+  matchCountDisplay.textContent = matchCount;
+  matchCountDisplay.style.color = matchCount > 0 ? '#4ade80' : '#94a3b8';
+
+  if (visitedR.length === 0) {
+    visitedDisplay.innerHTML = '<span style="color:#475569">—</span>';
+  } else {
+    visitedDisplay.innerHTML = visitedR.map(r =>
+      `<span class="tag" style="background:rgba(251,146,60,0.15);color:#fb923c">${rightLabels[r]}</span>`
+    ).join('');
+  }
+
+  const matched = matchR.map((l, r) => l !== -1 ? `${rightLabels[r]}→${leftLabels[l]}` : null).filter(Boolean);
+  if (matched.length === 0) {
+    matchDisplay.innerHTML = '<span style="color:#475569">—</span>';
+  } else {
+    matchDisplay.innerHTML = matched.map(m =>
+      `<span class="tag" style="background:rgba(74,222,128,0.12);color:#4ade80">${m}</span>`
+    ).join('');
+  }
+}
+
+// ─── Main Render ───────────────────────────────────────────────────────────
+function render() {
+  const sc = SCENARIOS[curSc];
+  const steps = sc.steps;
+  if (steps.length === 0) return;
+  const s = steps[cur];
+
+  drawBipartite(sc, s);
+  renderInfo(sc, s);
+  highlightCode(s.hl || []);
+
+  descText.textContent = s.desc;
+  stepCounter.textContent = `${cur+1} / ${steps.length}`;
+  btnPrev.disabled = cur === 0;
+  btnNext.disabled = cur === steps.length - 1;
+}
+
+// ─── Playback ──────────────────────────────────────────────────────────────
+function play() {
+  const steps = SCENARIOS[curSc].steps;
+  if (cur >= steps.length - 1) cur = 0;
+  playing = true; btnPlay.innerHTML = '⏸ 暂停'; tick();
+}
+function pause() { playing = false; clearTimeout(timer); btnPlay.innerHTML = '▶ 播放'; }
+function tick() {
+  if (!playing) return;
+  const steps = SCENARIOS[curSc].steps;
+  if (cur < steps.length - 1) { cur++; render(); timer = setTimeout(tick, SPEED[parseInt(speedRange.value)-1]); }
+  else pause();
+}
+
+btnPlay.addEventListener('click', () => playing ? pause() : play());
+btnPrev.addEventListener('click', () => { pause(); if(cur>0){cur--;render();} });
+btnNext.addEventListener('click', () => { pause(); if(cur<SCENARIOS[curSc].steps.length-1){cur++;render();} });
+btnReset.addEventListener('click', () => { pause(); cur=0; render(); });
+
+// ─── Scenario Switching ────────────────────────────────────────────────────
+document.querySelectorAll('.sc-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    pause();
+    curSc = parseInt(btn.dataset.idx);
+    cur = 0;
+    document.querySelectorAll('.sc-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    render();
+  });
+});
+
+// ─── Init ──────────────────────────────────────────────────────────────────
+window.LANG_PLAIN = {};
+LangSwitcher.init(() => {});
+
+buildCode();
+render();
+window.addEventListener('resize', () => render());
+</script>
+</body>
+</html>

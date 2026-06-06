@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="VXLAN 将二层以太网帧封装在 UDP 中，VTEP 负责封包/解包，VNI 隔离租户，是 K8s 跨主机 Pod 通信和云多租户网络的核心。">
+<link rel="canonical" href="https://melodycoder12345.github.io/network/vxlan.html">
+<meta property="og:title" content="VXLAN Overlay 网络 — 码海拾贝">
+<meta property="og:description" content="VXLAN 将二层以太网帧封装在 UDP 中，VTEP 负责封包/解包，VNI 隔离租户，是 K8s 跨主机 Pod 通信和云多租户网络的核心。">
+<meta property="og:url" content="https://melodycoder12345.github.io/network/vxlan.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="VXLAN Overlay 网络 — 码海拾贝">
+<meta name="twitter:description" content="VXLAN 将二层以太网帧封装在 UDP 中，VTEP 负责封包/解包，VNI 隔离租户，是 K8s 跨主机 Pod 通信和云多租户网络的核心。">
+<title>VXLAN Overlay 网络 - 网络可视化</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#34d399;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.scene-tabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.scene-tab{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:10px;padding:8px 16px;cursor:pointer;font-family:inherit;font-size:.82rem;transition:all .16s}
+.scene-tab:hover{color:var(--text);border-color:var(--accent)}
+.scene-tab.active{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.lab{display:grid;grid-template-columns:260px minmax(0,1fr) 280px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:480px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s;font-size:.82rem}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:440px;display:flex;flex-direction:column;padding:16px}
+.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:rgba(15,23,42,.64);overflow:hidden;position:relative}
+#vizCanvas{display:block}
+.step-msg{margin-top:12px;padding:12px 14px;border:1px solid rgba(255,255,255,.07);border-radius:12px;background:rgba(255,255,255,.03);font-size:.87rem;color:var(--dim);min-height:44px;line-height:1.65}
+.status{padding:14px}
+.status-inner{border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status-inner h2{font-size:.95rem;margin-bottom:8px;color:var(--text)}
+.status-inner p{color:var(--dim);font-size:.85rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.fail{border-color:#f87171;color:#f87171}
+.badge.recover{border-color:#4ade80;color:#4ade80}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit;font-size:.85rem;transition:all .15s}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+@media(max-width:1060px){.lab{grid-template-columns:1fr}.hero,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"VTEP（VXLAN Tunnel Endpoint）","body":"VXLAN 封包/解包设备，可以是物理网卡、虚拟网桥（Linux bridge）或软件 vSwitch（OVS）。每台主机有一个 VTEP，用主机 IP 作为外层 UDP 包的源/目标地址。","tag":"term"},
+  {"title":"VNI（VXLAN Network Identifier）","body":"24 位租户标识符，最多 1600 万个隔离网络。同一 VNI 的包在同一 overlay 网络中，不同 VNI 的包互相隔离。","tag":"term"},
+  {"title":"EVPN 控制平面","body":"Ethernet VPN，用 BGP 分发 MAC-IP 映射信息，避免数据平面泛洪学习 MAC，提高大规模部署效率。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">网络 / VXLAN / C 类型</div>
+      <h1>VXLAN Overlay 网络</h1>
+      <p class="summary">Virtual Extensible LAN，将二层以太网帧封装在 UDP 包中，在三层网络上模拟二层广播域。K8s 跨主机 Pod 通信、云上多租户隔离的核心技术。VTEP 负责封包/解包，VNI 区分不同租户，外层 IP 是主机地址，内层是 Pod/VM 地址。</p>
+      <div class="tags"><span>VTEP</span><span>VNI</span><span>UDP 封装</span><span>Overlay</span><span>EVPN</span><span>K8s 网络</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>VTEP（隧道端点）</strong><span>封包/解包节点，外层 src/dst IP = 主机 IP，内层保留 Pod/VM 的原始以太网帧。</span></li>
+        <li><strong>VNI（24位租户 ID）</strong><span>VXLAN 头中的网络标识，最多 1600 万个隔离 overlay 网络，不同 VNI 互不干扰。</span></li>
+        <li><strong>EVPN 控制平面</strong><span>用 BGP 分发 MAC→IP→VTEP 映射，避免 BUM 泛洪，支持大规模集群。</span></li>
+        <li><strong>BUM 泛洪</strong><span>Broadcast/Unknown-unicast/Multicast，MAC 未知时向所有 VTEP 泛洪，EVPN 可消除。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="scene-tabs" id="sceneTabs"></div>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">Step Timeline</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <canvas id="vizCanvas"></canvas>
+      </div>
+      <div class="step-msg" id="stepMsg">选择场景开始演示</div>
+      <div class="controls">
+        <button class="ctrl" id="btnReset" onclick="doReset()">重置</button>
+        <button class="ctrl" id="btnPrev" onclick="doPrev()">上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="doToggle()">播放</button>
+        <button class="ctrl" id="btnNext" onclick="doNext()">下一步</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-hd">当前状态</div>
+      <div class="status">
+        <div class="status-inner">
+          <span class="badge" id="stateBadge">normal</span>
+          <h2 id="stepTitle">等待开始</h2>
+          <p id="stepDesc">点击播放或选择步骤。</p>
+          <p id="stepDetail" style="margin-top:8px;font-size:.82rem;color:var(--dim2)"></p>
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>背景与封包格式</h2>
+      <p>VXLAN 协议（RFC 7348）在 UDP 8472 端口传输，封包格式（外→内）：<br><br>
+      <strong>外层以太网帧</strong> → 外层 IP（主机IP）→ 外层 UDP（dport=4789/8472）→ <strong>VXLAN 头（8字节，含 24 位 VNI）</strong> → 内层以太网帧 → 内层 IP（Pod IP）→ 内层 TCP/UDP → 数据<br><br>
+      封装开销约 50 字节（以太网帧 14 + IP头 20 + UDP头 8 + VXLAN头 8），MTU 需要相应调整（通常内层 MTU=1450 而非 1500）。<br><br>
+      Linux 内核从 3.7 版本原生支持 VXLAN，flannel/Calico/Cilium 等 CNI 均可基于内核 VXLAN 实现跨主机 Pod 通信。</p>
+    </section>
+    <section>
+      <h2>常见误区</h2>
+      <ul>
+        <li>VXLAN 不是加密隧道，内层数据仍为明文。加密需要额外的 WireGuard/IPSec 封装（如 Cilium 支持 WireGuard 加密 VXLAN）。</li>
+        <li>VTEP 失败后不会自动切换——需要 EVPN 撤回路由通知其他 VTEP 更新转发表，否则流量会黑洞。</li>
+        <li>VXLAN 是 L2-over-L3，同一 VNI 内的 Pod 能互相 ARP（二层可达），但不同 VNI 的 Pod 需要 L3 路由（不同 overlay 网络）。</li>
+        <li>大规模集群（1000+ 节点）时 BUM 泛洪会产生大量无效流量，必须用 EVPN 或静态 MAC 表代替泛洪学习。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>工程场景</h2>
+      <ul>
+        <li><strong>K8s flannel VXLAN 模式</strong>：每个节点运行 flanneld，监听 etcd 路由表。Pod 发包→Linux VXLAN 设备→封包→通过主机物理网卡发出→对端 flanneld 解包→投递到目标 Pod。</li>
+        <li><strong>云 VPC（阿里云/AWS）</strong>：不同 ECS 实例/VPC 内网通信走 VXLAN Overlay，硬件 VTEP（智能网卡）实现封包/解包，对宿主机 CPU 零影响。</li>
+        <li><strong>OpenStack Neutron</strong>：用 VXLAN 实现租户之间的网络隔离，每个租户一个 VNI，OVS 作为软件 VTEP。</li>
+        <li><strong>数据中心互联（DCI）</strong>：两个数据中心通过 VXLAN 拉伸 L2 网络，实现跨机房虚拟机无感迁移（vMotion）。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>VXLAN vs 其他 Overlay</h2>
+      <ul>
+        <li><strong>VXLAN vs GRE</strong>：GRE 封装更简单（无 VNI），但不支持多租户隔离，不支持 UDP ECMP 负载均衡。</li>
+        <li><strong>VXLAN vs WireGuard</strong>：WireGuard 提供加密，但无 VNI 隔离，通常在 VXLAN 外层叠加 WireGuard。</li>
+        <li><strong>VXLAN vs Geneve</strong>：Geneve（RFC 8926）是 VXLAN 的后继，支持可变长度元数据头，被 OVN/Cilium 采用。</li>
+      </ul>
+    </section>
+  </section>
+</main>
+
+<script>
+function rr(ctx,x,y,w,h,r,fill,stroke,lw){
+  ctx.beginPath();ctx.roundRect(x,y,w,h,r);
+  if(fill){ctx.fillStyle=fill;ctx.fill();}
+  if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||1.5;ctx.stroke();}
+}
+function txt(ctx,t,x,y,size,color,align,weight){
+  ctx.font=`${weight||'400'} ${size}px system-ui,sans-serif`;
+  ctx.fillStyle=color;ctx.textAlign=align||'center';ctx.textBaseline='middle';
+  ctx.fillText(t,x,y);
+}
+function arrow(ctx,x1,y1,x2,y2,color,dashed){
+  ctx.strokeStyle=color;ctx.lineWidth=2;
+  if(dashed)ctx.setLineDash([5,4]);else ctx.setLineDash([]);
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  ctx.setLineDash([]);
+  const a=Math.atan2(y2-y1,x2-x1);
+  ctx.fillStyle=color;ctx.beginPath();
+  ctx.moveTo(x2,y2);ctx.lineTo(x2-10*Math.cos(a-.35),y2-10*Math.sin(a-.35));
+  ctx.lineTo(x2-10*Math.cos(a+.35),y2-10*Math.sin(a+.35));ctx.closePath();ctx.fill();
+}
+function node(ctx,x,y,w,h,label,sub,color,hl){
+  const bg=hl?color.replace('1)','0.15)'):'rgba(30,41,59,0.9)';
+  const st=hl?color:'rgba(255,255,255,0.12)';
+  rr(ctx,x-w/2,y-h/2,w,h,10,bg,st,hl?2:1.5);
+  txt(ctx,label,x,y-6,11,'#e2e8f0','center','600');
+  if(sub)txt(ctx,sub,x,y+8,8.5,'#94a3b8','center');
+}
+function pkt(ctx,x,y,label,color){
+  rr(ctx,x-32,y-13,64,26,6,color.replace('1)','0.18)'),color,1.5);
+  txt(ctx,label,x,y,8.5,'#e2e8f0','center','600');
+}
+
+// TAB 0: Normal cross-host communication
+const TAB0=[
+  {
+    title:'初始状态：Pod A 向 Pod B 发包',
+    badge:'normal',
+    desc:'Pod A (10.0.1.2) 位于 Host1，要发包给 Pod B (10.0.2.2)，位于 Host2。两个 Pod 在同一 VNI=1000 的 overlay 网络中，但处于不同物理主机。',
+    detail:'Pod A 的数据包到达 Host1 的 Linux bridge，bridge 查找发现目标 MAC 在远端，交给 VTEP1 处理。',
+    draw(ctx,W,H){drawNormal(ctx,W,H,0);}
+  },
+  {
+    title:'VTEP1 封装 VXLAN 头',
+    badge:'normal',
+    desc:'Host1 的 VTEP 将原始以太网帧封装：添加 VXLAN 头（VNI=1000）+ 外层 UDP（dport=4789）+ 外层 IP（src=Host1 IP, dst=Host2 IP）。',
+    detail:'封装后的包对物理网络来说是普通 UDP 包，物理交换机不需要理解 VXLAN，只需按外层 IP 转发。',
+    draw(ctx,W,H){drawNormal(ctx,W,H,1);}
+  },
+  {
+    title:'物理网络三层转发',
+    badge:'normal',
+    desc:'封装后的 VXLAN UDP 包在物理网络（Underlay）中按外层 IP 路由转发，经过物理交换机/路由器到达 Host2。',
+    detail:'Underlay 网络完全不感知 VXLAN，它只看到 UDP/IP 包。ECMP（等价多路径）基于外层 UDP 端口实现跨多链路负载均衡。',
+    draw(ctx,W,H){drawNormal(ctx,W,H,2);}
+  },
+  {
+    title:'VTEP2 解封，Pod B 收包',
+    badge:'normal',
+    desc:'Host2 的 VTEP 识别 dport=4789 的 UDP 包，剥掉外层 IP+UDP+VXLAN 头，还原内层以太网帧，根据目标 MAC 投递到 Pod B。',
+    detail:'Pod B 完全不知道自己的包走了 VXLAN 隧道——对它来说就是普通以太网通信。这是 Overlay 网络的核心价值：透明封装。',
+    draw(ctx,W,H){drawNormal(ctx,W,H,3);}
+  }
+];
+
+function drawNormal(ctx,W,H,step){
+  ctx.clearRect(0,0,W,H);
+  const h1X=W*0.16, h2X=W*0.84, midY=H*0.5;
+  const netY=H*0.5;
+  // Physical network cloud
+  rr(ctx,W*0.35,H*0.3,W*0.3,H*0.4,16,'rgba(56,189,248,0.04)','rgba(56,189,248,0.2)',1.5);
+  txt(ctx,'物理网络 (Underlay)',W/2,H*0.38,9,'#38bdf8','center','600');
+  // Host boxes
+  [[h1X,'Host1\n192.168.1.10'],[h2X,'Host2\n192.168.1.20']].forEach(([x,l],i)=>{
+    const color=i===0?'rgba(52,211,153,1)':'rgba(56,189,248,1)';
+    const hl=step>=0;
+    rr(ctx,x-70,H*0.06,140,H*0.88,14,'rgba(17,24,39,0.6)',color.replace('1)','0.3)'),1.5);
+    txt(ctx,i===0?'Host1 (192.168.1.10)':'Host2 (192.168.1.20)',x,H*0.13,9.5,color,'center','700');
+    // VTEP
+    const vtepY=H*0.28;
+    rr(ctx,x-44,vtepY-14,88,28,8,'rgba(251,191,36,0.1)','rgba(251,191,36,0.5)',1.5);
+    txt(ctx,i===0?'VTEP1':'VTEP2',x,vtepY,10,'#fbbf24','center','600');
+    // Pod
+    const podY=H*0.75;
+    const podColor=i===0?'rgba(52,211,153,1)':'rgba(56,189,248,1)';
+    const podName=i===0?'Pod A\n10.0.1.2':'Pod B\n10.0.2.2';
+    rr(ctx,x-38,podY-20,76,40,8,podColor.replace('1)','0.1)'),podColor,1.5);
+    txt(ctx,i===0?'Pod A':'Pod B',x,podY-6,10,i===0?'#34d399':'#38bdf8','center','600');
+    txt(ctx,i===0?'10.0.1.2':'10.0.2.2',x,podY+8,8.5,'#94a3b8','center');
+  });
+  // Packet flow
+  if(step===0){
+    arrow(ctx,h1X,H*0.75-20,h1X,H*0.28+14,'rgba(52,211,153,1)',false);
+    txt(ctx,'内层帧: src=PodA MAC, dst=PodB MAC',h1X,H*0.53,8,'#34d399','center','600');
+  }
+  if(step===1){
+    pkt(ctx,h1X,H*0.28-28,'VNI=1000|内层帧','rgba(251,191,36,1)');
+    txt(ctx,'外层: srcIP=Host1, dstIP=Host2, UDP:4789',h1X,H*0.14,8,'#fbbf24','center','600');
+  }
+  if(step===2){
+    arrow(ctx,h1X+70,netY,h2X-70,netY,'rgba(52,211,153,1)',false);
+    pkt(ctx,W/2,netY-22,'VXLAN UDP 包','rgba(52,211,153,1)');
+    txt(ctx,'外层IP: Host1→Host2  VNI=1000',W/2,netY+18,8.5,'#94a3b8','center');
+  }
+  if(step>=3){
+    arrow(ctx,h2X,H*0.28+14,h2X,H*0.75-20,'rgba(56,189,248,1)',false);
+    pkt(ctx,h2X,H*0.28-28,'解封 → 内层帧','rgba(56,189,248,1)');
+    txt(ctx,'VXLAN 剥掉，还原原始以太网帧',h2X,H*0.14,8,'#38bdf8','center','600');
+  }
+  // VNI label
+  txt(ctx,'VNI = 1000',W/2,H*0.88,9,'#34d399','center','700');
+}
+
+// TAB 1: EVPN MAC learning
+const TAB1=[
+  {
+    title:'问题：BUM 泛洪（无控制平面）',
+    badge:'fail',
+    desc:'没有控制平面时，VTEP 收到未知目标 MAC 的帧必须泛洪到所有其他 VTEP（Broadcast/Unknown-unicast/Multicast）。1000 个节点 = 每个包复制 999 份，严重浪费带宽。',
+    detail:'BUM（Broadcast/Unknown unicast/Multicast）泛洪是传统以太网的 MAC 学习机制，在大规模 overlay 网络中不可接受。',
+    draw(ctx,W,H){drawEVPN(ctx,W,H,0);}
+  },
+  {
+    title:'EVPN 控制平面：BGP 分发 MAC-IP',
+    badge:'normal',
+    desc:'EVPN（RFC 7432）使用 MP-BGP 分发 MAC-IP 映射。每个 VTEP 将本地 Pod MAC+IP 和 VTEP IP 打包成 BGP Update 发布，所有 VTEP 接收后建立 MAC→VTEP 的转发表。',
+    detail:'BGP EVPN Route Type 2（MAC/IP Advertisement Route）是主要路由类型，携带 MAC 地址、IP 地址和 VTEP IP（Next Hop）。',
+    draw(ctx,W,H){drawEVPN(ctx,W,H,1);}
+  },
+  {
+    title:'VTEP 缓存远端 MAC → 直接单播',
+    badge:'normal',
+    desc:'VTEP1 收到 BGP 广播后，建立本地 MAC 表：PodB MAC → VTEP2。之后 PodA 发包给 PodB，VTEP1 直接单播封装 VXLAN 包发给 VTEP2，无需泛洪。',
+    detail:'EVPN 将 MAC 学习从数据平面（泛洪+被动学习）迁移到控制平面（BGP 主动分发），极大减少无效流量，也支持提前感知拓扑变化。',
+    draw(ctx,W,H){drawEVPN(ctx,W,H,2);}
+  }
+];
+
+function drawEVPN(ctx,W,H,step){
+  ctx.clearRect(0,0,W,H);
+  const vX=[W*0.18,W*0.5,W*0.82], vY=H*0.38;
+  const labels=['VTEP1\nHost1','VTEP2\nHost2','VTEP3\nHost3'];
+  const pods=[['PodA','10.0.1.2'],['PodB','10.0.2.2'],['PodC','10.0.3.2']];
+  const colors=['rgba(52,211,153,1)','rgba(56,189,248,1)','rgba(196,132,252,1)'];
+  // BGP RR in middle (step 1)
+  if(step>=1){
+    rr(ctx,W/2-40,H*0.6,80,30,8,'rgba(251,191,36,0.1)','rgba(251,191,36,0.5)',1.5);
+    txt(ctx,'BGP RR',W/2,H*0.615,10,'#fbbf24','center','700');
+  }
+  vX.forEach((x,i)=>{
+    node(ctx,x,vY,90,42,`VTEP${i+1}`,`Host${i+1}`,colors[i],true);
+    // Pod
+    rr(ctx,x-30,H*0.14,60,26,7,colors[i].replace('1)','0.1)'),colors[i],1);
+    txt(ctx,pods[i][0],x,H*0.2,9.5,colors[i].replace('1)','0.9)'),'center','600');
+    txt(ctx,pods[i][1],x,H*0.22+12,8,'#94a3b8','center');
+    arrow(ctx,x,H*0.27,x,vY-21,colors[i],false);
+  });
+  // BUM flood (step 0)
+  if(step===0){
+    [[0,1],[0,2]].forEach(([a,b])=>{
+      arrow(ctx,vX[a]+45,vY+10,vX[b]-45,vY+10,'rgba(248,113,113,0.7)',false);
+    });
+    txt(ctx,'⚠ 泛洪到所有 VTEP（BUM flood）',W/2,H*0.55,9.5,'#f87171','center','700');
+    pkt(ctx,W/2,vY+10,'广播','rgba(248,113,113,1)');
+  }
+  // BGP routes (step 1)
+  if(step>=1){
+    vX.forEach((x,i)=>{
+      arrow(ctx,x,vY+21,W/2+(x-W/2)*0.3,H*0.6-2,colors[i],true);
+    });
+    txt(ctx,'BGP Update: MAC+IP+VTEP-IP',W/2,H*0.52,9,'#fbbf24','center','600');
+  }
+  // Direct unicast (step 2)
+  if(step>=2){
+    arrow(ctx,vX[0]+45,vY,vX[1]-45,vY,'rgba(52,211,153,1)',false);
+    pkt(ctx,(vX[0]+vX[1])/2,vY-22,'单播 VNI=1000','rgba(52,211,153,1)');
+    // MAC table for VTEP1
+    rr(ctx,vX[0]-56,vY+28,112,36,8,'rgba(52,211,153,0.07)','rgba(52,211,153,0.3)',1);
+    txt(ctx,'PodB MAC → VTEP2 ✓',vX[0],vY+36,8,'#34d399','center');
+    txt(ctx,'(EVPN 预学习)',vX[0],vY+50,8,'#64748b','center');
+  }
+}
+
+// TAB 2: Tenant isolation
+const TAB2=[
+  {
+    title:'同一物理网络，不同租户',
+    badge:'normal',
+    desc:'Host1 上同时运行租户 A（VNI=1000）和租户 B（VNI=2000）的容器。两套容器共享物理网卡，但通过 VNI 完全隔离，互不可见。',
+    detail:'VNI（24位）最多支持 1600 万个隔离网络，远超传统 VLAN 的 4096 个限制。这是 VXLAN 相比 VLAN 的核心优势。',
+    draw(ctx,W,H){drawTenants(ctx,W,H,0);}
+  },
+  {
+    title:'VNI=1000 的包：只到同 VNI 的 VTEP',
+    badge:'normal',
+    desc:'租户 A（VNI=1000）的 Pod 发包，VTEP 封装 VNI=1000 的 VXLAN 包并发出。接收方 VTEP 检查 VNI=1000，投递给租户 A 的 Pod，租户 B 的 Pod 完全不可见。',
+    detail:'VTEP 维护 VNI→本地端口的映射表，只有匹配 VNI 的本地 Pod 才能收到解封后的帧。',
+    draw(ctx,W,H){drawTenants(ctx,W,H,1);}
+  },
+  {
+    title:'VNI=2000 的包：隔离不干扰',
+    badge:'normal',
+    desc:'租户 B（VNI=2000）的 Pod 发包时，VTEP 封装 VNI=2000 的包。即使经过相同的物理链路，两个 VNI 的流量完全独立，互不影响。',
+    detail:'隔离是 VNI 级别的——同一主机上不同 VNI 的容器无法直接通信，即使 IP 地址相同（不同租户可以使用重叠的 IP 地址段！）。',
+    draw(ctx,W,H){drawTenants(ctx,W,H,2);}
+  }
+];
+
+function drawTenants(ctx,W,H,step){
+  ctx.clearRect(0,0,W,H);
+  const host1X=W*0.15, host2X=W*0.85;
+  // Host boxes
+  [host1X,host2X].forEach((x,i)=>{
+    rr(ctx,x-75,H*0.06,150,H*0.88,14,'rgba(17,24,39,0.5)','rgba(255,255,255,0.1)',1);
+    txt(ctx,`Host${i+1}`,x,H*0.14,10,'#94a3b8','center','700');
+    // Tenant A pod
+    const aY=H*0.35;
+    rr(ctx,x-48,aY-18,96,36,8,'rgba(52,211,153,0.08)','rgba(52,211,153,0.4)',1.5);
+    txt(ctx,`Pod-A${i+1} (VNI=1000)`,x,aY-5,8.5,'#34d399','center','600');
+    txt(ctx,`10.0.1.${i*10+2}`,x,aY+9,8,'#64748b','center');
+    // Tenant B pod
+    const bY=H*0.65;
+    rr(ctx,x-48,bY-18,96,36,8,'rgba(251,191,36,0.08)','rgba(251,191,36,0.4)',1.5);
+    txt(ctx,`Pod-B${i+1} (VNI=2000)`,x,bY-5,8.5,'#fbbf24','center','600');
+    txt(ctx,`10.0.2.${i*10+2}`,x,bY+9,8,'#64748b','center');
+    // VTEP
+    const vtepY=H*0.5;
+    rr(ctx,x-38,vtepY-14,76,28,7,'rgba(148,163,184,0.08)','rgba(148,163,184,0.3)',1);
+    txt(ctx,'VTEP',x,vtepY,9,'#94a3b8','center');
+  });
+  // Physical network
+  rr(ctx,W*0.32,H*0.42,W*0.36,H*0.16,10,'rgba(56,189,248,0.04)','rgba(56,189,248,0.15)',1);
+  txt(ctx,'物理网络',W/2,H*0.5,9,'#38bdf8','center');
+  // Packets
+  if(step===1){
+    arrow(ctx,host1X+75,H*0.35,W*0.32,H*0.5,'rgba(52,211,153,1)',false);
+    arrow(ctx,W*0.68,H*0.5,host2X-75,H*0.35,'rgba(52,211,153,1)',false);
+    pkt(ctx,W/2,H*0.4,'VNI=1000','rgba(52,211,153,1)');
+    txt(ctx,'租户 B 的 Pod 不可见',W/2,H*0.72,9,'#fbbf24','center');
+    // cross-out on Tenant B path
+    txt(ctx,'✗',W/2,H*0.6,18,'#f87171','center');
+  }
+  if(step===2){
+    arrow(ctx,host1X+75,H*0.65,W*0.32,H*0.5,'rgba(251,191,36,1)',false);
+    arrow(ctx,W*0.68,H*0.5,host2X-75,H*0.65,'rgba(251,191,36,1)',false);
+    pkt(ctx,W/2,H*0.58,'VNI=2000','rgba(251,191,36,1)');
+    txt(ctx,'租户 A 的 Pod 不可见',W/2,H*0.32,9,'#34d399','center');
+    txt(ctx,'✗',W/2,H*0.38,18,'#f87171','center');
+  }
+  txt(ctx,'不同 VNI 完全隔离，可使用重叠 IP 地址',W/2,H*0.93,9,'#64748b','center');
+}
+
+// TAB 3: VTEP failure
+const TAB3=[
+  {
+    title:'正常状态：流量经过 VTEP2',
+    badge:'normal',
+    desc:'三个 VTEP 正常工作，VTEP1 和 VTEP3 都有流量发往 Host2（VTEP2）。EVPN 路由表正常，各 VTEP 知道对方的 MAC-IP 映射。',
+    detail:'EVPN 通过 BGP keepalive 和 BFD（双向转发检测）实时监控邻居状态。BFD 可以在 1 秒内检测到链路故障。',
+    draw(ctx,W,H){drawFailover(ctx,W,H,0);}
+  },
+  {
+    title:'VTEP2（Host2）宕机',
+    badge:'fail',
+    desc:'Host2 突然宕机，VTEP2 停止发送 BGP keepalive。BGP hold timer 超时（通常 90 秒，BFD 可缩短到 1 秒），邻居 VTEP1/VTEP3 将 VTEP2 标记为 Down。',
+    detail:'BGP 会话断开后，RR（路由反射器）撤回 VTEP2 发布的所有 EVPN 路由，通知其他 VTEP。',
+    draw(ctx,W,H){drawFailover(ctx,W,H,1);}
+  },
+  {
+    title:'EVPN 撤回路由，转发表更新',
+    badge:'fail',
+    desc:'VTEP1/VTEP3 收到 BGP Withdraw 消息，从 MAC 转发表中删除与 VTEP2 相关的条目。发往 Host2 上 Pod 的包会暂时无法路由，等待重新调度。',
+    detail:'在容器场景（K8s），Pod 会被重新调度到健康节点，新 Pod 启动后会发布新的 EVPN 路由，流量自动恢复。',
+    draw(ctx,W,H){drawFailover(ctx,W,H,2);}
+  },
+  {
+    title:'流量切换，恢复正常',
+    badge:'recover',
+    desc:'K8s 在其他节点（Host3）重新调度 Pod B，新 VTEP3 发布 PodB 的新 MAC-IP 映射，VTEP1 更新转发表，流量从 VTEP1→VTEP2 切换到 VTEP1→VTEP3。',
+    detail:'整个恢复时间取决于：BFD 检测（<1s）+ BGP 路由收敛（<1s）+ Pod 重调度（10–60s，通常受 K8s liveness probe 超时影响）。',
+    draw(ctx,W,H){drawFailover(ctx,W,H,3);}
+  }
+];
+
+function drawFailover(ctx,W,H,step){
+  ctx.clearRect(0,0,W,H);
+  const vX=[W*0.15,W*0.5,W*0.85], vY=H*0.42;
+  const colors=['rgba(52,211,153,1)','rgba(248,113,113,1)','rgba(196,132,252,1)'];
+  const normalColor='rgba(56,189,248,1)';
+  const vtep2Alive=step===0;
+  const vtep2Color=vtep2Alive?normalColor:colors[1];
+  // Connections
+  [[0,1],[1,2],[0,2]].forEach(([a,b])=>{
+    const active=step>=1&&(a===1||b===1)?false:true;
+    ctx.strokeStyle=active?'rgba(255,255,255,0.15)':'rgba(248,113,113,0.25)';
+    ctx.lineWidth=1.5; ctx.setLineDash(active?[4,3]:[6,3]);
+    ctx.beginPath(); ctx.moveTo(vX[a]+45,vY); ctx.lineTo(vX[b]-45,vY); ctx.stroke();
+    ctx.setLineDash([]);
+  });
+  // VTEP nodes
+  node(ctx,vX[0],vY,90,42,'VTEP1','Host1','rgba(52,211,153,1)',true);
+  node(ctx,vX[1],vY,90,42,'VTEP2',step>=1?'💀 Down':'Host2',step>=1?'rgba(248,113,113,1)':normalColor,true);
+  node(ctx,vX[2],vY,90,42,'VTEP3','Host3','rgba(196,132,252,1)',true);
+  // Pod B on VTEP2 (steps 0-1)
+  if(step<=1){
+    rr(ctx,vX[1]-35,vY+30,70,28,7,'rgba(56,189,248,0.1)','rgba(56,189,248,0.4)',1);
+    txt(ctx,'Pod B (10.0.2.2)',vX[1],vY+44,8,'#38bdf8','center');
+  }
+  // Pod B rescheduled to VTEP3 (step 3)
+  if(step>=3){
+    rr(ctx,vX[2]-35,vY+30,70,28,7,'rgba(196,132,252,0.1)','rgba(196,132,252,0.4)',1);
+    txt(ctx,'Pod B (新调度)',vX[2],vY+44,8,'#c084fc','center');
+  }
+  // Flow arrows
+  if(step===0){
+    arrow(ctx,vX[0]+45,vY-8,vX[1]-45,vY-8,'rgba(52,211,153,1)',false);
+    pkt(ctx,(vX[0]+vX[1])/2,vY-28,'VNI=1000','rgba(52,211,153,1)');
+  }
+  if(step===1){
+    txt(ctx,'⚠ BGP keepalive 超时',vX[1],vY-28,9,'#f87171','center','700');
+    txt(ctx,'BFD 检测到链路断开',vX[1],vY-14,8.5,'#f87171','center');
+  }
+  if(step===2){
+    txt(ctx,'BGP Withdraw: 撤回 VTEP2 路由',W/2,H*0.78,9.5,'#f87171','center','700');
+    txt(ctx,'VTEP1/3 删除 PodB MAC 条目',W/2,H*0.88,9,'#64748b','center');
+  }
+  if(step>=3){
+    arrow(ctx,vX[0]+45,vY-8,vX[2]-45,vY-8,'rgba(52,211,153,1)',false);
+    pkt(ctx,(vX[0]+vX[2])/2,vY-28,'VNI=1000','rgba(52,211,153,1)');
+    txt(ctx,'流量切换: VTEP1 → VTEP3 ✓',W/2,H*0.82,9.5,'#34d399','center','700');
+  }
+}
+
+const TABS=[
+  {label:'跨主机 Pod 通信', steps:TAB0},
+  {label:'EVPN MAC 学习', steps:TAB1},
+  {label:'租户隔离(VNI)', steps:TAB2},
+  {label:'VTEP 故障切换', steps:TAB3},
+];
+
+let tabIdx=0,stepIdx=0,timer=null;
+const canvas=document.getElementById('vizCanvas');
+const ctx=canvas.getContext('2d');
+
+function resizeCanvas(){
+  const stage=document.getElementById('stage');
+  const rect=stage.getBoundingClientRect();
+  const dpr=window.devicePixelRatio||1;
+  canvas.width=rect.width*dpr; canvas.height=rect.height*dpr;
+  canvas.style.width=rect.width+'px'; canvas.style.height=rect.height+'px';
+  ctx.scale(dpr,dpr); draw();
+}
+function draw(){
+  const s=TABS[tabIdx].steps[stepIdx];
+  const rect=canvas.getBoundingClientRect();
+  s.draw(ctx,rect.width,rect.height);
+  document.getElementById('stepMsg').textContent=s.desc;
+  document.getElementById('stepTitle').textContent=s.title;
+  document.getElementById('stepDesc').textContent=s.desc;
+  document.getElementById('stepDetail').textContent=s.detail;
+  const b=s.badge||'normal';
+  document.getElementById('stateBadge').textContent=b;
+  document.getElementById('stateBadge').className='badge'+(b==='fail'?' fail':b==='recover'?' recover':'');
+  document.querySelectorAll('.step-btn').forEach((btn,i)=>btn.classList.toggle('active',i===stepIdx));
+  document.getElementById('btnPrev').disabled=stepIdx===0;
+  document.getElementById('btnNext').disabled=stepIdx===TABS[tabIdx].steps.length-1;
+}
+function buildStepList(){
+  document.getElementById('stepList').innerHTML=TABS[tabIdx].steps.map((s,i)=>
+    `<button class="step-btn${i===stepIdx?' active':''}" data-i="${i}"><b>Step ${i+1}</b>${s.title}</button>`
+  ).join('');
+  document.getElementById('stepList').querySelectorAll('button').forEach(b=>b.onclick=()=>{stepIdx=+b.dataset.i;doPause();draw();buildStepList();});
+}
+function buildTabs(){
+  document.getElementById('sceneTabs').innerHTML=TABS.map((t,i)=>
+    `<button class="scene-tab${i===tabIdx?' active':''}" onclick="switchTab(${i})">${t.label}</button>`
+  ).join('');
+}
+function switchTab(i){tabIdx=i;stepIdx=0;doPause();buildTabs();buildStepList();resizeCanvas();}
+function doNext(){if(stepIdx<TABS[tabIdx].steps.length-1){stepIdx++;draw();buildStepList();}else doPause();}
+function doPrev(){if(stepIdx>0){stepIdx--;draw();buildStepList();}}
+function doReset(){doPause();stepIdx=0;draw();buildStepList();}
+function doPause(){if(timer){clearInterval(timer);timer=null;document.getElementById('btnPlay').textContent='播放';}}
+function doToggle(){if(timer){doPause();}else{document.getElementById('btnPlay').textContent='暂停';timer=setInterval(doNext,2200);}}
+
+buildTabs();buildStepList();
+window.addEventListener('resize',resizeCanvas);
+window.addEventListener('load',()=>setTimeout(resizeCanvas,50));
+setTimeout(resizeCanvas,80);
+</script>
+<script>if(window.NavTracker) NavTracker.track('VXLAN Overlay 网络', window.location.href, '🔀', '网络');</script>
+<script src="../footer.js"></script>
+</body>
+</html>

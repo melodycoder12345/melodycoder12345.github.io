@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Kubernetes 将存储解耦为三层：StorageClass（存储类型）、PersistentVolume（实际磁盘资源）、PersistentVolumeClaim（Pod 的存储申请）。动态 Provision 让 CSI driver 自动创建磁盘，Pod 重调度时数据持久保留。">
+<link rel="canonical" href="https://melodycoder12345.github.io/cloud-native/k8s-storage.html">
+<meta property="og:title" content="K8s 存储：PV / PVC / StorageClass — 码海拾贝">
+<meta property="og:description" content="Kubernetes 将存储解耦为三层：StorageClass、PersistentVolume、PersistentVolumeClaim。动态 Provision 让 CSI driver 自动创建磁盘，Pod 重调度时数据持久保留。">
+<meta property="og:url" content="https://melodycoder12345.github.io/cloud-native/k8s-storage.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="K8s 存储：PV / PVC / StorageClass — 码海拾贝">
+<meta name="twitter:description" content="Kubernetes 将存储解耦为三层：StorageClass、PersistentVolume、PersistentVolumeClaim。动态 Provision 让 CSI driver 自动创建磁盘，Pod 重调度时数据持久保留。">
+<title>K8s 存储：PV / PVC / StorageClass - 云原生</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#38bdf8;--ok:#4ade80;--warn:#fbbf24;--err:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:radial-gradient(circle at 20% 0%,rgba(56,189,248,.1),transparent 38%),radial-gradient(circle at 85% 15%,rgba(129,140,248,.07),transparent 30%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1300px;margin:0 auto;padding:40px 32px 80px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--dim2);margin-bottom:24px}
+.breadcrumb a{color:var(--dim2)}.breadcrumb a:hover{color:var(--text)}
+.page-title{font-size:clamp(1.6rem,3.5vw,2.8rem);letter-spacing:-.04em;margin-bottom:6px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{color:var(--dim);font-size:.95rem;margin-bottom:28px;max-width:700px;line-height:1.75}
+/* Layout */
+.layout{display:grid;grid-template-columns:272px 1fr;gap:20px;align-items:start}
+.left-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:16px;position:sticky;top:20px}
+.panel-section-title{font-size:.67rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.12em;margin-bottom:9px;font-weight:700}
+.panel-divider{height:1px;background:rgba(255,255,255,.06);margin:12px 0}
+/* Scene tabs */
+.scene-tab{width:100%;text-align:left;border:1px solid transparent;background:none;color:var(--dim);padding:8px 10px;border-radius:9px;cursor:pointer;font-size:.79rem;line-height:1.45;transition:.15s;margin-bottom:3px;display:flex;align-items:center;gap:0}
+.scene-tab:hover{border-color:rgba(56,189,248,.25);color:var(--text)}
+.scene-tab.active{background:rgba(56,189,248,.1);border-color:rgba(56,189,248,.4);color:var(--text);font-weight:600}
+.scene-num{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:rgba(56,189,248,.15);color:var(--accent);font-size:.64rem;font-weight:700;margin-right:7px;flex-shrink:0}
+/* Step list */
+.step-btn{width:100%;text-align:left;border:1px solid transparent;background:none;color:var(--dim);padding:6px 9px;border-radius:8px;cursor:pointer;font-size:.76rem;line-height:1.45;transition:.15s;margin-bottom:2px;display:flex;align-items:flex-start;gap:0}
+.step-btn:hover{border-color:rgba(56,189,248,.2);color:var(--text)}
+.step-btn.active{background:rgba(56,189,248,.08);border-color:rgba(56,189,248,.35);color:var(--text)}
+.step-idx{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:rgba(56,189,248,.12);color:var(--accent);font-size:.62rem;font-weight:700;margin-right:6px;flex-shrink:0;margin-top:1px}
+/* Controls */
+.ctrl{display:flex;gap:6px;margin-top:11px;flex-wrap:wrap}
+.ctrl button{flex:1;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:9px;padding:7px 4px;cursor:pointer;font-size:.73rem;transition:.15s;min-width:50px}
+.ctrl button:hover{border-color:var(--accent);color:var(--text)}
+/* Center panel */
+.center-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:22px;min-height:560px}
+.step-msg{border-left:3px solid var(--accent);background:rgba(56,189,248,.06);border-radius:0 10px 10px 0;padding:10px 14px;font-size:.86rem;color:var(--text);line-height:1.7;margin-bottom:18px}
+/* Arch diagram */
+.arch-diagram{display:flex;flex-direction:column;gap:0}
+.arch-layer{border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:13px 15px;background:rgba(30,41,59,.2)}
+.arch-layer.user-layer{border-color:rgba(56,189,248,.14)}
+.arch-layer.k8s-layer{border-color:rgba(129,140,248,.14)}
+.arch-layer.storage-layer{border-color:rgba(74,222,128,.12)}
+.layer-header{display:flex;align-items:center;gap:8px;margin-bottom:11px}
+.layer-label{font-size:.64rem;text-transform:uppercase;letter-spacing:.1em;color:var(--dim2);font-weight:700}
+.layer-badge{font-size:.6rem;padding:2px 6px;border-radius:4px;font-family:monospace}
+.user-layer .layer-badge{background:rgba(56,189,248,.09);color:#7dd3fc;border:1px solid rgba(56,189,248,.18)}
+.k8s-layer .layer-badge{background:rgba(129,140,248,.09);color:#c7d2fe;border:1px solid rgba(129,140,248,.18)}
+.storage-layer .layer-badge{background:rgba(74,222,128,.07);color:#86efac;border:1px solid rgba(74,222,128,.16)}
+.arch-cards{display:flex;gap:9px;align-items:stretch;flex-wrap:wrap}
+.flow-arrow{display:flex;align-items:center;color:var(--dim2);font-size:.8rem;padding:0 1px;transition:color .3s;flex-shrink:0}
+.flow-arrow.active{color:var(--accent)}
+/* Arch cards */
+.arch-card{border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px 12px;background:rgba(15,23,42,.5);min-width:125px;transition:all .35s;position:relative;flex:none}
+.arch-card .card-icon{font-size:1.2rem;margin-bottom:4px}
+.arch-card .card-name{font-size:.77rem;font-weight:700;color:var(--text);margin-bottom:2px}
+.arch-card .card-detail{font-size:.66rem;color:var(--dim2);font-family:monospace;line-height:1.5}
+.arch-card.active{border-color:var(--accent);background:rgba(56,189,248,.07);box-shadow:0 0 14px rgba(56,189,248,.12)}
+.arch-card.done{border-color:rgba(74,222,128,.4);background:rgba(74,222,128,.05)}
+.arch-card.error{border-color:rgba(248,113,113,.5);background:rgba(248,113,113,.06)}
+.arch-card.warn{border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.05)}
+/* Status badge */
+.status-badge{display:inline-block;font-size:.63rem;font-weight:700;padding:2px 6px;border-radius:4px;margin-top:5px;font-family:monospace;transition:all .3s}
+.status-badge.pending{background:rgba(251,191,36,.15);color:var(--warn);border:1px solid rgba(251,191,36,.3)}
+.status-badge.available{background:rgba(56,189,248,.12);color:#7dd3fc;border:1px solid rgba(56,189,248,.25)}
+.status-badge.bound{background:rgba(74,222,128,.12);color:var(--ok);border:1px solid rgba(74,222,128,.3)}
+.status-badge.running{background:rgba(74,222,128,.12);color:var(--ok);border:1px solid rgba(74,222,128,.3)}
+.status-badge.failed{background:rgba(248,113,113,.12);color:var(--err);border:1px solid rgba(248,113,113,.3)}
+.status-badge.dead{background:rgba(248,113,113,.12);color:var(--err);border:1px solid rgba(248,113,113,.3)}
+.status-badge.hidden{display:none}
+/* Capacity bar */
+.capacity-bar{margin-top:7px;height:5px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden}
+.capacity-fill{height:100%;border-radius:3px;background:var(--accent);transition:width .8s cubic-bezier(.25,.46,.45,.94),background .4s}
+/* Connector between layers */
+.arch-connector{display:flex;justify-content:center;align-items:center;height:26px;position:relative}
+.conn-vert{width:2px;height:18px;background:rgba(255,255,255,.06);border-radius:1px;transition:all .4s}
+.conn-vert.active{background:var(--accent);box-shadow:0 0 8px rgba(56,189,248,.35)}
+.conn-vert.done{background:rgba(74,222,128,.5)}
+.conn-label{position:absolute;right:calc(50% + 10px);font-size:.62rem;color:var(--dim2);white-space:nowrap;font-family:monospace}
+.conn-label.active{color:var(--accent)}
+/* Info box */
+.info-box{margin-top:12px;border-radius:10px;padding:9px 13px;font-size:.82rem;line-height:1.65;display:none}
+.info-box.show{display:block}
+.info-box.error-box{border:1px solid rgba(248,113,113,.4);background:rgba(248,113,113,.07);color:var(--err)}
+.info-box.success-box{border:1px solid rgba(74,222,128,.35);background:rgba(74,222,128,.06);color:var(--ok)}
+.info-box.warn-box{border:1px solid rgba(251,191,36,.35);background:rgba(251,191,36,.06);color:var(--warn)}
+/* CSI call indicator */
+.csi-call{font-size:.65rem;font-family:monospace;padding:2px 6px;border-radius:4px;background:rgba(56,189,248,.07);border:1px solid rgba(56,189,248,.13);color:#7dd3fc;margin-top:4px;display:none}
+.csi-call.show{display:inline-block}
+.csi-call.active{background:rgba(56,189,248,.16);border-color:var(--accent);color:var(--accent)}
+/* Node boxes for scene 2 */
+.node-container{display:flex;gap:12px;flex-wrap:wrap}
+.node-box{border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px 13px;background:rgba(30,41,59,.4);flex:1;min-width:175px;transition:all .35s}
+.node-box.active-node{border-color:var(--accent);background:rgba(56,189,248,.07);box-shadow:0 0 12px rgba(56,189,248,.1)}
+.node-box.dead-node{border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.05);opacity:.75}
+.node-box.new-node{border-color:rgba(74,222,128,.4);background:rgba(74,222,128,.05)}
+.node-name{font-size:.74rem;font-weight:700;margin-bottom:8px;color:var(--text)}
+.node-pod{display:flex;align-items:center;gap:5px;font-size:.7rem;padding:5px 8px;border-radius:7px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);margin-bottom:4px;transition:all .3s}
+.node-pod.running{border-color:rgba(74,222,128,.3);background:rgba(74,222,128,.06)}
+.node-pod.dead{border-color:rgba(248,113,113,.3);background:rgba(248,113,113,.05);opacity:.55;text-decoration:line-through}
+.node-pod.starting{border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.05)}
+.node-pod.hidden{display:none}
+.node-mount{font-size:.65rem;color:var(--dim2);font-family:monospace;margin-top:3px}
+/* Pulse & shake animations */
+@keyframes pulse-ring{0%{box-shadow:0 0 0 0 rgba(56,189,248,.4)}70%{box-shadow:0 0 0 9px rgba(56,189,248,0)}100%{box-shadow:0 0 0 0 rgba(56,189,248,0)}}
+.arch-card.active.pulse{animation:pulse-ring 1.6s infinite}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(4px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
+.arch-card.error{animation:shake .5s ease}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">云原生</a><span>/</span>K8s 存储 PV/PVC</div>
+  <h1 class="page-title">K8s 存储：PV / PVC / StorageClass</h1>
+  <p class="subtitle">Kubernetes 将存储解耦为三层：StorageClass（存储类型）、PersistentVolume（实际磁盘资源）、PersistentVolumeClaim（Pod 的存储申请）。动态 Provision 让 CSI driver 自动创建磁盘，Pod 重调度时数据持久保留，解决容器无状态的存储困境。</p>
+
+  <div class="layout">
+    <div class="left-panel">
+      <div class="panel-section-title">场景</div>
+      <div id="sceneTabs">
+        <button class="scene-tab" onclick="selectScene(0)"><span class="scene-num">1</span>动态 Provision</button>
+        <button class="scene-tab" onclick="selectScene(1)"><span class="scene-num">2</span>Pod 故障重调度</button>
+        <button class="scene-tab" onclick="selectScene(2)"><span class="scene-num">3</span>静态 Provision</button>
+        <button class="scene-tab" onclick="selectScene(3)"><span class="scene-num">4</span>存储扩容</button>
+      </div>
+      <div class="panel-divider"></div>
+      <div class="panel-section-title">步骤</div>
+      <div id="stepList" style="max-height:245px;overflow-y:auto;padding-right:2px"></div>
+      <div class="ctrl">
+        <button onclick="prev()">← 上一步</button>
+        <button onclick="next()">下一步 →</button>
+        <button onclick="reset()">重置</button>
+        <button id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      </div>
+    </div>
+
+    <div class="center-panel">
+      <div class="step-msg" id="stepMsg">选择左侧场景，点击「下一步」开始动画。</div>
+      <div id="diagramArea"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+// ─── Helpers ───────────────────────────────────────────────────────────────
+const d   = id => document.getElementById(id);
+const cl  = (id, cls) => { const e = d(id); if (e) e.className = cls; };
+const tx  = (id, txt) => { const e = d(id); if (e) e.textContent = txt; };
+const sh  = (id, show) => { const e = d(id); if (e) e.style.display = show ? '' : 'none'; };
+
+function card(id, state) {
+  const e = d(id);
+  if (!e) return;
+  e.className = 'arch-card' + (state ? ' ' + state : '');
+}
+function badge(id, text, cls) {
+  const e = d(id);
+  if (!e) return;
+  if (!text) { e.className = 'status-badge hidden'; return; }
+  e.textContent = text;
+  e.className = 'status-badge ' + (cls || '');
+}
+function conn(id, state) {
+  const e = d(id);
+  if (!e) return;
+  e.className = 'conn-vert' + (state ? ' ' + state : '');
+}
+function arrow(id, active) {
+  const e = d(id);
+  if (!e) return;
+  e.className = 'flow-arrow' + (active ? ' active' : '');
+}
+function csiCall(id, active) {
+  const e = d(id);
+  if (!e) return;
+  e.className = 'csi-call' + (active ? ' show active' : '');
+}
+function infoBox(id, type, text) {
+  const e = d(id);
+  if (!e) return;
+  if (!text) { e.className = 'info-box'; return; }
+  e.className = 'info-box ' + type + '-box show';
+  e.textContent = text;
+}
+function setFill(id, pct) {
+  const e = d(id);
+  if (!e) return;
+  e.style.width = pct + '%';
+  e.style.background = pct >= 85 ? 'var(--err)' : pct >= 65 ? 'var(--warn)' : 'var(--accent)';
+}
+
+// ─── Scene 1: 动态 Provision ──────────────────────────────────────────────
+const S1_DIAGRAM = `
+<div class="arch-diagram">
+  <div class="arch-layer user-layer">
+    <div class="layer-header"><span class="layer-label">用户层</span><span class="layer-badge">User Space</span></div>
+    <div class="arch-cards">
+      <div class="arch-card" id="pod">
+        <div class="card-icon">🗄️</div>
+        <div class="card-name">Pod</div>
+        <div class="card-detail">myapp-pod</div>
+        <div class="status-badge hidden" id="pod-status"></div>
+      </div>
+      <div class="flow-arrow" id="pod-pvc-arrow">──ref──▶</div>
+      <div class="arch-card" id="pvc">
+        <div class="card-icon">📋</div>
+        <div class="card-name">PVC</div>
+        <div class="card-detail">my-pvc · 20Gi<br>storageClass: ssd</div>
+        <div class="status-badge hidden" id="pvc-status"></div>
+      </div>
+    </div>
+  </div>
+  <div class="arch-connector">
+    <div class="conn-vert" id="bind-conn"></div>
+    <span class="conn-label">binding</span>
+  </div>
+  <div class="arch-layer k8s-layer">
+    <div class="layer-header"><span class="layer-label">K8s 控制面</span><span class="layer-badge">Control Plane</span></div>
+    <div class="arch-cards">
+      <div class="arch-card" id="sc">
+        <div class="card-icon">⚙️</div>
+        <div class="card-name">StorageClass</div>
+        <div class="card-detail">name: ssd<br>provisioner: ebs.csi<br>type: gp3</div>
+      </div>
+      <div class="flow-arrow" id="sc-pv-arrow">──▶</div>
+      <div class="arch-card" id="pv">
+        <div class="card-icon">💽</div>
+        <div class="card-name">PV</div>
+        <div class="card-detail" id="pv-detail">（尚未创建）</div>
+        <div class="status-badge hidden" id="pv-status"></div>
+      </div>
+    </div>
+  </div>
+  <div class="arch-connector">
+    <div class="conn-vert" id="csi-conn"></div>
+    <span class="conn-label">CSI gRPC</span>
+  </div>
+  <div class="arch-layer storage-layer">
+    <div class="layer-header"><span class="layer-label">存储后端</span><span class="layer-badge">Storage Backend</span></div>
+    <div class="arch-cards">
+      <div class="arch-card" id="csi-driver">
+        <div class="card-icon">🔌</div>
+        <div class="card-name">CSI Driver</div>
+        <div class="card-detail">aws-ebs-csi-driver</div>
+        <div class="csi-call" id="csi-call-create">CreateVolume(20Gi, gp3)</div>
+        <div class="csi-call" id="csi-call-publish">NodePublish(vol-xxx)</div>
+      </div>
+      <div class="flow-arrow" id="csi-cloud-arrow">──▶</div>
+      <div class="arch-card" id="cloud-api">
+        <div class="card-icon">☁️</div>
+        <div class="card-name">AWS EC2 API</div>
+        <div class="card-detail">CreateVolume request</div>
+      </div>
+      <div class="flow-arrow" id="cloud-disk-arrow">──▶</div>
+      <div class="arch-card" id="disk">
+        <div class="card-icon">💾</div>
+        <div class="card-name">EBS Volume</div>
+        <div class="card-detail" id="disk-detail">（尚未创建）</div>
+        <div class="status-badge hidden" id="disk-status"></div>
+      </div>
+    </div>
+  </div>
+  <div class="info-box" id="mount-info"></div>
+</div>`;
+
+const SCENE1 = {
+  title: '动态 Provision', subtitle: 'CSI driver 按需自动创建 PV',
+  diagram: S1_DIAGRAM,
+  steps: [
+    {
+      label: '初始状态',
+      msg: '初始状态：集群中已配置好 StorageClass "ssd"（provisioner: ebs.csi.aws.com，volumeType: gp3）。尚无 PVC 和 PV。CSI driver 以 DaemonSet + Deployment 方式运行在集群中，随时监听存储请求。三层架构：StorageClass 是模板，PV 是实际磁盘对象，PVC 是用户的存储申请。',
+      apply() {
+        card('pod', ''); badge('pod-status', null);
+        card('pvc', ''); badge('pvc-status', null);
+        card('sc', 'active pulse');
+        card('pv', ''); tx('pv-detail', '（尚未创建）'); badge('pv-status', null);
+        conn('bind-conn', ''); conn('csi-conn', '');
+        card('csi-driver', ''); csiCall('csi-call-create', false); csiCall('csi-call-publish', false);
+        card('cloud-api', '');
+        card('disk', ''); tx('disk-detail', '（尚未创建）'); badge('disk-status', null);
+        arrow('pod-pvc-arrow', false); arrow('sc-pv-arrow', false);
+        arrow('csi-cloud-arrow', false); arrow('cloud-disk-arrow', false);
+        infoBox('mount-info', '', null);
+      }
+    },
+    {
+      label: 'Step 1：用户创建 PVC',
+      msg: 'Step 1：用户提交 PVC YAML，声明 storage: 20Gi，storageClassName: ssd，accessModes: [ReadWriteOnce]。kubectl apply 后，PVC 对象进入 Pending 状态，等待 K8s 处理。此时没有可用的 PV，controller 将触发动态 Provision 流程。',
+      apply() {
+        card('pod', ''); badge('pod-status', null);
+        card('pvc', 'active pulse'); badge('pvc-status', 'Pending', 'pending');
+        card('sc', '');
+        card('pv', ''); tx('pv-detail', '（尚未创建）'); badge('pv-status', null);
+        conn('bind-conn', ''); conn('csi-conn', '');
+        card('csi-driver', ''); csiCall('csi-call-create', false); csiCall('csi-call-publish', false);
+        card('cloud-api', '');
+        card('disk', ''); tx('disk-detail', '（尚未创建）'); badge('disk-status', null);
+        arrow('pod-pvc-arrow', false); arrow('sc-pv-arrow', false);
+        arrow('csi-cloud-arrow', false); arrow('cloud-disk-arrow', false);
+        infoBox('mount-info', '', null);
+      }
+    },
+    {
+      label: 'Step 2：匹配 StorageClass',
+      msg: 'Step 2：K8s 的 external-provisioner sidecar（与 CSI driver 同 Pod）监控到 Pending PVC，读取 storageClassName="ssd"，找到对应的 StorageClass（provisioner: ebs.csi.aws.com）。external-provisioner 将代理 CSI driver 执行 CreateVolume。',
+      apply() {
+        card('pod', ''); badge('pod-status', null);
+        card('pvc', 'done'); badge('pvc-status', 'Pending', 'pending');
+        card('sc', 'active pulse');
+        card('pv', ''); tx('pv-detail', '（尚未创建）'); badge('pv-status', null);
+        conn('bind-conn', ''); conn('csi-conn', '');
+        card('csi-driver', ''); csiCall('csi-call-create', false); csiCall('csi-call-publish', false);
+        card('cloud-api', '');
+        card('disk', ''); tx('disk-detail', '（尚未创建）'); badge('disk-status', null);
+        arrow('pod-pvc-arrow', false); arrow('sc-pv-arrow', true);
+        arrow('csi-cloud-arrow', false); arrow('cloud-disk-arrow', false);
+        infoBox('mount-info', '', null);
+      }
+    },
+    {
+      label: 'Step 3：触发 CSI CreateVolume',
+      msg: 'Step 3：external-provisioner 通过 Unix socket gRPC 调用 CSI Driver 的 CreateVolume 接口，传递参数：name、capacity_range(20Gi)、volume_capabilities(ReadWriteOnce/Filesystem)、parameters(type:gp3, encrypted:true)。CSI Driver 收到调用，准备向云厂商 API 发起请求。',
+      apply() {
+        card('pod', ''); badge('pod-status', null);
+        card('pvc', 'done'); badge('pvc-status', 'Pending', 'pending');
+        card('sc', 'done');
+        card('pv', ''); tx('pv-detail', '（尚未创建）'); badge('pv-status', null);
+        conn('bind-conn', ''); conn('csi-conn', 'active');
+        card('csi-driver', 'active pulse'); csiCall('csi-call-create', true); csiCall('csi-call-publish', false);
+        card('cloud-api', '');
+        card('disk', ''); tx('disk-detail', '（尚未创建）'); badge('disk-status', null);
+        arrow('pod-pvc-arrow', false); arrow('sc-pv-arrow', false);
+        arrow('csi-cloud-arrow', false); arrow('cloud-disk-arrow', false);
+        infoBox('mount-info', '', null);
+      }
+    },
+    {
+      label: 'Step 4：创建 EBS 磁盘',
+      msg: 'Step 4：CSI Driver 调用 AWS EC2 CreateVolume API，在与节点相同的 Availability Zone（如 us-east-1a）创建 20Gi gp3 类型 EBS 卷。AWS 返回 volumeId（vol-0abc1234）。EBS 卷状态 available，等待 Attach 到 EC2 实例。真实磁盘此时已存在，会产生费用。',
+      apply() {
+        card('pod', ''); badge('pod-status', null);
+        card('pvc', 'done'); badge('pvc-status', 'Pending', 'pending');
+        card('sc', 'done');
+        card('pv', ''); tx('pv-detail', '（尚未创建）'); badge('pv-status', null);
+        conn('bind-conn', ''); conn('csi-conn', 'active');
+        const cc = d('csi-call-create'); if (cc) cc.className = 'csi-call show';
+        csiCall('csi-call-publish', false);
+        card('csi-driver', 'done');
+        card('cloud-api', 'active pulse');
+        card('disk', 'active'); tx('disk-detail', 'vol-0abc1234 · 20Gi · gp3\n正在创建...'); badge('disk-status', '创建中', 'pending');
+        arrow('pod-pvc-arrow', false); arrow('sc-pv-arrow', false);
+        arrow('csi-cloud-arrow', true); arrow('cloud-disk-arrow', true);
+        infoBox('mount-info', '', null);
+      }
+    },
+    {
+      label: 'Step 5：创建 PV 对象',
+      msg: 'Step 5：CSI Driver（通过 external-provisioner）在 K8s 中创建 PV 对象：spec.csi.volumeHandle=vol-0abc1234、capacity=20Gi、storageClassName=ssd、accessModes=[ReadWriteOnce]、reclaimPolicy=Delete。PV 状态变为 Available，等待与 PVC 绑定。',
+      apply() {
+        card('pod', ''); badge('pod-status', null);
+        card('pvc', 'done'); badge('pvc-status', 'Pending', 'pending');
+        card('sc', 'done');
+        card('pv', 'active pulse'); tx('pv-detail', 'pv-auto-xxxx · 20Gi · gp3\nstorageClass: ssd'); badge('pv-status', 'Available', 'available');
+        conn('bind-conn', ''); conn('csi-conn', 'done');
+        const cc = d('csi-call-create'); if (cc) cc.className = 'csi-call show';
+        csiCall('csi-call-publish', false);
+        card('csi-driver', 'done'); card('cloud-api', 'done');
+        card('disk', 'done'); tx('disk-detail', 'vol-0abc1234 · 20Gi · gp3\n✓ 已创建'); badge('disk-status', null);
+        arrow('pod-pvc-arrow', false); arrow('sc-pv-arrow', true);
+        arrow('csi-cloud-arrow', true); arrow('cloud-disk-arrow', true);
+        infoBox('mount-info', '', null);
+      }
+    },
+    {
+      label: 'Step 6：PVC 与 PV 绑定',
+      msg: 'Step 6：K8s PV Controller 将 PVC（Pending）与 PV（Available）绑定：检查 capacity（PV 20Gi ≥ 请求 20Gi）、accessModes 匹配、storageClassName 相同。绑定后双方 spec 互填名称，状态变为 Bound。绑定是一对一的，此 PV 不再给其他 PVC 使用。',
+      apply() {
+        card('pod', ''); badge('pod-status', null);
+        card('pvc', 'active'); badge('pvc-status', 'Bound', 'bound');
+        card('sc', 'done');
+        card('pv', 'active'); tx('pv-detail', 'pv-auto-xxxx · 20Gi · gp3\nclaimRef: my-pvc'); badge('pv-status', 'Bound', 'bound');
+        conn('bind-conn', 'active'); conn('csi-conn', 'done');
+        const cc = d('csi-call-create'); if (cc) cc.className = 'csi-call show';
+        csiCall('csi-call-publish', false);
+        card('csi-driver', 'done'); card('cloud-api', 'done');
+        card('disk', 'done'); tx('disk-detail', 'vol-0abc1234 · 20Gi · gp3\n✓ 已创建'); badge('disk-status', null);
+        arrow('pod-pvc-arrow', false); arrow('sc-pv-arrow', false);
+        arrow('csi-cloud-arrow', false); arrow('cloud-disk-arrow', true);
+        infoBox('mount-info', '', null);
+      }
+    },
+    {
+      label: 'Step 7：Pod 引用 PVC 被调度',
+      msg: 'Step 7：用户创建 Pod，spec.volumes[].persistentVolumeClaim.claimName: my-pvc。Scheduler 调度时考虑 CSI Topology Constraint（EBS 只能挂载到同 AZ 节点），选择 node-1（us-east-1a）。kubelet volume manager 开始处理卷挂载流程。',
+      apply() {
+        card('pod', 'active pulse'); badge('pod-status', 'Scheduling', 'pending');
+        card('pvc', 'done'); badge('pvc-status', 'Bound', 'bound');
+        card('sc', 'done');
+        card('pv', 'done'); tx('pv-detail', 'pv-auto-xxxx · 20Gi · gp3\nclaimRef: my-pvc'); badge('pv-status', 'Bound', 'bound');
+        conn('bind-conn', 'done'); conn('csi-conn', '');
+        csiCall('csi-call-create', false); csiCall('csi-call-publish', false);
+        card('csi-driver', ''); card('cloud-api', 'done');
+        card('disk', 'done'); tx('disk-detail', 'vol-0abc1234 · 20Gi · gp3'); badge('disk-status', null);
+        arrow('pod-pvc-arrow', true); arrow('sc-pv-arrow', false);
+        arrow('csi-cloud-arrow', false); arrow('cloud-disk-arrow', false);
+        infoBox('mount-info', '', null);
+      }
+    },
+    {
+      label: 'Step 8：CSI NodePublish 挂载',
+      msg: 'Step 8：kubelet volume manager 依次调用 CSI：① ControllerPublishVolume（将 EBS Attach 到 node-1 的 EC2 实例，块设备出现 /dev/xvdb）；② NodeStageVolume（格式化 ext4 + 挂载到全局目录 /var/lib/kubelet/plugins/…/staging）；③ NodePublishVolume（bind-mount 到容器内 /data）。',
+      apply() {
+        card('pod', 'done'); badge('pod-status', 'Running', 'running');
+        card('pvc', 'done'); badge('pvc-status', 'Bound', 'bound');
+        card('sc', 'done');
+        card('pv', 'done'); badge('pv-status', 'Bound', 'bound');
+        conn('bind-conn', 'done'); conn('csi-conn', 'active');
+        csiCall('csi-call-create', false);
+        const cp = d('csi-call-publish'); if (cp) cp.className = 'csi-call show active';
+        card('csi-driver', 'active pulse'); card('cloud-api', 'done');
+        card('disk', 'active'); tx('disk-detail', 'vol-0abc1234 · 20Gi · gp3\n📍 attached: node-1'); badge('disk-status', null);
+        arrow('pod-pvc-arrow', true); arrow('sc-pv-arrow', false);
+        arrow('csi-cloud-arrow', false); arrow('cloud-disk-arrow', true);
+        infoBox('mount-info', '', null);
+      }
+    },
+    {
+      label: 'Step 9：应用正常读写',
+      msg: 'Step 9：挂载完成，Pod 内 /data 目录映射到 EBS vol-0abc1234。容器内执行 df -h /data 可见 20Gi 空间。应用可正常读写，数据持久化在 EBS 卷中。Pod 重启、重建均不会丢失数据，整个动态 Provision 流程完成。',
+      apply() {
+        card('pod', 'done'); badge('pod-status', 'Running', 'running');
+        card('pvc', 'done'); badge('pvc-status', 'Bound', 'bound');
+        card('sc', 'done');
+        card('pv', 'done'); badge('pv-status', 'Bound', 'bound');
+        conn('bind-conn', 'done'); conn('csi-conn', 'done');
+        csiCall('csi-call-create', false);
+        const cp = d('csi-call-publish'); if (cp) cp.className = 'csi-call show';
+        card('csi-driver', 'done'); card('cloud-api', 'done');
+        card('disk', 'done'); tx('disk-detail', 'vol-0abc1234 · 20Gi · gp3\n📍 attached: node-1'); badge('disk-status', null);
+        arrow('pod-pvc-arrow', true); arrow('sc-pv-arrow', false);
+        arrow('csi-cloud-arrow', false); arrow('cloud-disk-arrow', true);
+        infoBox('mount-info', 'success', '✅ 动态 Provision 完成！Pod /data → EBS vol-0abc1234（20Gi gp3）。数据持久化，Pod 重启/重建不丢数据。StorageClass → CSI → EBS 自动全程无需手动介入。');
+      }
+    }
+  ]
+};
+
+// ─── Scene 2: Pod 故障重调度 ────────────────────────────────────────────────
+const S2_DIAGRAM = `
+<div class="arch-diagram">
+  <div class="arch-layer user-layer">
+    <div class="layer-header"><span class="layer-label">计算节点</span><span class="layer-badge">Worker Nodes</span></div>
+    <div class="node-container">
+      <div class="node-box active-node" id="node1">
+        <div class="node-name">🖥️ node-1</div>
+        <div class="node-pod running" id="node1-pod">📦 myapp-pod &nbsp;<span id="n1ps">Running</span></div>
+        <div class="node-mount" id="node1-mount">📁 /data → vol-0abc1234</div>
+      </div>
+      <div class="node-box" id="node2">
+        <div class="node-name">🖥️ node-2</div>
+        <div class="node-pod hidden" id="node2-pod">📦 myapp-pod &nbsp;<span id="n2ps">Pending</span></div>
+        <div class="node-mount" id="node2-mount" style="display:none">📁 /data → vol-0abc1234</div>
+      </div>
+    </div>
+  </div>
+  <div class="arch-connector">
+    <div class="conn-vert done" id="bind-conn"></div>
+    <span class="conn-label active">PVC ←→ PV (Bound)</span>
+  </div>
+  <div class="arch-layer k8s-layer">
+    <div class="layer-header"><span class="layer-label">K8s 存储对象</span><span class="layer-badge">Persistent Objects</span></div>
+    <div class="arch-cards">
+      <div class="arch-card done" id="pvc">
+        <div class="card-icon">📋</div>
+        <div class="card-name">PVC</div>
+        <div class="card-detail">my-pvc · 20Gi</div>
+        <div class="status-badge bound" id="pvc-status">Bound</div>
+      </div>
+      <div class="flow-arrow active">──╌──▶</div>
+      <div class="arch-card done" id="pv">
+        <div class="card-icon">💽</div>
+        <div class="card-name">PV</div>
+        <div class="card-detail">pv-auto · 20Gi · gp3<br>vol: vol-0abc1234</div>
+        <div class="status-badge bound" id="pv-status">Bound</div>
+      </div>
+    </div>
+  </div>
+  <div class="arch-connector">
+    <div class="conn-vert" id="csi-conn"></div>
+    <span class="conn-label">Detach / Attach</span>
+  </div>
+  <div class="arch-layer storage-layer">
+    <div class="layer-header"><span class="layer-label">存储后端</span><span class="layer-badge">Storage Backend</span></div>
+    <div class="arch-cards">
+      <div class="arch-card" id="csi-driver">
+        <div class="card-icon">🔌</div>
+        <div class="card-name">CSI Driver</div>
+        <div class="card-detail">aws-ebs-csi-driver</div>
+        <div class="csi-call" id="csi-call-unpublish">NodeUnpublish(node-1)</div>
+        <div class="csi-call" id="csi-call-detach">ControllerUnpublish(node-1)</div>
+        <div class="csi-call" id="csi-call-attach">ControllerPublish(node-2)</div>
+        <div class="csi-call" id="csi-call-mount">NodePublish(node-2)</div>
+      </div>
+      <div class="flow-arrow" id="csi-disk-arrow">──▶</div>
+      <div class="arch-card done" id="disk">
+        <div class="card-icon">💾</div>
+        <div class="card-name">EBS Volume</div>
+        <div class="card-detail">vol-0abc1234 · 20Gi · gp3</div>
+        <div class="card-detail" id="disk-attach">📍 attached: node-1</div>
+      </div>
+    </div>
+  </div>
+  <div class="info-box" id="recovery-info"></div>
+</div>`;
+
+const SCENE2 = {
+  title: 'Pod 故障重调度', subtitle: '数据持久性验证——节点故障后 Pod 迁移',
+  diagram: S2_DIAGRAM,
+  steps: [
+    {
+      label: '初始：Pod 正常运行',
+      msg: '初始状态：Pod myapp-pod 运行在 node-1，挂载 PVC my-pvc（20Gi gp3），对应 EBS vol-0abc1234，已 Attach 到 node-1 的 EC2 实例。容器内 /data 目录实时读写数据。PVC/PV 均 Bound，VolumeAttachment 对象指向 node-1。',
+      apply() {
+        cl('node1', 'node-box active-node');
+        cl('node1-pod', 'node-pod running'); sh('node1-mount', true);
+        cl('node2', 'node-box');
+        cl('node2-pod', 'node-pod hidden'); sh('node2-mount', false);
+        card('pvc', 'done'); badge('pvc-status', 'Bound', 'bound');
+        card('pv', 'done'); badge('pv-status', 'Bound', 'bound');
+        conn('bind-conn', 'done'); conn('csi-conn', '');
+        card('csi-driver', '');
+        csiCall('csi-call-unpublish', false); csiCall('csi-call-detach', false);
+        csiCall('csi-call-attach', false); csiCall('csi-call-mount', false);
+        card('disk', 'done'); tx('disk-attach', '📍 attached: node-1');
+        arrow('csi-disk-arrow', false);
+        infoBox('recovery-info', '', null);
+      }
+    },
+    {
+      label: 'Step 1：node-1 故障',
+      msg: 'Step 1：node-1 因硬件故障或网络分区变为 NotReady。Pod myapp-pod 状态变为 Unknown。Node Lifecycle Controller 在默认 5min（tolerationSeconds）后将 Pod 驱逐（evict），状态变为 Failed。应用中断，需要迁移到新节点。',
+      apply() {
+        cl('node1', 'node-box dead-node');
+        cl('node1-pod', 'node-pod dead'); sh('node1-mount', false);
+        cl('node2', 'node-box');
+        cl('node2-pod', 'node-pod hidden'); sh('node2-mount', false);
+        card('pvc', 'done'); badge('pvc-status', 'Bound', 'bound');
+        card('pv', 'done'); badge('pv-status', 'Bound', 'bound');
+        conn('bind-conn', 'done'); conn('csi-conn', '');
+        card('csi-driver', '');
+        csiCall('csi-call-unpublish', false); csiCall('csi-call-detach', false);
+        csiCall('csi-call-attach', false); csiCall('csi-call-mount', false);
+        card('disk', 'warn'); tx('disk-attach', '📍 attached: node-1（节点不可达）');
+        arrow('csi-disk-arrow', false);
+        infoBox('recovery-info', 'error', '⚠️ node-1 NotReady！Pod 状态 Unknown，EBS 仍 Attach 到故障节点，VolumeAttachment 对象待清理。');
+      }
+    },
+    {
+      label: 'Step 2：Scheduler 选择 node-2',
+      msg: 'Step 2：ReplicaSet Controller 检测到 Pod 数量不足，重新创建 Pod。Scheduler 将新 Pod 调度到 node-2（满足 AZ topology：node-2 也在 us-east-1a，且资源充足）。此时 volume 还未 Detach，Pod 卡在 ContainerCreating/Init。',
+      apply() {
+        cl('node1', 'node-box dead-node');
+        cl('node1-pod', 'node-pod dead'); sh('node1-mount', false);
+        cl('node2', 'node-box active-node');
+        const np = d('node2-pod');
+        if (np) { np.className = 'node-pod starting'; np.style.display = ''; }
+        tx('n2ps', 'ContainerCreating'); sh('node2-mount', false);
+        card('pvc', 'done'); badge('pvc-status', 'Bound', 'bound');
+        card('pv', 'done'); badge('pv-status', 'Bound', 'bound');
+        conn('bind-conn', 'done'); conn('csi-conn', '');
+        card('csi-driver', 'active');
+        csiCall('csi-call-unpublish', false); csiCall('csi-call-detach', false);
+        csiCall('csi-call-attach', false); csiCall('csi-call-mount', false);
+        card('disk', 'warn'); tx('disk-attach', '📍 attached: node-1（等待 Detach）');
+        arrow('csi-disk-arrow', false);
+        infoBox('recovery-info', '', null);
+      }
+    },
+    {
+      label: 'Step 3：CSI NodeUnpublish（旧节点）',
+      msg: 'Step 3：Volume Attachment Controller 尝试对 node-1 执行 ControllerUnpublish（Detach）。若 node-1 完全不可达，K8s 需等待节点 NotReady 超时，或由管理员手动 force-delete VolumeAttachment 对象，确保 EBS 不被两个节点同时挂载（Split-brain 会损坏文件系统！）。',
+      apply() {
+        cl('node1', 'node-box dead-node');
+        cl('node1-pod', 'node-pod dead'); sh('node1-mount', false);
+        cl('node2', 'node-box active-node');
+        const np = d('node2-pod');
+        if (np) { np.className = 'node-pod starting'; np.style.display = ''; }
+        tx('n2ps', 'ContainerCreating'); sh('node2-mount', false);
+        card('pvc', 'done'); badge('pvc-status', 'Bound', 'bound');
+        card('pv', 'done'); badge('pv-status', 'Bound', 'bound');
+        conn('bind-conn', 'done'); conn('csi-conn', 'active');
+        card('csi-driver', 'active pulse');
+        csiCall('csi-call-unpublish', true); csiCall('csi-call-detach', true);
+        csiCall('csi-call-attach', false); csiCall('csi-call-mount', false);
+        card('disk', 'warn'); tx('disk-attach', '🔄 Detaching from node-1...');
+        arrow('csi-disk-arrow', true);
+        infoBox('recovery-info', 'warn', '⚠️ 安全保障：K8s 确保同一 EBS 同时只 Attach 到一个节点（ReadWriteOnce）。必须等旧节点完成 Detach 后才会执行 Attach。');
+      }
+    },
+    {
+      label: 'Step 4：ControllerPublish（新节点）',
+      msg: 'Step 4：旧节点 Detach 完成后，CSI Controller 执行 ControllerPublishVolume（Attach）—— 调用 AWS API 将 EBS vol-0abc1234 Attach 到 node-2 的 EC2 实例。块设备（如 /dev/xvdb）出现在 node-2 上。EBS 数据完整保留。',
+      apply() {
+        cl('node1', 'node-box dead-node');
+        cl('node1-pod', 'node-pod dead'); sh('node1-mount', false);
+        cl('node2', 'node-box active-node');
+        const np = d('node2-pod');
+        if (np) { np.className = 'node-pod starting'; np.style.display = ''; }
+        tx('n2ps', 'ContainerCreating'); sh('node2-mount', false);
+        card('pvc', 'done'); badge('pvc-status', 'Bound', 'bound');
+        card('pv', 'done'); badge('pv-status', 'Bound', 'bound');
+        conn('bind-conn', 'done'); conn('csi-conn', 'active');
+        card('csi-driver', 'active pulse');
+        csiCall('csi-call-unpublish', false); csiCall('csi-call-detach', false);
+        csiCall('csi-call-attach', true); csiCall('csi-call-mount', false);
+        card('disk', 'active'); tx('disk-attach', '🔄 Attaching to node-2...');
+        arrow('csi-disk-arrow', true);
+        infoBox('recovery-info', '', null);
+      }
+    },
+    {
+      label: 'Step 5：NodePublish 挂载新节点',
+      msg: 'Step 5：CSI Node Plugin 在 node-2 上执行 NodeStageVolume（将 /dev/xvdb 挂载到全局路径）和 NodePublishVolume（bind-mount 到容器内 /data）。文件系统完整，所有之前写入的数据全部可见。Pod 进入 Running 状态。',
+      apply() {
+        cl('node1', 'node-box dead-node');
+        cl('node1-pod', 'node-pod dead'); sh('node1-mount', false);
+        cl('node2', 'node-box new-node');
+        const np = d('node2-pod');
+        if (np) { np.className = 'node-pod running'; np.style.display = ''; }
+        tx('n2ps', 'Running'); sh('node2-mount', true);
+        card('pvc', 'done'); badge('pvc-status', 'Bound', 'bound');
+        card('pv', 'done'); badge('pv-status', 'Bound', 'bound');
+        conn('bind-conn', 'done'); conn('csi-conn', 'done');
+        card('csi-driver', 'done');
+        csiCall('csi-call-unpublish', false); csiCall('csi-call-detach', false);
+        csiCall('csi-call-attach', false);
+        const cm = d('csi-call-mount'); if (cm) cm.className = 'csi-call show';
+        card('disk', 'done'); tx('disk-attach', '📍 attached: node-2');
+        arrow('csi-disk-arrow', true);
+        infoBox('recovery-info', 'success', '✅ Pod 在 node-2 启动完成！挂载 /data，数据完整无损。PVC/PV 对象全程未改变，EBS 数据天然持久保留，容器重调度不影响数据。');
+      }
+    }
+  ]
+};
+
+// ─── Scene 3: 静态 Provision ─────────────────────────────────────────────────
+const S3_DIAGRAM = `
+<div class="arch-diagram">
+  <div class="arch-layer user-layer">
+    <div class="layer-header"><span class="layer-label">用户层</span><span class="layer-badge">User Space</span></div>
+    <div class="arch-cards">
+      <div class="arch-card" id="admin">
+        <div class="card-icon">👷</div>
+        <div class="card-name">集群管理员</div>
+        <div class="card-detail">手动 kubectl apply</div>
+      </div>
+      <div class="flow-arrow" id="user-pvc-arrow">──▶</div>
+      <div class="arch-card" id="pvc">
+        <div class="card-icon">📋</div>
+        <div class="card-name">PVC</div>
+        <div class="card-detail">my-pvc · 10Gi<br>storageClass: ""（静态）</div>
+        <div class="status-badge hidden" id="pvc-status"></div>
+      </div>
+      <div class="flow-arrow" id="pvc-pod-arrow">──▶</div>
+      <div class="arch-card" id="pod">
+        <div class="card-icon">🗄️</div>
+        <div class="card-name">Pod</div>
+        <div class="card-detail">volumeMounts: /data</div>
+        <div class="status-badge hidden" id="pod-status"></div>
+      </div>
+    </div>
+  </div>
+  <div class="arch-connector">
+    <div class="conn-vert" id="bind-conn"></div>
+    <span class="conn-label">静态绑定</span>
+  </div>
+  <div class="arch-layer k8s-layer">
+    <div class="layer-header"><span class="layer-label">K8s 存储对象</span><span class="layer-badge">Static PV</span></div>
+    <div class="arch-cards">
+      <div class="arch-card" id="pv">
+        <div class="card-icon">💽</div>
+        <div class="card-name">PV（手动创建）</div>
+        <div class="card-detail">capacity: 20Gi<br>accessMode: ReadWriteMany<br>nfs: 192.168.1.100:/exports<br>reclaimPolicy: Retain</div>
+        <div class="status-badge hidden" id="pv-status"></div>
+      </div>
+    </div>
+  </div>
+  <div class="arch-connector">
+    <div class="conn-vert done" id="nfs-conn"></div>
+    <span class="conn-label active">NFS mount</span>
+  </div>
+  <div class="arch-layer storage-layer">
+    <div class="layer-header"><span class="layer-label">存储后端</span><span class="layer-badge">NFS Storage</span></div>
+    <div class="arch-cards">
+      <div class="arch-card done" id="nfs-server">
+        <div class="card-icon">🗂️</div>
+        <div class="card-name">NFS Server</div>
+        <div class="card-detail">192.168.1.100<br>/exports/data（20Gi）<br>多节点可同时挂载</div>
+      </div>
+    </div>
+  </div>
+  <div class="info-box" id="static-info"></div>
+</div>`;
+
+const SCENE3 = {
+  title: '静态 Provision', subtitle: '管理员预先创建 PV，用户申请匹配',
+  diagram: S3_DIAGRAM,
+  steps: [
+    {
+      label: '初始状态',
+      msg: '静态 Provision 场景：集群中有一台 NFS Server（192.168.1.100，/exports/data 目录，20Gi 空间）。管理员需手动创建 PV 对象指向 NFS，再由用户创建 PVC 申请存储。没有 StorageClass 参与动态创建，全程手动操作。适合本地/私有存储场景。',
+      apply() {
+        card('admin', 'active');
+        card('pvc', ''); badge('pvc-status', null);
+        card('pod', ''); badge('pod-status', null);
+        card('pv', ''); badge('pv-status', null);
+        conn('bind-conn', '');
+        arrow('user-pvc-arrow', false); arrow('pvc-pod-arrow', false);
+        infoBox('static-info', '', null);
+      }
+    },
+    {
+      label: 'Step 1：管理员创建 PV',
+      msg: 'Step 1：管理员手动 kubectl apply PV YAML：capacity: 20Gi、accessModes: [ReadWriteMany]、persistentVolumeReclaimPolicy: Retain、nfs.server: 192.168.1.100、nfs.path: /exports/data。注意 storageClassName: ""（空字符串）表示静态 PV，不属于任何 StorageClass。PV 状态变为 Available。',
+      apply() {
+        card('admin', 'done');
+        card('pvc', ''); badge('pvc-status', null);
+        card('pod', ''); badge('pod-status', null);
+        card('pv', 'active pulse'); badge('pv-status', 'Available', 'available');
+        conn('bind-conn', '');
+        arrow('user-pvc-arrow', false); arrow('pvc-pod-arrow', false);
+        infoBox('static-info', '', null);
+      }
+    },
+    {
+      label: 'Step 2：用户创建 PVC',
+      msg: 'Step 2：用户创建 PVC：storage: 10Gi、accessModes: [ReadWriteMany]、storageClassName: ""（必须显式设置空字符串！若省略则使用默认 StorageClass 动态创建，不会匹配静态 PV）。PVC 进入 Pending 状态，等待 K8s PV Controller 匹配。',
+      apply() {
+        card('admin', 'done');
+        card('pvc', 'active pulse'); badge('pvc-status', 'Pending', 'pending');
+        card('pod', ''); badge('pod-status', null);
+        card('pv', 'done'); badge('pv-status', 'Available', 'available');
+        conn('bind-conn', '');
+        arrow('user-pvc-arrow', true); arrow('pvc-pod-arrow', false);
+        infoBox('static-info', '', null);
+      }
+    },
+    {
+      label: 'Step 3：K8s 执行 PVC-PV 匹配',
+      msg: 'Step 3：K8s PV Controller 扫描所有 Available PV，查找满足条件的 PV：① capacity ≥ 10Gi（PV 20Gi ≥ 请求 10Gi，✓）；② accessModes 包含 ReadWriteMany（✓）；③ storageClassName 相同（都是 ""，✓）；④ volumeMode 匹配；⑤ labelSelector 若有则需匹配。找到合适 PV！',
+      apply() {
+        card('admin', 'done');
+        card('pvc', 'done'); badge('pvc-status', 'Pending', 'pending');
+        card('pod', ''); badge('pod-status', null);
+        card('pv', 'active pulse'); badge('pv-status', 'Available', 'available');
+        conn('bind-conn', 'active');
+        arrow('user-pvc-arrow', false); arrow('pvc-pod-arrow', false);
+        infoBox('static-info', 'warn', '⚠️ 静态绑定是整体绑定！即使 PVC 只申请 10Gi，也会独占整个 20Gi PV。PV 不支持分割，其他 PVC 无法再使用该 PV。');
+      }
+    },
+    {
+      label: 'Step 4：PVC 与 PV 绑定',
+      msg: 'Step 4：找到匹配 PV 后进行绑定。PVC 状态 Pending → Bound，PV 状态 Available → Bound。PV spec.claimRef 填入 PVC 名称，PVC spec.volumeName 填入 PV 名称。即使申请 10Gi，实际独占 20Gi PV（静态 Provision 的核心缺点：空间利用率低）。',
+      apply() {
+        card('admin', 'done');
+        card('pvc', 'active'); badge('pvc-status', 'Bound', 'bound');
+        card('pod', ''); badge('pod-status', null);
+        card('pv', 'active'); badge('pv-status', 'Bound', 'bound');
+        conn('bind-conn', 'active');
+        arrow('user-pvc-arrow', false); arrow('pvc-pod-arrow', false);
+        infoBox('static-info', 'success', '✅ PVC Bound！注意：此 PV（20Gi）已被独占，即使 PVC 只申请 10Gi，其他 PVC 也无法使用这块 PV，除非 PVC 删除后 PV 被 Recycle/Retain。');
+      }
+    },
+    {
+      label: 'Step 5：Pod 挂载 PVC 访问 NFS',
+      msg: 'Step 5：Pod spec.volumes 引用 my-pvc，调度后 kubelet 通过内核 NFS 客户端将 192.168.1.100:/exports/data 挂载到容器内 /data。NFS 支持 ReadWriteMany，多个 Pod（甚至跨节点）可同时挂载同一 PVC，共享读写 NFS 数据，适合共享配置、日志收集等场景。',
+      apply() {
+        card('admin', 'done');
+        card('pvc', 'done'); badge('pvc-status', 'Bound', 'bound');
+        card('pod', 'done'); badge('pod-status', 'Running', 'running');
+        card('pv', 'done'); badge('pv-status', 'Bound', 'bound');
+        conn('bind-conn', 'done');
+        arrow('user-pvc-arrow', false); arrow('pvc-pod-arrow', true);
+        infoBox('static-info', 'success', '✅ Pod 通过 NFS 访问 /data。ReadWriteMany 允许多 Pod 同时挂载同一 PVC。管理员需提前规划 NFS 目录和容量，NFS 无需 CSI driver，由内核直接处理。');
+      }
+    }
+  ]
+};
+
+// ─── Scene 4: 存储扩容 ────────────────────────────────────────────────────────
+const S4_DIAGRAM = `
+<div class="arch-diagram">
+  <div class="arch-layer user-layer">
+    <div class="layer-header"><span class="layer-label">用户层</span><span class="layer-badge">User Space</span></div>
+    <div class="arch-cards">
+      <div class="arch-card done" id="pod">
+        <div class="card-icon">🗄️</div>
+        <div class="card-name">Pod</div>
+        <div class="card-detail">myapp（运行中）</div>
+        <div class="status-badge running" id="pod-status">Running</div>
+      </div>
+      <div class="flow-arrow active">──ref──▶</div>
+      <div class="arch-card" id="pvc">
+        <div class="card-icon">📋</div>
+        <div class="card-name">PVC</div>
+        <div class="card-detail" id="pvc-cap-text">requests: 20Gi</div>
+        <div class="status-badge bound" id="pvc-status">Bound</div>
+        <div class="capacity-bar"><div class="capacity-fill" id="pvc-fill" style="width:40%"></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="arch-connector">
+    <div class="conn-vert done" id="bind-conn"></div>
+    <span class="conn-label active">Bound</span>
+  </div>
+  <div class="arch-layer k8s-layer">
+    <div class="layer-header"><span class="layer-label">K8s 控制面</span><span class="layer-badge">Control Plane</span></div>
+    <div class="arch-cards">
+      <div class="arch-card" id="sc">
+        <div class="card-icon">⚙️</div>
+        <div class="card-name">StorageClass</div>
+        <div class="card-detail" id="sc-expand-text">allowVolumeExpansion: true</div>
+      </div>
+      <div class="flow-arrow" style="opacity:.3">──▶</div>
+      <div class="arch-card" id="pv">
+        <div class="card-icon">💽</div>
+        <div class="card-name">PV</div>
+        <div class="card-detail" id="pv-cap-text">capacity: 20Gi</div>
+        <div class="status-badge bound" id="pv-status">Bound</div>
+        <div class="capacity-bar"><div class="capacity-fill" id="pv-fill" style="width:40%"></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="arch-connector">
+    <div class="conn-vert" id="csi-conn"></div>
+    <span class="conn-label">ControllerExpand</span>
+  </div>
+  <div class="arch-layer storage-layer">
+    <div class="layer-header"><span class="layer-label">存储后端</span><span class="layer-badge">Storage Backend</span></div>
+    <div class="arch-cards">
+      <div class="arch-card" id="csi-driver">
+        <div class="card-icon">🔌</div>
+        <div class="card-name">CSI Driver</div>
+        <div class="card-detail">aws-ebs-csi-driver</div>
+        <div class="csi-call" id="csi-call-expand">ControllerExpandVolume(50Gi)</div>
+        <div class="csi-call" id="csi-call-node-expand">NodeExpandVolume + resize2fs</div>
+      </div>
+      <div class="flow-arrow" id="csi-disk-arrow">──▶</div>
+      <div class="arch-card" id="disk">
+        <div class="card-icon">💾</div>
+        <div class="card-name">EBS Volume</div>
+        <div class="card-detail" id="disk-cap-text">vol-xxx · 20Gi</div>
+        <div class="capacity-bar"><div class="capacity-fill" id="disk-fill" style="width:40%"></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="info-box" id="expand-info"></div>
+</div>`;
+
+const SCENE4 = {
+  title: '存储扩容', subtitle: '在线扩展磁盘：从 20Gi 扩容到 50Gi',
+  diagram: S4_DIAGRAM,
+  steps: [
+    {
+      label: '初始：20Gi 磁盘快满了',
+      msg: '初始状态：应用运行中（Pod Running），挂载了 20Gi 的 EBS PV。随着数据增长，磁盘使用率达到 92%，急需扩容到 50Gi。前提条件：StorageClass 必须启用 allowVolumeExpansion: true（K8s 1.11+ 默认支持，但需要 StorageClass 配置）。',
+      apply() {
+        card('pod', 'done'); badge('pod-status', 'Running', 'running');
+        card('pvc', 'warn'); badge('pvc-status', 'Bound', 'bound');
+        tx('pvc-cap-text', 'requests: 20Gi（使用率 92%!）');
+        setFill('pvc-fill', 92);
+        card('sc', ''); tx('sc-expand-text', 'allowVolumeExpansion: true');
+        card('pv', 'done'); badge('pv-status', 'Bound', 'bound');
+        tx('pv-cap-text', 'capacity: 20Gi');
+        setFill('pv-fill', 40);
+        conn('bind-conn', 'done'); conn('csi-conn', '');
+        card('csi-driver', ''); csiCall('csi-call-expand', false); csiCall('csi-call-node-expand', false);
+        card('disk', 'warn'); tx('disk-cap-text', 'vol-xxx · 20Gi · 92% full');
+        setFill('disk-fill', 92);
+        arrow('csi-disk-arrow', false);
+        infoBox('expand-info', 'error', '⚠️ 磁盘使用率 92%！继续写入将导致应用 crash（ENOSPC）。需要将 PVC 从 20Gi 扩容至 50Gi。');
+      }
+    },
+    {
+      label: 'Step 1：修改 PVC 容量申请',
+      msg: 'Step 1：用户执行 kubectl patch pvc my-pvc -p \'{"spec":{"resources":{"requests":{"storage":"50Gi"}}}}\' 或直接编辑 PVC。这是唯一需要的用户操作。K8s 验证 StorageClass 允许扩容后，PVC 进入 FileSystemResizePending 状态，等待 CSI 完成。',
+      apply() {
+        card('pod', 'done'); badge('pod-status', 'Running', 'running');
+        card('pvc', 'active pulse'); badge('pvc-status', 'FileSystemResizePending', 'pending');
+        tx('pvc-cap-text', 'requests: 50Gi（扩容中...）');
+        setFill('pvc-fill', 92);
+        card('sc', 'active'); tx('sc-expand-text', 'allowVolumeExpansion: true ✓');
+        card('pv', 'done'); badge('pv-status', 'Bound', 'bound');
+        tx('pv-cap-text', 'capacity: 20Gi（待更新）');
+        setFill('pv-fill', 40);
+        conn('bind-conn', 'done'); conn('csi-conn', '');
+        card('csi-driver', ''); csiCall('csi-call-expand', false); csiCall('csi-call-node-expand', false);
+        card('disk', 'warn'); tx('disk-cap-text', 'vol-xxx · 20Gi（待扩容）');
+        setFill('disk-fill', 92);
+        arrow('csi-disk-arrow', false);
+        infoBox('expand-info', '', null);
+      }
+    },
+    {
+      label: 'Step 2：CSI ControllerExpandVolume',
+      msg: 'Step 2：K8s external-resizer 调用 CSI ControllerExpandVolume(50Gi)，CSI Driver 向 AWS 发起 ModifyVolume 请求，将 EBS 块设备扩展到 50Gi。AWS 完成磁盘扩容通常只需几秒（费用按新容量计算）。PV capacity 更新为 50Gi，但文件系统还未感知。',
+      apply() {
+        card('pod', 'done'); badge('pod-status', 'Running', 'running');
+        card('pvc', 'done'); badge('pvc-status', 'FileSystemResizePending', 'pending');
+        tx('pvc-cap-text', 'requests: 50Gi');
+        setFill('pvc-fill', 92);
+        card('sc', 'done');
+        card('pv', 'active'); badge('pv-status', 'Bound', 'bound');
+        tx('pv-cap-text', 'capacity: 50Gi（已更新）');
+        setFill('pv-fill', 37);
+        conn('bind-conn', 'done'); conn('csi-conn', 'active');
+        card('csi-driver', 'active pulse'); csiCall('csi-call-expand', true); csiCall('csi-call-node-expand', false);
+        card('disk', 'active'); tx('disk-cap-text', 'vol-xxx · 50Gi · gp3（已扩容）');
+        setFill('disk-fill', 37);
+        arrow('csi-disk-arrow', true);
+        infoBox('expand-info', '', null);
+      }
+    },
+    {
+      label: 'Step 3：NodeExpandVolume + resize2fs',
+      msg: 'Step 3：块设备已扩容（50Gi），但文件系统仍为旧大小（20Gi）。K8s 在 Pod 下次 mount 时（或立即）触发 NodeExpandVolume，kubelet 调用 CSI Node Plugin，在节点层执行 resize2fs（ext4）或 xfs_growfs（xfs），将文件系统扩展到 50Gi。整个过程 Pod 不需要重启！',
+      apply() {
+        card('pod', 'done'); badge('pod-status', 'Running', 'running');
+        card('pvc', 'done'); badge('pvc-status', 'FileSystemResizePending', 'pending');
+        tx('pvc-cap-text', 'requests: 50Gi（FS 扩容中）');
+        setFill('pvc-fill', 92);
+        card('sc', 'done');
+        card('pv', 'done'); badge('pv-status', 'Bound', 'bound');
+        tx('pv-cap-text', 'capacity: 50Gi');
+        setFill('pv-fill', 37);
+        conn('bind-conn', 'done'); conn('csi-conn', 'active');
+        card('csi-driver', 'active pulse');
+        csiCall('csi-call-expand', false);
+        const cne = d('csi-call-node-expand'); if (cne) cne.className = 'csi-call show active';
+        card('disk', 'done'); tx('disk-cap-text', 'vol-xxx · 50Gi（FS resize 中...）');
+        setFill('disk-fill', 37);
+        arrow('csi-disk-arrow', true);
+        infoBox('expand-info', '', null);
+      }
+    },
+    {
+      label: 'Step 4：扩容完成，50Gi 可用',
+      msg: 'Step 4：文件系统扩容完成，PVC 状态从 FileSystemResizePending 变回 Bound。Pod 内执行 df -h /data 可以看到磁盘空间变为 50Gi。整个扩容过程对应用完全透明，零停机。PV capacity 更新为 50Gi，使用率降至约 37%（原来 20Gi 数据 / 50Gi）。',
+      apply() {
+        card('pod', 'done'); badge('pod-status', 'Running', 'running');
+        card('pvc', 'done'); badge('pvc-status', 'Bound', 'bound');
+        tx('pvc-cap-text', 'requests: 50Gi ✓（使用率 ~37%）');
+        setFill('pvc-fill', 37);
+        card('sc', 'done');
+        card('pv', 'done'); badge('pv-status', 'Bound', 'bound');
+        tx('pv-cap-text', 'capacity: 50Gi ✓');
+        setFill('pv-fill', 37);
+        conn('bind-conn', 'done'); conn('csi-conn', 'done');
+        card('csi-driver', 'done'); csiCall('csi-call-expand', false); csiCall('csi-call-node-expand', false);
+        card('disk', 'done'); tx('disk-cap-text', 'vol-xxx · 50Gi · gp3 ✓');
+        setFill('disk-fill', 37);
+        arrow('csi-disk-arrow', false);
+        infoBox('expand-info', 'success', '✅ 扩容完成！20Gi → 50Gi，Pod 无需重启，零停机。df -h /data 显示新容量。使用率从 92% 降至 ~37%，应用可继续正常写入。');
+      }
+    },
+    {
+      label: '⚠️ 失败场景：未开启扩容',
+      msg: '⚠️ 失败场景：如果 StorageClass 未设置 allowVolumeExpansion: true（默认为 false），用户修改 PVC 容量时 K8s 会立即拒绝请求，返回错误："only dynamically provisioned pvc can be resized and the storageclass that provisions the pvc must support resize"。修复：kubectl patch sc ssd -p \'{"allowVolumeExpansion":true}\'，然后重新修改 PVC。',
+      apply() {
+        card('pod', 'done'); badge('pod-status', 'Running', 'running');
+        card('pvc', 'error'); badge('pvc-status', 'Bound', 'bound');
+        tx('pvc-cap-text', 'requests: 50Gi（被拒绝！）');
+        setFill('pvc-fill', 92);
+        card('sc', 'error'); tx('sc-expand-text', 'allowVolumeExpansion: false ❌');
+        card('pv', 'done'); badge('pv-status', 'Bound', 'bound');
+        tx('pv-cap-text', 'capacity: 20Gi（未变）');
+        setFill('pv-fill', 40);
+        conn('bind-conn', 'done'); conn('csi-conn', '');
+        card('csi-driver', ''); csiCall('csi-call-expand', false); csiCall('csi-call-node-expand', false);
+        card('disk', 'warn'); tx('disk-cap-text', 'vol-xxx · 20Gi（未变）');
+        setFill('disk-fill', 92);
+        arrow('csi-disk-arrow', false);
+        infoBox('expand-info', 'error', '❌ 扩容被拒绝！修复：kubectl patch sc ssd -p \'{"allowVolumeExpansion":true}\'，然后 kubectl patch pvc my-pvc -p \'{"spec":{"resources":{"requests":{"storage":"50Gi"}}}}\'');
+      }
+    }
+  ]
+};
+
+// ─── Scene Registry ───────────────────────────────────────────────────────────
+const SCENES = [SCENE1, SCENE2, SCENE3, SCENE4];
+let curScene = 0, curStep = -1, timer = null;
+
+// ─── Navigation ───────────────────────────────────────────────────────────────
+function selectScene(idx) {
+  curScene = idx;
+  curStep = -1;
+  stopPlay();
+  renderScene();
+}
+
+function renderScene() {
+  const scene = SCENES[curScene];
+  // Update scene tab buttons
+  document.querySelectorAll('.scene-tab').forEach((btn, i) => {
+    btn.className = 'scene-tab' + (i === curScene ? ' active' : '');
+  });
+  // Inject diagram HTML
+  d('diagramArea').innerHTML = scene.diagram;
+  // Update step message
+  d('stepMsg').textContent = scene.title + '：' + scene.subtitle + '。选择左侧步骤或点击「下一步」开始动画。';
+  // Rebuild step list
+  const stepList = d('stepList');
+  stepList.innerHTML = '';
+  scene.steps.forEach((step, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-btn' + (i === curStep ? ' active' : '');
+    btn.innerHTML = `<span class="step-idx">${i + 1}</span>${step.label}`;
+    btn.onclick = () => { curStep = i; render(); };
+    stepList.appendChild(btn);
+  });
+  // Apply initial diagram state
+  if (scene.steps.length > 0) scene.steps[0].apply();
+}
+
+function render() {
+  const scene = SCENES[curScene];
+  const step = scene.steps[curStep];
+  if (!step) return;
+  d('stepMsg').textContent = step.msg;
+  step.apply();
+  document.querySelectorAll('.step-btn').forEach((btn, i) => {
+    btn.className = 'step-btn' + (i === curStep ? ' active' : '');
+  });
+}
+
+function next() {
+  const scene = SCENES[curScene];
+  if (curStep < scene.steps.length - 1) { curStep++; render(); }
+}
+function prev() {
+  if (curStep > 0) { curStep--; render(); }
+  else if (curStep === 0) { curStep = -1; renderScene(); }
+}
+function reset() {
+  curStep = -1;
+  stopPlay();
+  renderScene();
+}
+function togglePlay() {
+  if (timer) stopPlay(); else startPlay();
+}
+function startPlay() {
+  d('playBtn').textContent = '⏸ 暂停';
+  timer = setInterval(() => {
+    const scene = SCENES[curScene];
+    if (curStep < scene.steps.length - 1) { curStep++; render(); } else stopPlay();
+  }, 2400);
+}
+function stopPlay() {
+  if (timer) { clearInterval(timer); timer = null; }
+  d('playBtn').textContent = '▶ 播放';
+}
+
+// Init
+selectScene(0);
+</script>
+</body>
+</html>

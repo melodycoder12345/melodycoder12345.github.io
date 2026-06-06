@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="io_uring：Linux 5.1 引入的高性能异步 I/O。用 SQ/CQ 双环形队列在用户态和内核态共享，批量提交减少系统调用，比 epoll 高 30-50% 吞吐。">
+<link rel="canonical" href="https://melodycoder12345.github.io/linux/io-uring.html">
+<meta property="og:title" content="io_uring：Linux 异步 I/O — 码海拾贝">
+<meta property="og:description" content="io_uring 用 SQ/CQ 双环形队列批量提交 I/O 请求，一次系统调用处理多个操作，性能比 epoll 高 30-50%。">
+<meta property="og:url" content="https://melodycoder12345.github.io/linux/io-uring.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="io_uring：Linux 异步 I/O — 码海拾贝">
+<meta name="twitter:description" content="io_uring 用 SQ/CQ 双环形队列批量提交 I/O 请求，一次系统调用处理多个操作，性能比 epoll 高 30-50%。">
+<title>io_uring：Linux 异步 I/O - 可视化</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#f59e0b;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.scene-tabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.scene-tab{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:10px;padding:8px 16px;cursor:pointer;font-family:inherit;font-size:.82rem;transition:all .16s}
+.scene-tab:hover{color:var(--text);border-color:var(--accent)}
+.scene-tab.active{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.lab{display:grid;grid-template-columns:260px minmax(0,1fr) 280px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:480px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;font-size:.82rem;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:440px;display:flex;flex-direction:column;padding:16px}
+.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:rgba(15,23,42,.64);overflow:hidden}
+#vizCanvas{display:block}
+.step-msg{margin-top:12px;padding:12px 14px;border:1px solid rgba(255,255,255,.07);border-radius:12px;background:rgba(255,255,255,.03);font-size:.87rem;color:var(--dim);min-height:44px;line-height:1.65}
+.status{padding:14px}
+.status-inner{border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status-inner h2{font-size:.95rem;margin-bottom:8px;color:var(--text)}
+.status-inner p{color:var(--dim);font-size:.85rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.fail{border-color:#f87171;color:#f87171}
+.badge.ok{border-color:#4ade80;color:#4ade80}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit;font-size:.85rem}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+@media(max-width:1060px){.lab{grid-template-columns:1fr}.hero,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"SQE（Submission Queue Entry）","body":"用户态填写的 I/O 请求描述符，放入 SQ（提交队列）。包含操作类型（read/write/accept...）、fd、缓冲区地址、长度等。内核消费 SQE 执行 I/O。","tag":"term"},
+  {"title":"CQE（Completion Queue Entry）","body":"内核填写的 I/O 完成通知，放入 CQ（完成队列）。包含 SQE 的 user_data 和结果 res（成功字节数或负数 errno）。用户态轮询 CQ 获取结果。","tag":"term"},
+  {"title":"io_uring_enter（系统调用）","body":"提交 SQE 并可选等待 CQE 的系统调用。一次调用可提交多个 SQE，Polling 模式（SQPOLL）下甚至零系统调用。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">Linux / io_uring / C 类型</div>
+      <h1>io_uring：Linux 异步 I/O</h1>
+      <p class="summary">Linux 5.1 引入的高性能异步 I/O 接口。用两个环形队列（SQ + CQ）在用户态和内核态共享，批量提交 I/O 请求只需一次系统调用（SQPOLL 模式甚至零系统调用），大幅减少用户态/内核态切换开销，吞吐量比 epoll 高 30–50%。</p>
+      <div class="tags"><span>SQ/CQ 环形队列</span><span>零系统调用</span><span>SQPOLL</span><span>固定缓冲区</span><span>批量 I/O</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>SQE（提交队列项）</strong><span>用户态填写的 I/O 请求描述符，放入 SQ。包含操作类型、fd、缓冲区、user_data 标识。</span></li>
+        <li><strong>CQE（完成队列项）</strong><span>内核填写的完成通知，放入 CQ。user_data 与 SQE 对应，res=完成字节数或负 errno。</span></li>
+        <li><strong>io_uring_enter</strong><span>单次系统调用提交多个 SQE，内核批量处理后填 CQE，用户态轮询取结果，syscall 次数大幅减少。</span></li>
+        <li><strong>SQPOLL</strong><span>内核线程持续轮询 SQ，新 SQE 无需 io_uring_enter 系统调用，用 100% CPU 换取零延迟。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="scene-tabs" id="sceneTabs"></div>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">Step Timeline</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <canvas id="vizCanvas"></canvas>
+      </div>
+      <div class="step-msg" id="stepMsg">选择场景开始演示</div>
+      <div class="controls">
+        <button class="ctrl" id="btnReset" onclick="doReset()">重置</button>
+        <button class="ctrl" id="btnPrev" onclick="doPrev()">上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="doToggle()">播放</button>
+        <button class="ctrl" id="btnNext" onclick="doNext()">下一步</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-hd">当前状态</div>
+      <div class="status">
+        <div class="status-inner">
+          <span class="badge" id="stateBadge">normal</span>
+          <h2 id="stepTitle">等待开始</h2>
+          <p id="stepDesc">点击播放或步骤按钮。</p>
+          <p id="stepDetail" style="margin-top:8px;font-size:.82rem;color:var(--dim2)"></p>
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>背景：为什么需要 io_uring</h2>
+      <p>传统异步 I/O 方案的问题：<br><br>
+      <strong>epoll（事件驱动）</strong>：每次 I/O 就绪后仍需调用 read/write，每次都是一次系统调用 + 数据拷贝。1000 并发连接 = 至少 1000 次系统调用/读事件。<br><br>
+      <strong>POSIX AIO（aio_read/aio_write）</strong>：仅支持直接 I/O（O_DIRECT），不支持 socket、pipe 等，局限性大，内核实现粗糙（用线程模拟）。<br><br>
+      <strong>io_uring 的解法</strong>：共享内存环形队列消除系统调用开销，批量提交让 N 个 I/O 只需 1 次 syscall，SQPOLL 模式甚至做到 0 次 syscall，适合超高并发 I/O 场景。</p>
+    </section>
+    <section>
+      <h2>常见误区</h2>
+      <ul>
+        <li>io_uring 不是零拷贝——数据仍需在内核和用户缓冲区间搬运，除非使用 IORING_OP_READ/WRITE 配合 registered buffers（固定缓冲区），才能减少部分拷贝。</li>
+        <li>SQPOLL 模式消耗 100% CPU（内核线程轮询），与 DPDK PMD 类似。只有 I/O 非常密集时才值得，否则用普通模式。</li>
+        <li>io_uring 不替代 epoll——两者可以共存，io_uring 更适合文件 I/O 和批量网络 I/O，epoll 仍然适合单个连接的事件通知场景。</li>
+        <li>链式 SQE（IOSQE_IO_LINK）允许将多个操作串联，前一个失败时后续操作自动取消，适合"先写再关闭"等顺序依赖场景。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>工程场景</h2>
+      <ul>
+        <li><strong>高并发 HTTP 服务器（Nginx/Envoy）</strong>：io_uring 在连接数超过 10K 时，系统调用开销占比明显，使用 io_uring 可减少 50% 以上的 syscall 次数。</li>
+        <li><strong>数据库 WAL 写入（RocksDB/MySQL）</strong>：批量 WAL fsync 用 io_uring 批量提交，将多个 SQE 合并为一次 io_uring_enter，WAL 写延迟降低 20–40%。</li>
+        <li><strong>存储引擎（ScyllaDB）</strong>：ScyllaDB 的 Seastar 框架已全面迁移到 io_uring，替换原有的 Linux AIO，实现更好的 NVMe 并发利用率。</li>
+        <li><strong>网络代理（Envoy/io_uring 实验性支持）</strong>：用 io_uring 替换 epoll+read/write，在长连接代理场景实测延迟降低 15–30%。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>性能对比</h2>
+      <p>基准测试（NVMe SSD，随机 4K 读，队列深度 128）：<br><br>
+      <strong>blocking read</strong>：~30K IOPS，每次 read() 独立系统调用<br>
+      <strong>Linux AIO</strong>：~200K IOPS，仅支持 O_DIRECT<br>
+      <strong>io_uring（普通模式）</strong>：~350K IOPS，批量提交，支持 buffered I/O<br>
+      <strong>io_uring（SQPOLL）</strong>：~450K IOPS，零系统调用，内核线程轮询<br><br>
+      网络 I/O 场景：Nginx（io_uring）vs Nginx（epoll），10K 并发短连接，io_uring 吞吐高约 40%，CPU 使用低约 20%。</p>
+    </section>
+  </section>
+</main>
+
+<script>
+function rr(ctx,x,y,w,h,r,fill,stroke,lw){
+  ctx.beginPath();ctx.roundRect(x,y,w,h,r);
+  if(fill){ctx.fillStyle=fill;ctx.fill();}
+  if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||1.5;ctx.stroke();}
+}
+function txt(ctx,t,x,y,size,color,align,weight){
+  ctx.font=`${weight||'400'} ${size}px system-ui,sans-serif`;
+  ctx.fillStyle=color;ctx.textAlign=align||'center';ctx.textBaseline='middle';
+  ctx.fillText(t,x,y);
+}
+function arrow(ctx,x1,y1,x2,y2,color,dashed){
+  ctx.strokeStyle=color;ctx.lineWidth=2;
+  ctx.setLineDash(dashed?[5,4]:[]);
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  ctx.setLineDash([]);
+  const a=Math.atan2(y2-y1,x2-x1);
+  ctx.fillStyle=color;ctx.beginPath();
+  ctx.moveTo(x2,y2);ctx.lineTo(x2-10*Math.cos(a-.35),y2-10*Math.sin(a-.35));
+  ctx.lineTo(x2-10*Math.cos(a+.35),y2-10*Math.sin(a+.35));ctx.closePath();ctx.fill();
+}
+function drawBoundary(ctx,W,H,userH,kernelH){
+  // User space
+  rr(ctx,0,0,W,userH,0,'rgba(245,158,11,0.04)','none');
+  txt(ctx,'用户态 (User Space)',8,12,9,'rgba(245,158,11,0.5)','left','700');
+  // Kernel space
+  rr(ctx,0,userH,W,kernelH,0,'rgba(56,189,248,0.04)','none');
+  txt(ctx,'内核态 (Kernel Space)',8,userH+12,9,'rgba(56,189,248,0.4)','left','700');
+  // Boundary line
+  ctx.strokeStyle='rgba(255,255,255,0.15)';ctx.lineWidth=1.5;ctx.setLineDash([6,4]);
+  ctx.beginPath();ctx.moveTo(0,userH);ctx.lineTo(W,userH);ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// TAB 0: Traditional epoll baseline
+const TAB0=[
+  {
+    title:'epoll 模式：每个 I/O 一次系统调用',
+    badge:'normal',
+    desc:'传统 epoll 模式下，应用注册 fd 到 epoll，等待 epoll_wait 返回就绪事件，然后对每个就绪 fd 各自调用 read/write。N 个就绪 fd = N 次系统调用。',
+    detail:'每次系统调用（read/write）都需要 CPU 从用户态切换到内核态，约 200ns–2µs 开销，高并发下累积开销显著。',
+    draw(ctx,W,H){drawEpoll(ctx,W,H,0);}
+  },
+  {
+    title:'epoll_wait 返回 3 个就绪 fd',
+    badge:'normal',
+    desc:'epoll_wait 返回 3 个就绪的文件描述符（fd1/fd2/fd3），每个 fd 有数据可读。应用需要对每个 fd 依次调用 read，共需 3 次系统调用。',
+    detail:'epoll_wait 本身是 1 次系统调用，但获取数据需要额外 N 次 read/write 系统调用。N=1000 时就是 1001 次系统调用。',
+    draw(ctx,W,H){drawEpoll(ctx,W,H,1);}
+  },
+  {
+    title:'3 次 read 系统调用：3 次用户态↔内核态切换',
+    badge:'fail',
+    desc:'应用依次调用 read(fd1)、read(fd2)、read(fd3)，每次都触发一次用户态→内核态→用户态的切换，共 6 次切换（3 次进内核 + 3 次出内核）。',
+    detail:'上下文切换开销：① 保存/恢复寄存器；② TLB flush（部分情况）；③ 流水线冲刷。高频率的 syscall 是 10Gbps 网络下内核协议栈的主要瓶颈之一。',
+    draw(ctx,W,H){drawEpoll(ctx,W,H,2);}
+  }
+];
+
+function drawEpoll(ctx,W,H,step){
+  ctx.clearRect(0,0,W,H);
+  const userH=H*0.46, kernelH=H*0.54;
+  drawBoundary(ctx,W,H,userH,kernelH);
+  // App box
+  rr(ctx,W*0.06,H*0.1,W*0.28,H*0.28,10,'rgba(245,158,11,0.08)','rgba(245,158,11,0.4)',1.5);
+  txt(ctx,'应用程序',W*0.2,H*0.18,11,'#f59e0b','center','700');
+  txt(ctx,'event loop',W*0.2,H*0.29,9,'#94a3b8','center');
+  // epoll instance
+  rr(ctx,W*0.44,H*0.52,W*0.18,H*0.2,10,'rgba(56,189,248,0.08)','rgba(56,189,248,0.4)',1.5);
+  txt(ctx,'epoll',W*0.53,H*0.6,11,'#38bdf8','center','700');
+  txt(ctx,'事件表',W*0.53,H*0.68,9,'#94a3b8','center');
+  // FDs
+  const fdX=[W*0.68,W*0.79,W*0.9], fdY=H*0.63;
+  fdX.forEach((x,i)=>{
+    const hl=step>=1;
+    rr(ctx,x-22,fdY-14,44,28,6,hl?'rgba(52,211,153,0.1)':'rgba(30,41,59,0.8)',hl?'rgba(52,211,153,0.5)':'rgba(255,255,255,0.12)',1.5);
+    txt(ctx,`fd${i+1}`,x,fdY,9.5,hl?'#34d399':'#64748b','center');
+  });
+  if(step>=1){
+    arrow(ctx,W*0.62,fdY,W*0.68-22,fdY,'rgba(52,211,153,0.7)',false);
+    txt(ctx,'就绪！',W*0.65,fdY-16,8.5,'#34d399','center','600');
+  }
+  // syscall arrows (step 2)
+  if(step>=2){
+    const syscallY=[H*0.25,H*0.3,H*0.35];
+    fdX.forEach((x,i)=>{
+      // down arrow (user→kernel)
+      arrow(ctx,W*0.34,syscallY[i],x,fdY-14,'rgba(248,113,113,0.7)',false);
+      txt(ctx,`read(fd${i+1})`,W*0.5,syscallY[i]-8,8,'#f87171','center','600');
+    });
+    txt(ctx,'3 次 syscall = 6 次用户态/内核态切换',W*0.5,H*0.88,9.5,'#f87171','center','700');
+  }
+  if(step===0) txt(ctx,'每个就绪 fd 都需要单独的 read/write syscall',W*0.5,H*0.88,9.5,'#94a3b8','center');
+  if(step===1) txt(ctx,'epoll_wait 返回 3 个就绪 fd，还需 3 次 read',W*0.5,H*0.88,9.5,'#fbbf24','center');
+}
+
+// TAB 1: io_uring normal flow
+const TAB1=[
+  {
+    title:'io_uring 初始化：创建 SQ/CQ 共享内存',
+    badge:'normal',
+    desc:'io_uring_setup() 系统调用创建一个 io_uring 实例，在内核和用户态之间 mmap 两块共享内存：SQ（提交队列）和 CQ（完成队列）。之后读写这两块内存无需系统调用。',
+    detail:'共享内存避免了每次 I/O 都需要系统调用传递参数。SQ tail（用户写）和 head（内核读）在共享内存中，用户填 SQE 后只需更新 tail，内核检测到 tail 变化后消费。',
+    draw(ctx,W,H){drawIoUring(ctx,W,H,0);}
+  },
+  {
+    title:'批量填写 SQE 到 SQ（用户态完成）',
+    badge:'normal',
+    desc:'应用批量填写多个 SQE 到 SQ：read(fd1)、read(fd2)、write(fd3)，三个操作只需更新 SQ tail 指针，完全在用户态完成，零系统调用。',
+    detail:'SQE 结构包含：opcode（操作类型）、fd、addr（缓冲区地址）、len（长度）、user_data（用于匹配 CQE）。填写 SQE 是纯内存写操作，极快。',
+    draw(ctx,W,H){drawIoUring(ctx,W,H,1);}
+  },
+  {
+    title:'一次 io_uring_enter 提交所有 SQE',
+    badge:'normal',
+    desc:'调用 io_uring_enter(ring, 3, 0, 0)，一次系统调用通知内核"SQ 里有 3 个新请求"。内核开始并行处理所有 SQE，用户态可以继续做其他工作。',
+    detail:'对比 epoll：3 个 fd = 3 次 read 系统调用。io_uring：无论多少个 I/O，只需 1 次 io_uring_enter。批量越大，节省越多。',
+    draw(ctx,W,H){drawIoUring(ctx,W,H,2);}
+  },
+  {
+    title:'内核完成后填写 CQE，用户态轮询取结果',
+    badge:'ok',
+    desc:'内核并行处理完 I/O 后，将结果（成功字节数或负数 errno）写入 CQ 的 CQE。用户态轮询 CQ head 取出 CQE，通过 user_data 匹配对应的 SQE，获取结果。',
+    detail:'CQ 轮询不需要系统调用（CQ 在共享内存中）。用户态可以 busy-wait（最低延迟）或调用 io_uring_wait_cqe（让出 CPU 阻塞等待），根据场景选择。',
+    draw(ctx,W,H){drawIoUring(ctx,W,H,3);}
+  }
+];
+
+function drawIoUring(ctx,W,H,step){
+  ctx.clearRect(0,0,W,H);
+  const userH=H*0.46;
+  drawBoundary(ctx,W,H,userH,H-userH);
+  // App
+  rr(ctx,W*0.04,H*0.1,W*0.2,H*0.28,10,'rgba(245,158,11,0.08)','rgba(245,158,11,0.4)',1.5);
+  txt(ctx,'应用程序',W*0.14,H*0.18,11,'#f59e0b','center','700');
+  // SQ (shared memory)
+  const sqX=W*0.3, sqY=H*0.14;
+  rr(ctx,sqX,sqY,W*0.28,H*0.28,10,'rgba(245,158,11,0.06)','rgba(245,158,11,0.25)',1);
+  txt(ctx,'SQ（提交队列）',sqX+W*0.14,sqY+H*0.05,9.5,'#f59e0b','center','700');
+  // SQE entries
+  const sqeY=sqY+H*0.1;
+  const sqeLabels=['read fd1','read fd2','write fd3'];
+  sqeLabels.forEach((l,i)=>{
+    const filled=step>=1;
+    rr(ctx,sqX+8+i*W*0.085,sqeY,W*0.08,H*0.1,5,filled?'rgba(245,158,11,0.15)':'rgba(255,255,255,0.03)',filled?'rgba(245,158,11,0.5)':'rgba(255,255,255,0.08)',1);
+    if(filled) txt(ctx,l,sqX+8+i*W*0.085+W*0.04,sqeY+H*0.05,7.5,'#fcd34d','center');
+    else txt(ctx,'空',sqX+8+i*W*0.085+W*0.04,sqeY+H*0.05,8,'#374151','center');
+  });
+  // CQ (shared memory)
+  const cqX=W*0.64, cqY=H*0.14;
+  rr(ctx,cqX,cqY,W*0.3,H*0.28,10,'rgba(52,211,153,0.06)','rgba(52,211,153,0.25)',1);
+  txt(ctx,'CQ（完成队列）',cqX+W*0.15,cqY+H*0.05,9.5,'#34d399','center','700');
+  const cqeLabels=['res=1024','res=512','res=0'];
+  cqeLabels.forEach((l,i)=>{
+    const filled=step>=3;
+    rr(ctx,cqX+8+i*W*0.09,cqY+H*0.1,W*0.085,H*0.1,5,filled?'rgba(52,211,153,0.15)':'rgba(255,255,255,0.03)',filled?'rgba(52,211,153,0.5)':'rgba(255,255,255,0.08)',1);
+    if(filled) txt(ctx,l,cqX+8+i*W*0.09+W*0.042,cqY+H*0.15,7.5,'#86efac','center');
+    else txt(ctx,'空',cqX+8+i*W*0.09+W*0.042,cqY+H*0.15,8,'#374151','center');
+  });
+  // Kernel processing
+  rr(ctx,W*0.3,H*0.54,W*0.4,H*0.2,10,'rgba(56,189,248,0.08)','rgba(56,189,248,0.4)',1.5);
+  txt(ctx,'内核 I/O 处理',W*0.5,H*0.62,11,'#38bdf8','center','700');
+  txt(ctx,step>=2?'处理 3 个 SQE…':'等待 io_uring_enter',W*0.5,H*0.69,8.5,'#94a3b8','center');
+  // Syscall arrow (step 2)
+  if(step>=2){
+    const scX=W*0.34;
+    arrow(ctx,scX,H*0.42,scX,H*0.54,'rgba(245,158,11,1)',false);
+    rr(ctx,scX-55,H*0.44,110,16,5,'rgba(245,158,11,0.15)','rgba(245,158,11,0.4)',1);
+    txt(ctx,'io_uring_enter(ring,3)',scX,H*0.45,8,'#f59e0b','center','600');
+    txt(ctx,'1 次 syscall = N 个 I/O 请求',W*0.5,H*0.89,9.5,'#34d399','center','700');
+  }
+  // CQE flow (step 3)
+  if(step>=3){
+    arrow(ctx,W*0.7,H*0.54,W*0.79,cqY+H*0.28,'rgba(52,211,153,0.8)',false);
+    txt(ctx,'填写 CQE',W*0.78,H*0.5,8.5,'#34d399','center','600');
+    // User polls CQ
+    arrow(ctx,W*0.24,H*0.28,cqX,cqY+H*0.18,'rgba(52,211,153,0.6)',true);
+    txt(ctx,'轮询取结果',W*0.46,H*0.22,8.5,'#34d399','center');
+    txt(ctx,'零系统调用轮询 CQ，通过 user_data 匹配 SQE',W*0.5,H*0.89,9.5,'#34d399','center','700');
+  }
+  if(step===0) txt(ctx,'SQ/CQ 共享内存，用户态读写无需 syscall',W*0.5,H*0.89,9.5,'#94a3b8','center');
+  if(step===1) txt(ctx,'批量填写 SQE：3 个 I/O 操作，0 次 syscall',W*0.5,H*0.89,9.5,'#f59e0b','center');
+}
+
+// TAB 2: Zero-copy with registered buffers
+const TAB2=[
+  {
+    title:'问题：普通模式的数据拷贝路径',
+    badge:'normal',
+    desc:'io_uring 默认模式（IORING_OP_READ）仍然需要将内核缓冲区的数据拷贝到用户提供的缓冲区。每次 read 完成，内核把数据从 Page Cache 拷贝到用户地址空间。',
+    detail:'即使减少了系统调用，数据拷贝本身仍然存在。对于高频小包（如 8KB 的数据库记录），拷贝开销不可忽视。',
+    draw(ctx,W,H){drawZeroCopy(ctx,W,H,0);}
+  },
+  {
+    title:'注册固定缓冲区（IORING_OP_REGISTER_BUFFERS）',
+    badge:'normal',
+    desc:'调用 io_uring_register 注册一块用户态内存为"固定缓冲区"。内核将这块内存的物理页 pin（固定），避免 page fault 和 page swap。后续 I/O 直接使用这块内存，避免额外拷贝。',
+    detail:'注册缓冲区的开销是一次性的（注册时 pin 内存）。注册后的 IORING_OP_READ_FIXED 比普通 read 快约 10–20%，因为内核不需要每次重新锁定内存页。',
+    draw(ctx,W,H){drawZeroCopy(ctx,W,H,1);}
+  },
+  {
+    title:'DMA 直写固定缓冲区，跳过中间拷贝',
+    badge:'ok',
+    desc:'NIC/磁盘 DMA 直接将数据写入已注册的用户态固定缓冲区（通过 IOMMU 映射）。内核不需要先写到 Page Cache 再拷贝到用户态。',
+    detail:'这是 io_uring 最接近真正零拷贝的模式：DMA → 固定用户缓冲区，避免了 Page Cache 这一中间层。配合 O_DIRECT 使用效果最好（绕过 Page Cache）。',
+    draw(ctx,W,H){drawZeroCopy(ctx,W,H,2);}
+  }
+];
+
+function drawZeroCopy(ctx,W,H,step){
+  ctx.clearRect(0,0,W,H);
+  const userH=H*0.4;
+  drawBoundary(ctx,W,H,userH,H-userH);
+  // Disk/NIC
+  rr(ctx,W*0.06,H*0.56,W*0.16,H*0.26,10,'rgba(56,189,248,0.08)','rgba(56,189,248,0.4)',1.5);
+  txt(ctx,'磁盘/NIC',W*0.14,H*0.63,11,'#38bdf8','center','700');
+  // Page Cache (normal mode only)
+  const showPageCache=step<2;
+  if(showPageCache){
+    rr(ctx,W*0.35,H*0.56,W*0.2,H*0.26,10,'rgba(248,113,113,0.06)','rgba(248,113,113,0.3)',1.5);
+    txt(ctx,'Page Cache',W*0.45,H*0.63,10,'#f87171','center','700');
+    txt(ctx,'中间层',W*0.45,H*0.72,8.5,'#94a3b8','center');
+  }
+  // User buffer
+  const registered=step>=1;
+  rr(ctx,W*0.64,H*0.12,W*0.28,H*0.22,10,registered?'rgba(52,211,153,0.08)':'rgba(245,158,11,0.06)',registered?'rgba(52,211,153,0.4)':'rgba(245,158,11,0.3)',1.5);
+  txt(ctx,registered?'固定缓冲区 (Pinned)':'用户缓冲区',W*0.78,H*0.2,10.5,registered?'#34d399':'#f59e0b','center','700');
+  txt(ctx,registered?'REGISTER_BUFFERS ✓':'普通 malloc 内存',W*0.78,H*0.29,8.5,'#94a3b8','center');
+  // Normal path (step 0): DMA → Page Cache → User
+  if(step===0){
+    arrow(ctx,W*0.22,H*0.69,W*0.35,H*0.69,'rgba(56,189,248,0.7)',false);
+    txt(ctx,'DMA',W*0.285,H*0.65,8.5,'#38bdf8','center');
+    arrow(ctx,W*0.55,H*0.66,W*0.72,userH,'rgba(248,113,113,0.7)',false);
+    txt(ctx,'CPU 拷贝',W*0.66,H*0.56,8.5,'#f87171','center');
+    txt(ctx,'需要 CPU 拷贝 Page Cache → 用户缓冲区',W*0.5,H*0.9,9.5,'#f87171','center','700');
+  }
+  // Register buffer (step 1)
+  if(step===1){
+    rr(ctx,W*0.58,H*0.16,W*0.1,H*0.14,7,'rgba(52,211,153,0.08)','rgba(52,211,153,0.3)',1);
+    txt(ctx,'io_uring_register',W*0.63,H*0.2,7.5,'#34d399','center','600');
+    txt(ctx,'→ 内存页 Pin',W*0.63,H*0.26,7.5,'#34d399','center');
+    txt(ctx,'注册一次，后续 I/O 复用，减少 page fault',W*0.5,H*0.9,9.5,'#34d399','center','600');
+  }
+  // Zero copy path (step 2): DMA directly to user buffer via IOMMU
+  if(step>=2){
+    arrow(ctx,W*0.22,H*0.65,W*0.64,H*0.28,'rgba(52,211,153,0.9)',false);
+    txt(ctx,'DMA 直写（IOMMU 映射）',W*0.44,H*0.5,9,'#34d399','center','700');
+    txt(ctx,'DMA 直接写入固定缓冲区，跳过 Page Cache',W*0.5,H*0.9,9.5,'#34d399','center','700');
+    // Strike through page cache
+    ctx.strokeStyle='rgba(248,113,113,0.5)';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(W*0.35,H*0.56);ctx.lineTo(W*0.55,H*0.82);ctx.stroke();
+  }
+}
+
+// TAB 3: Error handling
+const TAB3=[
+  {
+    title:'提交 3 个 SQE，其中 SQE2 会失败',
+    badge:'normal',
+    desc:'批量提交 3 个 SQE：read(fd1)、read(fd2, 目标 fd 已关闭)、write(fd3)。SQE2 的 fd2 是无效的，预期会返回 EBADF 错误。',
+    detail:'io_uring 的错误处理是每个 SQE 独立的——一个请求失败不影响其他请求继续处理。这与阻塞 I/O 的串行失败完全不同。',
+    draw(ctx,W,H){drawError(ctx,W,H,0);}
+  },
+  {
+    title:'内核并行处理：SQE1/3 成功，SQE2 失败',
+    badge:'normal',
+    desc:'内核并行处理 3 个 SQE：fd1 read 成功（读到 1024 字节），fd2 read 失败（EBADF），fd3 write 成功（写出 512 字节）。3 个 CQE 分别填入 CQ。',
+    detail:'关键：SQE2 失败不中断 SQE1/SQE3 的处理。链式 SQE（IOSQE_IO_LINK）才会在前一个失败时取消后续 SQE。默认模式下各 SQE 独立。',
+    draw(ctx,W,H){drawError(ctx,W,H,1);}
+  },
+  {
+    title:'CQE 携带 errno，按 user_data 匹配错误',
+    badge:'ok',
+    desc:'用户态从 CQ 取出 3 个 CQE：CQE1(res=1024)、CQE2(res=-9, EBADF)、CQE3(res=512)。通过 user_data 字段（提交时设置的 ID）识别哪个请求失败了，针对性处理。',
+    detail:'io_uring 用 user_data（64位整数）做请求 ID，可以存指针或 ID，完成时原样返回。通过 user_data 匹配 SQE 和 CQE，即使乱序完成也能正确处理。',
+    draw(ctx,W,H){drawError(ctx,W,H,2);}
+  },
+  {
+    title:'对比阻塞 I/O：串行失败 vs 并行独立',
+    badge:'ok',
+    desc:'阻塞 I/O 串行调用时：read(fd1)成功→read(fd2)失败→通常停止处理（错误路径）→fd3 的 write 被跳过。io_uring 并行处理：3 个操作互不影响，失败只影响自己的 CQE。',
+    detail:'io_uring 的独立错误处理使其特别适合批量请求场景，如数据库批量读取多个 shard——一个 shard 失败不影响其他 shard 的读取。',
+    draw(ctx,W,H){drawError(ctx,W,H,3);}
+  }
+];
+
+function drawError(ctx,W,H,step){
+  ctx.clearRect(0,0,W,H);
+  const sqY=H*0.16, cqY=H*0.55;
+  const sqeX=[W*0.14,W*0.38,W*0.62], cqeX=[W*0.14,W*0.38,W*0.62];
+  // SQ
+  rr(ctx,W*0.04,H*0.1,W*0.62,H*0.26,10,'rgba(245,158,11,0.06)','rgba(245,158,11,0.25)',1);
+  txt(ctx,'SQ（提交队列）',W*0.35,sqY-6,9.5,'#f59e0b','center','700');
+  const sqeLabels=['SQE1: read fd1','SQE2: read fd2 ✗','SQE3: write fd3'];
+  const sqeColors=['rgba(52,211,153,1)','rgba(248,113,113,1)','rgba(56,189,248,1)'];
+  sqeX.forEach((x,i)=>{
+    rr(ctx,x-44,sqY+4,88,H*0.14,7,sqeColors[i].replace('1)','0.1)'),sqeColors[i].replace('1)','0.4)'),1.5);
+    txt(ctx,sqeLabels[i],x,sqY+H*0.11,8,sqeColors[i],'center','600');
+    txt(ctx,`user_data=${i+1}`,x,sqY+H*0.18,7.5,'#64748b','center');
+  });
+  // io_uring_enter (step 0)
+  if(step>=0){
+    rr(ctx,W*0.68,H*0.12,W*0.26,H*0.22,8,'rgba(245,158,11,0.08)','rgba(245,158,11,0.3)',1);
+    txt(ctx,'io_uring_enter',W*0.81,H*0.2,9,'#f59e0b','center','700');
+    txt(ctx,'1 次 syscall',W*0.81,H*0.28,8.5,'#94a3b8','center');
+    arrow(ctx,W*0.66,H*0.23,W*0.68,H*0.23,'rgba(245,158,11,0.7)',false);
+  }
+  // CQ
+  rr(ctx,W*0.04,H*0.49,W*0.62,H*0.26,10,'rgba(52,211,153,0.06)','rgba(52,211,153,0.25)',1);
+  txt(ctx,'CQ（完成队列）',W*0.35,cqY-6,9.5,'#34d399','center','700');
+  const cqeLabels=['CQE1: res=1024','CQE2: res=-9 EBADF','CQE3: res=512'];
+  if(step>=1){
+    cqeX.forEach((x,i)=>{
+      rr(ctx,x-44,cqY+4,88,H*0.14,7,sqeColors[i].replace('1)','0.1)'),sqeColors[i].replace('1)','0.4)'),1.5);
+      txt(ctx,cqeLabels[i],x,cqY+H*0.11,8,sqeColors[i],'center','600');
+      txt(ctx,`user_data=${i+1}`,x,cqY+H*0.18,7.5,'#64748b','center');
+    });
+  }
+  if(step>=2){
+    txt(ctx,'SQE2 失败，SQE1/SQE3 不受影响 ✓',W*0.35,H*0.82,9.5,'#34d399','center','700');
+  }
+  if(step>=3){
+    rr(ctx,W*0.68,H*0.52,W*0.27,H*0.3,10,'rgba(248,113,113,0.06)','rgba(248,113,113,0.25)',1);
+    txt(ctx,'阻塞 I/O 串行',W*0.815,H*0.58,9,'#f87171','center','700');
+    const seqLabels=['read fd1 ✓','read fd2 ✗','write 跳过!'];
+    seqLabels.forEach((l,i)=>{
+      txt(ctx,l,W*0.815,H*0.63+i*H*0.06,8.5,i===2?'#f87171':i===1?'#f87171':'#94a3b8','center');
+    });
+  }
+}
+
+const TABS=[
+  {label:'epoll 基准对比', steps:TAB0},
+  {label:'io_uring 正常流程', steps:TAB1},
+  {label:'零拷贝模式', steps:TAB2},
+  {label:'错误处理', steps:TAB3},
+];
+
+let tabIdx=0,stepIdx=0,timer=null;
+const canvas=document.getElementById('vizCanvas');
+const ctx=canvas.getContext('2d');
+
+function resizeCanvas(){
+  const stage=document.getElementById('stage');
+  const rect=stage.getBoundingClientRect();
+  const dpr=window.devicePixelRatio||1;
+  canvas.width=rect.width*dpr; canvas.height=rect.height*dpr;
+  canvas.style.width=rect.width+'px'; canvas.style.height=rect.height+'px';
+  ctx.scale(dpr,dpr); draw();
+}
+function draw(){
+  const s=TABS[tabIdx].steps[stepIdx];
+  const rect=canvas.getBoundingClientRect();
+  s.draw(ctx,rect.width,rect.height);
+  document.getElementById('stepMsg').textContent=s.desc;
+  document.getElementById('stepTitle').textContent=s.title;
+  document.getElementById('stepDesc').textContent=s.desc;
+  document.getElementById('stepDetail').textContent=s.detail;
+  const b=s.badge||'normal';
+  document.getElementById('stateBadge').textContent=b;
+  document.getElementById('stateBadge').className='badge'+(b==='fail'?' fail':b==='ok'?' ok':'');
+  document.querySelectorAll('.step-btn').forEach((btn,i)=>btn.classList.toggle('active',i===stepIdx));
+  document.getElementById('btnPrev').disabled=stepIdx===0;
+  document.getElementById('btnNext').disabled=stepIdx===TABS[tabIdx].steps.length-1;
+}
+function buildStepList(){
+  document.getElementById('stepList').innerHTML=TABS[tabIdx].steps.map((s,i)=>
+    `<button class="step-btn${i===stepIdx?' active':''}" data-i="${i}"><b>Step ${i+1}</b>${s.title}</button>`
+  ).join('');
+  document.getElementById('stepList').querySelectorAll('button').forEach(b=>b.onclick=()=>{stepIdx=+b.dataset.i;doPause();draw();buildStepList();});
+}
+function buildTabs(){
+  document.getElementById('sceneTabs').innerHTML=TABS.map((t,i)=>
+    `<button class="scene-tab${i===tabIdx?' active':''}" onclick="switchTab(${i})">${t.label}</button>`
+  ).join('');
+}
+function switchTab(i){tabIdx=i;stepIdx=0;doPause();buildTabs();buildStepList();resizeCanvas();}
+function doNext(){if(stepIdx<TABS[tabIdx].steps.length-1){stepIdx++;draw();buildStepList();}else doPause();}
+function doPrev(){if(stepIdx>0){stepIdx--;draw();buildStepList();}}
+function doReset(){doPause();stepIdx=0;draw();buildStepList();}
+function doPause(){if(timer){clearInterval(timer);timer=null;document.getElementById('btnPlay').textContent='播放';}}
+function doToggle(){if(timer){doPause();}else{document.getElementById('btnPlay').textContent='暂停';timer=setInterval(doNext,2200);}}
+
+buildTabs();buildStepList();
+window.addEventListener('resize',resizeCanvas);
+window.addEventListener('load',()=>setTimeout(resizeCanvas,50));
+setTimeout(resizeCanvas,80);
+</script>
+<script>if(window.NavTracker) NavTracker.track('io_uring 异步 I/O', window.location.href, '⚡', 'Linux');</script>
+<script src="../footer.js"></script>
+</body>
+</html>

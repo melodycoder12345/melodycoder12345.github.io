@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="LLM 推理增强：CoT 通过中间步骤引导推理，ToT 将搜索空间展开为树并剪枝，ReAct 交替推理和工具调用，Self-Consistency 多路采样投票提升准确率。">
+<link rel="canonical" href="https://melodycoder12345.github.io/ai/llm-reasoning.html">
+<meta property="og:title" content="LLM 推理增强 — 码海拾贝">
+<meta property="og:description" content="CoT、ToT、ReAct 等推理增强技术的工作原理与工程实践。">
+<meta property="og:url" content="https://melodycoder12345.github.io/ai/llm-reasoning.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="LLM 推理增强 — 码海拾贝">
+<meta name="twitter:description" content="CoT、ToT、ReAct 等推理增强技术的工作原理与工程实践。">
+<title>LLM 推理增强 - AI</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<link rel="stylesheet" href="ai.css">
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Chain-of-Thought（CoT）","body":"让模型在给出最终答案前生成中间推理步骤。Zero-shot 版本只需加 "Let's think step by step" 即可显著提升数学/逻辑题准确率；Few-shot 版本提供带推理链的示例，效果更稳定。","tag":"term"},
+  {"title":"Tree of Thought（ToT）","body":"将推理过程建模为树结构，每个节点是一个部分思维步骤，通过 BFS/DFS 搜索并用模型自身评估节点价值，适合需要探索多条路径的复杂规划与创意问题。","tag":"term"},
+  {"title":"ReAct","body":"Reasoning + Acting 的组合，让模型交替生成推理步骤（Thought）和工具调用（Action），每次 Observation 结果更新上下文，适合需要查询外部信息的 Agent 场景。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="shell" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">AI / Reasoning / C 类型</div>
+      <h1>LLM 推理增强</h1>
+      <p class="summary">单纯的 prompt-answer 在复杂推理任务上准确率有限。CoT 通过中间步骤引导推理，ToT 将搜索空间展开为树并剪枝，ReAct 交替推理和工具调用，Self-Consistency 多路采样投票提升稳健性——这些技术无需微调即可大幅提升 LLM 推理能力。</p>
+      <div class="tags"><span>Chain-of-Thought</span><span>Tree of Thought</span><span>ReAct</span><span>Self-Consistency</span></div>
+    </div>
+    <div class="card map">
+      <div class="eyebrow">核心观察</div>
+      <div class="term"><strong>中间步骤即计算</strong><span>CoT 生成的推理链不只是解释，本质上是让模型在 token 序列上执行分步计算，突破单次前向传播的推理深度限制。</span></div>
+      <div class="term"><strong>搜索 vs 生成</strong><span>ToT 将 LLM 推理转化为搜索问题，通过模型自评估引导剪枝，适合答案空间离散的规划任务。</span></div>
+      <div class="term"><strong>工具调用扩展边界</strong><span>ReAct 让模型知道自己不知道什么，通过 Action 获取实时信息，解决纯参数知识的时效与精度瓶颈。</span></div>
+    </div>
+  </section>
+  <section class="lab">
+    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <section class="panel viz"><div class="stage" id="aiStage"></div><div class="controls"><button class="ctrl" id="btnReset">重置</button><button class="ctrl" id="btnPrev">上一步</button><button class="ctrl primary" id="btnPlay">播放</button><button class="ctrl" id="btnNext">下一步</button></div></section>
+    <aside class="panel"><div class="panel-hd">当前状态</div><div class="status"><span class="badge" id="stateBadge">normal</span><h2 id="stepTitle"></h2><p id="stepDesc"></p><p id="stepDetail"></p><div class="metrics" id="metrics"></div><div class="codebox"><h3>Prompt 模式</h3><pre id="codeBlock"></pre></div></div></aside>
+  </section>
+  <section class="grid">
+    <article class="section"><h2>工程意义</h2><p>CoT 已成为所有主流 LLM API 的默认推理范式，OpenAI o1/o3 和 DeepSeek-R1 将 CoT 内化为训练目标，在测试时通过更长的思维链换取准确率。ToT 适合 Agentic 任务中的计划阶段，但多次 LLM 调用成本高，需在探索深度与 token 开销间权衡。ReAct 是当前 LLM Agent 框架（LangChain、AutoGen、LlamaIndex）的核心范式。</p></article>
+    <article class="section"><h2>失败模式</h2><ul><li>CoT 幻觉传播：推理链中间步骤出现幻觉会传导到最终答案，且用户难以察觉。</li><li>ToT 评估偏差：模型自评估节点价值时存在自我确认偏差，可能剪掉正确路径。</li><li>ReAct 工具滥用：模型在不需要工具时也倾向于调用，增加延迟和成本。</li><li>Self-Consistency 成本：多路采样（通常 40 路）会将推理成本扩大数十倍。</li></ul></article>
+  </section>
+  <div class="back-row"><a class="btn" href="../ai/index.html">← AI 系统</a></div>
+</main>
+<script>
+window.AI_DEMO = {
+  title: 'LLM Reasoning Enhancement', viewBox: '0 0 560 360',
+  nodes: [
+    /* CoT chain (top row, y=78) */
+    {id:'q',        label:'Question',       sub:'input prompt',      x:58,  y:78,  w:88,  h:42},
+    {id:'cot1',     label:'Reasoning 1',    sub:'step by step',      x:187, y:78,  w:96,  h:42},
+    {id:'cot2',     label:'Reasoning 2',    sub:'intermediate',      x:302, y:78,  w:96,  h:42},
+    {id:'cot3',     label:'Reasoning 3',    sub:'conclude',          x:410, y:78,  w:96,  h:42},
+    {id:'ans',      label:'Answer ✓',       sub:'final',             x:506, y:78,  w:82,  h:42},
+    /* Few-shot examples (y=132) */
+    {id:'ex1',      label:'Example 1',      sub:'with reasoning',    x:187, y:132, w:90,  h:38},
+    {id:'ex2',      label:'Example 2',      sub:'with reasoning',    x:302, y:132, w:90,  h:38},
+    /* ToT tree (middle zone, y=195–265) */
+    {id:'tot_root', label:'Problem',        sub:'expand',            x:62,  y:215, shape:'circle', r:28},
+    {id:'br_a',     label:'Approach A',     sub:'explore',           x:192, y:196, w:96,  h:40},
+    {id:'br_b',     label:'Approach B',     sub:'explore',           x:192, y:250, w:96,  h:40},
+    {id:'leaf_a1',  label:'Path A₁ ✓',      sub:'promising',         x:322, y:180, w:82,  h:38},
+    {id:'leaf_a2',  label:'Path A₂ ✗',      sub:'dead end',          x:322, y:222, w:82,  h:38},
+    {id:'leaf_b1',  label:'Path B ✗',       sub:'pruned',            x:322, y:262, w:82,  h:38},
+    {id:'best_tot', label:'Best Solution',  sub:'selected path',     x:452, y:218, w:100, h:40},
+    /* ReAct loop (bottom zone, y=323) */
+    {id:'thought_n',label:'Thought',        sub:'reasoning',         x:72,  y:323, w:96,  h:38},
+    {id:'action_n', label:'Action / Tool',  sub:'API / search',      x:208, y:323, w:104, h:38},
+    {id:'obs_n',    label:'Observation',    sub:'tool result',       x:350, y:323, w:110, h:38},
+    {id:'re_ans',   label:'Final Answer',   sub:'grounded',          x:474, y:323, w:82,  h:38}
+  ],
+  edges: [
+    /* CoT chain */
+    {id:'eq1',  x1:102, y1:78,  x2:139, y2:78},
+    {id:'ec1',  x1:235, y1:78,  x2:254, y2:78},
+    {id:'ec2',  x1:350, y1:78,  x2:362, y2:78},
+    {id:'ec3',  x1:458, y1:78,  x2:465, y2:78},
+    /* Few-shot → CoT upward arrows */
+    {id:'eex1', x1:187, y1:113, x2:187, y2:99},
+    {id:'eex2', x1:302, y1:113, x2:302, y2:99},
+    /* ToT tree */
+    {id:'era',  x1:90,  y1:207, x2:144, y2:200},
+    {id:'erb',  x1:90,  y1:223, x2:144, y2:248},
+    {id:'eaa1', x1:240, y1:190, x2:281, y2:183},
+    {id:'eaa2', x1:240, y1:202, x2:281, y2:222},
+    {id:'ebb1', x1:240, y1:250, x2:281, y2:262},
+    {id:'ea1b', x1:363, y1:183, x2:402, y2:215},
+    /* ReAct loop */
+    {id:'eta',   x1:120, y1:323, x2:156, y2:323},
+    {id:'eao',   x1:260, y1:323, x2:295, y2:323},
+    {id:'eoa',   x1:405, y1:323, x2:433, y2:323},
+    {id:'eloop', x1:350, y1:342, x2:72,  y2:342}
+  ],
+  code: '# Zero-shot CoT\nprompt = question + "\\nLet\'s think step by step."\nresponse = llm(prompt)\n\n# Few-shot CoT\nexamples = [(q1, chain1, ans1), (q2, chain2, ans2)]\nprompt = format_examples(examples) + question\nresponse = llm(prompt)',
+  steps: [
+    /* ─── Scenario 1: Zero-shot CoT ─── */
+    {
+      kicker:'baseline', title:'Scenario 1：直接回答 vs 推理链',
+      badge:'zero-shot',
+      nodes:['q','ans'], edges:['eq1'],
+      desc:'不加任何引导时，LLM 直接从问题跳到答案，在多步数学/逻辑题上容易出错，因为模型没有机会"展开"推理过程。',
+      metrics:[{label:'直接回答',value:'准确率低'},{label:'多步推理',value:'跳步易出错'}],
+      code:'# 直接回答（无 CoT）\nresponse = llm(question)\n# 常见于简单问答，多步推理准确率低'
+    },
+    {
+      kicker:'zero-cot-prompt', title:'Zero-shot CoT：加入引导短语',
+      badge:'zero-shot CoT',
+      nodes:['q','cot1'], edges:['eq1'],
+      desc:'在 prompt 末尾追加 "Let\'s think step by step." 即可触发 Zero-shot CoT，无需任何示例，大幅提升数学/逻辑题准确率。',
+      detail:'这是 Kojima et al. (2022) 的重要发现：这一短语激活了模型预训练时见过的推理格式。',
+      metrics:[{label:'额外 prompt',value:'"Let\'s think step by step."'},{label:'示例数',value:'0-shot'}],
+      code:'# Zero-shot CoT\nprompt = question + "\\nLet\'s think step by step."\nresponse = llm(prompt)\n# 无需示例，仅一句引导即可'
+    },
+    {
+      kicker:'cot-chain', title:'模型生成中间推理步骤',
+      badge:'reasoning',
+      nodes:['q','cot1','cot2','cot3'], edges:['eq1','ec1','ec2'],
+      desc:'模型逐步生成推理过程，每一步作为下一步的上下文输入，相当于在 token 序列中完成分步计算，突破单次前向传播的推理深度。',
+      detail:'推理链的每个 token 都是可供后续步骤参考的"临时记忆"，等效于拓宽了模型的有效计算深度。',
+      code:'# CoT 推理链生成\nprompt = q + "\\nLet\'s think step by step."\n# 模型输出：\n# Step 1: ...\n# Step 2: ...\n# Step 3: ...\n# Therefore: [answer]'
+    },
+    {
+      kicker:'cot-answer', title:'推理链导出答案，准确率显著提升',
+      badge:'correct', tone:'ok',
+      goodNodes:['cot1','cot2','cot3','ans'],
+      nodes:['q'], edges:['eq1','ec1','ec2','ec3'],
+      desc:'完整推理链收敛到最终答案。研究表明 CoT 在 GSM8K 上将准确率从约 20% 提升到 60% 以上（对 GPT-3 级别模型）。',
+      metrics:[{label:'GSM8K',value:'+40% accuracy'},{label:'方法',value:'Zero-shot CoT'}],
+      code:'# 从推理链中提取答案\nchain = llm(prompt)\nanswer = extract_answer(chain)  # 解析 "The answer is X"'
+    },
+    /* ─── Scenario 2: Few-shot CoT ─── */
+    {
+      kicker:'fewshot-examples', title:'Scenario 2：Few-shot CoT 提供带推理的示例',
+      badge:'few-shot CoT',
+      nodes:['q','ex1','ex2'], edges:['eex1','eex2'],
+      desc:'向 prompt 中加入 2–3 个带完整推理过程的示例（question → chain → answer），指导模型模仿推理格式，比 Zero-shot CoT 更稳定。',
+      detail:'示例的推理格式会被模型强烈模仿，因此示例质量（步骤清晰、格式一致）对效果影响很大。',
+      code:'examples = [\n  {"q": "Tom has 5 apples...", "chain": "Step 1:...", "a": "3"},\n  {"q": "A train travels...", "chain": "Step 1:...", "a": "120km"}\n]\nprompt = format_examples(examples) + new_question'
+    },
+    {
+      kicker:'fewshot-output', title:'模型模仿示例格式输出推理链',
+      badge:'few-shot CoT', tone:'ok',
+      goodNodes:['ans','cot1','cot2','cot3'],
+      nodes:['q','ex1','ex2'], edges:['eex1','eex2','eq1','ec1','ec2','ec3'],
+      desc:'有了高质量示例的引导，模型严格模仿推理格式，输出结构化推理链，格式一致性和答案准确率均高于 Zero-shot CoT。',
+      metrics:[{label:'示例数',value:'2–8 shots'},{label:'格式一致性',value:'高'}],
+      code:'# Few-shot CoT：格式化输出\n# 模型输出严格遵循示例格式：\n# Q: [question]\n# Let\'s think step by step.\n# Step 1: [reasoning]\n# ...\n# A: [answer]'
+    },
+    /* ─── Scenario 3: Tree of Thought ─── */
+    {
+      kicker:'tot-expand', title:'Scenario 3：ToT 将问题展开为思维树',
+      badge:'Tree of Thought',
+      nodes:['tot_root','br_a','br_b'], edges:['era','erb'],
+      desc:'Tree of Thought 将推理过程建模为树结构：从根节点（问题）展开多个独立的思维方向（Approach A、B），每个节点代表一个部分推理步骤。',
+      detail:'与 CoT 线性推理不同，ToT 允许同时探索多条路径，特别适合需要试错的创意写作、代码生成和策略规划任务。',
+      code:'# Tree of Thought (BFS 示例)\nfrontier = [initial_state]\nfor depth in range(max_depth):\n    candidates = []\n    for node in frontier:\n        thoughts = llm.generate_thoughts(node, k=3)\n        candidates.extend(thoughts)\n    # 模型评估每个节点的价值\n    scores = llm.evaluate(candidates)\n    frontier = top_k(candidates, scores, k=beam_width)'
+    },
+    {
+      kicker:'tot-evaluate', title:'模型自评估各节点价值',
+      badge:'Tree of Thought',
+      nodes:['br_a','br_b','leaf_a1','leaf_a2','leaf_b1'], edges:['eaa1','eaa2','ebb1'],
+      desc:'对每个展开的子节点，用同一个 LLM 评估该推理路径的质量（"This approach is promising / unlikely to work"），作为 BFS/DFS 的启发函数。',
+      detail:'评估 prompt 通常要求模型以 1–10 分打分，或判断当前路径是否值得继续探索。',
+      code:'# 节点评估\nfor node in expanded_nodes:\n    score = llm.evaluate(\n        f"Given problem: {problem}\\n"\n        f"Current reasoning: {node}\\n"\n        "Rate the likelihood of success (1-10):"\n    )\n    node.score = score'
+    },
+    {
+      kicker:'tot-prune', title:'剪枝低分路径，选出最优解',
+      badge:'Tree of Thought', tone:'ok',
+      goodNodes:['leaf_a1','best_tot'],
+      badNodes:['leaf_a2','leaf_b1'],
+      nodes:['tot_root','br_a'], edges:['era','eaa1','ea1b'],
+      desc:'Path A₁ 评分最高，保留；Path A₂ 和 Path B 被剪枝。沿 Path A₁ 继续深化，得出最优解。ToT 在 Game of 24 和创意写作基准上显著优于 CoT。',
+      metrics:[{label:'Game of 24',value:'CoT 4% → ToT 74%'},{label:'搜索策略',value:'BFS / DFS'}],
+      code:'# 剪枝 + 最优路径选择\nbest_node = max(frontier, key=lambda n: n.score)\nif best_node.score < threshold:\n    backtrack()  # 回溯到父节点\nelse:\n    solution = continue_from(best_node)'
+    },
+    /* ─── Scenario 4: ReAct ─── */
+    {
+      kicker:'react-thought', title:'Scenario 4：ReAct — Thought 推理步骤',
+      badge:'ReAct',
+      nodes:['thought_n'], edges:[],
+      desc:'ReAct 让模型交替输出 Thought 和 Action。Thought 是模型的内部推理："I need to find the population of Tokyo to answer this question."',
+      detail:'Thought 不会被执行，只是模型明确化自己知道什么、不知道什么，从而决定下一步行动。',
+      code:'# ReAct 循环\nwhile not done:\n    thought = llm.generate(\n        f"Thought: Based on context so far, "\n        f"I need to [next action]"\n    )\n    # 解析 Thought 确定下一步'
+    },
+    {
+      kicker:'react-action', title:'Action：调用外部工具或 API',
+      badge:'ReAct',
+      nodes:['thought_n','action_n'], edges:['eta'],
+      desc:'基于 Thought 的推理，模型输出 Action 调用外部工具（搜索引擎、计算器、代码执行器、数据库 API）。',
+      detail:'Action 格式通常是结构化文本，如 "Action: Search[Tokyo population 2024]"，由框架解析并调用对应工具。',
+      code:'# Action 格式\naction = llm.generate("Action: ")\n# 示例输出：\n# Action: Search[current Tokyo population]\n# Action: Calculate[GDP / population]\n# Action: Lookup[database query]\ntool_result = execute_tool(action)'
+    },
+    {
+      kicker:'react-obs', title:'Observation 更新上下文，循环直到答案',
+      badge:'ReAct', tone:'ok',
+      goodNodes:['re_ans'],
+      nodes:['thought_n','action_n','obs_n'], edges:['eta','eao','eoa','eloop'],
+      desc:'工具返回 Observation，追加到上下文中，触发下一轮 Thought→Action 循环，直到模型认为信息足够充分，输出 Final Answer。',
+      detail:'ReAct 将 LLM 的参数知识与外部信息的实时性结合，是 LangChain、AutoGen 等 Agent 框架的核心推理范式。',
+      metrics:[{label:'Thought→Action→Obs',value:'循环执行'},{label:'终止条件',value:'模型输出 Final Answer'}],
+      code:'# 完整 ReAct 循环\nwhile True:\n    output = llm(context)\n    if "Final Answer:" in output:\n        return parse_answer(output)\n    action = parse_action(output)\n    obs = execute_tool(action)\n    context += f"\\nObservation: {obs}"'
+    }
+  ]
+};
+</script>
+<script src="ai.js"></script>
+<script src="../footer.js"></script>
+</body>
+</html>

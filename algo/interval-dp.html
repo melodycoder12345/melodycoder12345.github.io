@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="解决「在区间上做最优决策」类问题的 DP 模型。外层枚举区间长度，内层枚举分割点，dp[i][j] 表示区间 [i,j] 的最优值。矩阵链乘、戳气球、合并石子是经典题型。">
+<link rel="canonical" href="https://melodycoder12345.github.io/algo/interval-dp.html">
+<meta property="og:title" content="区间 DP — 码海拾贝">
+<meta property="og:description" content="外层枚举区间长度，内层枚举分割点，dp[i][j] 表示区间最优值。矩阵链乘、合并石子经典题型。">
+<meta property="og:url" content="https://melodycoder12345.github.io/algo/interval-dp.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="区间 DP — 码海拾贝">
+<meta name="twitter:description" content="外层枚举区间长度，内层枚举分割点，dp[i][j] 表示区间最优值。">
+<title>区间 DP - 算法可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}
+.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.badge.time{background:rgba(56,189,248,0.15);color:var(--blue);}
+.badge.space{background:rgba(196,132,252,0.15);color:var(--purple);}
+.layout{display:grid;grid-template-columns:242px 1fr 368px;flex:1;overflow:hidden;}
+/* left */
+.left-panel{border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.scene-tabs{display:flex;flex-direction:column;gap:3px;padding:10px 10px 8px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.scene-label{font-size:0.68rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--dim);margin-bottom:4px;font-weight:600;}
+.tab-btn{background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--dim);padding:7px 10px;border-radius:7px;cursor:pointer;font-size:0.78rem;text-align:left;transition:all 0.15s;}
+.tab-btn:hover{background:rgba(255,255,255,0.08);color:var(--text);}
+.tab-btn.active{background:rgba(167,139,250,0.15);border-color:rgba(167,139,250,0.4);color:#a78bfa;}
+.info-area{flex:1;overflow-y:auto;padding:10px 12px;min-height:0;}
+.area-title{font-size:0.68rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--dim);margin-bottom:6px;font-weight:600;}
+.prob-box{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:7px;padding:10px 12px;font-size:0.77rem;line-height:1.7;color:var(--dim);margin-bottom:8px;}
+.prob-box strong{color:var(--text);}
+.split-vis{margin-top:8px;padding:8px 10px;background:rgba(167,139,250,0.07);border:1px solid rgba(167,139,250,0.25);border-radius:6px;font-size:0.74rem;}
+.split-vis-title{color:#a78bfa;margin-bottom:5px;font-size:0.7rem;}
+.split-entry{font-family:monospace;padding:2px 0;color:var(--dim);}
+.split-entry.active{color:var(--yellow);}
+.result-box{background:rgba(74,222,128,0.06);border:1px solid rgba(74,222,128,0.25);border-radius:7px;padding:10px 12px;font-size:0.8rem;margin-bottom:8px;display:none;}
+.result-title{font-size:0.68rem;color:var(--dim);margin-bottom:4px;}
+.result-val{font-size:1.1rem;font-weight:700;color:var(--green);}
+.step-box{padding:9px 12px;border-top:1px solid var(--border);flex-shrink:0;}
+.step-ctr{font-size:0.72rem;color:var(--dim);margin-bottom:5px;}
+.step-desc{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:7px;padding:9px 11px;font-size:0.79rem;line-height:1.65;min-height:66px;}
+.ctrl-row{display:flex;gap:6px;padding:9px 12px;border-top:1px solid var(--border);flex-shrink:0;align-items:center;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:6px 13px;border-radius:6px;cursor:pointer;font-size:0.82rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}
+.btn.primary{background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.3);color:var(--blue);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-row{display:flex;align-items:center;gap:7px;padding:6px 12px;border-top:1px solid var(--border);font-size:0.74rem;color:var(--dim);flex-shrink:0;}
+input[type=range]{-webkit-appearance:none;width:80px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--blue);cursor:pointer;}
+/* mid */
+.mid-panel{display:flex;flex-direction:column;overflow:hidden;}
+.legend{display:flex;gap:12px;padding:8px 20px;border-bottom:1px solid var(--border);flex-wrap:wrap;flex-shrink:0;}
+.leg{display:flex;align-items:center;gap:5px;font-size:0.71rem;color:var(--dim);}
+.leg-dot{width:12px;height:12px;border-radius:3px;flex-shrink:0;}
+.table-area{flex:1;overflow:auto;padding:20px 24px;display:flex;align-items:flex-start;justify-content:flex-start;}
+/* DP Table */
+.dp-table{border-collapse:collapse;font-family:monospace;font-size:0.84rem;}
+.dp-header{color:var(--dim);font-size:0.76rem;padding:4px 6px;text-align:center;width:72px;height:36px;}
+.dp-cell{width:72px;height:56px;text-align:center;vertical-align:middle;border:1px solid var(--border);transition:background 0.2s,color 0.2s;position:relative;font-size:0.82rem;}
+.dp-cell.c-diag{background:rgba(56,189,248,0.12);color:var(--blue);}
+.dp-cell.c-cur{background:rgba(251,191,36,0.25);color:var(--yellow);font-weight:700;}
+.dp-cell.c-dep{background:rgba(196,132,252,0.2);color:var(--purple);}
+.dp-cell.c-split{background:rgba(251,146,60,0.2);color:var(--orange);}
+.dp-cell.c-done{background:rgba(74,222,128,0.12);color:var(--green);}
+.dp-cell.c-gray{background:rgba(15,23,42,0.6);color:#2d3f55;border-color:#1e293b;}
+.cell-sub{font-size:0.62rem;color:var(--dim);position:absolute;bottom:3px;left:0;right:0;text-align:center;}
+.row-hdr{padding:0 10px 0 4px;text-align:right;white-space:nowrap;font-size:0.72rem;min-width:36px;color:var(--dim);}
+/* right */
+.right-panel{border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.formula-box{padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.formula-title{font-size:0.68rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--dim);margin-bottom:8px;font-weight:600;}
+.formula{background:#0d1117;border-radius:8px;padding:12px 14px;font-family:monospace;font-size:0.77rem;line-height:1.9;}
+.code-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.code-hdr{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.78rem;line-height:1.7;}
+.code-line.active{background:rgba(251,191,36,0.1);}
+.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:44px;padding:0 10px 0 14px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.76rem;}
+.lc{padding:0 14px 0 2px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.id{color:#e6edf3;}.cm{color:#8b949e;}
+@media(max-width:900px){
+  body{height:auto!important;min-height:100vh;overflow-y:auto!important;overflow-x:hidden;}
+  .layout{grid-template-columns:1fr!important;height:auto!important;}
+  .table-area{min-height:300px;}
+  .right-panel{height:400px!important;}
+}
+</style>
+<script src="../nav.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>区间 DP</h1>
+  <div class="complexity">
+    <span class="badge time">时间 O(n³)</span>
+    <span class="badge space">空间 O(n²)</span>
+  </div>
+</nav>
+<div class="layout">
+<!-- ═══ LEFT ═══ -->
+<div class="left-panel">
+  <div class="scene-tabs">
+    <div class="scene-label">场景</div>
+    <button class="tab-btn active" id="tab0" onclick="switchScene(0)">① 矩阵链乘（3 矩阵）</button>
+    <button class="tab-btn" id="tab1" onclick="switchScene(1)">② 合并石子（4 堆）</button>
+    <button class="tab-btn" id="tab2" onclick="switchScene(2)">③ 边界初始化</button>
+  </div>
+  <div class="info-area">
+    <div class="area-title">问题描述</div>
+    <div class="prob-box" id="probBox"></div>
+    <div class="split-vis" id="splitVis" style="display:none">
+      <div class="split-vis-title">当前分割点枚举</div>
+      <div id="splitList"></div>
+    </div>
+    <div class="result-box" id="resultBox">
+      <div class="result-title" id="resultTitle">最优解</div>
+      <div class="result-val" id="resultVal"></div>
+      <div id="resultDetail" style="font-size:0.74rem;color:var(--dim);margin-top:5px;line-height:1.6"></div>
+    </div>
+  </div>
+  <div class="step-box">
+    <div class="step-ctr" id="stepCtr">步骤 0 / 0</div>
+    <div class="step-desc" id="stepDesc">点击「▶ 播放」开始演示</div>
+  </div>
+  <div class="ctrl-row">
+    <button class="btn" onclick="reset()">⏮</button>
+    <button class="btn" id="btnPrev" onclick="prev()">◀</button>
+    <button class="btn primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+    <button class="btn" id="btnNext" onclick="next()">▶▶</button>
+  </div>
+  <div class="speed-row">
+    <span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span>
+  </div>
+</div>
+<!-- ═══ MIDDLE ═══ -->
+<div class="mid-panel">
+  <div class="legend">
+    <div class="leg"><div class="leg-dot" style="background:rgba(56,189,248,0.3)"></div>对角线（dp[i][i]=0）</div>
+    <div class="leg"><div class="leg-dot" style="background:rgba(251,191,36,0.4)"></div>当前计算格</div>
+    <div class="leg"><div class="leg-dot" style="background:rgba(196,132,252,0.3)"></div>来源子问题</div>
+    <div class="leg"><div class="leg-dot" style="background:rgba(251,146,60,0.3)"></div>当前最优分割点</div>
+    <div class="leg"><div class="leg-dot" style="background:rgba(15,23,42,0.8)"></div>无效区域（i&gt;j）</div>
+  </div>
+  <div class="table-area" id="tableArea"></div>
+</div>
+<!-- ═══ RIGHT ═══ -->
+<div class="right-panel">
+  <div class="formula-box">
+    <div class="formula-title">区间 DP 框架</div>
+    <div class="formula" id="formulaBox"></div>
+  </div>
+  <div class="code-panel">
+    <div class="code-hdr">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px" id="codeFilename">matrix_chain.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+</div>
+<script>
+// ──────────────────────────────────────────
+// Code Lines
+// ──────────────────────────────────────────
+const CODE_MATRIX = [
+  {html:`<span class="cm">// 矩阵链乘：给定维度 p，p[i]×p[i+1] = 第 i 个矩阵</span>`},          // 0
+  {html:`<span class="kw">func</span> <span class="fn">matrixChain</span>(p []<span class="kw">int</span>) (<span class="kw">int</span>, [][]<span class="kw">int</span>) {`},  // 1
+  {html:`&nbsp;&nbsp;n := <span class="fn">len</span>(p) - <span class="num">1</span>                        <span class="cm">// 矩阵个数</span>`},       // 2
+  {html:`&nbsp;&nbsp;dp := <span class="fn">make2D</span>(n)                      <span class="cm">// dp[i][j] = 最小运算次数</span>`}, // 3
+  {html:``},                                                                              // 4
+  {html:`&nbsp;&nbsp;<span class="cm">// 基础情况：单个矩阵不需要运算</span>`},                       // 5
+  {html:`&nbsp;&nbsp;<span class="kw">for</span> i := <span class="num">0</span>; i &lt; n; i++ { dp[i][i] = <span class="num">0</span> }  <span class="cm">// 区间长度=1</span>`}, // 6
+  {html:``},                                                                              // 7
+  {html:`&nbsp;&nbsp;<span class="cm">// 按区间长度枚举</span>`},                                     // 8
+  {html:`&nbsp;&nbsp;<span class="kw">for</span> length := <span class="num">2</span>; length &lt;= n; length++ {`},          // 9
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> i := <span class="num">0</span>; i &lt;= n-length; i++ {`},               // 10
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;j := i + length - <span class="num">1</span>`},                              // 11
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;dp[i][j] = math.<span class="id">MaxInt</span>`},                          // 12
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> k := i; k &lt; j; k++ {           <span class="cm">// 枚举分割点</span>`}, // 13
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;cost := dp[i][k] + dp[k+<span class="num">1</span>][j]`},              // 14
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;cost += p[i] * p[k+<span class="num">1</span>] * p[j+<span class="num">1</span>]  <span class="cm">// 合并代价</span>`}, // 15
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> cost &lt; dp[i][j] { dp[i][j] = cost }`},   // 16
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},                                                      // 17
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},                                                          // 18
+  {html:`&nbsp;&nbsp;}`},                                                                  // 19
+  {html:`&nbsp;&nbsp;<span class="kw">return</span> dp[<span class="num">0</span>][n-<span class="num">1</span>], dp`},                           // 20
+  {html:`}`},                                                                             // 21
+];
+
+const CODE_STONE = [
+  {html:`<span class="cm">// 合并石子：石子堆 stones，每次合并费用为区间和</span>`},            // 0
+  {html:`<span class="kw">func</span> <span class="fn">mergeStones</span>(stones []<span class="kw">int</span>) (<span class="kw">int</span>, [][]<span class="kw">int</span>) {`}, // 1
+  {html:`&nbsp;&nbsp;n := <span class="fn">len</span>(stones)`},                                     // 2
+  {html:`&nbsp;&nbsp;prefix := <span class="fn">make</span>([]<span class="kw">int</span>, n+<span class="num">1</span>)            <span class="cm">// 前缀和</span>`},     // 3
+  {html:`&nbsp;&nbsp;<span class="kw">for</span> i, v := <span class="kw">range</span> stones { prefix[i+<span class="num">1</span>] = prefix[i] + v }`}, // 4
+  {html:`&nbsp;&nbsp;dp := <span class="fn">make2D</span>(n)`},                                    // 5
+  {html:``},                                                                             // 6
+  {html:`&nbsp;&nbsp;<span class="cm">// dp[i][i] = 0，单堆不需要合并</span>`},                      // 7
+  {html:`&nbsp;&nbsp;<span class="kw">for</span> i := <span class="num">0</span>; i &lt; n; i++ { dp[i][i] = <span class="num">0</span> }`},         // 8
+  {html:``},                                                                             // 9
+  {html:`&nbsp;&nbsp;<span class="kw">for</span> length := <span class="num">2</span>; length &lt;= n; length++ {`},         // 10
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> i := <span class="num">0</span>; i &lt;= n-length; i++ {`},              // 11
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;j := i + length - <span class="num">1</span>`},                             // 12
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;dp[i][j] = math.<span class="id">MaxInt</span>`},                         // 13
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;sum := prefix[j+<span class="num">1</span>] - prefix[i]     <span class="cm">// 区间和</span>`},  // 14
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> k := i; k &lt; j; k++ {`},                        // 15
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;cost := dp[i][k] + dp[k+<span class="num">1</span>][j] + sum`},         // 16
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> cost &lt; dp[i][j] { dp[i][j] = cost }`},  // 17
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},                                                     // 18
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},                                                         // 19
+  {html:`&nbsp;&nbsp;}`},                                                                 // 20
+  {html:`&nbsp;&nbsp;<span class="kw">return</span> dp[<span class="num">0</span>][n-<span class="num">1</span>], dp`},                          // 21
+  {html:`}`},                                                                            // 22
+];
+
+// ──────────────────────────────────────────
+// Scenario Configs
+// ──────────────────────────────────────────
+const SCENE_MATRIX = {
+  name: 'matrix',
+  labels: ['A','B','C'],
+  dims: [10,30,5,60],  // p array: A(10×30), B(30×5), C(5×60)
+  problem: `<strong>矩阵链乘</strong><br>A<sub>10×30</sub> × B<sub>30×5</sub> × C<sub>5×60</sub><br><br>dp[i][j] = 连乘矩阵 i..j 的最小乘法次数<br>枚举分割点 k：先乘 [i,k]，再乘 [k+1,j]<br>代价 = dp[i][k] + dp[k+1][j] + p[i]×p[k+1]×p[j+1]`,
+  formula: `<span style="color:var(--blue)">for</span> length <span style="color:var(--blue)">in</span> 2..n:
+  <span style="color:var(--blue)">for</span> i <span style="color:var(--blue)">in</span> 0..n-length:
+    j = i + length - 1
+    dp[i][j] = ∞
+    <span style="color:var(--blue)">for</span> k <span style="color:var(--blue)">in</span> i..j-1:
+      cost = dp[i][k] + dp[k+1][j]
+             + p[i]×p[k+1]×p[j+1]
+      dp[i][j] = <span style="color:var(--fn,#d2a8ff)">min</span>(dp[i][j], cost)`,
+  codeLines: CODE_MATRIX,
+  filename: 'matrix_chain.go',
+  n: 3,
+};
+
+const SCENE_STONE = {
+  name: 'stone',
+  labels: ['0','1','2','3'],
+  stones: [1,3,5,2],
+  problem: `<strong>合并石子</strong><br>堆: [<strong style="color:var(--yellow)">1, 3, 5, 2</strong>]<br><br>dp[i][j] = 合并石子 i..j 的最小代价<br>每次合并代价 = 两段石子总数之和<br>枚举分割点 k：先合并 [i,k] 和 [k+1,j]`,
+  formula: `<span style="color:var(--blue)">for</span> length <span style="color:var(--blue)">in</span> 2..n:
+  <span style="color:var(--blue)">for</span> i <span style="color:var(--blue)">in</span> 0..n-length:
+    j = i + length - 1
+    sum = prefix[j+1] - prefix[i]
+    dp[i][j] = ∞
+    <span style="color:var(--blue)">for</span> k <span style="color:var(--blue)">in</span> i..j-1:
+      dp[i][j] = <span style="color:var(--fn,#d2a8ff)">min</span>(dp[i][j],
+        dp[i][k] + dp[k+1][j] + sum)`,
+  codeLines: CODE_STONE,
+  filename: 'merge_stones.go',
+  n: 4,
+};
+
+const SCENE_INIT = {
+  name: 'init',
+  labels: ['0','1','2','3'],
+  problem: `<strong>边界初始化</strong><br>区间 DP 的基础情况：<br><br><strong style="color:var(--blue)">dp[i][i] = 0</strong>（单元素区间无需操作）<br><br>所有对角线格子先初始化为 0，长度为 1 的区间就是叶子节点。从长度 2 开始扩展，保证子问题在父问题之前被解决。`,
+  formula: `<span style="color:var(--cm,#8b949e)">// 区间 DP 通用初始化</span>
+<span style="color:var(--blue)">for</span> i := 0; i &lt; n; i++ {
+  dp[i][i] = 0    <span style="color:var(--cm,#8b949e)">// 单元素最优值</span>
+}
+
+<span style="color:var(--cm,#8b949e)">// 填表顺序：按区间长度</span>
+<span style="color:var(--blue)">for</span> length := 2; length &lt;= n; length++ {
+  <span style="color:var(--cm,#8b949e)">// 所有长度为 length 的区间</span>
+  <span style="color:var(--blue)">for</span> i := 0; i &lt;= n-length; i++ {
+    j := i + length - 1
+    <span style="color:var(--cm,#8b949e)">// 填充 dp[i][j]</span>
+  }
+}`,
+  n: 4,
+};
+
+// ──────────────────────────────────────────
+// DP Computation
+// ──────────────────────────────────────────
+const INF = 1e15;
+
+function computeMatrix(dims) {
+  const n = dims.length - 1;
+  const dp = Array.from({length:n},()=>new Array(n).fill(0));
+  const split = Array.from({length:n},()=>new Array(n).fill(-1));
+  for(let length=2;length<=n;length++){
+    for(let i=0;i<=n-length;i++){
+      const j=i+length-1;
+      dp[i][j]=INF;
+      for(let k=i;k<j;k++){
+        const cost=dp[i][k]+dp[k+1][j]+dims[i]*dims[k+1]*dims[j+1];
+        if(cost<dp[i][j]){dp[i][j]=cost;split[i][j]=k;}
+      }
+    }
+  }
+  return {dp,split};
+}
+
+function computeStone(stones) {
+  const n=stones.length;
+  const prefix=new Array(n+1).fill(0);
+  for(let i=0;i<n;i++) prefix[i+1]=prefix[i]+stones[i];
+  const dp=Array.from({length:n},()=>new Array(n).fill(0));
+  const split=Array.from({length:n},()=>new Array(n).fill(-1));
+  for(let length=2;length<=n;length++){
+    for(let i=0;i<=n-length;i++){
+      const j=i+length-1;
+      const sum=prefix[j+1]-prefix[i];
+      dp[i][j]=INF;
+      for(let k=i;k<j;k++){
+        const cost=dp[i][k]+dp[k+1][j]+sum;
+        if(cost<dp[i][j]){dp[i][j]=cost;split[i][j]=k;}
+      }
+    }
+  }
+  return {dp,split,prefix};
+}
+
+// ──────────────────────────────────────────
+// Step Generation
+// ──────────────────────────────────────────
+function generateMatrixSteps(dims, labels) {
+  const n=dims.length-1;
+  const {dp,split}=computeMatrix(dims);
+  const S=[];
+
+  S.push({phase:'init0', dp:Array.from({length:n},()=>new Array(n).fill(null)),
+    curCell:null, depCells:[], splitK:-1, splits:[],
+    hl:[1,2,3], desc:`初始化：矩阵数量 n=${n}，维度数组 p=[${dims.join(',')}]。创建 ${n}×${n} 的 dp 表格。`});
+
+  // Base: diagonal
+  const dpSnap=Array.from({length:n},()=>new Array(n).fill(null));
+  for(let i=0;i<n;i++) dpSnap[i][i]=0;
+  S.push({phase:'base', dp:dpSnap.map(r=>[...r]),
+    curCell:null, depCells:[], splitK:-1, splits:[],
+    hl:[5,6], desc:`<strong style="color:var(--blue)">基础情况</strong>：dp[i][i] = 0，单个矩阵不需要做任何乘法运算。${labels.map((l,i)=>`dp[${i}][${i}]=0`).join('，')}`});
+
+  // Fill by length
+  for(let length=2;length<=n;length++){
+    for(let i=0;i<=n-length;i++){
+      const j=i+length-1;
+      const dpCur=dpSnap.map(r=>[...r]);
+      const splitEnums=[];
+
+      for(let k=i;k<j;k++){
+        const cost=dpSnap[i][k]+dpSnap[k+1][j]+dims[i]*dims[k+1]*dims[j+1];
+        splitEnums.push({k, cost,
+          depI:dpSnap[i][k], depJ:dpSnap[k+1][j],
+          extra:dims[i]*dims[k+1]*dims[j+1]});
+      }
+
+      // Show "starting to fill [i,j]"
+      S.push({phase:'start_cell', dp:dpCur, curCell:[i,j], depCells:[], splitK:-1, splits:[],
+        hl:[9,10,11,12], desc:`开始计算 dp[${i}][${j}]（区间 ${labels[i]}..${labels[j]}，长度=${length}），初始化为 ∞，即将枚举分割点 k = ${i}..${j-1}`});
+
+      // Enumerate each split point
+      let bestCost=INF, bestK=-1;
+      for(const {k,cost,depI,depJ,extra} of splitEnums){
+        if(cost<bestCost){bestCost=cost;bestK=k;}
+        const depCells=[[i,k],[k+1,j]];
+        const prevDpK=dpSnap.map(r=>[...r]);
+        S.push({phase:'split', dp:prevDpK, curCell:[i,j], depCells, splitK:k, splits:[...splitEnums.filter(e=>e.k<=k)],
+          hl:[13,14,15,16],
+          desc:`k=${k}：dp[${i}][${k}](${depI}) + dp[${k+1}][${j}](${depJ}) + ${dims[i]}×${dims[k+1]}×${dims[j+1]}(${extra}) = <strong style="color:var(--yellow)">${cost}</strong>${cost<=bestCost?' ← 当前最优':''}`});
+      }
+
+      dpSnap[i][j]=dp[i][j];
+      const dpAfter=dpSnap.map(r=>[...r]);
+      S.push({phase:'fill', dp:dpAfter, curCell:[i,j], depCells:[], splitK:split[i][j], splits:[],
+        hl:[16,17,18],
+        desc:`dp[${i}][${j}] = <strong style="color:var(--green)">${dp[i][j]}</strong>（最优分割点 k=${split[i][j]}，即 ${labels[i]}..${labels[split[i][j]]} 和 ${labels[split[i][j]+1]}..${labels[j]} 分别计算后合并）`});
+    }
+  }
+
+  const finalDp=dpSnap.map(r=>[...r]);
+  S.push({phase:'done', dp:finalDp, curCell:null, depCells:[], splitK:-1, splits:[],
+    hl:[20], desc:`🎉 <strong style="color:var(--green)">计算完成！</strong>dp[0][${n-1}] = <strong style="color:var(--green)">${dp[0][n-1]}</strong> 次乘法运算。最优括号化：<strong style="color:var(--green)">(A×B)×C</strong> = 1500+3000 = 4500，次优方案 <span style="color:var(--red)">A×(B×C)</span> = 9000+18000 = 27000，相差 6 倍。`});
+
+  return S;
+}
+
+function generateStoneSteps(stones, labels) {
+  const n=stones.length;
+  const {dp,split,prefix}=computeStone(stones);
+  const S=[];
+
+  S.push({phase:'init0', dp:Array.from({length:n},()=>new Array(n).fill(null)),
+    curCell:null, depCells:[], splitK:-1, splits:[],
+    hl:[1,2,3,4,5], desc:`初始化：石子堆 [${stones.join(', ')}]，前缀和 prefix=[${prefix.join(',')}]。创建 ${n}×${n} 的 dp 表格。`});
+
+  const dpSnap=Array.from({length:n},()=>new Array(n).fill(null));
+  for(let i=0;i<n;i++) dpSnap[i][i]=0;
+  S.push({phase:'base', dp:dpSnap.map(r=>[...r]),
+    curCell:null, depCells:[], splitK:-1, splits:[],
+    hl:[7,8], desc:`<strong style="color:var(--blue)">基础情况</strong>：dp[i][i] = 0，单堆石子无需合并代价。`});
+
+  for(let length=2;length<=n;length++){
+    for(let i=0;i<=n-length;i++){
+      const j=i+length-1;
+      const sum=prefix[j+1]-prefix[i];
+
+      S.push({phase:'start_cell', dp:dpSnap.map(r=>[...r]), curCell:[i,j], depCells:[], splitK:-1, splits:[],
+        hl:[10,11,12,13,14], desc:`计算 dp[${i}][${j}]（堆 ${i}..${j}），区间和 = ${sum}，枚举分割点 k = ${i}..${j-1}`});
+
+      const splitEnums=[];
+      let bestCost=INF, bestK=-1;
+      for(let k=i;k<j;k++){
+        const cost=dpSnap[i][k]+dpSnap[k+1][j]+sum;
+        splitEnums.push({k,cost,depI:dpSnap[i][k],depJ:dpSnap[k+1][j],sum});
+        if(cost<bestCost){bestCost=cost;bestK=k;}
+        S.push({phase:'split', dp:dpSnap.map(r=>[...r]), curCell:[i,j], depCells:[[i,k],[k+1,j]], splitK:k, splits:[...splitEnums],
+          hl:[15,16,17],
+          desc:`k=${k}：dp[${i}][${k}](${dpSnap[i][k]}) + dp[${k+1}][${j}](${dpSnap[k+1][j]}) + sum(${sum}) = <strong style="color:var(--yellow)">${cost}</strong>${cost<=bestCost?' ← 当前最优':''}`});
+      }
+
+      dpSnap[i][j]=dp[i][j];
+      S.push({phase:'fill', dp:dpSnap.map(r=>[...r]), curCell:[i,j], depCells:[], splitK:split[i][j], splits:[],
+        hl:[17,18,19],
+        desc:`dp[${i}][${j}] = <strong style="color:var(--green)">${dp[i][j]}</strong>（最优分割 k=${split[i][j]}）`});
+    }
+  }
+
+  S.push({phase:'done', dp:dpSnap.map(r=>[...r]), curCell:null, depCells:[], splitK:-1, splits:[],
+    hl:[21], desc:`🎉 <strong style="color:var(--green)">完成！</strong>dp[0][${n-1}] = <strong style="color:var(--green)">${dp[0][n-1]}</strong>，合并 [${stones.join(',')}] 的最小总代价为 ${dp[0][n-1]}。`});
+
+  return S;
+}
+
+function generateInitSteps(n, labels) {
+  const S=[];
+  const dpEmpty=Array.from({length:n},()=>new Array(n).fill(null));
+
+  S.push({phase:'init0', dp:dpEmpty.map(r=>[...r]), curCell:null, depCells:[], splitK:-1, splits:[],
+    hl:[], desc:`区间 DP 边界初始化演示：n=${n} 个元素，dp 表格为 ${n}×${n}。只有 i≤j 的上三角区域有意义。`});
+
+  for(let i=0;i<n;i++){
+    const dpCur=dpEmpty.map(r=>[...r]);
+    for(let k=0;k<=i;k++) dpCur[k][k]=0;
+    S.push({phase:'diag', dp:dpCur, curCell:[i,i], depCells:[], splitK:-1, splits:[],
+      hl:[5,6,8], desc:`设置 dp[${i}][${i}] = 0：${labels[i]}..${labels[i]} 只有单个元素，最优值为 0（不需要任何操作）。`});
+  }
+
+  const dpFull=Array.from({length:n},(_,i)=>Array.from({length:n},(_,j)=>i===j?0:null));
+  S.push({phase:'diag_done', dp:dpFull, curCell:null, depCells:[], splitK:-1, splits:[],
+    hl:[], desc:`<strong style="color:var(--blue)">对角线初始化完成</strong>：所有 dp[i][i]=0，接下来从 length=2 开始，逐步扩展区间，每个格子只依赖比它<strong>更小</strong>的区间（已经填好的格子）。`});
+
+  for(let length=2;length<=n;length++){
+    for(let i=0;i<=n-length;i++){
+      const j=i+length-1;
+      const dpCur=dpFull.map(r=>[...r]);
+      const depCells=[];
+      for(let k=i;k<j;k++){depCells.push([i,k],[k+1,j]);}
+      S.push({phase:'len_cell', dp:dpCur, curCell:[i,j], depCells, splitK:-1, splits:[],
+        hl:[9,10,11,12,13], desc:`长度=${length}：填充 dp[${i}][${j}]。依赖所有更短的子区间（紫色格子）：${depCells.map(([a,b])=>`dp[${a}][${b}]`).join(', ')}，它们已经被计算过了。`});
+    }
+  }
+
+  S.push({phase:'done', dp:dpFull, curCell:null, depCells:[], splitK:-1, splits:[],
+    hl:[], desc:`<strong style="color:var(--green)">初始化演示完成！</strong>区间 DP 的核心：<strong>先小后大</strong>，确保每次计算 dp[i][j] 时，所有子区间 dp[i][k] 和 dp[k+1][j] 已经有解。`});
+
+  return S;
+}
+
+// ──────────────────────────────────────────
+// Rendering
+// ──────────────────────────────────────────
+function renderTable(step, labels, n) {
+  const W=document.getElementById('tableArea').clientWidth||600;
+  const cellW=Math.min(80,Math.max(58,Math.floor((W-60)/(n+1))));
+
+  let html=`<table class="dp-table"><thead><tr>`;
+  html+=`<th class="dp-header"></th>`;
+  for(let j=0;j<n;j++){
+    html+=`<th class="dp-header" style="width:${cellW}px"><span style="color:var(--blue);font-weight:600">${labels[j]}</span></th>`;
+  }
+  html+='</tr></thead><tbody>';
+
+  for(let i=0;i<n;i++){
+    html+=`<tr><td class="row-hdr"><span style="color:var(--orange);font-weight:600">${labels[i]}</span></td>`;
+    for(let j=0;j<n;j++){
+      if(j<i){
+        // lower triangle: invalid
+        html+=`<td class="dp-cell c-gray" style="width:${cellW}px"></td>`;
+        continue;
+      }
+      let cls='';
+      const isCur=step.curCell&&step.curCell[0]===i&&step.curCell[1]===j;
+      const isDep=step.depCells&&step.depCells.some(([di,dj])=>di===i&&dj===j);
+      const isSplit=step.splitK>=0&&(i===step.curCell?.[0]&&j===step.splitK||i===step.splitK+1&&j===step.curCell?.[1]);
+
+      if(isCur) cls='c-cur';
+      else if(isDep) cls='c-dep';
+      else if(i===j&&step.dp[i][j]===0) cls='c-diag';
+      else if(step.phase==='done'&&i===0&&j===n-1) cls='c-done';
+
+      const val=step.dp[i]?.[j];
+      const display=(val===null||val===undefined||val>=INF/2)?'':val;
+      const splitLabel=(step.phase==='fill'&&isCur&&step.splitK>=0)?`<span class="cell-sub">k=${step.splitK}</span>`:'';
+      html+=`<td class="dp-cell ${cls}" style="width:${cellW}px">${display}${splitLabel}</td>`;
+    }
+    html+='</tr>';
+  }
+  html+='</tbody></table>';
+  document.getElementById('tableArea').innerHTML=html;
+}
+
+function renderSplitVis(step) {
+  const vis=document.getElementById('splitVis');
+  if(!step.splits||step.splits.length===0){vis.style.display='none';return;}
+  vis.style.display='';
+  let html='';
+  for(const {k,cost} of step.splits){
+    const isActive=k===step.splitK;
+    html+=`<div class="split-entry${isActive?' active':''}">k=${k}: cost=${cost}${isActive?' ★':''}</div>`;
+  }
+  document.getElementById('splitList').innerHTML=html;
+}
+
+function renderResult(step) {
+  const box=document.getElementById('resultBox');
+  if(step.phase==='done'){
+    box.style.display='';
+    if(curSceneIdx===0){
+      document.getElementById('resultTitle').textContent='最小乘法次数';
+      document.getElementById('resultVal').textContent=`${matDP.dp[0][SCENE_MATRIX.n-1]} 次`;
+      document.getElementById('resultDetail').innerHTML='最优括号化：<strong style="color:var(--green)">(A×B)×C</strong> = 10×30×5 + 10×5×60 = 1500+3000 = 4500<br>次优方案：A×(B×C) = 30×5×60 + 10×30×60 = 9000+18000 = 27000';
+    } else if(curSceneIdx===1){
+      document.getElementById('resultTitle').textContent='最小合并代价';
+      document.getElementById('resultVal').textContent=`${stoneDP.dp[0][SCENE_STONE.n-1]} 代价`;
+      document.getElementById('resultDetail').innerHTML=`合并 [1,3,5,2] 的最优方案总代价 = <strong style="color:var(--green)">22</strong>`;
+    } else {
+      document.getElementById('resultTitle').textContent='初始化完成';
+      document.getElementById('resultVal').textContent='对角线 dp[i][i] = 0';
+      document.getElementById('resultDetail').innerHTML='';
+    }
+  } else box.style.display='none';
+}
+
+function renderCode(codelines, hl){
+  const body=document.getElementById('codeBody');
+  body.innerHTML=codelines.map((line,i)=>{
+    const active=hl.includes(i)?' active':'';
+    return `<div class="code-line${active}"><span class="ln">${i+1}</span><span class="lc">${line.html||'&nbsp;'}</span></div>`;
+  }).join('');
+  const el=body.querySelector('.code-line.active');
+  if(el) el.scrollIntoView({block:'nearest'});
+}
+
+let curSceneIdx=0;
+let steps=[], cur=0, playing=false, timer=null;
+const SPEED=[900,550,320,175,75];
+let matDP=null, stoneDP=null;
+
+function render(){
+  if(!steps.length) return;
+  const s=steps[cur];
+  const scene=curSceneIdx===0?SCENE_MATRIX:curSceneIdx===1?SCENE_STONE:SCENE_INIT;
+  renderTable(s, scene.labels||SCENE_INIT.labels, scene.n);
+  renderSplitVis(s);
+  renderResult(s);
+  const codeLines=curSceneIdx===0?CODE_MATRIX:curSceneIdx===1?CODE_STONE:CODE_MATRIX;
+  renderCode(codeLines, s.hl||[]);
+  document.getElementById('stepDesc').innerHTML=s.desc;
+  document.getElementById('stepCtr').textContent=`步骤 ${cur+1} / ${steps.length}`;
+  document.getElementById('btnPrev').disabled=cur===0;
+  document.getElementById('btnNext').disabled=cur===steps.length-1;
+}
+
+function switchScene(idx){
+  stopPlay();
+  curSceneIdx=idx;
+  for(let i=0;i<3;i++) document.getElementById(`tab${i}`).classList.toggle('active',i===idx);
+
+  let scene, codeLines;
+  if(idx===0){
+    scene=SCENE_MATRIX; codeLines=CODE_MATRIX;
+    matDP=computeMatrix(SCENE_MATRIX.dims);
+    steps=generateMatrixSteps(SCENE_MATRIX.dims, SCENE_MATRIX.labels);
+    document.getElementById('codeFilename').textContent='matrix_chain.go';
+  } else if(idx===1){
+    scene=SCENE_STONE; codeLines=CODE_STONE;
+    stoneDP=computeStone(SCENE_STONE.stones);
+    steps=generateStoneSteps(SCENE_STONE.stones, SCENE_STONE.labels);
+    document.getElementById('codeFilename').textContent='merge_stones.go';
+  } else {
+    scene=SCENE_INIT; codeLines=CODE_MATRIX;
+    steps=generateInitSteps(SCENE_INIT.n, SCENE_INIT.labels);
+    document.getElementById('codeFilename').textContent='interval_dp.go';
+  }
+
+  document.getElementById('probBox').innerHTML=scene.problem||SCENE_INIT.problem;
+  document.getElementById('formulaBox').textContent=''; // reset
+  document.getElementById('formulaBox').innerHTML=scene.formula||SCENE_INIT.formula;
+  cur=0; render();
+}
+
+function prev(){ if(cur>0){ cur--; render(); } }
+function next(){ if(cur<steps.length-1){ cur++; render(); } }
+function reset(){ stopPlay(); cur=0; render(); }
+
+function stopPlay(){
+  playing=false; clearInterval(timer); timer=null;
+  document.getElementById('btnPlay').textContent='▶ 播放';
+}
+
+function togglePlay(){
+  if(!playing&&cur>=steps.length-1){cur=0;render();}
+  if(playing){stopPlay();return;}
+  playing=true;
+  document.getElementById('btnPlay').textContent='⏸ 暂停';
+  const spd=SPEED[parseInt(document.getElementById('speedRange').value)-1];
+  timer=setInterval(()=>{if(cur>=steps.length-1){stopPlay();return;} cur++;render();},spd);
+}
+
+document.getElementById('speedRange').oninput=()=>{if(playing){stopPlay();togglePlay();}};
+window.addEventListener('resize',()=>{if(steps.length) render();});
+
+// Init
+switchScene(0);
+</script>
+</body>
+</html>

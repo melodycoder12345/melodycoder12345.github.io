@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="以 Git 仓库为唯一事实来源（Single Source of Truth），声明式定义集群期望状态。ArgoCD 持续对比 Git 状态与集群实际状态，检测到 drift 后自动将集群拉回声明状态，实现可审计、可回溯的持续交付。">
+<link rel="canonical" href="https://melodycoder12345.github.io/cloud-native/gitops.html">
+<meta property="og:title" content="GitOps / ArgoCD — 码海拾贝">
+<meta property="og:description" content="以 Git 仓库为唯一事实来源，ArgoCD 持续对比 Git 状态与集群实际状态，检测 drift 后自动将集群拉回声明状态。">
+<meta property="og:url" content="https://melodycoder12345.github.io/cloud-native/gitops.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="GitOps / ArgoCD — 码海拾贝">
+<meta name="twitter:description" content="以 Git 仓库为唯一事实来源，ArgoCD 持续对比 Git 状态与集群实际状态，检测 drift 后自动将集群拉回声明状态。">
+<title>GitOps / ArgoCD - 云原生</title>
+<script src="../nav.js"></script>
+<style>
+:root{
+  --bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;
+  --accent:#a78bfa;--accent2:#7c3aed;
+  --ok:#4ade80;--warn:#fb923c;--err:#f87171;--pending:#fbbf24;
+  --syncing:#a78bfa;--comparing:#38bdf8;--polling:#fbbf24;
+  --border:rgba(255,255,255,.07);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:radial-gradient(circle at 25% 0%,rgba(167,139,250,.12),transparent 36%),radial-gradient(circle at 85% 10%,rgba(124,58,237,.08),transparent 30%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1340px;margin:0 auto;padding:40px 28px 80px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--dim2);margin-bottom:24px}
+.breadcrumb a{color:var(--dim2)}.breadcrumb a:hover{color:var(--text)}
+.page-title{font-size:clamp(1.6rem,3.5vw,2.8rem);letter-spacing:-.04em;margin-bottom:6px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{color:var(--dim);font-size:.9rem;margin-bottom:28px;max-width:720px;line-height:1.8}
+
+/* Layout */
+.layout{display:grid;grid-template-columns:280px 1fr;gap:20px;align-items:start}
+.left-panel{border:1px solid var(--border);background:rgba(17,24,39,.8);border-radius:18px;padding:18px;position:sticky;top:20px}
+.left-panel h3{font-size:.68rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.12em;margin-bottom:10px;font-weight:700}
+.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
+
+/* Scenario tabs */
+.scenario-tab{width:100%;text-align:left;border:1px solid transparent;background:none;color:var(--dim);padding:8px 12px;border-radius:10px;cursor:pointer;font-size:.8rem;line-height:1.5;transition:.15s;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.scenario-tab:hover{border-color:rgba(167,139,250,.3);color:var(--text)}
+.scenario-tab.active{background:rgba(167,139,250,.12);border-color:rgba(167,139,250,.4);color:var(--text)}
+.tab-num{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:rgba(167,139,250,.15);color:var(--accent);font-size:.65rem;font-weight:800;flex-shrink:0}
+
+/* Step list */
+.step-btn{width:100%;text-align:left;border:1px solid transparent;background:none;color:var(--dim);padding:8px 10px;border-radius:9px;cursor:pointer;font-size:.78rem;line-height:1.5;transition:.15s;margin-bottom:3px;display:flex;align-items:flex-start;gap:7px}
+.step-btn:hover{border-color:rgba(167,139,250,.25);color:var(--text)}
+.step-btn.active{background:rgba(167,139,250,.1);border-color:rgba(167,139,250,.35);color:var(--text)}
+.step-idx{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:rgba(167,139,250,.12);color:var(--accent);font-size:.62rem;font-weight:800;flex-shrink:0;margin-top:1px}
+
+/* Controls */
+.ctrl{display:flex;gap:6px;margin-top:14px;flex-wrap:wrap}
+.ctrl button{flex:1;min-width:calc(50% - 3px);border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:10px;padding:7px 4px;cursor:pointer;font-size:.74rem;transition:.15s}
+.ctrl button:hover{border-color:var(--accent);color:var(--text);background:rgba(167,139,250,.06)}
+
+/* Center panel */
+.center-panel{border:1px solid var(--border);background:rgba(17,24,39,.7);border-radius:18px;padding:22px;min-height:580px}
+.step-msg{border-left:3px solid var(--accent);background:rgba(167,139,250,.06);border-radius:0 10px 10px 0;padding:10px 14px;font-size:.85rem;color:var(--text);line-height:1.75;margin-bottom:20px}
+
+/* 3-column viz */
+.viz-3col{display:grid;grid-template-columns:1fr 1.1fr 1fr;gap:14px}
+.viz-col{border:1px solid var(--border);border-radius:14px;padding:14px;background:rgba(15,23,42,.5)}
+.col-header{font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.09em;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.col-header-icon{font-size:1rem}
+
+/* Git timeline */
+.commit-item{display:flex;gap:10px;padding:8px 10px;border-radius:9px;border:1px solid transparent;margin-bottom:6px;transition:all .3s;background:rgba(255,255,255,.02);position:relative}
+.commit-item.c-head{border-color:rgba(167,139,250,.35);background:rgba(167,139,250,.06)}
+.commit-item.c-new{border-color:rgba(167,139,250,.5);background:rgba(167,139,250,.1);box-shadow:0 0 12px rgba(167,139,250,.15)}
+.commit-item.c-synced{border-color:rgba(74,222,128,.35);background:rgba(74,222,128,.05)}
+.commit-item.c-bug{border-color:rgba(248,113,113,.35);background:rgba(248,113,113,.05)}
+.commit-item.c-revert{border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.04)}
+.commit-item.c-highlight{animation:pulse-border .8s ease-in-out 3}
+@keyframes pulse-border{0%,100%{box-shadow:0 0 0 0 rgba(167,139,250,.4)}50%{box-shadow:0 0 0 4px rgba(167,139,250,.15)}}
+.commit-hash{font-family:monospace;font-size:.7rem;color:var(--dim2);padding-top:2px;min-width:50px;flex-shrink:0}
+.commit-body{flex:1;min-width:0}
+.commit-msg{font-size:.76rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}
+.commit-tags{display:flex;gap:4px;flex-wrap:wrap}
+.tag-badge{font-size:.62rem;padding:2px 6px;border-radius:4px;font-weight:700;border:1px solid}
+.tag-v{background:rgba(167,139,250,.15);color:var(--accent);border-color:rgba(167,139,250,.3)}
+.tag-head{background:rgba(167,139,250,.2);color:#c4b5fd;border-color:rgba(167,139,250,.4)}
+.tag-new{background:rgba(74,222,128,.12);color:var(--ok);border-color:rgba(74,222,128,.3)}
+.tag-bug{background:rgba(248,113,113,.12);color:var(--err);border-color:rgba(248,113,113,.3)}
+.tag-revert{background:rgba(251,191,36,.1);color:var(--pending);border-color:rgba(251,191,36,.3)}
+.tag-synced{background:rgba(74,222,128,.1);color:var(--ok);border-color:rgba(74,222,128,.2)}
+.manifest-badge{margin-top:8px;font-family:monospace;font-size:.72rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:5px 9px;color:var(--dim)}
+
+/* ArgoCD status */
+.argo-status-badge{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:20px;font-size:.82rem;font-weight:700;margin-bottom:10px;border:1px solid}
+.argo-status-badge.s-synced{background:rgba(74,222,128,.1);color:var(--ok);border-color:rgba(74,222,128,.3)}
+.argo-status-badge.s-outofsync{background:rgba(251,146,60,.1);color:var(--warn);border-color:rgba(251,146,60,.3)}
+.argo-status-badge.s-syncing{background:rgba(167,139,250,.12);color:var(--syncing);border-color:rgba(167,139,250,.3);animation:badge-pulse 1.2s ease-in-out infinite}
+.argo-status-badge.s-comparing{background:rgba(56,189,248,.1);color:var(--comparing);border-color:rgba(56,189,248,.3);animation:badge-pulse 1.2s ease-in-out infinite}
+.argo-status-badge.s-polling{background:rgba(251,191,36,.08);color:var(--polling);border-color:rgba(251,191,36,.3);animation:badge-pulse 1s ease-in-out infinite}
+@keyframes badge-pulse{0%,100%{opacity:1}50%{opacity:.65}}
+.argo-status-dot{width:8px;height:8px;border-radius:50%;background:currentColor}
+
+.argo-action-desc{font-size:.76rem;color:var(--dim);background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;line-height:1.6}
+.argo-arrows{display:flex;align-items:center;justify-content:center;gap:4px;margin:10px 0;font-size:.75rem;color:var(--dim2)}
+.arrow-anim{display:inline-block;animation:slide-arrow 1s ease-in-out infinite}
+@keyframes slide-arrow{0%,100%{transform:translateX(0)}50%{transform:translateX(4px)}}
+
+/* Diff table */
+.diff-wrap{border:1px solid rgba(251,146,60,.25);border-radius:10px;overflow:hidden;margin-top:8px}
+.diff-header{display:grid;grid-template-columns:80px 1fr 1fr;gap:0;background:rgba(251,146,60,.08)}
+.diff-header span{font-size:.64rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:6px 8px;color:var(--dim2)}
+.diff-row{display:grid;grid-template-columns:80px 1fr 1fr;gap:0;border-top:1px solid rgba(255,255,255,.05)}
+.diff-field{padding:6px 8px;font-size:.72rem;font-weight:600;color:var(--dim);font-family:monospace}
+.diff-git{padding:6px 8px;font-size:.72rem;font-family:monospace;color:var(--ok);background:rgba(74,222,128,.04)}
+.diff-cluster{padding:6px 8px;font-size:.72rem;font-family:monospace;color:var(--err);background:rgba(248,113,113,.04)}
+
+/* K8s content */
+.k8s-meta{font-size:.72rem;color:var(--dim);margin-bottom:10px;background:rgba(255,255,255,.03);border-radius:7px;padding:7px 10px;border:1px solid var(--border)}
+.k8s-meta span{display:block;line-height:1.7}
+.k8s-meta .img-tag{font-family:monospace;color:var(--text)}
+.k8s-meta .replica-info{color:var(--accent)}
+.pod-grid{display:flex;flex-direction:column;gap:5px}
+.pod-chip{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;border:1px solid;font-size:.74rem;transition:all .35s}
+.pod-chip.p-running{background:rgba(74,222,128,.07);border-color:rgba(74,222,128,.25)}
+.pod-chip.p-terminating{background:rgba(100,116,139,.06);border-color:rgba(100,116,139,.2);opacity:.55}
+.pod-chip.p-pending{background:rgba(251,191,36,.07);border-color:rgba(251,191,36,.25)}
+.pod-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.p-running .pod-dot{background:var(--ok);box-shadow:0 0 5px rgba(74,222,128,.4)}
+.p-terminating .pod-dot{background:var(--dim2)}
+.p-pending .pod-dot{background:var(--pending);animation:badge-pulse 1s ease-in-out infinite}
+.pod-name{font-family:monospace;color:var(--text);flex:1}
+.pod-img-tag{font-family:monospace;font-size:.68rem;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.05);color:var(--dim)}
+
+/* Argo note/principle */
+.argo-note{font-size:.76rem;color:var(--dim);background:rgba(167,139,250,.06);border:1px solid rgba(167,139,250,.18);border-radius:8px;padding:8px 10px;margin-top:8px;line-height:1.6}
+.drift-note{font-size:.74rem;color:var(--err);background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.2);border-radius:6px;padding:5px 9px;margin-top:6px}
+
+/* Multi-env viz */
+.viz-multienv{}
+.git-strip{border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px;background:rgba(15,23,42,.5)}
+.git-strip-title{font-size:.68rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.09em;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.git-strip-commits{display:flex;flex-direction:column;gap:5px}
+.git-strip-commit{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:7px;border:1px solid transparent;font-size:.76rem;transition:.3s}
+.git-strip-commit.sc-head{border-color:rgba(167,139,250,.3);background:rgba(167,139,250,.06)}
+.git-strip-commit.sc-new{border-color:rgba(74,222,128,.3);background:rgba(74,222,128,.05)}
+.git-strip-commit .sc-hash{font-family:monospace;color:var(--dim2);min-width:54px;font-size:.68rem}
+.git-strip-commit .sc-msg{color:var(--text);flex:1}
+.git-strip-commit .sc-tags{display:flex;gap:4px}
+
+.env-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.env-card{border:1px solid var(--border);border-radius:14px;padding:16px;background:rgba(15,23,42,.5);transition:all .35s}
+.env-card.ec-synced{border-color:rgba(74,222,128,.3)}
+.env-card.ec-outofsync{border-color:rgba(251,146,60,.3);background:rgba(251,146,60,.03)}
+.env-card.ec-syncing{border-color:rgba(167,139,250,.35);background:rgba(167,139,250,.04);box-shadow:0 0 16px rgba(167,139,250,.08)}
+.env-card.ec-waiting{border-color:rgba(251,191,36,.2);background:rgba(251,191,36,.02)}
+.env-name{font-size:1rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-bottom:10px;color:var(--text)}
+.env-status-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:12px;font-size:.74rem;font-weight:700;border:1px solid;margin-bottom:10px}
+.env-status-badge.es-synced{background:rgba(74,222,128,.1);color:var(--ok);border-color:rgba(74,222,128,.3)}
+.env-status-badge.es-outofsync{background:rgba(251,146,60,.1);color:var(--warn);border-color:rgba(251,146,60,.3)}
+.env-status-badge.es-syncing{background:rgba(167,139,250,.12);color:var(--syncing);border-color:rgba(167,139,250,.3);animation:badge-pulse 1.2s ease-in-out infinite}
+.env-status-badge.es-waiting{background:rgba(251,191,36,.08);color:var(--pending);border-color:rgba(251,191,36,.25)}
+.env-image{font-family:monospace;font-size:.8rem;color:var(--accent);margin-bottom:8px}
+.env-meta{font-size:.72rem;color:var(--dim);line-height:1.7}
+.env-autosync{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:5px;font-size:.67rem;font-weight:700;border:1px solid}
+.env-autosync.on{background:rgba(74,222,128,.08);color:var(--ok);border-color:rgba(74,222,128,.25)}
+.env-autosync.off{background:rgba(100,116,139,.08);color:var(--dim);border-color:rgba(100,116,139,.2)}
+.env-action-desc{margin-top:8px;font-size:.73rem;color:var(--dim);background:rgba(255,255,255,.03);border-radius:6px;padding:5px 8px;border:1px solid var(--border)}
+.env-note{margin-top:6px;font-size:.72rem;color:var(--pending)}
+
+/* Error rate badge */
+.errorrate-badge{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:5px;font-size:.7rem;font-weight:600;margin-top:4px;border:1px solid}
+.errorrate-badge.ok{background:rgba(74,222,128,.08);color:var(--ok);border-color:rgba(74,222,128,.2)}
+.errorrate-badge.bad{background:rgba(248,113,113,.1);color:var(--err);border-color:rgba(248,113,113,.3)}
+
+/* Connecting arrows between columns */
+.argo-flow{display:flex;flex-direction:column;align-items:center;gap:6px;margin:8px 0}
+.argo-flow-arrow{font-size:.9rem;color:var(--dim2);display:flex;align-items:center;gap:4px;font-size:.7rem}
+.argo-flow-arrow.active{color:var(--accent);animation:badge-pulse .8s ease-in-out infinite}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="breadcrumb">
+    <a href="../index.html">首页</a><span>/</span>
+    <a href="index.html">云原生</a><span>/</span>
+    <span>GitOps / ArgoCD</span>
+  </div>
+  <h1 class="page-title">GitOps / ArgoCD</h1>
+  <p class="subtitle">以 Git 仓库为唯一事实来源（Single Source of Truth），声明式定义集群期望状态。ArgoCD 持续对比 Git 状态与集群实际状态，检测到 drift（漂移）后自动或手动将集群拉回声明状态，实现可审计、可回溯的持续交付。</p>
+
+  <div class="layout">
+    <div class="left-panel">
+      <h3>场景</h3>
+      <div id="scenarioTabs"></div>
+      <hr class="divider">
+      <h3>步骤</h3>
+      <div id="stepList"></div>
+      <div class="ctrl">
+        <button onclick="prev()">← 上一步</button>
+        <button onclick="next()">下一步 →</button>
+        <button onclick="reset()">重置</button>
+        <button id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      </div>
+    </div>
+
+    <div class="center-panel">
+      <div class="step-msg" id="stepMsg">选择一个场景，点击「下一步」开始观察 GitOps 工作流。</div>
+
+      <!-- 3-column viz (scenarios 1-3) -->
+      <div id="viz3col" class="viz-3col">
+        <div class="viz-col">
+          <div class="col-header"><span class="col-header-icon">📁</span>Git Repository</div>
+          <div id="gitTimeline"></div>
+        </div>
+        <div class="viz-col">
+          <div class="col-header"><span class="col-header-icon">⚙️</span>ArgoCD Engine</div>
+          <div id="argoContent"></div>
+        </div>
+        <div class="viz-col">
+          <div class="col-header"><span class="col-header-icon">☸</span>K8s Cluster</div>
+          <div id="k8sContent"></div>
+        </div>
+      </div>
+
+      <!-- Multi-env viz (scenario 4) -->
+      <div id="vizMultienv" class="viz-multienv" style="display:none">
+        <div id="multiEnvContent"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+// ──────────────────────────────────────────────
+// SCENARIO DATA
+// ──────────────────────────────────────────────
+const SCENARIOS = [
+  // ── Scenario 1: Normal Sync ──────────────────
+  {
+    id: 'sync', title: '正常同步流程',
+    steps: [
+      {
+        msg: '初始状态：Git main 分支为 v2.0，ArgoCD 已将集群同步到 v2.0，当前状态 Synced（绿色）。集群运行 3 个 Pod。',
+        git: {
+          commits: [
+            { hash: 'f3a9b2c', msg: 'fix: patch release v2.0', tag: 'v2.0', isHead: true, synced: true },
+            { hash: 'e2b8a1d', msg: 'feat: release v1.9', tag: 'v1.9' },
+            { hash: 'c7d4e5f', msg: 'chore: update dependencies' },
+          ]
+        },
+        argo: { status: 'Synced', note: null, diff: null },
+        k8s: {
+          image: 'myapp:v2.0', replicas: 3,
+          pods: [
+            { name: 'app-abc12', status: 'Running', image: 'v2.0' },
+            { name: 'app-def34', status: 'Running', image: 'v2.0' },
+            { name: 'app-ghi56', status: 'Running', image: 'v2.0' },
+          ]
+        }
+      },
+      {
+        msg: 'Step 1：开发者提交代码，PR review 通过后合并到 main 分支。Git HEAD 移动到新 commit，Deployment YAML 中 image tag 升级为 v2.1。',
+        git: {
+          commits: [
+            { hash: 'a1b2c3d', msg: 'feat: upgrade app to v2.1', tag: 'v2.1', isHead: true, isNew: true },
+            { hash: 'f3a9b2c', msg: 'fix: patch release v2.0', tag: 'v2.0' },
+            { hash: 'e2b8a1d', msg: 'feat: release v1.9', tag: 'v1.9' },
+          ]
+        },
+        argo: { status: 'Synced', note: '尚未检测到新 commit', diff: null },
+        k8s: {
+          image: 'myapp:v2.0', replicas: 3,
+          pods: [
+            { name: 'app-abc12', status: 'Running', image: 'v2.0' },
+            { name: 'app-def34', status: 'Running', image: 'v2.0' },
+            { name: 'app-ghi56', status: 'Running', image: 'v2.0' },
+          ]
+        }
+      },
+      {
+        msg: 'Step 2：ArgoCD 每 3 分钟轮询 Git（或通过 Webhook 立即触发），检测到 main 分支出现新 commit（a1b2c3d）。',
+        git: {
+          commits: [
+            { hash: 'a1b2c3d', msg: 'feat: upgrade app to v2.1', tag: 'v2.1', isHead: true, highlight: true },
+            { hash: 'f3a9b2c', msg: 'fix: patch release v2.0', tag: 'v2.0' },
+            { hash: 'e2b8a1d', msg: 'feat: release v1.9', tag: 'v1.9' },
+          ]
+        },
+        argo: { status: 'Polling', actionDesc: '🔄 轮询 Git Remote…\ngit fetch origin main\n检测到新 commit: a1b2c3d', diff: null },
+        k8s: {
+          image: 'myapp:v2.0', replicas: 3,
+          pods: [
+            { name: 'app-abc12', status: 'Running', image: 'v2.0' },
+            { name: 'app-def34', status: 'Running', image: 'v2.0' },
+            { name: 'app-ghi56', status: 'Running', image: 'v2.0' },
+          ]
+        }
+      },
+      {
+        msg: 'Step 3：ArgoCD 拉取 Git 中最新的 Manifests（Deployment、Service YAML），与当前集群 API Server 中的实际状态进行深度对比（Live diff）。',
+        git: {
+          commits: [
+            { hash: 'a1b2c3d', msg: 'feat: upgrade app to v2.1', tag: 'v2.1', isHead: true },
+            { hash: 'f3a9b2c', msg: 'fix: patch release v2.0', tag: 'v2.0' },
+            { hash: 'e2b8a1d', msg: 'feat: release v1.9', tag: 'v1.9' },
+          ]
+        },
+        argo: { status: 'Comparing', actionDesc: '🔍 对比 Git Manifests 与集群状态…\nkubectl get deployment app -o yaml\n计算 diff…', diff: null },
+        k8s: {
+          image: 'myapp:v2.0', replicas: 3,
+          pods: [
+            { name: 'app-abc12', status: 'Running', image: 'v2.0' },
+            { name: 'app-def34', status: 'Running', image: 'v2.0' },
+            { name: 'app-ghi56', status: 'Running', image: 'v2.0' },
+          ]
+        }
+      },
+      {
+        msg: 'Step 4：发现差异！Git 中 image 是 myapp:v2.1，集群中是 myapp:v2.0。ArgoCD 将 Application 标记为 OutOfSync（橙色）。',
+        git: {
+          commits: [
+            { hash: 'a1b2c3d', msg: 'feat: upgrade app to v2.1', tag: 'v2.1', isHead: true },
+            { hash: 'f3a9b2c', msg: 'fix: patch release v2.0', tag: 'v2.0' },
+            { hash: 'e2b8a1d', msg: 'feat: release v1.9', tag: 'v1.9' },
+          ]
+        },
+        argo: {
+          status: 'OutOfSync', diff: [
+            { field: 'image', git: 'myapp:v2.1', cluster: 'myapp:v2.0' },
+          ]
+        },
+        k8s: {
+          image: 'myapp:v2.0', replicas: 3,
+          pods: [
+            { name: 'app-abc12', status: 'Running', image: 'v2.0' },
+            { name: 'app-def34', status: 'Running', image: 'v2.0' },
+            { name: 'app-ghi56', status: 'Running', image: 'v2.0' },
+          ]
+        }
+      },
+      {
+        msg: 'Step 5：ArgoCD 执行 Sync 操作，调用 kubectl apply 将 Git 中最新 Manifests 提交到集群，K8s Deployment Controller 接收到变更。',
+        git: {
+          commits: [
+            { hash: 'a1b2c3d', msg: 'feat: upgrade app to v2.1', tag: 'v2.1', isHead: true },
+            { hash: 'f3a9b2c', msg: 'fix: patch release v2.0', tag: 'v2.0' },
+            { hash: 'e2b8a1d', msg: 'feat: release v1.9', tag: 'v1.9' },
+          ]
+        },
+        argo: { status: 'Syncing', actionDesc: '⚡ 执行同步…\nkubectl apply -f deployment.yaml\nDeployment "app" 已更新\n滚动更新开始…', diff: null },
+        k8s: {
+          image: 'myapp:v2.1 (applying)', replicas: 3,
+          pods: [
+            { name: 'app-abc12', status: 'Running', image: 'v2.0' },
+            { name: 'app-def34', status: 'Running', image: 'v2.0' },
+            { name: 'app-ghi56', status: 'Running', image: 'v2.0' },
+            { name: 'app-jkl78', status: 'Pending', image: 'v2.1' },
+          ]
+        }
+      },
+      {
+        msg: 'Step 6：K8s Deployment 滚动更新进行中：新 Pod（v2.1）陆续进入 Running，旧 Pod（v2.0）陆续 Terminating 被销毁，保证服务不中断。',
+        git: {
+          commits: [
+            { hash: 'a1b2c3d', msg: 'feat: upgrade app to v2.1', tag: 'v2.1', isHead: true },
+            { hash: 'f3a9b2c', msg: 'fix: patch release v2.0', tag: 'v2.0' },
+            { hash: 'e2b8a1d', msg: 'feat: release v1.9', tag: 'v1.9' },
+          ]
+        },
+        argo: { status: 'Syncing', actionDesc: '🔄 滚动更新中…\n新 Pod (v2.1) Pending → Running\n旧 Pod (v2.0) Terminating…', diff: null },
+        k8s: {
+          image: 'myapp:v2.1 (rolling...)', replicas: 3,
+          pods: [
+            { name: 'app-abc12', status: 'Terminating', image: 'v2.0' },
+            { name: 'app-def34', status: 'Running', image: 'v2.0' },
+            { name: 'app-ghi56', status: 'Terminating', image: 'v2.0' },
+            { name: 'app-jkl78', status: 'Running', image: 'v2.1' },
+            { name: 'app-mno90', status: 'Running', image: 'v2.1' },
+          ]
+        }
+      },
+      {
+        msg: 'Step 7：滚动更新完成！所有 3 个 Pod 运行 v2.1，集群状态收敛到 Git 声明的期望状态。ArgoCD 标记 App 为 Synced（绿色）✅。',
+        git: {
+          commits: [
+            { hash: 'a1b2c3d', msg: 'feat: upgrade app to v2.1', tag: 'v2.1', isHead: true, synced: true },
+            { hash: 'f3a9b2c', msg: 'fix: patch release v2.0', tag: 'v2.0' },
+            { hash: 'e2b8a1d', msg: 'feat: release v1.9', tag: 'v1.9' },
+          ]
+        },
+        argo: { status: 'Synced', note: '✅ App 已同步到 commit a1b2c3d\n最后同步时间：刚刚\nHealth: Healthy', diff: null },
+        k8s: {
+          image: 'myapp:v2.1', replicas: 3,
+          pods: [
+            { name: 'app-jkl78', status: 'Running', image: 'v2.1' },
+            { name: 'app-mno90', status: 'Running', image: 'v2.1' },
+            { name: 'app-pqr12', status: 'Running', image: 'v2.1' },
+          ]
+        }
+      },
+    ]
+  },
+
+  // ── Scenario 2: Drift Detection ──────────────
+  {
+    id: 'drift', title: 'Drift 检测',
+    steps: [
+      {
+        msg: '初始状态：Git 声明 replicas=3，集群实际运行 3 个 Pod，状态 Synced。GitOps 原则：所有变更必须通过 Git。',
+        git: {
+          commits: [
+            { hash: 'f3a9b2c', msg: 'chore: set replicas to 3', isHead: true, synced: true },
+            { hash: 'e2b8a1d', msg: 'feat: release v2.0', tag: 'v2.0' },
+          ],
+          manifest: 'replicas: 3\nimage: myapp:v2.0'
+        },
+        argo: { status: 'Synced', diff: null },
+        k8s: {
+          image: 'myapp:v2.0', replicas: 3,
+          pods: [
+            { name: 'app-abc12', status: 'Running', image: 'v2.0' },
+            { name: 'app-def34', status: 'Running', image: 'v2.0' },
+            { name: 'app-ghi56', status: 'Running', image: 'v2.0' },
+          ]
+        }
+      },
+      {
+        msg: 'Step 1：运维人员（或某个脚本）直接执行 kubectl edit deployment app，将 replicas 从 3 手动改为 5 —— 完全绕过了 Git！',
+        git: {
+          commits: [
+            { hash: 'f3a9b2c', msg: 'chore: set replicas to 3', isHead: true },
+            { hash: 'e2b8a1d', msg: 'feat: release v2.0', tag: 'v2.0' },
+          ],
+          manifest: 'replicas: 3\nimage: myapp:v2.0'
+        },
+        argo: { status: 'Synced', note: '尚未检测到漂移\n（下次轮询前）', diff: null },
+        k8s: {
+          image: 'myapp:v2.0', replicas: 5,
+          driftNote: '⚠️ 手动 kubectl edit！replicas 5 ≠ Git 中的 3',
+          pods: [
+            { name: 'app-abc12', status: 'Running', image: 'v2.0' },
+            { name: 'app-def34', status: 'Running', image: 'v2.0' },
+            { name: 'app-ghi56', status: 'Running', image: 'v2.0' },
+            { name: 'app-jkl78', status: 'Running', image: 'v2.0' },
+            { name: 'app-mno90', status: 'Running', image: 'v2.0' },
+          ]
+        }
+      },
+      {
+        msg: 'Step 2：ArgoCD 同步检测周期到来，拉取 Git Manifests（replicas=3）并与集群实际状态（replicas=5）进行对比。',
+        git: {
+          commits: [
+            { hash: 'f3a9b2c', msg: 'chore: set replicas to 3', isHead: true },
+            { hash: 'e2b8a1d', msg: 'feat: release v2.0', tag: 'v2.0' },
+          ],
+          manifest: 'replicas: 3\nimage: myapp:v2.0'
+        },
+        argo: { status: 'Comparing', actionDesc: '🔍 对比 Git vs 集群实际状态…\nGit replicas: 3\nCluster replicas: 5\n发现不一致！', diff: null },
+        k8s: {
+          image: 'myapp:v2.0', replicas: 5,
+          pods: [
+            { name: 'app-abc12', status: 'Running', image: 'v2.0' },
+            { name: 'app-def34', status: 'Running', image: 'v2.0' },
+            { name: 'app-ghi56', status: 'Running', image: 'v2.0' },
+            { name: 'app-jkl78', status: 'Running', image: 'v2.0' },
+            { name: 'app-mno90', status: 'Running', image: 'v2.0' },
+          ]
+        }
+      },
+      {
+        msg: 'Step 3：Drift 检测！ArgoCD UI 展示 diff（replicas: 3 vs 5），将 Application 标记为 OutOfSync（橙色）。这就是 GitOps 的保障机制。',
+        git: {
+          commits: [
+            { hash: 'f3a9b2c', msg: 'chore: set replicas to 3', isHead: true },
+            { hash: 'e2b8a1d', msg: 'feat: release v2.0', tag: 'v2.0' },
+          ],
+          manifest: 'replicas: 3\nimage: myapp:v2.0'
+        },
+        argo: {
+          status: 'OutOfSync',
+          diff: [
+            { field: 'replicas', git: '3', cluster: '5 ⚠️ 手动修改' },
+          ]
+        },
+        k8s: {
+          image: 'myapp:v2.0', replicas: 5,
+          pods: [
+            { name: 'app-abc12', status: 'Running', image: 'v2.0' },
+            { name: 'app-def34', status: 'Running', image: 'v2.0' },
+            { name: 'app-ghi56', status: 'Running', image: 'v2.0' },
+            { name: 'app-jkl78', status: 'Running', image: 'v2.0' },
+            { name: 'app-mno90', status: 'Running', image: 'v2.0' },
+          ]
+        }
+      },
+      {
+        msg: 'Step 4：Auto-sync 已启用！ArgoCD 自动执行 Sync，将集群 replicas 强制回到 Git 声明的 3，多余的 2 个 Pod 进入 Terminating。',
+        git: {
+          commits: [
+            { hash: 'f3a9b2c', msg: 'chore: set replicas to 3', isHead: true },
+            { hash: 'e2b8a1d', msg: 'feat: release v2.0', tag: 'v2.0' },
+          ],
+          manifest: 'replicas: 3\nimage: myapp:v2.0'
+        },
+        argo: { status: 'Syncing', actionDesc: '⚡ Auto-sync 触发…\nkubectl apply -f deployment.yaml\nreplicas: 5 → 3\n多余 Pod 销毁中…', diff: null },
+        k8s: {
+          image: 'myapp:v2.0', replicas: '5 → 3',
+          pods: [
+            { name: 'app-abc12', status: 'Running', image: 'v2.0' },
+            { name: 'app-def34', status: 'Running', image: 'v2.0' },
+            { name: 'app-ghi56', status: 'Running', image: 'v2.0' },
+            { name: 'app-jkl78', status: 'Terminating', image: 'v2.0' },
+            { name: 'app-mno90', status: 'Terminating', image: 'v2.0' },
+          ]
+        }
+      },
+      {
+        msg: 'Step 5：集群收敛完成！replicas 回到 3，状态 Synced（绿色）。教训：绕过 Git 的手动修改会被 ArgoCD 自动纠正，这正是 GitOps 的价值。',
+        git: {
+          commits: [
+            { hash: 'f3a9b2c', msg: 'chore: set replicas to 3', isHead: true, synced: true },
+            { hash: 'e2b8a1d', msg: 'feat: release v2.0', tag: 'v2.0' },
+          ],
+          manifest: 'replicas: 3\nimage: myapp:v2.0'
+        },
+        argo: {
+          status: 'Synced',
+          note: '✅ GitOps 原则：Git 是唯一事实来源\n手动修改已被自动纠正\n所有变更必须通过 Git PR 流程',
+          diff: null
+        },
+        k8s: {
+          image: 'myapp:v2.0', replicas: 3,
+          pods: [
+            { name: 'app-abc12', status: 'Running', image: 'v2.0' },
+            { name: 'app-def34', status: 'Running', image: 'v2.0' },
+            { name: 'app-ghi56', status: 'Running', image: 'v2.0' },
+          ]
+        }
+      },
+    ]
+  },
+
+  // ── Scenario 3: Rollback ─────────────────────
+  {
+    id: 'rollback', title: '回滚',
+    steps: [
+      {
+        msg: '初始状态：v2.1 部署成功，3 个 Pod Running，错误率 0%，App 状态 Synced。',
+        git: {
+          commits: [
+            { hash: 'a1b2c3d', msg: 'feat: upgrade app to v2.1', tag: 'v2.1', isHead: true, synced: true },
+            { hash: 'f3a9b2c', msg: 'fix: patch release v2.0', tag: 'v2.0' },
+            { hash: 'e2b8a1d', msg: 'feat: release v1.9', tag: 'v1.9' },
+          ]
+        },
+        argo: { status: 'Synced', diff: null },
+        k8s: {
+          image: 'myapp:v2.1', replicas: 3, errorRate: '0%',
+          pods: [
+            { name: 'app-jkl78', status: 'Running', image: 'v2.1' },
+            { name: 'app-mno90', status: 'Running', image: 'v2.1' },
+            { name: 'app-pqr12', status: 'Running', image: 'v2.1' },
+          ]
+        }
+      },
+      {
+        msg: 'Step 1：v2.1 出现严重 Bug！监控告警：HTTP 错误率飙升到 15%，用户受影响，必须立即回滚到 v2.0。',
+        git: {
+          commits: [
+            { hash: 'a1b2c3d', msg: 'feat: upgrade app to v2.1 🐛', tag: 'v2.1', isHead: true, hasBug: true },
+            { hash: 'f3a9b2c', msg: 'fix: patch release v2.0', tag: 'v2.0' },
+            { hash: 'e2b8a1d', msg: 'feat: release v1.9', tag: 'v1.9' },
+          ]
+        },
+        argo: { status: 'Synced', diff: null },
+        k8s: {
+          image: 'myapp:v2.1', replicas: 3, errorRate: '15% 🚨', degraded: true,
+          pods: [
+            { name: 'app-jkl78', status: 'Running', image: 'v2.1' },
+            { name: 'app-mno90', status: 'Running', image: 'v2.1' },
+            { name: 'app-pqr12', status: 'Running', image: 'v2.1' },
+          ]
+        }
+      },
+      {
+        msg: 'Step 2：开发者执行 git revert 回退有问题的 commit（或 git checkout v2.0 tag 修改 Manifest），推送新 commit 到 main 分支。',
+        git: {
+          commits: [
+            { hash: 'b2c3d4e', msg: 'revert: revert "feat: upgrade to v2.1"', isHead: true, isNew: true, isRevert: true },
+            { hash: 'a1b2c3d', msg: 'feat: upgrade app to v2.1 🐛', tag: 'v2.1', hasBug: true },
+            { hash: 'f3a9b2c', msg: 'fix: patch release v2.0', tag: 'v2.0' },
+            { hash: 'e2b8a1d', msg: 'feat: release v1.9', tag: 'v1.9' },
+          ]
+        },
+        argo: { status: 'Synced', note: '尚未检测到 revert commit', diff: null },
+        k8s: {
+          image: 'myapp:v2.1', replicas: 3, errorRate: '15% 🚨', degraded: true,
+          pods: [
+            { name: 'app-jkl78', status: 'Running', image: 'v2.1' },
+            { name: 'app-mno90', status: 'Running', image: 'v2.1' },
+            { name: 'app-pqr12', status: 'Running', image: 'v2.1' },
+          ]
+        }
+      },
+      {
+        msg: 'Step 3：ArgoCD 检测到 Git HEAD 指向 revert commit，新 Manifest 中 image 回退到 myapp:v2.0，标记 OutOfSync。',
+        git: {
+          commits: [
+            { hash: 'b2c3d4e', msg: 'revert: revert "feat: upgrade to v2.1"', isHead: true, highlight: true, isRevert: true },
+            { hash: 'a1b2c3d', msg: 'feat: upgrade app to v2.1 🐛', tag: 'v2.1', hasBug: true },
+            { hash: 'f3a9b2c', msg: 'fix: patch release v2.0', tag: 'v2.0' },
+          ]
+        },
+        argo: {
+          status: 'OutOfSync',
+          diff: [
+            { field: 'image', git: 'myapp:v2.0 ← 回退', cluster: 'myapp:v2.1 🐛 有Bug' },
+          ]
+        },
+        k8s: {
+          image: 'myapp:v2.1', replicas: 3, errorRate: '15% 🚨', degraded: true,
+          pods: [
+            { name: 'app-jkl78', status: 'Running', image: 'v2.1' },
+            { name: 'app-mno90', status: 'Running', image: 'v2.1' },
+            { name: 'app-pqr12', status: 'Running', image: 'v2.1' },
+          ]
+        }
+      },
+      {
+        msg: 'Step 4：ArgoCD 执行 Sync，触发 K8s 滚动回退：v2.0 Pod 开始启动（Pending），v2.1 Pod 陆续销毁（Terminating）。',
+        git: {
+          commits: [
+            { hash: 'b2c3d4e', msg: 'revert: revert "feat: upgrade to v2.1"', isHead: true, isRevert: true },
+            { hash: 'a1b2c3d', msg: 'feat: upgrade app to v2.1 🐛', tag: 'v2.1', hasBug: true },
+            { hash: 'f3a9b2c', msg: 'fix: patch release v2.0', tag: 'v2.0' },
+          ]
+        },
+        argo: { status: 'Syncing', actionDesc: '⚡ 执行回滚同步…\nkubectl apply -f deployment.yaml\nimage: v2.1 → v2.0\n滚动回退开始…', diff: null },
+        k8s: {
+          image: 'myapp:v2.0 (rolling back)', replicas: 3,
+          pods: [
+            { name: 'app-jkl78', status: 'Terminating', image: 'v2.1' },
+            { name: 'app-mno90', status: 'Terminating', image: 'v2.1' },
+            { name: 'app-pqr12', status: 'Running', image: 'v2.1' },
+            { name: 'app-stu34', status: 'Pending', image: 'v2.0' },
+            { name: 'app-vwx56', status: 'Pending', image: 'v2.0' },
+          ]
+        }
+      },
+      {
+        msg: 'Step 5：回滚完成！所有 Pod 运行 v2.0，错误率恢复到 0%。全程通过 Git 操作，有完整的审计记录：谁、什么时间、为什么回滚，一目了然。',
+        git: {
+          commits: [
+            { hash: 'b2c3d4e', msg: 'revert: revert "feat: upgrade to v2.1"', isHead: true, synced: true, isRevert: true },
+            { hash: 'a1b2c3d', msg: 'feat: upgrade app to v2.1 🐛', tag: 'v2.1', hasBug: true },
+            { hash: 'f3a9b2c', msg: 'fix: patch release v2.0', tag: 'v2.0' },
+          ]
+        },
+        argo: {
+          status: 'Synced',
+          note: '✅ 回滚完成\nGit 历史完整记录了回滚操作\n可审计、可追溯、无副作用',
+          diff: null
+        },
+        k8s: {
+          image: 'myapp:v2.0', replicas: 3, errorRate: '0% ✅',
+          pods: [
+            { name: 'app-stu34', status: 'Running', image: 'v2.0' },
+            { name: 'app-vwx56', status: 'Running', image: 'v2.0' },
+            { name: 'app-yza78', status: 'Running', image: 'v2.0' },
+          ]
+        }
+      },
+    ]
+  },
+
+  // ── Scenario 4: Multi-Env ────────────────────
+  {
+    id: 'multienv', title: '多环境管理', isMultiEnv: true,
+    steps: [
+      {
+        msg: '初始状态：dev/staging/prod 三个 ArgoCD Application 都运行 v2.0，均已 Synced。dev 开启 Auto-sync，staging/prod 需手动触发。',
+        gitCommits: [
+          { hash: 'f3a9b2c', msg: 'fix: patch release v2.0', tag: 'v2.0', isHead: true },
+          { hash: 'e2b8a1d', msg: 'feat: release v1.9', tag: 'v1.9' },
+        ],
+        envs: [
+          { name: 'dev',     status: 'Synced', image: 'v2.0', autoSync: true,  action: null },
+          { name: 'staging', status: 'Synced', image: 'v2.0', autoSync: false, action: null },
+          { name: 'prod',    status: 'Synced', image: 'v2.0', autoSync: false, action: null },
+        ]
+      },
+      {
+        msg: 'Step 1：开发者提交新功能，PR 合并到 main 分支，Git 出现新 commit v2.1。dev Application 检测到 OutOfSync（dev 跟踪 main）。',
+        gitCommits: [
+          { hash: 'a1b2c3d', msg: 'feat: new feature for v2.1', tag: 'v2.1', isHead: true, isNew: true },
+          { hash: 'f3a9b2c', msg: 'fix: patch release v2.0', tag: 'v2.0' },
+          { hash: 'e2b8a1d', msg: 'feat: release v1.9', tag: 'v1.9' },
+        ],
+        envs: [
+          { name: 'dev',     status: 'OutOfSync', image: 'v2.0', autoSync: true,  action: null, note: '新 commit 已检测' },
+          { name: 'staging', status: 'Synced',    image: 'v2.0', autoSync: false, action: null },
+          { name: 'prod',    status: 'Synced',    image: 'v2.0', autoSync: false, action: null },
+        ]
+      },
+      {
+        msg: 'Step 2：dev 开启了 Auto-sync，ArgoCD 自动触发 Sync，将 dev 集群更新到 v2.1。staging/prod 不受影响。',
+        gitCommits: [
+          { hash: 'a1b2c3d', msg: 'feat: new feature for v2.1', tag: 'v2.1', isHead: true },
+          { hash: 'f3a9b2c', msg: 'fix: patch release v2.0', tag: 'v2.0' },
+        ],
+        envs: [
+          { name: 'dev',     status: 'Syncing',  image: 'v2.0 → v2.1', autoSync: true,  action: 'auto-syncing', note: '🤖 Auto-sync 自动触发' },
+          { name: 'staging', status: 'Synced',   image: 'v2.0',        autoSync: false, action: null },
+          { name: 'prod',    status: 'Synced',   image: 'v2.0',        autoSync: false, action: null },
+        ]
+      },
+      {
+        msg: 'Step 3：dev 部署 v2.1 完成，功能验证通过。团队决定将 v2.1 promote 到 staging，需修改 staging/values.yaml。',
+        gitCommits: [
+          { hash: 'a1b2c3d', msg: 'feat: new feature for v2.1', tag: 'v2.1', isHead: true },
+          { hash: 'f3a9b2c', msg: 'fix: patch release v2.0', tag: 'v2.0' },
+        ],
+        envs: [
+          { name: 'dev',     status: 'Synced',    image: 'v2.1', autoSync: true,  action: null, note: '✅ 验证通过' },
+          { name: 'staging', status: 'OutOfSync', image: 'v2.0', autoSync: false, action: null, note: '等待 promote 操作' },
+          { name: 'prod',    status: 'Synced',    image: 'v2.0', autoSync: false, action: null },
+        ]
+      },
+      {
+        msg: 'Step 4：团队提交 PR 修改 staging/values.yaml，将 imageTag 改为 v2.1，合并后手动在 ArgoCD UI 点击 Sync。',
+        gitCommits: [
+          { hash: 'c3d4e5f', msg: 'chore: promote staging to v2.1', isHead: true, isNew: true },
+          { hash: 'a1b2c3d', msg: 'feat: new feature for v2.1', tag: 'v2.1' },
+          { hash: 'f3a9b2c', msg: 'fix: patch release v2.0', tag: 'v2.0' },
+        ],
+        envs: [
+          { name: 'dev',     status: 'Synced',  image: 'v2.1',        autoSync: true,  action: null },
+          { name: 'staging', status: 'Syncing', image: 'v2.0 → v2.1', autoSync: false, action: 'manual-syncing', note: '手动触发 Sync' },
+          { name: 'prod',    status: 'Synced',  image: 'v2.0',        autoSync: false, action: null },
+        ]
+      },
+      {
+        msg: 'Step 5：staging v2.1 验证通过，prod 需要审批流程。prod Application 显示 OutOfSync，但必须等待负责人手动批准。',
+        gitCommits: [
+          { hash: 'c3d4e5f', msg: 'chore: promote staging to v2.1', isHead: true },
+          { hash: 'a1b2c3d', msg: 'feat: new feature for v2.1', tag: 'v2.1' },
+          { hash: 'f3a9b2c', msg: 'fix: patch release v2.0', tag: 'v2.0' },
+        ],
+        envs: [
+          { name: 'dev',     status: 'Synced',    image: 'v2.1', autoSync: true,  action: null },
+          { name: 'staging', status: 'Synced',    image: 'v2.1', autoSync: false, action: null, note: '✅ 验证通过' },
+          { name: 'prod',    status: 'OutOfSync', image: 'v2.0', autoSync: false, action: 'waiting-approval', note: '⏳ 等待发布审批\n（禁止 Auto-sync）' },
+        ]
+      },
+      {
+        msg: 'Step 6：审批通过，负责人手动触发 prod Sync，prod 集群更新到 v2.1。三个环境全部 Synced，可视化对比状态一致。',
+        gitCommits: [
+          { hash: 'c3d4e5f', msg: 'chore: promote staging to v2.1', isHead: true },
+          { hash: 'a1b2c3d', msg: 'feat: new feature for v2.1', tag: 'v2.1' },
+          { hash: 'f3a9b2c', msg: 'fix: patch release v2.0', tag: 'v2.0' },
+        ],
+        envs: [
+          { name: 'dev',     status: 'Synced', image: 'v2.1', autoSync: true,  action: null },
+          { name: 'staging', status: 'Synced', image: 'v2.1', autoSync: false, action: null },
+          { name: 'prod',    status: 'Synced', image: 'v2.1', autoSync: false, action: null, note: '✅ 发布完成' },
+        ]
+      },
+    ]
+  },
+];
+
+// ──────────────────────────────────────────────
+// STATE
+// ──────────────────────────────────────────────
+let curScene = 0;
+let curStep  = -1;
+let timer    = null;
+
+// ──────────────────────────────────────────────
+// RENDER HELPERS
+// ──────────────────────────────────────────────
+
+function statusClass(s) {
+  const m = {
+    'Synced':'s-synced','OutOfSync':'s-outofsync','Syncing':'s-syncing',
+    'Comparing':'s-comparing','Polling':'s-polling','Degraded':'s-err'
+  };
+  return m[s] || 's-synced';
+}
+
+function statusLabel(s) {
+  const m = {
+    'Synced':'● Synced','OutOfSync':'◆ OutOfSync','Syncing':'↻ Syncing',
+    'Comparing':'⇄ Comparing','Polling':'⟳ Polling','Degraded':'✕ Degraded'
+  };
+  return m[s] || s;
+}
+
+function renderGitTimeline(git) {
+  const el = document.getElementById('gitTimeline');
+  if (!git) { el.innerHTML = ''; return; }
+  let html = '';
+  for (const c of git.commits) {
+    let cls = 'commit-item';
+    if (c.isHead)    cls += ' c-head';
+    if (c.isNew)     cls += ' c-new';
+    if (c.synced)    cls += ' c-synced';
+    if (c.hasBug)    cls += ' c-bug';
+    if (c.isRevert)  cls += ' c-revert';
+    if (c.highlight) cls += ' c-highlight';
+
+    let tags = '';
+    if (c.isHead)   tags += `<span class="tag-badge tag-head">HEAD</span>`;
+    if (c.tag)      tags += `<span class="tag-badge tag-v">${c.tag}</span>`;
+    if (c.isNew)    tags += `<span class="tag-badge tag-new">NEW</span>`;
+    if (c.hasBug)   tags += `<span class="tag-badge tag-bug">BUG</span>`;
+    if (c.isRevert) tags += `<span class="tag-badge tag-revert">REVERT</span>`;
+    if (c.synced)   tags += `<span class="tag-badge tag-synced">✓ Synced</span>`;
+
+    html += `
+      <div class="${cls}">
+        <div class="commit-hash">${c.hash}</div>
+        <div class="commit-body">
+          <div class="commit-msg">${c.msg}</div>
+          <div class="commit-tags">${tags}</div>
+        </div>
+      </div>`;
+  }
+  if (git.manifest) {
+    html += `<div class="manifest-badge">📄 Manifest<br>${git.manifest.replace(/\n/g,'<br>')}</div>`;
+  }
+  el.innerHTML = html;
+}
+
+function renderArgo(argo) {
+  const el = document.getElementById('argoContent');
+  if (!argo) { el.innerHTML = ''; return; }
+
+  let html = `<div class="argo-status-badge ${statusClass(argo.status)}">
+    <span class="argo-status-dot"></span>${statusLabel(argo.status)}
+  </div>`;
+
+  if (argo.actionDesc) {
+    const lines = argo.actionDesc.split('\n').join('<br>');
+    html += `<div class="argo-action-desc" style="font-family:monospace">${lines}</div>`;
+  }
+
+  if (['Comparing','Polling','Syncing'].includes(argo.status)) {
+    const fromGit  = argo.status !== 'Syncing';
+    const toK8s    = argo.status === 'Syncing' || argo.status === 'Comparing';
+    html += `<div class="argo-flow">
+      <div class="argo-flow-arrow ${fromGit?'active':''}">
+        📁 Git <span class="arrow-anim">→</span> ArgoCD
+      </div>
+      <div class="argo-flow-arrow ${toK8s?'active':''}">
+        ArgoCD <span class="arrow-anim">→</span> ☸ K8s
+      </div>
+    </div>`;
+  }
+
+  if (argo.diff && argo.diff.length > 0) {
+    html += `<div class="diff-wrap">
+      <div class="diff-header">
+        <span>Field</span><span>Git (Desired)</span><span>Cluster (Live)</span>
+      </div>`;
+    for (const d of argo.diff) {
+      html += `<div class="diff-row">
+        <div class="diff-field">${d.field}</div>
+        <div class="diff-git">${d.git}</div>
+        <div class="diff-cluster">${d.cluster}</div>
+      </div>`;
+    }
+    html += '</div>';
+  }
+
+  if (argo.note) {
+    const lines = argo.note.split('\n').join('<br>');
+    html += `<div class="argo-note">${lines}</div>`;
+  }
+
+  el.innerHTML = html;
+}
+
+function renderK8s(k8s) {
+  const el = document.getElementById('k8sContent');
+  if (!k8s) { el.innerHTML = ''; return; }
+
+  let metaHtml = `
+    <span class="img-tag">🖼 ${k8s.image}</span>
+    <span class="replica-info">Replicas: ${k8s.replicas}</span>`;
+  if (k8s.errorRate) {
+    const isOk = k8s.errorRate.startsWith('0');
+    metaHtml += `<span class="errorrate-badge ${isOk?'ok':'bad'}">Error Rate: ${k8s.errorRate}</span>`;
+  }
+
+  let html = `<div class="k8s-meta">${metaHtml}</div>`;
+
+  if (k8s.driftNote) {
+    html += `<div class="drift-note">${k8s.driftNote}</div>`;
+  }
+
+  html += '<div class="pod-grid">';
+  for (const p of k8s.pods) {
+    const cls = `pod-chip p-${p.status.toLowerCase()}`;
+    html += `<div class="${cls}">
+      <span class="pod-dot"></span>
+      <span class="pod-name">${p.name}</span>
+      <span class="pod-img-tag">${p.image}</span>
+      <span style="font-size:.68rem;color:var(--dim2);margin-left:4px">${p.status}</span>
+    </div>`;
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function renderMultiEnv(step) {
+  const el = document.getElementById('multiEnvContent');
+  if (!step) { el.innerHTML = ''; return; }
+
+  // Git strip
+  let gitHtml = '<div class="git-strip"><div class="git-strip-title">📁 Git Repository</div><div class="git-strip-commits">';
+  for (const c of step.gitCommits) {
+    let cls = 'git-strip-commit';
+    if (c.isHead) cls += ' sc-head';
+    if (c.isNew)  cls += ' sc-new';
+    let tags = '';
+    if (c.isHead) tags += `<span class="tag-badge tag-head">HEAD</span>`;
+    if (c.tag)    tags += `<span class="tag-badge tag-v">${c.tag}</span>`;
+    if (c.isNew)  tags += `<span class="tag-badge tag-new">NEW</span>`;
+    gitHtml += `<div class="${cls}">
+      <span class="sc-hash">${c.hash}</span>
+      <span class="sc-msg">${c.msg}</span>
+      <span class="sc-tags">${tags}</span>
+    </div>`;
+  }
+  gitHtml += '</div></div>';
+
+  // Env cards
+  let cardsHtml = '<div class="env-cards">';
+  for (const env of step.envs) {
+    const statusMap = {
+      'Synced':'ec-synced','OutOfSync':'ec-outofsync','Syncing':'ec-syncing',
+      'OutOfSync-waiting':'ec-waiting'
+    };
+    const isWaiting = env.action === 'waiting-approval';
+    const cardCls = isWaiting ? 'env-card ec-waiting' :
+                    `env-card ${statusMap[env.status] || 'ec-synced'}`;
+
+    const badgeMap = {
+      'Synced':'es-synced','OutOfSync':'es-outofsync','Syncing':'es-syncing'
+    };
+    const badgeCls = isWaiting ? 'env-status-badge es-waiting' :
+                     `env-status-badge ${badgeMap[env.status] || 'es-synced'}`;
+    const badgeLabel = isWaiting ? '⏳ Waiting' : statusLabel(env.status);
+
+    const autoSyncBadge = `<span class="env-autosync ${env.autoSync ? 'on' : 'off'}">Auto-sync: ${env.autoSync ? 'ON' : 'OFF'}</span>`;
+
+    let actionDesc = '';
+    if (env.action === 'auto-syncing')       actionDesc = '<div class="env-action-desc">🤖 Auto-sync 触发中…</div>';
+    else if (env.action === 'manual-syncing') actionDesc = '<div class="env-action-desc">⚡ 手动 Sync 执行中…</div>';
+    else if (env.action === 'waiting-approval') actionDesc = '<div class="env-action-desc">🔒 等待审批流程</div>';
+
+    const noteLines = env.note ? env.note.split('\n').join('<br>') : '';
+    const noteHtml = noteLines ? `<div class="env-note">${noteLines}</div>` : '';
+
+    cardsHtml += `<div class="${cardCls}">
+      <div class="env-name">${env.name.toUpperCase()}</div>
+      <div class="${badgeCls}"><span class="argo-status-dot"></span>${badgeLabel}</div>
+      <div class="env-image">Image: ${env.image}</div>
+      <div class="env-meta">${autoSyncBadge}</div>
+      ${actionDesc}
+      ${noteHtml}
+    </div>`;
+  }
+  cardsHtml += '</div>';
+
+  el.innerHTML = gitHtml + cardsHtml;
+}
+
+// ──────────────────────────────────────────────
+// MAIN RENDER
+// ──────────────────────────────────────────────
+function render() {
+  const scenario = SCENARIOS[curScene];
+  const isMulti  = !!scenario.isMultiEnv;
+
+  document.getElementById('viz3col').style.display     = isMulti ? 'none'  : 'grid';
+  document.getElementById('vizMultienv').style.display = isMulti ? 'block' : 'none';
+
+  const step = curStep >= 0 ? scenario.steps[curStep] : null;
+
+  // Step message
+  document.getElementById('stepMsg').textContent =
+    step ? step.msg : `场景「${scenario.title}」：点击「下一步」或步骤条目开始。`;
+
+  if (isMulti) {
+    renderMultiEnv(step);
+  } else {
+    renderGitTimeline(step ? step.git : null);
+    renderArgo(step ? step.argo : null);
+    renderK8s(step ? step.k8s : null);
+  }
+
+  buildStepList();
+  buildScenarioTabs();
+}
+
+function buildScenarioTabs() {
+  const el = document.getElementById('scenarioTabs');
+  el.innerHTML = '';
+  SCENARIOS.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'scenario-tab' + (i === curScene ? ' active' : '');
+    btn.innerHTML = `<span class="tab-num">${i + 1}</span>${s.title}`;
+    btn.onclick = () => { curScene = i; curStep = -1; stopPlay(); render(); };
+    el.appendChild(btn);
+  });
+}
+
+function buildStepList() {
+  const el = document.getElementById('stepList');
+  el.innerHTML = '';
+  const steps = SCENARIOS[curScene].steps;
+  steps.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-btn' + (i === curStep ? ' active' : '');
+    const short = s.msg.replace(/^Step \d+：/,'').replace(/^初始状态：/,'初始 ').slice(0, 26);
+    btn.innerHTML = `<span class="step-idx">${i + 1}</span>${short}…`;
+    btn.onclick = () => { curStep = i; render(); };
+    el.appendChild(btn);
+  });
+}
+
+// ──────────────────────────────────────────────
+// CONTROLS
+// ──────────────────────────────────────────────
+function next() {
+  const maxStep = SCENARIOS[curScene].steps.length - 1;
+  if (curStep < maxStep) { curStep++; render(); }
+  else stopPlay();
+}
+
+function prev() {
+  if (curStep > -1) { curStep--; render(); }
+}
+
+function reset() {
+  curStep = -1;
+  stopPlay();
+  render();
+}
+
+function togglePlay() {
+  if (timer) stopPlay(); else startPlay();
+}
+
+function startPlay() {
+  document.getElementById('playBtn').textContent = '⏸ 暂停';
+  timer = setInterval(() => {
+    const maxStep = SCENARIOS[curScene].steps.length - 1;
+    if (curStep < maxStep) { curStep++; render(); }
+    else stopPlay();
+  }, 2400);
+}
+
+function stopPlay() {
+  if (timer) { clearInterval(timer); timer = null; }
+  document.getElementById('playBtn').textContent = '▶ 播放';
+}
+
+// Init
+render();
+</script>
+</body>
+</html>

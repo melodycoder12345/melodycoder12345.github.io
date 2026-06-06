@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="树链剖分把树路径转化为线段树区间查询，构建 O(n)，路径查询 O(log²n)。">
+<link rel="canonical" href="https://melodycoder12345.github.io/algo/hld.html">
+<meta property="og:title" content="树链剖分 — 码海拾贝">
+<meta property="og:description" content="树链剖分把树路径转化为线段树区间查询，构建 O(n)，路径查询 O(log²n)。">
+<meta property="og:url" content="https://melodycoder12345.github.io/algo/hld.html">
+<meta property="og:type" content="article"><meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary"><meta name="twitter:title" content="树链剖分 — 码海拾贝">
+<meta name="twitter:description" content="树链剖分把树路径转化为线段树区间查询，构建 O(n)，路径查询 O(log²n)。">
+<title>树链剖分（HLD）- 算法可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.15rem;font-weight:600;}.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.badge.time{background:rgba(251,191,36,0.15);color:var(--yellow);}.badge.space{background:rgba(56,189,248,0.15);color:var(--blue);}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.op-row{display:flex;gap:8px;padding:10px 20px;border-bottom:1px solid var(--border);align-items:center;flex-wrap:wrap;}
+.sc-label{font-size:0.82rem;color:var(--dim);white-space:nowrap;}
+.sc-btns{display:flex;gap:4px;}
+.sc-btn{background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--text);padding:4px 12px;border-radius:5px;cursor:pointer;font-size:0.8rem;transition:all 0.15s;}
+.sc-btn:hover{background:rgba(255,255,255,0.1);}.sc-btn.active{background:rgba(56,189,248,0.15);border-color:var(--blue);color:var(--blue);}
+.legend{display:flex;gap:10px;margin-left:auto;flex-wrap:wrap;}
+.leg{display:flex;align-items:center;gap:4px;font-size:0.72rem;color:var(--dim);}
+.leg-seg{width:18px;height:3px;border-radius:2px;}
+.viz-area{flex:1;overflow:hidden;position:relative;display:flex;flex-direction:column;}
+svg#treeSvg{flex:1;width:100%;}
+.dfn-bar{padding:6px 16px;background:rgba(15,23,42,0.9);border-top:1px solid var(--border);display:none;flex-shrink:0;}
+.dfn-bar-label{font-size:0.7rem;color:var(--dim);margin-bottom:4px;}
+.dfn-cells{display:flex;gap:3px;}
+.dfn-cell{min-width:40px;height:40px;border-radius:5px;border:2px solid #334155;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;transition:border-color 0.2s;}
+.dfn-idx{font-size:0.6rem;color:#475569;font-family:monospace;line-height:1;}
+.dfn-node{font-size:0.82rem;font-weight:700;font-family:monospace;line-height:1.3;}
+.desc-box{padding:10px 20px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.87rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:44%;min-width:360px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;padding:1px 0;font-family:'JetBrains Mono',monospace;font-size:0.8rem;line-height:1.6;cursor:pointer;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}
+.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:44px;padding:0 10px 0 14px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.76rem;}
+.lc{padding:0 14px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.num{color:#79c0ff;}.cm{color:#8b949e;font-style:italic;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.3);color:var(--yellow);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--yellow);cursor:pointer;}
+@media(max-width:768px){body{height:auto!important;min-height:100vh;overflow-y:auto!important;}.main{flex-direction:column!important;overflow:visible!important;height:auto!important;flex:none!important;}.viz-panel{border-right:none!important;border-bottom:1px solid var(--border);height:300px!important;flex:none!important;}.code-panel{width:100%!important;min-width:unset!important;height:360px!important;flex:none!important;}.controls{flex-wrap:wrap!important;gap:6px!important;height:auto!important;}.speed-wrap{margin-left:0!important;width:100%;justify-content:flex-end;}}
+</style>
+<script src="../nav.js"></script>
+<script src="../lang.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>树链剖分（Heavy-Light Decomposition）</h1>
+  <div class="complexity"><span class="badge time">构建 O(n)</span><span class="badge space">查询 O(log²n)</span></div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="op-row">
+      <span class="sc-label">场景：</span>
+      <div class="sc-btns" id="scBtns">
+        <button class="sc-btn active" data-idx="0">①构建重链</button>
+        <button class="sc-btn" data-idx="1">②路径查询（6→8）</button>
+        <button class="sc-btn" data-idx="2">③子树更新</button>
+      </div>
+      <div class="legend">
+        <div class="leg"><div class="leg-seg" style="background:var(--blue)"></div>蓝链</div>
+        <div class="leg"><div class="leg-seg" style="background:var(--purple)"></div>紫链</div>
+        <div class="leg"><div class="leg-seg" style="background:var(--orange)"></div>橙链</div>
+        <div class="leg"><div class="leg-seg" style="background:var(--green)"></div>绿链</div>
+        <div class="leg"><div class="leg-seg" style="background:#2d3f55;height:2px"></div>轻边</div>
+      </div>
+    </div>
+    <div class="viz-area">
+      <svg id="treeSvg"></svg>
+      <div class="dfn-bar" id="dfnBar">
+        <div class="dfn-bar-label">DFN 序列（pos=0→9，重链内节点连续）</div>
+        <div class="dfn-cells" id="dfnCells"></div>
+      </div>
+    </div>
+    <div class="desc-box">
+      <span id="descText">选择场景，观察树链剖分的构建与查询过程</span>
+      <span class="step-counter" id="stepCounter"></span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px" data-base="hld">hld.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+// ── Code Lines ──────────────────────────────────────────────────────────────
+const CODE_LINES=[
+  {html:`<span class="kw">var</span> sz,heavy,depth,parent,pos,head []<span class="kw">int</span>`},// 0
+  {html:`<span class="kw">var</span> cur <span class="kw">int</span>`},                                  // 1
+  {html:``},                                                                  // 2
+  {html:`<span class="kw">func</span> <span class="fn">dfs1</span>(u,p,d <span class="kw">int</span>,adj [][]<span class="kw">int</span>) {`},// 3
+  {html:`&nbsp;&nbsp;sz[u]=<span class="num">1</span>;depth[u]=d;parent[u]=p;heavy[u]=-<span class="num">1</span>`}, // 4
+  {html:`&nbsp;&nbsp;maxSz:=<span class="num">0</span>`},                                      // 5
+  {html:`&nbsp;&nbsp;<span class="kw">for</span> _,v:=<span class="kw">range</span> adj[u] {`},          // 6
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> v==p { <span class="kw">continue</span> }`},     // 7
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="fn">dfs1</span>(v,u,d+<span class="num">1</span>,adj)`},          // 8
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;sz[u]+=sz[v]`},                                // 9
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> sz[v]>maxSz{maxSz=sz[v];heavy[u]=v}`},// 10
+  {html:`&nbsp;&nbsp;}  }`},                                                  // 11
+  {html:``},                                                                  // 12
+  {html:`<span class="kw">func</span> <span class="fn">dfs2</span>(u,h <span class="kw">int</span>,adj [][]<span class="kw">int</span>) {`},// 13
+  {html:`&nbsp;&nbsp;head[u]=h; pos[u]=cur; cur++ <span class="cm">// 分配DFN</span>`},  // 14
+  {html:`&nbsp;&nbsp;<span class="kw">if</span> heavy[u]!=-<span class="num">1</span> { <span class="fn">dfs2</span>(heavy[u],h,adj) } <span class="cm">// 优先重儿子</span>`}, // 15
+  {html:`&nbsp;&nbsp;<span class="kw">for</span> _,v:=<span class="kw">range</span> adj[u] {`},          // 16
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> v!=parent[u]&&v!=heavy[u]{ <span class="fn">dfs2</span>(v,v,adj) }`},// 17
+  {html:`&nbsp;&nbsp;}  }`},                                                  // 18
+  {html:``},                                                                  // 19
+  {html:`<span class="kw">func</span> <span class="fn">queryPath</span>(u,v <span class="kw">int</span>) <span class="kw">int</span> {`},// 20
+  {html:`&nbsp;&nbsp;res:=<span class="num">0</span>`},                                      // 21
+  {html:`&nbsp;&nbsp;<span class="kw">for</span> head[u]!=head[v] { <span class="cm">// 不在同一链</span>`}, // 22
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> depth[head[u]]<depth[head[v]]{u,v=v,u}`},// 23
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;res+=seg.<span class="fn">query</span>(pos[head[u]],pos[u]) <span class="cm">// 查链段</span>`},// 24
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;u=parent[head[u]] <span class="cm">// 跳到链头父节点</span>`},// 25
+  {html:`&nbsp;&nbsp;}`},                                                      // 26
+  {html:`&nbsp;&nbsp;<span class="kw">if</span> depth[u]>depth[v]{u,v=v,u}`},       // 27
+  {html:`&nbsp;&nbsp;res+=seg.<span class="fn">query</span>(pos[u],pos[v]) <span class="cm">// LCA链段</span>`},// 28
+  {html:`&nbsp;&nbsp;<span class="kw">return</span> res`},                              // 29
+  {html:`}`},                                                                 // 30
+  {html:``},                                                                  // 31
+  {html:`<span class="kw">func</span> <span class="fn">updateSubtree</span>(u,delta <span class="kw">int</span>) {`},// 32
+  {html:`&nbsp;&nbsp;<span class="cm">// 子树DFN连续，直接区间更新</span>`},         // 33
+  {html:`&nbsp;&nbsp;seg.<span class="fn">update</span>(pos[u],pos[u]+sz[u]-<span class="num">1</span>,delta)`},// 34
+  {html:`}`},                                                                 // 35
+];
+
+// ── Tree: 10 nodes (0-9), root=0 ─────────────────────────────────────────
+// adj (children only, undirected for dfs1): 0→[1,2], 1→[3], 2→[4,5], 3→[6], 4→[7], 5→[8,9]
+// sz:    [10,3,6,2,2,3,1,1,1,1]
+// heavy: [2,3,5,6,7,8,-1,-1,-1,-1]  (heavy child = max sz child)
+// head:  [0,1,0,1,4,0,1,4,0,9]     (chain head for each node)
+// pos:   [0,7,1,8,5,2,9,6,3,4]     (DFN position, 0-indexed)
+// Chains: 0[0,2,5,8]=blue, 1[1,3,6]=purple, 2[4,7]=orange, 3[9]=green
+// depth: [0,1,1,2,2,2,3,3,3,3]
+// parent: [-1,0,0,1,2,2,3,4,5,5]
+
+const SZ    = [10,3,6,2,2,3,1,1,1,1];
+const HEAVY = [2,3,5,6,7,8,-1,-1,-1,-1];
+const HEAD  = [0,1,0,1,4,0,1,4,0,9];
+const POS   = [0,7,1,8,5,2,9,6,3,4];
+const DEPTH = [0,1,1,2,2,2,3,3,3,3];
+const PAR   = [-1,0,0,1,2,2,3,4,5,5];
+// pos→node (DFN slot to node id)
+const POS2N = [0,2,5,8,9,4,7,1,3,6];
+const NODE_CHAIN = [0,1,0,1,2,0,1,2,0,3]; // chain index for each node
+const CC = ['#38bdf8','#c084fc','#fb923c','#4ade80']; // chain colors
+const CF = ['rgba(56,189,248,.2)','rgba(192,132,252,.2)','rgba(251,146,60,.2)','rgba(74,222,128,.2)'];
+
+// SVG layout: normalized coords for 10 nodes
+const NP = {
+  0:{x:.50,y:.08}, 1:{x:.22,y:.26}, 2:{x:.76,y:.26},
+  3:{x:.11,y:.50}, 4:{x:.62,y:.50}, 5:{x:.90,y:.50},
+  6:{x:.09,y:.76}, 7:{x:.59,y:.76}, 8:{x:.84,y:.76}, 9:{x:.96,y:.76},
+};
+const NR = 19; // node radius
+
+// Edges: [parent, child, isHeavy]
+const EDGES = [
+  [0,1,false],[0,2,true],   // 0's children
+  [1,3,true],               // 1's children
+  [2,4,false],[2,5,true],   // 2's children
+  [3,6,true],[4,7,true],    // level-2 children
+  [5,8,true],[5,9,false],   // 5's children
+];
+
+// ── Step format ─────────────────────────────────────────────────────────────
+// { nc: {0:'chain'|'dim'|'active'|'hl'|'path'}, chainEdges: bool,
+//   pathN: int[], segN: int[], dfnQ: [l,r]|null, dfnS: [l,r]|null,
+//   showSz: bool, showPos: bool, showDfn: bool, hl: int[], desc: string }
+
+function mkS(nc,ce,pN,sN,dQ,dS,sz,sp,sd,hl,desc){
+  return {nc,ce,pathN:pN,segN:sN,dfnQ:dQ,dfnS:dS,showSz:sz,showPos:sp,showDfn:sd,hl,desc};
+}
+const DIM={0:'dim',1:'dim',2:'dim',3:'dim',4:'dim',5:'dim',6:'dim',7:'dim',8:'dim',9:'dim'};
+const CHN={0:'chain',1:'chain',2:'chain',3:'chain',4:'chain',5:'chain',6:'chain',7:'chain',8:'chain',9:'chain'};
+
+const SCENARIOS = [
+  // ── 场景0：构建重链 ──────────────────────────────────────────────────────
+  { name:'构建重链', steps:[
+    mkS(DIM, false,[],[],null,null,false,false,false,[],
+      '原始树：10个节点（0-9），根节点0。第一步 DFS1 计算子树大小 sz'),
+    mkS({...DIM,6:'active',7:'active',8:'active',9:'active'},false,[],[],null,null,true,false,false,[3,4],
+      'DFS1：递归到叶节点，sz[6]=sz[7]=sz[8]=sz[9]=1（无子节点）'),
+    mkS({...DIM,3:'active',4:'active',5:'active'},false,[],[],null,null,true,false,false,[8,9,10],
+      'DFS1回溯：sz[3]=2, sz[4]=2, sz[5]=3。标记重儿子：heavy[3]=6, heavy[4]=7, heavy[5]=8'),
+    mkS({...DIM,1:'active',2:'active',0:'active'},false,[],[],null,null,true,false,false,[8,9,10],
+      'sz[1]=1+sz[3]=3, sz[2]=1+sz[4]+sz[5]=6, sz[0]=10。heavy[0]=2（sz[2]=6>sz[1]=3），heavy[2]=5'),
+    mkS(DIM, true,[],[],null,null,true,false,false,[10],
+      '标记重儿子完成（粗彩边=重边）：heavy[0]=2, heavy[2]=5, heavy[5]=8, heavy[1]=3, heavy[3]=6, heavy[4]=7'),
+    mkS(CHN, true,[],[],null,null,false,false,false,[13,14,15,17],
+      'DFS2：优先走重儿子，同一重链DFN连续！蓝链[0→2→5→8]，紫链[1→3→6]，橙链[4→7]，绿链[9]'),
+    mkS(CHN, true,[],[],null,null,false,true,true,[14,15,16,17],
+      'DFN分配完成（节点旁显示 p=DFN编号）。重链内节点DFN连续，这使路径查询最多跳O(log n)条链'),
+  ]},
+
+  // ── 场景1：路径查询 6→8 ──────────────────────────────────────────────────
+  { name:'路径查询(6→8)', steps:[
+    mkS(CHN,true,[0,1,2,3,5,6,8],[],null,null,false,true,true,[],
+      '路径查询：节点6→节点8，求路径上节点权值之和（权值=节点编号）。路径：6→3→1→0→2→5→8'),
+    mkS(CHN,true,[6,8],[],null,null,false,true,true,[22],
+      'head[6]=1（紫链），head[8]=0（蓝链）。不在同一链，进入 while 循环'),
+    mkS(CHN,true,[6,8],[],null,null,false,true,true,[23],
+      'depth[head[6]]=depth[1]=1 > depth[head[8]]=depth[0]=0，处理 u=6 所在链（深度较大一侧）'),
+    mkS(CHN,true,[6,8],[1,3,6],[7,9],null,false,true,true,[24],
+      '查询链段 [pos[1],pos[6]]=[7,9]，包含节点{1,3,6}，权值和=1+3+6=10。DFN高亮区间[7,9]'),
+    mkS(CHN,true,[6,8],[],null,null,false,true,true,[25],
+      'u=parent[head[6]]=parent[1]=0。紫链处理完毕，u 跳到节点0'),
+    mkS(CHN,true,[6,8],[],null,null,false,true,true,[22,26],
+      'head[0]=0 == head[8]=0，两节点在同一链（蓝链），while 退出，LCA=节点0'),
+    mkS(CHN,true,[0,2,5,6,8],[0,2,5,8],[0,3],null,false,true,true,[27,28],
+      '查询链段 [pos[0],pos[8]]=[0,3]，包含节点{0,2,5,8}，权值和=0+2+5+8=15'),
+    mkS(CHN,true,[0,1,2,3,5,6,8],[],null,null,false,false,true,[29,30],
+      '路径权值总和=10+15=25。完整路径 6→3→1→0→2→5→8（共7节点），最多跳O(log n)条链'),
+  ]},
+
+  // ── 场景2：子树更新（节点2）─────────────────────────────────────────────
+  { name:'子树更新(节点2)', steps:[
+    mkS(CHN,true,[],[],null,null,false,false,false,[],
+      '子树更新：对节点2的整个子树内所有节点权值+3。问题：如何高效找到子树节点？'),
+    mkS({...CHN,2:'active'},true,[],[2,4,5,7,8,9],null,null,false,false,false,[],
+      '节点2的子树（黄色高亮）：{2,4,5,7,8,9}，共 sz[2]=6 个节点'),
+    mkS({...DIM,2:'active',4:'hl',5:'hl',7:'hl',8:'hl',9:'hl'},false,[],[],null,[1,6],false,true,true,[],
+      '关键：子树节点DFN连续！pos[2]=1，子树区间=[pos[2], pos[2]+sz[2]-1]=[1,6]（橙色标记）'),
+    mkS({...DIM,2:'active',4:'hl',5:'hl',7:'hl',8:'hl',9:'hl'},false,[],[],[1,6],null,false,true,true,[32,33,34,35],
+      '对线段树区间[1,6]执行更新，O(log n) 时间。线段树延迟标记（lazy propagation）使区间更新高效'),
+    mkS(CHN,true,[],[2,4,5,7,8,9],null,null,false,false,true,[],
+      '子树更新完成！DFN连续性是树链剖分最核心的思想——树的层次关系映射为数组的连续区间'),
+  ]},
+];
+
+// ── Playback State ──────────────────────────────────────────────────────────
+let curSc=0,cur=0,playing=false,timer=null;
+const SPEED=[800,500,300,180,80];
+
+// ── DOM ──────────────────────────────────────────────────────────────────────
+const treeSvg=document.getElementById('treeSvg'),codeBody=document.getElementById('codeBody');
+const descText=document.getElementById('descText'),stepCounter=document.getElementById('stepCounter');
+const dfnBar=document.getElementById('dfnBar'),dfnCells=document.getElementById('dfnCells');
+const btnPlay=document.getElementById('btnPlay'),btnPrev=document.getElementById('btnPrev');
+const btnNext=document.getElementById('btnNext'),btnReset=document.getElementById('btnReset');
+const speedRange=document.getElementById('speedRange');
+
+// ── Code ────────────────────────────────────────────────────────────────────
+function buildCode(){
+  codeBody.innerHTML=CODE_LINES.map((l,i)=>
+    `<div class="code-line" data-line="${i}"><span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
+  ).join('');
+}
+function hlCode(lines){
+  codeBody.querySelectorAll('.code-line').forEach(el=>el.classList.remove('active'));
+  lines.forEach(n=>{const el=codeBody.querySelector(`[data-line="${n}"]`);if(el)el.classList.add('active');});
+  if(lines.length){const f=codeBody.querySelector(`[data-line="${lines[0]}"]`);if(f)f.scrollIntoView({block:'nearest'});}
+}
+
+// ── DFN Bar ─────────────────────────────────────────────────────────────────
+function renderDFN(s){
+  if(!s.showDfn){dfnBar.style.display='none';return;}
+  dfnBar.style.display='block';
+  dfnCells.innerHTML=POS2N.map((node,p)=>{
+    const chain=NODE_CHAIN[node],color=CC[chain],fill=CF[chain];
+    const inQ=s.dfnQ&&p>=s.dfnQ[0]&&p<=s.dfnQ[1];
+    const inS=s.dfnS&&p>=s.dfnS[0]&&p<=s.dfnS[1];
+    let bc='#334155',bg=fill,extra='';
+    if(inQ){bc='#fbbf24';bg='rgba(251,191,36,.15)';extra='box-shadow:0 0 5px rgba(251,191,36,.5)';}
+    if(inS){bc='#fb923c';bg='rgba(251,146,60,.15)';extra='box-shadow:0 0 5px rgba(251,146,60,.5)';}
+    return `<div class="dfn-cell" style="border-color:${bc};background:${bg};${extra}">
+      <span class="dfn-idx">p=${p}</span>
+      <span class="dfn-node" style="color:${color}">${node}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── SVG Tree ─────────────────────────────────────────────────────────────────
+function gx(n,W){return NP[n].x*(W-NR*2-24)+NR+12;}
+function gy(n,H){return NP[n].y*(H-NR*2-16)+NR+8;}
+
+function drawTree(s){
+  treeSvg.innerHTML='';
+  const R=treeSvg.getBoundingClientRect(),W=R.width||660,H=R.height||340;
+  const mk=(tag,attrs)=>{const el=document.createElementNS('http://www.w3.org/2000/svg',tag);Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v));return el;};
+
+  // Glow
+  const defs=mk('defs',{});
+  defs.innerHTML=`<filter id="gw"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+  treeSvg.appendChild(defs);
+
+  // Edges
+  EDGES.forEach(([a,b,isHeavy])=>{
+    const inSeg=s.segN.includes(a)&&s.segN.includes(b);
+    const chainOfB=NODE_CHAIN[b];
+    let stroke=isHeavy&&s.chainEdges?CC[chainOfB]:'#2d3f55';
+    let sw=isHeavy&&s.chainEdges?'3':'1.5';
+    let dash='none';
+    if(!isHeavy&&s.chainEdges)dash='5,4';
+    if(inSeg){stroke='#fbbf24';sw='4';}
+    const el=mk('line',{x1:gx(a,W),y1:gy(a,H),x2:gx(b,W),y2:gy(b,H),stroke,'stroke-width':sw,'stroke-dasharray':dash});
+    if(inSeg||s.chainEdges&&isHeavy)el.setAttribute('filter','url(#gw)');
+    treeSvg.appendChild(el);
+  });
+
+  // Nodes
+  for(let n=0;n<10;n++){
+    const x=gx(n,W),y=gy(n,H);
+    const nc=s.nc[n]||'default';
+    const isPath=s.pathN.includes(n),isSeg=s.segN.includes(n);
+    const chain=NODE_CHAIN[n];
+    let fill='#1e293b',stroke='#475569',tc='#94a3b8',sw='1.5';
+    if(nc==='chain'){fill=CF[chain];stroke=CC[chain];tc=CC[chain];sw='2';}
+    if(nc==='dim'){fill='#1a2538';stroke='#2d3f55';tc='#3d5068';}
+    if(nc==='active'){fill='rgba(56,189,248,.22)';stroke='#38bdf8';tc='#38bdf8';sw='2.5';}
+    if(nc==='hl'){fill='rgba(251,191,36,.18)';stroke='#fbbf24';tc='#fbbf24';sw='2';}
+    if(isPath&&!isSeg){fill='rgba(74,222,128,.15)';stroke='#4ade80';tc='#4ade80';sw='2';}
+    if(isSeg){fill='rgba(251,191,36,.25)';stroke='#fbbf24';tc='#fbbf24';sw='2.5';}
+
+    const c=mk('circle',{cx:x,cy:y,r:NR,fill,stroke,'stroke-width':sw});
+    if(sw==='2.5')c.setAttribute('filter','url(#gw)');
+    treeSvg.appendChild(c);
+
+    const t=mk('text',{x,y:y+5,fill:tc,'font-size':'13','font-weight':'700','text-anchor':'middle','font-family':'monospace'});
+    t.textContent=n;treeSvg.appendChild(t);
+
+    // Annotation: sz or pos
+    if(s.showSz){
+      const ta=mk('text',{x,y:y-NR-5,fill:'#64748b','font-size':'9','text-anchor':'middle','font-family':'monospace'});
+      ta.textContent=`sz=${SZ[n]}`;treeSvg.appendChild(ta);
+    } else if(s.showPos){
+      const ta=mk('text',{x,y:y-NR-5,fill:tc,'font-size':'9','text-anchor':'middle','font-family':'monospace',opacity:'0.85'});
+      ta.textContent=`p=${POS[n]}`;treeSvg.appendChild(ta);
+    }
+  }
+
+  // Chain legend
+  if(s.chainEdges){
+    const names=['蓝链[0→2→5→8]','紫链[1→3→6]','橙链[4→7]','绿链[9]'];
+    names.forEach((name,i)=>{
+      const tl=mk('text',{x:6,y:12+i*13,fill:CC[i],'font-size':'9','font-family':'system-ui','font-weight':'600',opacity:'.9'});
+      tl.textContent=name;treeSvg.appendChild(tl);
+    });
+  }
+}
+
+// ── Main Render ──────────────────────────────────────────────────────────────
+function render(){
+  const steps=SCENARIOS[curSc].steps;
+  if(!steps.length)return;
+  const s=steps[cur];
+  drawTree(s);renderDFN(s);hlCode(s.hl||[]);
+  descText.textContent=s.desc;
+  stepCounter.textContent=`${cur+1} / ${steps.length}`;
+  btnPrev.disabled=cur===0;btnNext.disabled=cur===steps.length-1;
+}
+
+// ── Playback ─────────────────────────────────────────────────────────────────
+function play(){const steps=SCENARIOS[curSc].steps;if(cur>=steps.length-1)cur=0;playing=true;btnPlay.innerHTML='⏸ 暂停';tick();}
+function pause(){playing=false;clearTimeout(timer);btnPlay.innerHTML='▶ 播放';}
+function tick(){if(!playing)return;const steps=SCENARIOS[curSc].steps;if(cur<steps.length-1){cur++;render();timer=setTimeout(tick,SPEED[parseInt(speedRange.value)-1]);}else pause();}
+
+btnPlay.addEventListener('click',()=>playing?pause():play());
+btnPrev.addEventListener('click',()=>{pause();if(cur>0){cur--;render();}});
+btnNext.addEventListener('click',()=>{pause();if(cur<SCENARIOS[curSc].steps.length-1){cur++;render();}});
+btnReset.addEventListener('click',()=>{pause();cur=0;render();});
+
+// ── Scene Switching ──────────────────────────────────────────────────────────
+document.querySelectorAll('.sc-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    pause();curSc=parseInt(btn.dataset.idx);cur=0;
+    document.querySelectorAll('.sc-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');render();
+  });
+});
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+window.LANG_PLAIN={};
+LangSwitcher.init(()=>{});
+buildCode();render();
+window.addEventListener('resize',()=>render());
+</script>
+</body>
+</html>

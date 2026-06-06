@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="图数据库将数据建模为节点和关系，关系是一等公民（带直接指针）。多跳关系查询比关系数据库 JOIN 有指数级优势，Neo4j 是代表实现。">
+<link rel="canonical" href="https://melodycoder12345.github.io/db/graph-db.html">
+<meta property="og:title" content="图数据库 — 码海拾贝">
+<meta property="og:description" content="图数据库将数据建模为节点和关系，关系是一等公民（带直接指针）。多跳关系查询比关系数据库 JOIN 有指数级优势，Neo4j 是代表实现。">
+<meta property="og:url" content="https://melodycoder12345.github.io/db/graph-db.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="图数据库 — 码海拾贝">
+<meta name="twitter:description" content="图数据库将数据建模为节点和关系，关系是一等公民（带直接指针）。多跳关系查询比关系数据库 JOIN 有指数级优势，Neo4j 是代表实现。">
+<title>图数据库 - 数据库</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--accent:#60a5fa;--green:#4ade80;--yellow:#fbbf24;--orange:#fb923c;--red:#f87171;--purple:#c084fc;--teal:#2dd4bf;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{height:100vh;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;}
+nav{height:52px;display:flex;align-items:center;gap:16px;padding:0 20px;background:var(--panel2);border-bottom:1px solid var(--border);flex-shrink:0;}
+nav h1{font-size:1.1rem;font-weight:600;}
+.nav-back{color:var(--dim);text-decoration:none;font-size:0.88rem;}
+.nav-back:hover{color:var(--text);}
+.nav-tags{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;}
+.nav-tag{font-size:0.72rem;padding:3px 10px;border-radius:100px;font-family:monospace;background:rgba(255,255,255,0.06);border:1px solid var(--border);}
+.main{display:flex;flex:1;overflow:hidden;}
+.sidebar{width:220px;flex-shrink:0;background:var(--panel2);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:14px 12px;overflow-y:auto;}
+.sidebar-label{font-size:0.68rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--dim);margin-bottom:10px;font-weight:600;}
+.tab-btn{display:flex;align-items:center;width:100%;text-align:left;padding:8px 10px;border-radius:8px;border:1px solid transparent;background:transparent;color:var(--dim);font-size:0.83rem;cursor:pointer;transition:all 0.2s;margin-bottom:4px;}
+.tab-btn.active{background:rgba(96,165,250,0.12);border-color:rgba(96,165,250,0.4);color:var(--accent);}
+.tab-btn:hover:not(.active){color:var(--text);background:rgba(255,255,255,0.05);}
+.tab-num{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;font-size:0.7rem;margin-right:8px;background:rgba(255,255,255,0.08);flex-shrink:0;font-family:monospace;}
+.tab-btn.active .tab-num{background:rgba(96,165,250,0.25);color:var(--accent);}
+.step-dots-wrap{margin-top:18px;padding-top:14px;border-top:1px solid var(--border);}
+.step-dots{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;}
+.dot{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,0.1);cursor:pointer;transition:all 0.2s;}
+.dot.done{background:rgba(96,165,250,0.45);}
+.dot.curr{background:var(--accent);box-shadow:0 0 7px var(--accent);width:11px;height:11px;}
+.ctrl-section{margin-top:auto;padding-top:14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px;}
+button{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;cursor:pointer;font-size:0.8rem;transition:all 0.2s;}
+button:hover{background:rgba(255,255,255,0.12);}
+.play-btn{background:rgba(96,165,250,0.14);border-color:rgba(96,165,250,0.4);color:var(--accent);}
+.play-btn:hover{background:rgba(96,165,250,0.24);}
+.ctrl-row{display:flex;gap:6px;}
+.ctrl-row button{flex:1;font-size:0.75rem;}
+.speed-row{display:flex;gap:4px;}
+.sp-btn{flex:1;font-size:0.7rem;padding:3px 6px;}
+.sp-btn.active{background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.4);color:var(--yellow);}
+.step-counter{font-size:0.75rem;color:var(--dim);text-align:center;font-family:monospace;}
+.anim-area{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.tab-canvas{flex:1;overflow:hidden;padding:16px 20px;}
+.desc-box{flex-shrink:0;padding:14px 20px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);min-height:62px;font-size:0.9rem;color:var(--text);line-height:1.65;}
+.status-bar{flex-shrink:0;height:30px;display:flex;align-items:center;padding:0 20px;background:var(--panel2);border-top:1px solid var(--border);font-size:0.75rem;color:var(--dim);}
+
+/* Graph SVG */
+.graph-wrap{display:flex;flex-direction:column;gap:10px;height:100%;}
+.graph-compare{display:grid;grid-template-columns:1fr 1fr;gap:12px;flex-shrink:0;}
+.graph-box{border:1.5px solid var(--border);border-radius:12px;padding:12px;background:rgba(255,255,255,0.02);}
+.graph-box.rel{border-color:rgba(248,113,113,0.35);}
+.graph-box.gdb{border-color:rgba(96,165,250,0.35);}
+.graph-title{font-size:0.75rem;font-weight:700;font-family:monospace;margin-bottom:8px;}
+.rel .graph-title{color:var(--red);}
+.gdb .graph-title{color:var(--accent);}
+svg.graph-svg{width:100%;display:block;}
+/* Node styles in SVG will be set via attributes */
+
+/* Table comparison */
+.tbl-wrap{display:flex;flex-direction:column;gap:8px;}
+.db-table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+.db-table th{background:rgba(255,255,255,0.06);padding:5px 10px;font-size:0.72rem;font-family:monospace;color:var(--dim);text-align:left;}
+.db-table td{padding:4px 10px;font-size:0.73rem;font-family:monospace;border-top:1px solid rgba(255,255,255,0.06);color:var(--text);transition:all 0.3s;}
+.db-table tr.active td{background:rgba(96,165,250,0.12);color:var(--accent);}
+.db-table tr.scan td{background:rgba(248,113,113,0.08);color:var(--red);}
+.tbl-title{font-size:0.73rem;font-weight:700;color:var(--dim);font-family:monospace;margin-bottom:4px;}
+
+/* Query comparison */
+.query-compare{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.query-box{border:1px solid var(--border);border-radius:10px;padding:12px;background:rgba(255,255,255,0.02);}
+.query-box.sql{border-color:rgba(248,113,113,0.35);}
+.query-box.cypher{border-color:rgba(96,165,250,0.35);}
+.query-title{font-size:0.74rem;font-weight:700;font-family:monospace;margin-bottom:6px;}
+.sql .query-title{color:var(--red);}
+.cypher .query-title{color:var(--accent);}
+.code-block{background:rgba(0,0,0,0.3);border-radius:6px;padding:8px 10px;font-size:0.72rem;font-family:monospace;color:var(--dim);line-height:1.6;margin-bottom:6px;}
+.code-block .kw{color:#ff7b72;}
+.code-block .fn{color:#d2a8ff;}
+.code-block .str{color:#a5d6ff;}
+.code-block .num{color:#79c0ff;}
+.perf-row{display:flex;align-items:center;gap:8px;}
+.perf-lbl{font-size:0.7rem;color:var(--dim);width:80px;flex-shrink:0;font-family:monospace;}
+.perf-track{height:14px;flex:1;background:rgba(255,255,255,0.04);border-radius:4px;overflow:hidden;}
+.perf-fill{height:100%;border-radius:4px;transition:width 0.8s ease;}
+.perf-fill.slow{background:rgba(248,113,113,0.5);}
+.perf-fill.fast{background:rgba(96,165,250,0.5);}
+
+/* BFS multi-hop */
+.bfs-wrap{height:100%;display:flex;flex-direction:column;gap:10px;}
+.bfs-compare{display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:1;}
+.bfs-box{border:1px solid var(--border);border-radius:10px;padding:12px;background:rgba(255,255,255,0.02);display:flex;flex-direction:column;}
+.bfs-box.sql{border-color:rgba(248,113,113,0.35);}
+.bfs-box.gdb{border-color:rgba(96,165,250,0.35);}
+.bfs-title{font-size:0.74rem;font-weight:700;font-family:monospace;margin-bottom:6px;}
+.bfs-box.sql .bfs-title{color:var(--red);}
+.bfs-box.gdb .bfs-title{color:var(--accent);}
+.matrix-grid{display:grid;gap:2px;}
+.matrix-cell{width:22px;height:22px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:0.6rem;font-family:monospace;transition:all 0.3s;}
+.matrix-cell.idle{background:rgba(255,255,255,0.05);color:var(--dim);}
+.matrix-cell.included{background:rgba(248,113,113,0.2);color:var(--red);}
+.matrix-cell.overflow{background:rgba(248,113,113,0.4);color:var(--red);font-weight:700;}
+
+/* Info badges */
+.ib{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:5px;font-size:0.73rem;font-family:monospace;margin:3px 2px;}
+.ib.b{background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.25);color:var(--accent);}
+.ib.g{background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.25);color:var(--green);}
+.ib.y{background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);color:var(--yellow);}
+.ib.r{background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.25);color:var(--red);}
+.ib.o{background:rgba(251,146,60,0.08);border:1px solid rgba(251,146,60,0.25);color:var(--orange);}
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="nav-back">← 数据库</a>
+  <h1>图数据库</h1>
+  <div class="nav-tags">
+    <span class="nav-tag">属性图模型</span>
+    <span class="nav-tag">多跳查询</span>
+    <span class="nav-tag">Cypher</span>
+    <span class="nav-tag">最短路径</span>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-label">动画场景</div>
+    <button class="tab-btn active" onclick="switchTab(0)"><span class="tab-num">1</span>存储模型对比</button>
+    <button class="tab-btn" onclick="switchTab(1)"><span class="tab-num">2</span>单跳查询</button>
+    <button class="tab-btn" onclick="switchTab(2)"><span class="tab-num">3</span>多跳关系</button>
+    <button class="tab-btn" onclick="switchTab(3)"><span class="tab-num">4</span>路径查询</button>
+
+    <div class="step-dots-wrap">
+      <div class="sidebar-label">进度</div>
+      <div class="step-dots" id="stepDots"></div>
+    </div>
+
+    <div class="ctrl-section">
+      <button class="play-btn" id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      <div class="ctrl-row">
+        <button onclick="prev()">← 上一步</button>
+        <button onclick="next()">下一步 →</button>
+      </div>
+      <button onclick="doReset()">↺ 重置</button>
+      <div class="speed-row">
+        <button class="sp-btn" onclick="setSpeed(0)" id="sp0">慢</button>
+        <button class="sp-btn active" onclick="setSpeed(1)" id="sp1">中</button>
+        <button class="sp-btn" onclick="setSpeed(2)" id="sp2">快</button>
+        <button class="sp-btn" onclick="setSpeed(3)" id="sp3">极速</button>
+      </div>
+      <div class="step-counter" id="stepCounter">步骤 1/6</div>
+    </div>
+  </div>
+
+  <div class="anim-area">
+    <div class="tab-canvas">
+
+      <!-- Tab 0: Storage Model -->
+      <div id="tab0">
+        <div class="graph-wrap">
+          <div class="graph-compare">
+            <!-- Relational -->
+            <div class="graph-box rel">
+              <div class="graph-title">🔴 关系数据库（表 + 外键）</div>
+              <div class="tbl-wrap">
+                <div>
+                  <div class="tbl-title">users 表</div>
+                  <table class="db-table" id="usersTable">
+                    <thead><tr><th>id</th><th>name</th></tr></thead>
+                    <tbody>
+                      <tr id="uAlice"><td>1</td><td>Alice</td></tr>
+                      <tr id="uBob"><td>2</td><td>Bob</td></tr>
+                      <tr id="uCarol"><td>3</td><td>Carol</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div style="margin-top:8px">
+                  <div class="tbl-title">friends 关系表</div>
+                  <table class="db-table" id="friendsTable">
+                    <thead><tr><th>user_id</th><th>friend_id</th></tr></thead>
+                    <tbody>
+                      <tr id="fAB"><td>1</td><td>2</td></tr>
+                      <tr id="fAC"><td>1</td><td>3</td></tr>
+                      <tr id="fBC"><td>2</td><td>3</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div id="relInfo" style="margin-top:6px;font-size:0.72rem;color:var(--dim);font-family:monospace;"></div>
+            </div>
+            <!-- Graph DB -->
+            <div class="graph-box gdb">
+              <div class="graph-title">🔵 图数据库（节点 + 直接指针）</div>
+              <svg class="graph-svg" id="storageSvg" viewBox="0 0 280 160" height="160"></svg>
+              <div id="gdbInfo" style="margin-top:6px;font-size:0.72rem;color:var(--dim);font-family:monospace;"></div>
+            </div>
+          </div>
+          <div id="storageAnnotation" style="display:none;font-size:0.78rem;"></div>
+        </div>
+      </div>
+
+      <!-- Tab 1: Single-hop query -->
+      <div id="tab1" style="display:none">
+        <div class="graph-wrap">
+          <div style="font-size:0.78rem;color:var(--dim);font-family:monospace;margin-bottom:8px">
+            查询：Alice 的所有朋友是谁？
+          </div>
+          <div class="query-compare">
+            <div class="query-box sql">
+              <div class="query-title">🔴 SQL（关系数据库）</div>
+              <div class="code-block">
+                <span class="kw">SELECT</span> u.* <span class="kw">FROM</span> users u<br>
+                <span class="kw">JOIN</span> friends f <span class="kw">ON</span> u.id = f.friend_id<br>
+                <span class="kw">WHERE</span> f.user_id = <span class="num">1</span>
+              </div>
+              <div id="sqlSteps" style="font-size:0.72rem;color:var(--dim);font-family:monospace;"></div>
+              <div class="perf-row" style="margin-top:6px" id="sqlPerfRow" style="display:none">
+                <div class="perf-lbl">SQL</div>
+                <div class="perf-track"><div class="perf-fill slow" id="sqlPerfFill" style="width:0"></div></div>
+                <span style="font-size:0.68rem;color:var(--dim);font-family:monospace;margin-left:4px" id="sqlPerfLbl">O(log N)</span>
+              </div>
+            </div>
+            <div class="query-box cypher">
+              <div class="query-title">🔵 Cypher（图数据库）</div>
+              <div class="code-block">
+                <span class="kw">MATCH</span> (alice:Person {name:<span class="str">'Alice'</span>})<br>
+                &nbsp;&nbsp;-[:<span class="fn">FRIEND</span>]-&gt;(friend)<br>
+                <span class="kw">RETURN</span> friend
+              </div>
+              <div id="cypherSteps" style="font-size:0.72rem;color:var(--dim);font-family:monospace;"></div>
+              <div class="perf-row" style="margin-top:6px" id="cypherPerfRow">
+                <div class="perf-lbl">Cypher</div>
+                <div class="perf-track"><div class="perf-fill fast" id="cypherPerfFill" style="width:0"></div></div>
+                <span style="font-size:0.68rem;color:var(--dim);font-family:monospace;margin-left:4px" id="cypherPerfLbl">O(度数)</span>
+              </div>
+            </div>
+          </div>
+          <svg class="graph-svg" id="hopSvg" viewBox="0 0 420 130" height="130" style="margin-top:8px"></svg>
+          <div id="hop1Summary" style="display:none;margin-top:4px"></div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Multi-hop -->
+      <div id="tab2" style="display:none">
+        <div class="bfs-wrap">
+          <div style="font-size:0.78rem;color:var(--dim);font-family:monospace;margin-bottom:6px">
+            查询：Alice 的朋友的朋友（2跳 / 3跳关系）
+          </div>
+          <div class="bfs-compare" style="flex:none;height:auto;">
+            <div class="bfs-box sql">
+              <div class="bfs-title">🔴 SQL — 中间结果集爆炸</div>
+              <div style="font-size:0.7rem;color:var(--dim);font-family:monospace;margin-bottom:6px" id="sqlMulti">
+                每人平均 N 个朋友：
+              </div>
+              <div id="sqlMatrix"></div>
+            </div>
+            <div class="bfs-box gdb">
+              <div class="bfs-title">🔵 图数据库 BFS — 局部遍历</div>
+              <div style="font-size:0.7rem;color:var(--dim);font-family:monospace;margin-bottom:6px" id="bfsDesc">从 Alice 出发逐层扩展：</div>
+              <svg id="bfsSvg" viewBox="0 0 240 180" height="180" style="width:100%;display:block;"></svg>
+            </div>
+          </div>
+          <div id="multiSummary" style="margin-top:4px"></div>
+        </div>
+      </div>
+
+      <!-- Tab 3: Path query -->
+      <div id="tab3" style="display:none">
+        <div class="graph-wrap">
+          <div style="font-size:0.78rem;color:var(--dim);font-family:monospace;margin-bottom:8px">
+            查询：Alice 和 Bob 之间的最短路径
+          </div>
+          <div class="query-compare" style="grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="query-box cypher" style="border-color:rgba(96,165,250,0.4);">
+              <div class="query-title">Cypher 最短路径</div>
+              <div class="code-block">
+                <span class="kw">MATCH</span> p = shortestPath(<br>
+                &nbsp;&nbsp;(alice)-[:<span class="fn">FRIEND</span>*]-(bob)<br>
+                )<br>
+                <span class="kw">RETURN</span> length(p), p
+              </div>
+              <div id="pathSteps" style="font-size:0.72rem;color:var(--dim);font-family:monospace;"></div>
+            </div>
+            <div class="query-box" style="border-color:rgba(192,132,252,0.35);background:rgba(192,132,252,0.03);">
+              <div class="query-title" style="color:var(--purple);">应用场景</div>
+              <div style="font-size:0.75rem;line-height:1.65;color:var(--dim);" id="pathUseCases">
+                • 社交网络 6 度分隔<br>
+                • LinkedIn "3 度连接"<br>
+                • 风控传播链分析<br>
+                • 知识图谱推理路径<br>
+                • 推荐系统关联路径
+              </div>
+            </div>
+          </div>
+          <svg id="pathSvg" viewBox="0 0 500 160" height="160" style="width:100%;display:block;margin-top:8px"></svg>
+          <div id="pathSummary" style="display:none;margin-top:4px"></div>
+        </div>
+      </div>
+
+    </div><!-- /tab-canvas -->
+    <div class="desc-box" id="descBox">图数据库将数据建模为节点和关系，关系是一等公民（带直接物理指针）。多跳关系查询比关系数据库 JOIN 有指数级优势。</div>
+  </div>
+</div>
+<div class="status-bar" id="statusBar">存储模型对比 — 初始状态</div>
+
+<script>
+window.PAGE_CONCEPTS = [
+  { title: '属性图', body: '节点（Node）+ 边（Relationship）+ 属性（Property）构成的图模型，关系带有方向和标签。', tag: 'Neo4j' },
+  { title: 'Cypher', body: 'Neo4j 的图查询语言，MATCH 模式匹配 + WHERE 过滤 + RETURN 返回，直观表达图遍历。', tag: '查询语言' },
+  { title: '指针跳转', body: '图数据库节点直接嵌入指向邻居的物理指针，多跳遍历无需索引查找，O(度数) 而非 O(log N)。', tag: '存储优化' },
+  { title: 'BFS 最短路径', body: '双向 BFS 从起终点同时扩展，首次相遇即找到最短路径，比单向 BFS 快 N^(d/2) 倍。', tag: '图算法' },
+];
+
+const SPEEDS = [1800, 1100, 600, 300];
+let curTab = 0, cur = 0, playing = false, timer = null, speedIdx = 1;
+
+const TABS = [
+  {
+    name: '存储模型',
+    steps: [
+      { desc: '图数据库核心思想：关系不是隐式外键，而是显式的一等公民，每个节点直接嵌入指向邻居节点的物理指针，多跳遍历无需任何索引查找。', action: 'sm_reset' },
+      { desc: '关系数据库存储：用户数据存 users 表，朋友关系存 friends 表（user_id + friend_id 外键对）。关系是隐式的，需要 JOIN 才能遍历。', action: 'sm_rel_tables' },
+      { desc: '关系数据库添加关系：INSERT INTO friends(user_id, friend_id) VALUES(1,2)。关系只是索引中的一行记录，查询时需在 friends 表做索引查找。', action: 'sm_rel_add' },
+      { desc: '图数据库存储：每个 Person 节点包含 name 属性 + FRIEND 边链表，边直接嵌入目标节点的物理地址（指针）。遍历 = 指针跳转（pointer chasing）。', action: 'sm_graph_nodes' },
+      { desc: '图数据库建立 FRIEND 关系：节点 Alice 的邻接链表追加指向 Bob 的直接指针。查询时直接跳转，无需访问任何索引。', action: 'sm_graph_edges' },
+      { desc: '存储结构对比：关系数据库通过 B+ 树索引间接找到关系（O(log N)），图数据库通过直接指针跳转（O(1)/O(度数)）。数据量越大，差距越明显。', action: 'sm_compare' },
+    ]
+  },
+  {
+    name: '单跳查询',
+    steps: [
+      { desc: 'Alice 的所有朋友是谁？这是最简单的单跳图遍历。对比 SQL JOIN 和 Cypher 的执行路径，理解图数据库的查询优势。', action: 'h1_reset' },
+      { desc: 'SQL 执行路径：1) 在 users 表查找 Alice 的 id=1，2) 在 friends 表 user_id 索引上查找 user_id=1 的所有行（B+ 树查找 O(log N)）。', action: 'h1_sql_start' },
+      { desc: 'SQL 扫描 friends 表索引：返回 friend_id=[2,3]，再 JOIN 回 users 表查名字。索引查找时间随 friends 表总行数增长（O(log N)）。', action: 'h1_sql_join' },
+      { desc: 'Cypher 执行路径：1) 找到 Alice 节点（属性索引），2) 直接遍历 Alice 的 FRIEND 边链表，时间复杂度 O(degree(Alice))，与总数据量无关。', action: 'h1_cypher_start' },
+      { desc: 'Cypher 结果：直接从 Alice 节点跳转到 Bob、Carol 节点，指针跳转 = 直接内存地址，无索引查找。当 N（总用户数）= 1 亿时，优势极为显著。', action: 'h1_cypher_done' },
+      { desc: '性能对比：N=100 万行时，SQL O(log N)≈20 次比较，图 O(度数)=2 次跳转。但当 N=10 亿时，SQL≈30 次，图仍然只是 2 次跳转（度数不变）。', action: 'h1_compare' },
+    ]
+  },
+  {
+    name: '多跳关系',
+    steps: [
+      { desc: '多跳查询（N-hop）是图数据库最重要的优势场景。查询"朋友的朋友"（2跳）或"3度关系内的所有人"时，SQL 的中间结果集呈指数增长。', action: 'mh_reset' },
+      { desc: 'SQL 2跳查询：需要 self-join 两次 friends 表。如每人平均 10 个朋友，第一跳 10 行 × 第二跳 10 行 = 100 行中间结果（笛卡尔积）。', action: 'mh_sql_2hop' },
+      { desc: 'SQL 3跳查询：三次 self-join，中间结果 = 10³ = 1000 行。实际去重后可能少，但数据库必须生成和过滤这些行，CPU 和内存开销极大。', action: 'mh_sql_3hop' },
+      { desc: '图数据库 BFS 2跳：从 Alice 出发，第一层扩展（直接朋友），再从每个朋友扩展第二层。天然去重（已访问节点不重复扩展）。', action: 'mh_bfs_2hop' },
+      { desc: '图 BFS 3跳：仅访问实际存在的关系边，无笛卡尔积。访问节点数 ≈ 实际 3 度内的人数（现实社交网络中远小于 N³）。', action: 'mh_bfs_3hop' },
+      { desc: '量化对比：10 跳时，SQL 理论中间结果 10^10 = 100 亿行（根本无法执行），图 BFS 实际访问节点数受网络密度限制，通常只有几百万。', action: 'mh_compare' },
+    ]
+  },
+  {
+    name: '路径查询',
+    steps: [
+      { desc: '最短路径查询：Alice 和 Bob 之间最少经过几步认识关系？这是图数据库的经典场景（LinkedIn"2度/3度连接"就是此类查询）。', action: 'path_reset' },
+      { desc: 'Cypher shortestPath：从 Alice 和 Bob 同时向外 BFS（双向 BFS），两个搜索前沿首次相遇即找到最短路径，大幅减少搜索空间。', action: 'path_bfs_start' },
+      { desc: 'BFS 第一层扩展：Alice 的朋友 = {Bob, Carol}，Bob 直接在第一层！找到路径 Alice → Bob，长度 = 1。', action: 'path_found' },
+      { desc: '路径更长的情况：Alice → Carol → Dave → Bob，路径长度 = 3。BFS 首次到达 Bob 时的路径一定是最短路径（BFS 性质保证）。', action: 'path_longer' },
+      { desc: '不连通情况：Alice 和 Eve 属于两个不相连的子图（无共同关系链）→ BFS 遍历完整个连通分量也找不到 Eve → 返回 null / 无路径。', action: 'path_disconnected' },
+      { desc: '图数据库路径算法：Neo4j 内置 shortestPath、allShortestPaths、Dijkstra（加权最短路径）、PageRank 等图算法，无需应用层实现。', action: 'path_algos' },
+    ]
+  },
+];
+
+// ─── SVG helpers ──────────────────────────────────────────────
+function svgEl(tag, attrs) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  Object.entries(attrs).forEach(([k,v]) => el.setAttribute(k, v));
+  return el;
+}
+function drawNode(svg, x, y, label, color='#60a5fa', id='', r=22) {
+  const g = svgEl('g', id?{id}:{});
+  g.appendChild(svgEl('circle', {cx:x,cy:y,r,fill:`${color}22`,stroke:color,'stroke-width':'1.5'}));
+  const t = svgEl('text', {x,y:y+4,'text-anchor':'middle',fill:color,'font-size':'11','font-family':'monospace','font-weight':'600'});
+  t.textContent = label;
+  g.appendChild(t);
+  svg.appendChild(g);
+  return g;
+}
+function drawEdge(svg, x1,y1,x2,y2,label='',color='#334155',id='') {
+  const g = svgEl('g', id?{id}:{});
+  g.appendChild(svgEl('line', {x1,y1,x2,y2,stroke:color,'stroke-width':'1.5'}));
+  if (label) {
+    const mx=(x1+x2)/2, my=(y1+y2)/2;
+    const t = svgEl('text', {x:mx,y:my-4,'text-anchor':'middle',fill:color,'font-size':'9','font-family':'monospace'});
+    t.textContent = label;
+    g.appendChild(t);
+  }
+  svg.appendChild(g);
+  return g;
+}
+function drawArrow(svg, x1,y1,x2,y2,color='#334155') {
+  const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+  const ux=dx/len,uy=dy/len;
+  const x2a=x2-ux*24,y2a=y2-uy*24;
+  const ax=-uy*5,ay=ux*5;
+  const path=`M${x2a},${y2a} L${x2a-ux*8+ax},${y2a-uy*8+ay} L${x2a-ux*8-ax},${y2a-uy*8-ay}Z`;
+  svg.appendChild(svgEl('line',{x1,y1,x2:x2a,y2:y2a,stroke:color,'stroke-width':'1.5'}));
+  svg.appendChild(svgEl('path',{d:path,fill:color}));
+}
+
+// ─── Tab 0 ────────────────────────────────────────────────────
+function buildStorageSvg(step) {
+  const svg = document.getElementById('storageSvg'); svg.innerHTML='';
+  const nodes = [{id:'nA',x:60,y:80,label:'Alice',color:'#60a5fa'},{id:'nB',x:180,y:40,label:'Bob',color:'#60a5fa'},{id:'nC',x:180,y:130,label:'Carol',color:'#60a5fa'}];
+
+  if (step>=4) {
+    nodes.forEach(n=>drawNode(svg,n.x,n.y,n.label,n.color,n.id));
+  } else {
+    nodes.forEach(n=>drawNode(svg,n.x,n.y,n.label,'#334155',n.id));
+  }
+
+  if (step>=5) {
+    drawArrow(svg,60,80,180,40,'#60a5fa');
+    drawArrow(svg,60,80,180,130,'#60a5fa');
+    drawArrow(svg,180,40,180,130,'#60a5fa');
+    // edge labels
+    const tAB = svgEl('text',{x:105,y:48,'text-anchor':'middle',fill:'#94a3b8','font-size':'8.5','font-family':'monospace'});
+    tAB.textContent='FRIEND'; svg.appendChild(tAB);
+    const tAC = svgEl('text',{x:105,y:120,'text-anchor':'middle',fill:'#94a3b8','font-size':'8.5','font-family':'monospace'});
+    tAC.textContent='FRIEND'; svg.appendChild(tAC);
+  } else if (step===4) {
+    drawArrow(svg,60,80,180,40,'#60a5fa');
+    drawArrow(svg,60,80,180,130,'#60a5fa');
+    const tAB = svgEl('text',{x:105,y:48,'text-anchor':'middle',fill:'#94a3b8','font-size':'8.5','font-family':'monospace'});
+    tAB.textContent='FRIEND →ptr'; svg.appendChild(tAB);
+  }
+  // pointer hint for step 4+
+  if (step>=4) {
+    const ptrNote = svgEl('text',{x:220,y:80,'text-anchor':'start',fill:'#94a3b8','font-size':'8','font-family':'monospace'});
+    ptrNote.textContent='← 物理指针'; svg.appendChild(ptrNote);
+  }
+}
+
+function applyTab0(action) {
+  const relInfo = document.getElementById('relInfo');
+  const gdbInfo = document.getElementById('gdbInfo');
+  const ann = document.getElementById('storageAnnotation');
+
+  const resetTableStyles = () => {
+    ['uAlice','uBob','uCarol','fAB','fAC','fBC'].forEach(id=>{
+      const el=document.getElementById(id); if(el){el.className='';}
+    });
+  };
+
+  if (action==='sm_reset') {
+    resetTableStyles(); buildStorageSvg(0);
+    relInfo.textContent=''; gdbInfo.textContent=''; ann.style.display='none';
+  }
+  else if (action==='sm_rel_tables') {
+    resetTableStyles(); buildStorageSvg(0);
+    relInfo.innerHTML='<span style="color:var(--yellow)">↑ 关系存储在独立的 friends 表中（外键对）</span>';
+    gdbInfo.textContent='图数据库节点待建立...';
+  }
+  else if (action==='sm_rel_add') {
+    document.getElementById('fAB').className='active';
+    document.getElementById('fAC').className='active';
+    relInfo.innerHTML='<span style="color:var(--red)">查询时需做 B+ 树索引查找：O(log N)</span>';
+  }
+  else if (action==='sm_graph_nodes') {
+    resetTableStyles(); buildStorageSvg(4);
+    gdbInfo.innerHTML='<span style="color:var(--accent)">每个节点内嵌 FRIEND 边链表（直接指针）</span>';
+  }
+  else if (action==='sm_graph_edges') {
+    resetTableStyles(); buildStorageSvg(5);
+    gdbInfo.innerHTML='<span style="color:var(--green)">✓ Alice→Bob、Alice→Carol 物理指针已建立</span>';
+  }
+  else if (action==='sm_compare') {
+    buildStorageSvg(5);
+    ann.style.display='block';
+    ann.innerHTML='<span class="ib r">关系 DB：O(log N) 索引查找，N 越大越慢</span>'
+      +'<span class="ib b">图 DB：O(度数) 指针跳转，与 N 无关</span>'
+      +'<span class="ib g">N=10亿时，图 DB 仍只需 2 次指针跳转</span>';
+  }
+}
+
+// ─── Tab 1 ────────────────────────────────────────────────────
+function buildHopSvg(step) {
+  const svg = document.getElementById('hopSvg'); svg.innerHTML='';
+  const W=420,H=130;
+  // Alice at left, Bob and Carol at right
+  const nodes = [
+    {id:'hA',x:60,y:65,name:'Alice',color:step>=4?'#60a5fa':'#334155'},
+    {id:'hB',x:200,y:35,name:'Bob',color:step>=5?'#4ade80':'#334155'},
+    {id:'hC',x:200,y:95,name:'Carol',color:step>=5?'#4ade80':'#334155'},
+    {id:'hD',x:340,y:65,name:'Dave',color:'#334155'},
+  ];
+  nodes.forEach(n=>drawNode(svg,n.x,n.y,n.name,n.color,n.id));
+
+  if (step>=4) {
+    drawArrow(svg,60,65,200,35,'#60a5fa');
+    drawArrow(svg,60,65,200,95,'#60a5fa');
+  }
+  if (step>=3) {
+    const t=svgEl('text',{x:230,y:15,'text-anchor':'start',fill:'#94a3b8','font-size':'9','font-family':'monospace'});
+    t.textContent='→ JOIN 结果: Bob, Carol'; svg.appendChild(t);
+  }
+  if (step>=5) {
+    const lbl = svgEl('text',{x:230,y:120,'text-anchor':'start',fill:'#4ade80','font-size':'9.5','font-family':'monospace'});
+    lbl.textContent='✓ 直接指针遍历，2 次跳转'; svg.appendChild(lbl);
+  }
+}
+
+function applyTab1(action) {
+  const ss = document.getElementById('sqlSteps');
+  const cs = document.getElementById('cypherSteps');
+  const sum = document.getElementById('hop1Summary');
+  const sqlPF = document.getElementById('sqlPerfFill');
+  const cypPF = document.getElementById('cypherPerfFill');
+
+  if (action==='h1_reset') {
+    buildHopSvg(0); ss.textContent=''; cs.textContent=''; sum.style.display='none';
+    sqlPF.style.width='0'; cypPF.style.width='0';
+  }
+  else if (action==='h1_sql_start') {
+    buildHopSvg(2);
+    ss.innerHTML='1. users 表查 name=Alice → id=1<br>2. friends 表 user_id 索引查找...';
+    cs.textContent='—'; sum.style.display='none';
+    setTimeout(()=>sqlPF.style.width='30%',100);
+  }
+  else if (action==='h1_sql_join') {
+    buildHopSvg(3);
+    ss.innerHTML='3. friends 索引返回 [friend_id=2, friend_id=3]<br>4. JOIN users 表查 id=2,3 → Bob, Carol';
+    setTimeout(()=>sqlPF.style.width='55%',100);
+  }
+  else if (action==='h1_cypher_start') {
+    buildHopSvg(4);
+    cs.innerHTML='1. 找到 Alice 节点（属性索引 O(log N)）<br>2. 直接遍历 FRIEND 边链表...';
+    setTimeout(()=>cypPF.style.width='80%',100);
+  }
+  else if (action==='h1_cypher_done') {
+    buildHopSvg(5);
+    cs.innerHTML='3. 指针跳转：Alice→Bob ✓　Alice→Carol ✓<br>总计 2 次指针跳转，O(degree(Alice))';
+    setTimeout(()=>cypPF.style.width='95%',100);
+  }
+  else if (action==='h1_compare') {
+    buildHopSvg(5);
+    sum.style.display='block';
+    sum.innerHTML='<span class="ib r">SQL: O(log N)，N=10亿时需 ~30 步比较</span>'
+      +'<span class="ib b">Cypher: O(度数)，与总用户数无关</span>'
+      +'<span class="ib g">社交关系（度数有限）= 图 DB 天然优势</span>';
+  }
+}
+
+// ─── Tab 2 ────────────────────────────────────────────────────
+function buildBfsSvg(hops) {
+  const svg = document.getElementById('bfsSvg'); svg.innerHTML='';
+  const cx=120,cy=90;
+  // Center: Alice
+  drawNode(svg,cx,cy,'Alice','#60a5fa','',18);
+  if (hops>=1) {
+    // Hop 1: Bob, Carol, Dan (3 nodes)
+    const h1 = [{name:'Bob',x:50,y:30},{name:'Carol',x:190,y:30},{name:'Dan',x:200,y:130}];
+    h1.forEach(n=>{
+      drawArrow(svg,cx,cy,n.x,n.y,'#60a5fa');
+      drawNode(svg,n.x,n.y,n.name,'#4ade80','',16);
+    });
+  }
+  if (hops>=2) {
+    // Hop 2: from each hop-1 node, 2-3 more
+    const h2 = [{x:20,y:90,name:'Eve'},{x:60,y:155,name:'Frank'},{x:170,y:170,name:'Grace'},{x:220,y:60,name:'Hank'}];
+    h2.forEach(n=>{
+      const src = n.x<100?{x:50,y:30}:n.y>100?{x:190,y:30}:{x:200,y:130};
+      drawArrow(svg,src.x,src.y,n.x,n.y,'#fbbf24');
+      drawNode(svg,n.x,n.y,n.name,'#fbbf24','',14);
+    });
+  }
+  if (hops>=3) {
+    const h3=[{x:10,y:150,name:'Ivy'},{x:50,y:180,name:'Jack'}];
+    h3.forEach(n=>{
+      drawArrow(svg,20,90,n.x,n.y,'#c084fc');
+      drawNode(svg,n.x,n.y,n.name,'#c084fc','',13);
+    });
+    const lbl=svgEl('text',{x:2,y:200,'font-size':'8','fill':'#94a3b8','font-family':'monospace'});
+    lbl.textContent='层级:'; svg.appendChild(lbl);
+    [{c:'#60a5fa',t:'0(Alice)'},{c:'#4ade80',t:'1'},{c:'#fbbf24',t:'2'},{c:'#c084fc',t:'3'}].forEach((item,i)=>{
+      const t=svgEl('text',{x:35+i*48,y:200,'font-size':'7.5','fill':item.c,'font-family':'monospace'});
+      t.textContent='●'+item.t; svg.appendChild(t);
+    });
+  }
+}
+function buildSqlMatrix(hops) {
+  const c = document.getElementById('sqlMatrix'); c.innerHTML='';
+  const n = Math.min(hops,3);
+  const size = Math.pow(3,n);
+  const displayed = Math.min(size,16);
+  c.style.display='grid';
+  c.style.gridTemplateColumns=`repeat(${Math.min(Math.ceil(Math.sqrt(displayed)),8)},1fr)`;
+  c.style.gap='2px';
+  for(let i=0;i<displayed;i++){
+    const cell=document.createElement('div');
+    cell.className='matrix-cell '+(i>=12?'overflow':'included');
+    cell.textContent=i<displayed-1||size<=16?'r'+(i+1):'…';
+    c.appendChild(cell);
+  }
+  const lbl=document.getElementById('sqlMulti');
+  if(n===1) lbl.textContent=`每人 3 朋友 → 1跳: ${size} 行`;
+  else if(n===2) lbl.textContent=`2跳: 3² = ${size} 行中间结果`;
+  else lbl.textContent=`3跳: 3³ = ${size} 行，实际远更大`;
+}
+function applyTab2(action) {
+  const sum = document.getElementById('multiSummary');
+  if (action==='mh_reset') {
+    buildBfsSvg(0); buildSqlMatrix(0);
+    document.getElementById('sqlMulti').textContent='每人平均 N 个朋友：';
+    document.getElementById('bfsDesc').textContent='从 Alice 出发逐层扩展：';
+    sum.innerHTML='';
+  }
+  else if (action==='mh_sql_2hop') {
+    buildSqlMatrix(2);
+    document.getElementById('bfsDesc').textContent='1跳扩展：Alice → 3 个朋友';
+    buildBfsSvg(1);
+  }
+  else if (action==='mh_sql_3hop') {
+    buildSqlMatrix(3);
+    document.getElementById('bfsDesc').textContent='1跳扩展：Alice → 3 个朋友';
+    buildBfsSvg(1);
+  }
+  else if (action==='mh_bfs_2hop') {
+    document.getElementById('bfsDesc').textContent='2跳：从每个 1 层节点继续扩展';
+    buildBfsSvg(2);
+  }
+  else if (action==='mh_bfs_3hop') {
+    document.getElementById('bfsDesc').textContent='3跳：继续扩展，自动去重已访问节点';
+    buildBfsSvg(3);
+  }
+  else if (action==='mh_compare') {
+    buildBfsSvg(3); buildSqlMatrix(3);
+    sum.innerHTML='<span class="ib r">SQL 3跳: N³ 中间结果，10跳时无法执行</span>'
+      +'<span class="ib b">图 BFS: 只访问真实存在的路径节点</span>'
+      +'<span class="ib g">图 DB 是多跳关系查询的唯一实用方案</span>';
+  }
+}
+
+// ─── Tab 3 ────────────────────────────────────────────────────
+function buildPathSvg(step) {
+  const svg = document.getElementById('pathSvg'); svg.innerHTML='';
+  // Nodes: Alice(50,80) → Carol(160,40) → Dave(270,40) → Bob(390,80)
+  //              ↘ Bob(390,80) [direct, step>=3]
+  const nodes = [
+    {id:'pA',x:50,y:80,name:'Alice',color: step>0?'#60a5fa':'#334155'},
+    {id:'pCr',x:160,y:40,name:'Carol',color: step>=4?'#fbbf24':'#334155'},
+    {id:'pD',x:270,y:40,name:'Dave',color: step>=4?'#fbbf24':'#334155'},
+    {id:'pB',x:390,y:80,name:'Bob',color: step>=3?'#4ade80':'#334155'},
+    {id:'pEve',x:160,y:130,name:'Eve',color: step>=5?'#c084fc':'#334155'},
+  ];
+  nodes.forEach(n=>drawNode(svg,n.x,n.y,n.name,n.color,n.id,22));
+
+  // Alice → Bob direct (step 3)
+  if (step>=3) {
+    drawArrow(svg,50,80,390,80,'#4ade80');
+    const t=svgEl('text',{x:220,y:72,'text-anchor':'middle',fill:'#4ade80','font-size':'9','font-family':'monospace'});
+    t.textContent='FRIEND (最短路径，长度=1)'; svg.appendChild(t);
+  }
+  // Alice → Carol → Dave → Bob (step 4)
+  if (step>=4) {
+    drawArrow(svg,50,80,160,40,'#fbbf24');
+    drawArrow(svg,160,40,270,40,'#fbbf24');
+    drawArrow(svg,270,40,390,80,'#fbbf24');
+    const t=svgEl('text',{x:220,y:25,'text-anchor':'middle',fill:'#fbbf24','font-size':'9','font-family':'monospace'});
+    t.textContent='另一路径：长度=3'; svg.appendChild(t);
+  }
+  // Eve disconnected (step 5)
+  if (step>=5) {
+    const x=160,y=130;
+    const crossLine1=svgEl('line',{x1:x-10,y1:y-10,x2:x+10,y2:y+10,stroke:'#f87171','stroke-width':'2'});
+    const crossLine2=svgEl('line',{x1:x+10,y1:y-10,x2:x-10,y2:y+10,stroke:'#f87171','stroke-width':'2'});
+    svg.appendChild(crossLine1); svg.appendChild(crossLine2);
+    const t=svgEl('text',{x:x,y:y+30,'text-anchor':'middle',fill:'#f87171','font-size':'9','font-family':'monospace'});
+    t.textContent='不连通 → null'; svg.appendChild(t);
+  }
+  // BFS waves (step 2)
+  if (step===2) {
+    for(let r=1;r<=3;r++){
+      const circle=svgEl('circle',{cx:50,cy:80,r:r*40,stroke:'#60a5fa55','stroke-width':'1',fill:'none'});
+      svg.appendChild(circle);
+    }
+    const t=svgEl('text',{x:50,y:15,'text-anchor':'middle',fill:'#60a5fa','font-size':'9','font-family':'monospace'});
+    t.textContent='BFS 扩展波'; svg.appendChild(t);
+  }
+}
+function applyTab3(action) {
+  const ps = document.getElementById('pathSteps');
+  const sum = document.getElementById('pathSummary');
+  if (action==='path_reset') {
+    buildPathSvg(0); ps.textContent='—'; sum.style.display='none';
+  }
+  else if (action==='path_bfs_start') {
+    buildPathSvg(2);
+    ps.innerHTML='双向 BFS：从 Alice 和 Bob 同时向外扩展<br>减少搜索空间至 O(N^(d/2)) 而非 O(N^d)';
+  }
+  else if (action==='path_found') {
+    buildPathSvg(3);
+    ps.innerHTML='✓ BFS 第 1 层即找到 Bob！<br>最短路径：Alice → Bob，长度 = 1';
+  }
+  else if (action==='path_longer') {
+    buildPathSvg(4);
+    ps.innerHTML='另一条路径：Alice → Carol → Dave → Bob（长度 3）<br>shortestPath 选最短的那条（长度 1）';
+  }
+  else if (action==='path_disconnected') {
+    buildPathSvg(5);
+    ps.innerHTML='⚠ Alice 和 Eve 不连通<br>BFS 遍历完整个组件仍未找到 Eve → 返回 null';
+  }
+  else if (action==='path_algos') {
+    buildPathSvg(3);
+    sum.style.display='block';
+    sum.innerHTML='<div style="margin-top:4px">'
+      +'<span class="ib b">shortestPath</span>'
+      +'<span class="ib b">allShortestPaths</span>'
+      +'<span class="ib y">Dijkstra（加权）</span>'
+      +'<span class="ib g">PageRank</span>'
+      +'<span class="ib o">Community Detection</span>'
+      +'</div>'
+      +'<div style="margin-top:5px;font-size:0.73rem;color:var(--dim);font-family:monospace">Neo4j GDS（图数据科学库）内置 50+ 图算法，支持亿级节点规模。</div>';
+  }
+}
+
+// ─── Core ─────────────────────────────────────────────────────
+function applyStep(){
+  const tab=TABS[curTab]; const step=tab.steps[cur];
+  document.getElementById('descBox').textContent=step.desc;
+  document.getElementById('stepCounter').textContent=`步骤 ${cur+1}/${tab.steps.length}`;
+  document.getElementById('statusBar').textContent=tab.name+' — '+step.action;
+  if(curTab===0) applyTab0(step.action);
+  else if(curTab===1) applyTab1(step.action);
+  else if(curTab===2) applyTab2(step.action);
+  else if(curTab===3) applyTab3(step.action);
+  renderDots();
+}
+function renderDots(){
+  const steps=TABS[curTab].steps;
+  const c=document.getElementById('stepDots'); c.innerHTML='';
+  steps.forEach((_,i)=>{
+    const d=document.createElement('div');
+    d.className='dot'+(i<cur?' done':'')+(i===cur?' curr':'');
+    d.onclick=()=>{cur=i;applyStep();};
+    c.appendChild(d);
+  });
+}
+function switchTab(t){
+  curTab=t;cur=0;
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',i===t));
+  ['tab0','tab1','tab2','tab3'].forEach((id,i)=>document.getElementById(id).style.display=i===t?'block':'none');
+  stopPlay(); applyStep();
+}
+function next(){if(cur<TABS[curTab].steps.length-1){cur++;applyStep();}}
+function prev(){if(cur>0){cur--;applyStep();}}
+function doReset(){cur=0;stopPlay();applyStep();}
+function setSpeed(i){
+  speedIdx=i;
+  ['sp0','sp1','sp2','sp3'].forEach((id,j)=>document.getElementById(id).classList.toggle('active',j===i));
+  if(playing){stopPlay();startPlay();}
+}
+function startPlay(){
+  if(cur>=TABS[curTab].steps.length-1){cur=0;applyStep();}
+  playing=true; document.getElementById('playBtn').textContent='⏸ 暂停';
+  timer=setInterval(()=>{ if(cur>=TABS[curTab].steps.length-1){stopPlay();return;} cur++;applyStep(); },SPEEDS[speedIdx]);
+}
+function stopPlay(){playing=false;clearInterval(timer);timer=null;document.getElementById('playBtn').textContent='▶ 播放';}
+function togglePlay(){if(playing)stopPlay();else startPlay();}
+
+switchTab(0);
+</script>
+<script src="../footer.js"></script>
+</body>
+</html>

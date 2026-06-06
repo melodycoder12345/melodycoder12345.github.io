@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="TrueTime API 提供有界误差时间戳，commit-wait 保证外部一致性，全球 Paxos 分片，NewSQL 代表。">
+<link rel="canonical" href="https://melodycoder12345.github.io/distributed/spanner.html">
+<meta property="og:title" content="Google Spanner 与 TrueTime — 码海拾贝">
+<meta property="og:description" content="TrueTime API 提供有界误差时间戳，commit-wait 保证外部一致性，全球 Paxos 分片，NewSQL 代表。">
+<meta property="og:url" content="https://melodycoder12345.github.io/distributed/spanner.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Google Spanner 与 TrueTime — 码海拾贝">
+<meta name="twitter:description" content="TrueTime API 提供有界误差时间戳，commit-wait 保证外部一致性，全球 Paxos 分片，NewSQL 代表。">
+<title>Google Spanner 与 TrueTime - 分布式</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#c084fc;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 18%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1100px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:22px;align-items:stretch;margin-bottom:28px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(1.8rem,3.5vw,3.5rem);line-height:1.08;letter-spacing:-.05em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:.95rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:5px 10px;font-size:.75rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.87rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.81rem;line-height:1.65}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:28px}
+.article-card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.6);border-radius:18px;padding:22px;display:flex;flex-direction:column;gap:12px}
+.article-card h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px}
+.article-card p{color:var(--dim);font-size:.88rem;line-height:1.82}
+.article-card ul{display:flex;flex-direction:column;gap:7px;padding-left:18px}
+.article-card li{color:var(--dim);font-size:.87rem;line-height:1.75}
+.article-card strong{color:var(--text)}
+pre{background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.74rem;line-height:1.72;margin-top:10px}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;background:rgba(192,132,252,.1);padding:1px 4px;border-radius:4px;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.cm{color:#8b949e}.st{color:#a5d6ff}.num{color:#79c0ff}.tp{color:#ffa657}
+.table-wrap{overflow-x:auto;margin-top:10px}
+table{width:100%;border-collapse:collapse;font-size:.81rem}
+th{background:color-mix(in srgb,var(--accent) 8%,transparent);color:var(--accent);padding:8px 12px;text-align:left;border:1px solid rgba(255,255,255,.08);font-size:.76rem}
+td{padding:7px 12px;border:1px solid rgba(255,255,255,.07);color:var(--dim)}
+tr:hover td{background:rgba(255,255,255,.02)}
+td.good{color:var(--ok)}
+td.bad{color:var(--bad)}
+td.mid{color:var(--warn)}
+.pill{display:inline-flex;border-radius:999px;padding:2px 8px;font-size:.68rem;font-family:monospace;border:1px solid;vertical-align:middle}
+.pill-g{border-color:var(--accent);color:var(--accent)}
+.pill-b{border-color:var(--ok);color:var(--ok)}
+.flow-box{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);border-radius:10px;padding:10px 12px;margin-bottom:7px}
+.flow-box-title{font-size:.79rem;font-weight:700;color:var(--text);margin-bottom:4px}
+.flow-box-body{font-size:.8rem;color:var(--dim);line-height:1.65}
+.flow-arrow{text-align:center;font-size:.9rem;color:var(--dim2);margin:2px 0}
+.highlight-box{border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);background:color-mix(in srgb,var(--accent) 6%,transparent);border-radius:12px;padding:12px 14px;margin-top:6px}
+.highlight-box p{color:var(--dim);font-size:.84rem;line-height:1.72}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:900px){.hero,.grid{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+</head>
+<body>
+<main class="content" data-page-type="B">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">分布式 / Spanner / B 类型</div>
+      <h1>Google Spanner<br>与 TrueTime</h1>
+      <p class="summary">Google Spanner 是首个在全球范围内提供外部一致性（External Consistency）的分布式数据库，其核心是 TrueTime API——通过 GPS 天线和铯原子钟构建的有界误差时间系统。Commit-wait 机制确保事务时间戳的全球唯一性，Paxos 分组保障高可用，是 NewSQL 时代的里程碑。</p>
+      <div class="tags"><span>TrueTime</span><span>External Consistency</span><span>Commit-Wait</span><span>Paxos 分组</span><span>NewSQL</span><span>全球分布</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li>
+          <strong>TrueTime API</strong>
+          <span>通过 GPS 天线+铯原子钟构建的分布式时钟。<code>TT.Now()</code> 返回 <code>[earliest, latest]</code> 区间而非精确时间点，误差通常在 1–7ms 以内。不确定性是有界的。</span>
+        </li>
+        <li>
+          <strong>外部一致性（External Consistency）</strong>
+          <span>强于串行化的一致性保证：若事务 T1 在 T2 开始前已提交，则 T1 的提交时间戳严格小于 T2。等价于线性一致性（Linearizability）。</span>
+        </li>
+        <li>
+          <strong>Commit-Wait</strong>
+          <span>事务 Leader 分配时间戳 s 后，必须等待直到 TT.Now().earliest > s（至少一个误差窗口），才能释放锁并对外可见，确保真实时间已超过 s。</span>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="grid">
+
+    <!-- Card 1: Engineering background -->
+    <article class="article-card">
+      <h2>工程背景：为什么需要 Spanner</h2>
+      <p>2000 年代中期，Google 广告系统 <strong>F1</strong> 基于 MySQL 分片运行，跨分片事务需要大量应用层逻辑，数据迁移困难，一致性难以保证。同期 Bigtable + Megastore 的组合提供了分布式存储，但 Megastore 的强一致性代价是极高延迟。</p>
+      <p><strong>Spanner 的目标</strong>（2012 年 OSDI 论文）：</p>
+      <ul>
+        <li>在全球分布的数据中心上提供 <strong>ACID 事务</strong>（含跨行、跨表、跨数据中心）</li>
+        <li>保证 <strong>外部一致性</strong>——比串行化更强的一致性模型</li>
+        <li>支持 <strong>SQL 查询</strong>，与 NoSQL 的 BigTable 形成互补</li>
+        <li>引入 <strong>NewSQL</strong> 概念：同时拥有 SQL 接口和 NoSQL 的水平扩展能力</li>
+      </ul>
+      <p>Spanner 的成功推动了整个业界重新思考「强一致性与可扩展性是否必然矛盾」，直接催生了 CockroachDB、YugabyteDB 等开源 NewSQL 数据库。</p>
+    </article>
+
+    <!-- Card 2: TrueTime Design -->
+    <article class="article-card">
+      <h2>TrueTime 设计：有界误差的分布式时钟</h2>
+      <p>传统 NTP 时钟误差难以精确量化（可能数百毫秒偏差），无法用于分布式事务的时间戳排序。TrueTime 通过硬件+软件双层架构解决这个问题：</p>
+      <p><strong>硬件层</strong>：每个数据中心部署多台 <em>Time Master</em> 服务器，各自配备 GPS 天线接收器或铯原子钟（两种来源互为冗余），误差源相互独立，避免共因失效。</p>
+      <p><strong>软件层</strong>：每台机器运行 <em>timeslave 守护进程</em>，定期向多台 Time Master 轮询并应用 Marzullo 算法计算置信区间，更新本地时钟。</p>
+      <p><strong>TrueTime API 三个方法</strong>：</p>
+      <ul>
+        <li><code>TT.Now()</code>：返回 <code>TTinterval{earliest, latest}</code>，保证真实时间 t_abs ∈ [earliest, latest]</li>
+        <li><code>TT.after(t)</code>：若 earliest > t，返回 true（真实时间已超过 t）</li>
+        <li><code>TT.before(t)</code>：若 latest &lt; t，返回 true（真实时间仍在 t 之前）</li>
+      </ul>
+      <pre><span class="cm">// TrueTime API 伪代码（概念示意）</span>
+<span class="kw">type</span> <span class="tp">TTinterval</span> <span class="kw">struct</span> {
+    Earliest <span class="tp">time.Time</span>  <span class="cm">// 真实时间下界</span>
+    Latest   <span class="tp">time.Time</span>  <span class="cm">// 真实时间上界</span>
+}
+
+<span class="kw">func</span> <span class="fn">TT_Now</span>() <span class="tp">TTinterval</span>      <span class="cm">// 返回当前时间区间 [earliest, latest]</span>
+<span class="kw">func</span> <span class="fn">TT_After</span>(t <span class="tp">time.Time</span>) <span class="tp">bool</span> <span class="cm">// 真实时间是否已超过 t</span>
+<span class="kw">func</span> <span class="fn">TT_Before</span>(t <span class="tp">time.Time</span>) <span class="tp">bool</span><span class="cm">// 真实时间是否仍在 t 之前</span>
+
+<span class="cm">// 实测误差（epsilon = (latest - earliest) / 2）</span>
+<span class="cm">// 平均约 4ms，最大约 7ms（GPS 更换电池等特殊情况时更高）</span></pre>
+    </article>
+
+    <!-- Card 3: External Consistency & Commit-Wait -->
+    <article class="article-card">
+      <h2>外部一致性与 Commit-Wait 机制</h2>
+      <p><strong>外部一致性定义</strong>：对任意两个事务 T1 和 T2，若 T1 的提交时刻（真实时间）早于 T2 的开始时刻，则 T1 的提交时间戳 <em>s(T1) &lt; s(T2)</em>。</p>
+      <p>这比串行化更强：串行化只要求存在一个等价的串行执行顺序，外部一致性还要求该顺序与真实时钟顺序一致（即等价于线性一致性）。</p>
+      <p><strong>Commit-Wait 实现步骤</strong>：</p>
+      <div class="flow-box"><div class="flow-box-title">① Leader 分配时间戳</div><div class="flow-box-body">读取 TT.Now()，取 s = latest（确保 s ≥ 真实时间）</div></div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-box"><div class="flow-box-title">② Commit-Wait 等待</div><div class="flow-box-body">阻塞，直到 TT.Now().earliest > s（即确认真实时间已超过 s）</div></div>
+      <div class="flow-arrow">↓</div>
+      <div class="flow-box"><div class="flow-box-title">③ 释放写锁，事务对外可见</div><div class="flow-box-body">此后任何读取操作都能看到该事务（快照时间戳 ≥ s）</div></div>
+      <div class="highlight-box">
+        <p><strong>为什么这样就能保证外部一致性？</strong><br>
+        设 T1 提交时间戳为 s1，T2 开始时间为 t_start。<br>
+        T1 提交后，由于 Commit-Wait，真实时间 t_abs > s1。<br>
+        T2 开始时调用 TT.Now()，得到 latest ≥ t_abs > s1。<br>
+        T2 的时间戳 s2 = TT.Now().latest ≥ t_abs > s1。<br>
+        因此 s2 > s1，即 s(T1) &lt; s(T2)，外部一致性得证。</p>
+      </div>
+    </article>
+
+    <!-- Card 4: Paxos Group Architecture -->
+    <article class="article-card">
+      <h2>Paxos 分组架构</h2>
+      <p>Spanner 将数据水平分片（Shard），每个分片称为 <strong>Spanserver</strong>，并组织成独立的 <strong>Paxos 组</strong>：</p>
+      <ul>
+        <li><strong>分片（Tablet）</strong>：数据按键范围分片，每片包含一个或多个目录（Directory），是数据局部性的管理单元。</li>
+        <li><strong>Paxos 组</strong>：每个 Tablet 维护一个跨数据中心的 Paxos 副本组（通常 5 副本），确保高可用。Leader 处理所有写事务，Follower 可服务读操作。</li>
+        <li><strong>全球分布</strong>：副本分布在多个地理区域，通过 Paxos 保证数据一致性。Leader 可在不同副本间切换（Leader 选举）。</li>
+        <li><strong>目录迁移</strong>：Spanner 可以在不停服务的情况下迁移 Directory（数据目录），实现负载均衡和地域亲和性。</li>
+      </ul>
+      <div class="table-wrap">
+        <table>
+          <tr><th>概念</th><th>对应关系</th><th>说明</th></tr>
+          <tr><td>Universe</td><td>整个 Spanner 部署</td><td>全球唯一，包含所有 Zone</td></tr>
+          <tr><td>Zone</td><td>数据中心/可用区</td><td>行政+物理隔离单元</td></tr>
+          <tr><td>Spanserver</td><td>Zone 内的存储节点</td><td>管理多个 Tablet</td></tr>
+          <tr><td>Tablet</td><td>数据分片</td><td>键范围 → (key, timestamp) → bytes</td></tr>
+          <tr><td>Paxos 组</td><td>Tablet 的副本集</td><td>多数派写入保证高可用</td></tr>
+        </table>
+      </div>
+    </article>
+
+    <!-- Card 5: Read-Write Transaction Flow -->
+    <article class="article-card">
+      <h2>读写事务与只读事务流程</h2>
+      <p><strong>读写事务（Read-Write Transaction）</strong>：Spanner 中最复杂、代价最高的事务类型。</p>
+      <pre><span class="cm">// 读写事务时序伪代码</span>
+<span class="kw">func</span> <span class="fn">ReadWriteTransaction</span>() {
+    <span class="cm">// 1. 客户端读取（获取读锁，发现参与的 Paxos 组）</span>
+    data := <span class="fn">Read</span>(keys...)
+
+    <span class="cm">// 2. 客户端执行业务逻辑，准备写集合</span>
+    writes := <span class="fn">Compute</span>(data)
+
+    <span class="cm">// 3. 两阶段提交（2PC，跨 Paxos 组时）</span>
+    coordinator := <span class="fn">ChooseCoordinator</span>(participants)
+    <span class="fn">Prepare</span>(participants, writes) <span class="cm">// 获取写锁</span>
+
+    <span class="cm">// 4. Leader 分配时间戳 + Commit-Wait</span>
+    s := <span class="fn">TT_Now</span>().Latest
+    <span class="fn">CommitWait</span>(<span class="kw">until</span> <span class="fn">TT_After</span>(s)) <span class="cm">// 等待 ~epsilon 时间</span>
+
+    <span class="cm">// 5. 发送 Commit，释放锁</span>
+    <span class="fn">Commit</span>(participants, s)
+}</pre>
+      <p><strong>只读事务（Read-Only Transaction）</strong>：无锁，高性能，直接读取快照：</p>
+      <ul>
+        <li><strong>选择时间戳</strong>：调用 <code>TT.Now().latest</code> 作为快照时间戳，或由客户端指定历史时间点</li>
+        <li><strong>直接读快照</strong>：所有副本（包括 Follower）都能服务这类读请求</li>
+        <li><strong>无 2PC 无锁</strong>：不产生任何写锁，不与写事务竞争，延迟极低</li>
+        <li><strong>外部一致性</strong>：读取时间戳 ≥ 任何已提交事务的 Commit-Wait 时间戳，因此总能看到最新一致状态</li>
+      </ul>
+    </article>
+
+    <!-- Card 6: Relation to 2PC -->
+    <article class="article-card">
+      <h2>与 2PC 的关系：Spanner 的分层协议</h2>
+      <p>Spanner 并没有「替代」2PC，而是在其之上叠加了 Paxos 层解决高可用问题，形成双层协议架构：</p>
+      <div class="flow-box"><div class="flow-box-title">跨 Paxos 组写事务 → 使用 2PC 协调</div><div class="flow-box-body">当写事务涉及多个 Paxos 组（不同 Tablet）时，Spanner 使用 2PC 协调跨组提交，协调者为某一 Paxos 组的 Leader。</div></div>
+      <div class="flow-box"><div class="flow-box-title">单个 Paxos 组内 → 使用 Paxos 保证可用性</div><div class="flow-box-body">每个参与 2PC 的节点本身是一个 Paxos 组（5 副本），即使某台机器宕机，Paxos 仍能继续服务，2PC 的参与者不会因单点故障崩溃。</div></div>
+      <p><strong>如何解决 2PC 阻塞问题？</strong>：在 Spanner 中，2PC 的协调者是 Paxos 组 Leader，Paxos 提供了 Leader 故障后的自动重新选举。因此虽然使用 2PC，但协调者单点问题被 Paxos 高可用所缓解——协调者故障后，新 Leader 会基于 Paxos 日志继续处理。</p>
+      <p><strong>TrueTime 的作用</strong>：不是替换 2PC，而是为提交时间戳的全球唯一排序提供基础，实现外部一致性——这是单纯 2PC 无法做到的。</p>
+    </article>
+
+    <!-- Card 7: Limitations & Practice -->
+    <article class="article-card">
+      <h2>局限与工程实践</h2>
+      <p><strong>Commit-Wait 延迟开销</strong>：每个读写事务必须等待约 2×epsilon（epsilon 是 TrueTime 误差的一半），通常额外增加 <strong>10–14ms</strong>。对于单数据中心场景，这个开销相对于 NTP 方案偏高。</p>
+      <p><strong>跨洲际延迟</strong>：全球分布的 Paxos 组写事务，多数派确认需要跨洲际光速传输（中美约 120ms），使得某些写操作延迟极高，不适合所有业务场景。</p>
+      <p><strong>硬件依赖</strong>：TrueTime 依赖专用 GPS 接收器和铯原子钟，无法在普通数据中心复现。</p>
+      <p><strong>开源替代方案对比</strong>：</p>
+      <ul>
+        <li><strong>CockroachDB</strong>：使用 HLC（Hybrid Logical Clock，混合逻辑时钟）近似 TrueTime，误差通过 Clock Skew 检测和等待处理，无需专用硬件</li>
+        <li><strong>YugabyteDB</strong>：同样基于 HLC + Raft，PostgreSQL 兼容接口</li>
+        <li><strong>TiDB</strong>：使用 TSO（Timestamp Oracle）中心化时间戳分配，Raft 管理副本，牺牲单点但架构更简单</li>
+        <li><strong>Cloud Spanner</strong>：Google 托管版本，2017 年公开提供，无需自建硬件时钟设施</li>
+      </ul>
+      <div class="table-wrap">
+        <table>
+          <tr><th>系统</th><th>时钟方案</th><th>一致性</th><th>硬件要求</th></tr>
+          <tr><td>Spanner</td><td class="good">TrueTime（GPS+原子钟）</td><td class="good">外部一致性</td><td class="bad">专用硬件</td></tr>
+          <tr><td>CockroachDB</td><td class="mid">HLC</td><td class="mid">Serializable</td><td class="good">普通服务器</td></tr>
+          <tr><td>YugabyteDB</td><td class="mid">HLC</td><td class="mid">Serializable</td><td class="good">普通服务器</td></tr>
+          <tr><td>TiDB</td><td class="mid">TSO（中心化）</td><td class="mid">Snapshot Isolation</td><td class="good">普通服务器</td></tr>
+        </table>
+      </div>
+    </article>
+
+    <!-- Card 8: Full code example -->
+    <article class="article-card">
+      <h2>深度示例：时间戳排序证明与 HLC 对比</h2>
+      <p><strong>场景</strong>：用户 A 在节点 N1 完成转账事务 T1（提交时间戳 s1），随后告知用户 B（通过电话/消息——Spanner 外部信道），用户 B 在节点 N2 查询账户余额（只读事务 T2）。外部一致性保证 T2 一定能看到 T1。</p>
+      <pre><span class="cm">// Spanner 外部一致性保证流程</span>
+<span class="cm">// T1: 转账事务（在 Leader N1 上执行）</span>
+s1 = <span class="fn">TT_Now</span>().Latest    <span class="cm">// s1 ≥ 真实时间 t1_real</span>
+<span class="fn">CommitWait</span>()             <span class="cm">// 等待至 TT_After(s1) = true</span>
+                          <span class="cm">// 此时真实时间 t_real > s1</span>
+<span class="fn">Commit</span>(writes, s1)       <span class="cm">// T1 以时间戳 s1 对外可见</span>
+
+<span class="cm">// T2: 读取事务（在节点 N2 上执行，T1 之后）</span>
+<span class="cm">// 因为 T2 开始于 T1 提交后（真实时间 t2_start > s1）</span>
+s2 = <span class="fn">TT_Now</span>().Latest    <span class="cm">// s2 ≥ t2_start > s1</span>
+result = <span class="fn">ReadSnapshot</span>(s2) <span class="cm">// 快照时间戳 s2 > s1，可以看到 T1</span>
+
+<span class="cm">// 结论：s2 > s1 → T2 一定能看到 T1 的结果 ✓</span></pre>
+      <p><strong>HLC（混合逻辑时钟）的近似方案</strong>：HLC 使用 <code>max(物理时钟, 逻辑时钟)</code> 提供因果一致性，但无法精确量化误差窗口，需要额外的 Clock Skew 检测（通常设置最大允许偏差 500ms）。若检测到时钟偏差过大，事务会 Retry，保证安全性但增加尾延迟。</p>
+      <pre><span class="cm">// HLC 示意（CockroachDB 风格）</span>
+<span class="kw">type</span> <span class="tp">HLC</span> <span class="kw">struct</span> {
+    Physical <span class="tp">int64</span>  <span class="cm">// 墙上时钟（纳秒）</span>
+    Logical  <span class="tp">int32</span>  <span class="cm">// 同一物理时刻内的逻辑计数器</span>
+}
+
+<span class="cm">// 发送事件：时间戳 = max(本地HLC, 物理时钟) + 逻辑+1</span>
+<span class="cm">// 接收事件：时间戳 = max(本地HLC, 消息HLC, 物理时钟) + 逻辑+1</span>
+<span class="cm">// 保证：因果关系下 hlc(A) < hlc(B)，但不保证外部一致性</span></pre>
+    </article>
+
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="../distributed/index.html">← 分布式系统</a>
+    <a class="btn" href="../distributed/2pc.html">← 两阶段提交（2PC）</a>
+    <a class="btn" href="../distributed/raft.html">← Raft 共识</a>
+  </div>
+</main>
+<script>if (window.NavTracker) NavTracker.track('Google Spanner 与 TrueTime', window.location.href, '⏱', '分布式');</script>
+<script src="../footer.js"></script>
+</body>
+</html>

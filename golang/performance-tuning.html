@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Go 性能调优：pprof 火焰图、逃逸分析、sync.Pool 与 benchstat 统计对比的完整实践指南。">
+<link rel="canonical" href="https://melodycoder12345.github.io/golang/performance-tuning.html">
+<meta property="og:title" content="Go 性能调优 — 码海拾贝">
+<meta property="og:description" content="Go 性能调优：pprof 火焰图、逃逸分析、sync.Pool 与 benchstat 统计对比的完整实践指南。">
+<meta property="og:url" content="https://melodycoder12345.github.io/golang/performance-tuning.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Go 性能调优 — 码海拾贝">
+<meta name="twitter:description" content="Go 性能调优：pprof 火焰图、逃逸分析、sync.Pool 与 benchstat 统计对比的完整实践指南。">
+<title>Go 性能调优 - Golang 深度笔记</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<script src="../footer.js"></script>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"pprof","body":"Go 内置的性能剖析工具，支持 CPU profile（采样调用栈）、heap profile（内存分配）、goroutine dump（协程状态）和 mutex profile（锁竞争）。通过 go tool pprof 生成火焰图定位热点。","tag":"tool"},
+  {"title":"逃逸分析","body":"Go 编译器决定变量分配在 stack 还是 heap 的过程。栈分配更快（无 GC 压力），堆分配需要 GC 扫描。用 go build -gcflags=-m 查看逃逸决策。","tag":"compiler"},
+  {"title":"sync.Pool","body":"缓存和复用临时对象，避免频繁 GC 的高性能池。注意 GC 时 Pool 内容会被清空，不适合缓存长期对象，适合大量短生命周期的 buf/encoder/decoder 等对象。","tag":"stdlib"},
+  {"title":"benchstat","body":"对比两组 benchmark 结果并做统计显著性检验，正确评估性能优化效果的工具。通过 go install golang.org/x/perf/cmd/benchstat 安装。","tag":"tool"}
+];</script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;display:flex;flex-direction:column;}
+.main{display:flex;flex:1;min-height:0;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;flex:1;min-width:0;}
+.side-nav{width:160px;flex-shrink:0;position:sticky;top:72px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(0,173,216,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(0,173,216,.12);color:var(--accent);border:1px solid rgba(0,173,216,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.badge-high{background:rgba(251,146,60,.12);color:#fb923c;border:1px solid rgba(251,146,60,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:4px;}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(0,173,216,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(0,173,216,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.table-wrap{overflow-x:auto;margin:10px 0;}
+table{width:100%;border-collapse:collapse;font-size:.82rem;}
+th{background:rgba(0,173,216,.08);color:var(--accent);padding:8px 12px;text-align:left;border:1px solid var(--border2);font-size:.78rem;}
+td{padding:7px 12px;border:1px solid var(--border2);color:var(--dim);}
+tr:hover td{background:rgba(255,255,255,.02);}
+.shell-block{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.75;margin:10px 0;}
+.shell-block .prompt{color:#4ade80;}
+.shell-block .cmd{color:var(--text);}
+.shell-block .out{color:var(--dim2);}
+.callout{border-left:3px solid var(--accent);background:rgba(0,173,216,.06);border-radius:0 8px 8px 0;padding:10px 14px;margin:10px 0;font-size:.84rem;color:var(--dim);line-height:1.7;}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}}
+</style>
+</head>
+<body>
+
+<div class="nav-bar">
+  <a href="index.html" class="back">← Golang</a>
+  <span class="nav-title">⚡ Go 性能调优</span>
+  <div class="nav-tags">
+    <span class="ntag">pprof</span>
+    <span class="ntag">escape-analysis</span>
+    <span class="ntag">sync.Pool</span>
+    <span class="ntag">benchstat</span>
+  </div>
+</div>
+
+<div class="main">
+<div class="page-wrap">
+  <nav class="side-nav">
+    <ul>
+      <li><a href="#methodology">调优方法论</a></li>
+      <li><a href="#cpu">CPU 热点定位</a></li>
+      <li><a href="#memory">内存与 GC</a></li>
+      <li><a href="#goroutine">goroutine 泄漏</a></li>
+      <li><a href="#mutex">mutex 竞争</a></li>
+      <li><a href="#benchmark">Benchmark</a></li>
+      <li><a href="#qa">面试题</a></li>
+      <li><a href="#pitfalls">易错点</a></li>
+    </ul>
+  </nav>
+
+  <main class="main-content">
+
+    <!-- Section 1: 方法论 -->
+    <section class="section" id="methodology">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>性能调优方法论</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>黄金法则：先度量，再优化</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p><em>"Don't optimize prematurely"</em>（Donald Knuth）。过早优化是万恶之源。正确的流程是：</p>
+          <ol style="padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.8;">
+            <li><strong>建立基准（Baseline）</strong>：用 benchmark 测量当前性能，记录 ns/op、allocs/op、B/op</li>
+            <li><strong>采集 Profile</strong>：用 pprof 采集 CPU / heap / goroutine / mutex profile，找到真正的瓶颈</li>
+            <li><strong>单点改动</strong>：每次只改一处，避免多个改动相互干扰</li>
+            <li><strong>验证效果</strong>：用 benchstat 对比改动前后，确认有统计显著性的提升</li>
+            <li><strong>循环迭代</strong>：回到第 1 步，继续改下一个瓶颈</li>
+          </ol>
+          <div class="callout">⚡ 80% 的性能问题来自 20% 的代码。pprof 火焰图直接告诉你那 20% 在哪里，不要凭感觉猜。</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>Go 性能调优工具链</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>工具</th><th>用途</th><th>适用场景</th><th>开销</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>go tool pprof</code></td><td>CPU / 内存 / goroutine 热点</td><td>找到性能瓶颈函数</td><td>低（CPU &lt;5%）</td></tr>
+                <tr><td><code>go tool trace</code></td><td>完整执行时序、GC、调度延迟</td><td>诊断 GC 停顿、调度抖动</td><td>高（10-20%）</td></tr>
+                <tr><td><code>go test -bench</code></td><td>微基准测量 ns/op、allocs/op</td><td>量化单个函数性能</td><td>无</td></tr>
+                <tr><td><code>benchstat</code></td><td>统计对比两组 benchmark</td><td>验证优化效果</td><td>无</td></tr>
+                <tr><td><code>-gcflags=-m</code></td><td>逃逸分析报告</td><td>减少 heap 分配</td><td>编译期</td></tr>
+                <tr><td><code>GODEBUG=gctrace=1</code></td><td>GC 事件日志</td><td>诊断 GC 频率和停顿</td><td>极低</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: CPU 热点 -->
+    <section class="section" id="cpu">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>CPU 热点定位</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>采集与分析 CPU Profile</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p>最常用的方法：通过 <code>go test</code> 在跑 benchmark 时同时采集 CPU profile。</p>
+          <div class="shell-block">
+<span class="cm"># 运行 benchmark 并采集 CPU profile（-benchtime 更长 profile 更准）</span>
+<span class="prompt">$</span> <span class="cmd">go test -bench=BenchmarkMyFunc -benchmem -benchtime=10s \</span>
+<span class="cmd">       -cpuprofile=cpu.prof ./...</span>
+<br>
+<span class="cm"># 打开交互式 Web UI（推荐，含火焰图）</span>
+<span class="prompt">$</span> <span class="cmd">go tool pprof -http=:8080 cpu.prof</span>
+<span class="out">Serving web UI on http://localhost:8080</span>
+<br>
+<span class="cm"># 或命令行模式</span>
+<span class="prompt">$</span> <span class="cmd">go tool pprof cpu.prof</span>
+<span class="out">(pprof) top10           # flat% 排序前10</span>
+<span class="out">(pprof) top -cum        # cum% 排序（含子调用）</span>
+<span class="out">(pprof) list funcName   # 源码行级热点</span>
+          </div>
+          <p>火焰图解读：<strong>横轴宽度 = CPU 占用时间比例</strong>，纵轴为调用深度。找最宽的"平顶"函数（flat 高）就是优化入口。</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>常见 CPU 热点与优化手段</h3>
+          <span class="badge badge-adv">key</span>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>热点函数</th><th>根因</th><th>优化手段</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>runtime.mallocgc</code></td><td>高频 heap 分配触发 GC</td><td>sync.Pool / 预分配 / 逃逸分析</td></tr>
+                <tr><td><code>runtime.gcBgMarkWorker</code></td><td>GC 标记占用 CPU</td><td>减少 heap 分配量</td></tr>
+                <tr><td><code>strings.Builder.WriteString</code></td><td>字符串频繁拼接</td><td>预分配 sb.Grow(n)</td></tr>
+                <tr><td><code>regexp.FindString</code></td><td>热路径上重复编译 regexp</td><td>包级 var 缓存 <code>*Regexp</code></td></tr>
+                <tr><td><code>reflect.*</code></td><td>热路径使用反射</td><td>生成代码 / 泛型替代</td></tr>
+                <tr><td><code>fmt.Sprintf</code></td><td>格式化分配 string</td><td>strconv.Itoa / AppendInt</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <pre><span class="cm">// 热点：热路径上每次都编译 regexp</span>
+<span class="kw">func</span> <span class="fn">extractIP</span>(<span class="id">s</span> <span class="kw">string</span>) <span class="kw">string</span> {
+    <span class="id">r</span> := <span class="pkg">regexp</span>.<span class="fn">MustCompile</span>(<span class="st">`\d+\.\d+\.\d+\.\d+`</span>) <span class="cm">// 每次调用都编译！</span>
+    <span class="kw">return</span> <span class="id">r</span>.<span class="fn">FindString</span>(<span class="id">s</span>)
+}
+
+<span class="cm">// 优化：包级变量缓存编译结果</span>
+<span class="kw">var</span> <span class="id">ipRegexp</span> = <span class="pkg">regexp</span>.<span class="fn">MustCompile</span>(<span class="st">`\d+\.\d+\.\d+\.\d+`</span>)
+
+<span class="kw">func</span> <span class="fn">extractIPFast</span>(<span class="id">s</span> <span class="kw">string</span>) <span class="kw">string</span> {
+    <span class="kw">return</span> <span class="id">ipRegexp</span>.<span class="fn">FindString</span>(<span class="id">s</span>)
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>字符串拼接性能对比</h3>
+          <span class="badge badge-adv">adv</span>
+        </div>
+        <div class="card-body">
+          <pre><span class="cm">// ❌ 慢：每次 + 操作分配新字符串</span>
+<span class="kw">func</span> <span class="fn">buildSlow</span>(<span class="id">parts</span> []<span class="kw">string</span>) <span class="kw">string</span> {
+    <span class="id">s</span> := <span class="st">""</span>
+    <span class="kw">for</span> <span class="id">_</span>, <span class="id">p</span> := <span class="kw">range</span> <span class="id">parts</span> {
+        <span class="id">s</span> += <span class="id">p</span>  <span class="cm">// O(n²) 分配</span>
+    }
+    <span class="kw">return</span> <span class="id">s</span>
+}
+
+<span class="cm">// ✅ 快：strings.Builder 预分配，零拷贝</span>
+<span class="kw">func</span> <span class="fn">buildFast</span>(<span class="id">parts</span> []<span class="kw">string</span>) <span class="kw">string</span> {
+    <span class="kw">var</span> <span class="id">sb</span> <span class="pkg">strings</span>.<span class="id">Builder</span>
+    <span class="id">total</span> := <span class="num">0</span>
+    <span class="kw">for</span> <span class="id">_</span>, <span class="id">p</span> := <span class="kw">range</span> <span class="id">parts</span> { <span class="id">total</span> += <span class="pkg">len</span>(<span class="id">p</span>) }
+    <span class="id">sb</span>.<span class="fn">Grow</span>(<span class="id">total</span>)  <span class="cm">// 预分配，避免扩容</span>
+    <span class="kw">for</span> <span class="id">_</span>, <span class="id">p</span> := <span class="kw">range</span> <span class="id">parts</span> { <span class="id">sb</span>.<span class="fn">WriteString</span>(<span class="id">p</span>) }
+    <span class="kw">return</span> <span class="id">sb</span>.<span class="fn">String</span>()
+}</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: 内存与 GC -->
+    <section class="section" id="memory">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>内存分配与 GC 压力</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>逃逸分析：栈分配 vs 堆分配</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p>Go 编译器通过逃逸分析（Escape Analysis）决定变量分配在栈还是堆。栈分配随函数返回自动回收，无 GC 开销；堆分配需要 GC 扫描和回收，代价更高。</p>
+          <div class="shell-block">
+<span class="cm"># 查看逃逸分析报告</span>
+<span class="prompt">$</span> <span class="cmd">go build -gcflags="-m -m" ./... 2>&amp;1 | grep escape</span>
+<span class="out">./main.go:12:15: &amp;buf escapes to heap</span>
+<span class="out">./main.go:25:14: moved to heap: result</span>
+<span class="out">./main.go:38:22: inlining call to fmt.Sprintf</span>
+          </div>
+          <pre><span class="cm">// 导致逃逸到堆的常见原因：</span>
+<span class="cm">// 1. 返回局部变量的指针</span>
+<span class="kw">func</span> <span class="fn">newUser</span>() *<span class="id">User</span> {
+    <span class="id">u</span> := <span class="id">User</span>{<span class="id">Name</span>: <span class="st">"alice"</span>}  <span class="cm">// u 逃逸到堆</span>
+    <span class="kw">return</span> &amp;<span class="id">u</span>
+}
+
+<span class="cm">// 2. 赋值给 interface{}</span>
+<span class="kw">func</span> <span class="fn">logValue</span>(<span class="id">v</span> <span class="kw">interface</span>{}) { <span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">v</span>) }
+<span class="id">x</span> := <span class="num">42</span>
+<span class="fn">logValue</span>(<span class="id">x</span>)  <span class="cm">// x 逃逸！box int → interface{}</span>
+
+<span class="cm">// 3. slice/map 中存储指针</span>
+<span class="id">m</span> := <span class="kw">map</span>[<span class="kw">string</span>]*<span class="id">User</span>{}
+<span class="id">m</span>[<span class="st">"key"</span>] = &amp;<span class="id">User</span>{}  <span class="cm">// 指针存入 map，值逃逸</span>
+
+<span class="cm">// ✅ 减少逃逸：传值而非指针（小结构体）</span>
+<span class="kw">func</span> <span class="fn">processUser</span>(<span class="id">u</span> <span class="id">User</span>) { ... }  <span class="cm">// 栈分配</span></pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>sync.Pool：减少 GC 压力</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p><code>sync.Pool</code> 缓存临时对象以复用，减少 <code>runtime.mallocgc</code> 调用次数，降低 GC 频率。适合短生命周期的大量对象（buf、encoder、decoder、[]byte）。</p>
+          <p><strong>注意</strong>：GC 发生时 Pool 内容会被清空，不能用于缓存有状态的长期对象（如数据库连接）。</p>
+          <pre><span class="cm">// 典型用法：复用 bytes.Buffer</span>
+<span class="kw">var</span> <span class="id">bufPool</span> = &amp;<span class="pkg">sync</span>.<span class="id">Pool</span>{
+    <span class="id">New</span>: <span class="kw">func</span>() <span class="kw">interface</span>{} {
+        <span class="kw">return</span> <span class="pkg">bytes</span>.<span class="fn">NewBuffer</span>(<span class="fn">make</span>([]<span class="kw">byte</span>, <span class="num">0</span>, <span class="num">4096</span>))
+    },
+}
+
+<span class="kw">func</span> <span class="fn">processRequest</span>(<span class="id">data</span> []<span class="kw">byte</span>) <span class="kw">string</span> {
+    <span class="id">buf</span> := <span class="id">bufPool</span>.<span class="fn">Get</span>().(*<span class="pkg">bytes</span>.<span class="id">Buffer</span>)
+    <span class="id">buf</span>.<span class="fn">Reset</span>()  <span class="cm">// 复用前必须重置！</span>
+    <span class="kw">defer</span> <span class="id">bufPool</span>.<span class="fn">Put</span>(<span class="id">buf</span>)  <span class="cm">// 归还到 Pool</span>
+
+    <span class="id">buf</span>.<span class="fn">Write</span>(<span class="id">data</span>)
+    <span class="cm">// ... 处理逻辑</span>
+    <span class="kw">return</span> <span class="id">buf</span>.<span class="fn">String</span>()
+}
+
+<span class="cm">// 典型用法：复用 JSON encoder</span>
+<span class="kw">var</span> <span class="id">encPool</span> = &amp;<span class="pkg">sync</span>.<span class="id">Pool</span>{
+    <span class="id">New</span>: <span class="kw">func</span>() <span class="kw">interface</span>{} { <span class="kw">return</span> <span class="pkg">json</span>.<span class="fn">NewEncoder</span>(&amp;<span class="pkg">bytes</span>.<span class="id">Buffer</span>{}) },
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>heap profile 分析 + GC trace</h3>
+          <span class="badge badge-adv">adv</span>
+        </div>
+        <div class="card-body">
+          <div class="shell-block">
+<span class="cm"># 采集 heap profile（-memprofile）</span>
+<span class="prompt">$</span> <span class="cmd">go test -bench=. -benchmem -memprofile=mem.prof ./...</span>
+<span class="out">BenchmarkFoo-8    500000    2100 ns/op    512 B/op    6 allocs/op</span>
+<br>
+<span class="cm"># 分析累计分配（GC 压力根因）</span>
+<span class="prompt">$</span> <span class="cmd">go tool pprof -alloc_space -http=:8081 mem.prof</span>
+<br>
+<span class="cm"># 查看当前存活（内存泄漏）</span>
+<span class="prompt">$</span> <span class="cmd">go tool pprof -inuse_space -http=:8082 mem.prof</span>
+<br>
+<span class="cm"># 开启 GC trace 查看 GC 频率和停顿</span>
+<span class="prompt">$</span> <span class="cmd">GODEBUG=gctrace=1 ./myapp 2>&amp;1 | head -10</span>
+<span class="out">gc 1 @0.003s 3%: 0.006+1.2+0.013 ms clock, ...</span>
+<span class="out">gc 2 @0.012s 5%: 0.009+0.82+0.010 ms clock, ...</span>
+          </div>
+          <p style="font-size:.84rem;color:var(--dim);margin-top:8px;">GC trace 格式：<code>gc N @Ts P%: T1+T2+T3 ms clock</code>，T2 是 concurrent mark 阶段时间，T1/T3 是 STW 停顿。<code>P%</code> 是 GC 时间占比。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: goroutine 泄漏 -->
+    <section class="section" id="goroutine">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>goroutine 泄漏检测</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>泄漏检测方法</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p>goroutine 泄漏是 Go 服务内存持续增长的常见原因。每个 goroutine 有 ~2KB 初始栈，大量泄漏会导致 OOM。</p>
+          <pre><span class="cm">// 方法 1：监控 goroutine 数量</span>
+<span class="kw">import</span> <span class="st">"runtime"</span>
+
+<span class="kw">func</span> <span class="fn">monitorGoroutines</span>() {
+    <span class="kw">for</span> {
+        <span class="id">n</span> := <span class="pkg">runtime</span>.<span class="fn">NumGoroutine</span>()
+        <span class="pkg">log</span>.<span class="fn">Printf</span>(<span class="st">"goroutines: %d"</span>, <span class="id">n</span>)
+        <span class="pkg">time</span>.<span class="fn">Sleep</span>(<span class="num">10</span> * <span class="pkg">time</span>.<span class="id">Second</span>)
+    }
+}
+
+<span class="cm">// 方法 2：pprof goroutine profile（HTTP endpoint）</span>
+<span class="cm">// http://localhost:6060/debug/pprof/goroutine?debug=2</span>
+<span class="cm">// debug=2 输出每个 goroutine 的完整调用栈</span>
+
+<span class="cm">// 方法 3：goleak 单元测试级检测（推荐）</span>
+<span class="kw">import</span> <span class="st">"go.uber.org/goleak"</span>
+
+<span class="kw">func</span> <span class="fn">TestMyFunc</span>(<span class="id">t</span> *<span class="pkg">testing</span>.<span class="id">T</span>) {
+    <span class="kw">defer</span> <span class="id">goleak</span>.<span class="fn">VerifyNone</span>(<span class="id">t</span>)  <span class="cm">// 测试结束检查是否有泄漏</span>
+    <span class="cm">// ... 测试代码</span>
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>常见泄漏模式</h3>
+          <span class="badge badge-high">陷阱</span>
+        </div>
+        <div class="card-body">
+          <pre><span class="cm">// ❌ 模式 1：goroutine 等待没有人发送的 channel</span>
+<span class="kw">func</span> <span class="fn">leakByChannel</span>() {
+    <span class="id">ch</span> := <span class="fn">make</span>(<span class="kw">chan</span> <span class="kw">int</span>)
+    <span class="kw">go</span> <span class="kw">func</span>() {
+        <span class="id">v</span> := &lt;-<span class="id">ch</span>  <span class="cm">// 如果没人发送，goroutine 永远阻塞</span>
+        <span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">v</span>)
+    }()
+    <span class="cm">// ch 从未 close()，goroutine 泄漏</span>
+}
+
+<span class="cm">// ✅ 修复：用 context 控制生命周期</span>
+<span class="kw">func</span> <span class="fn">noLeak</span>(<span class="id">ctx</span> <span class="pkg">context</span>.<span class="id">Context</span>) {
+    <span class="id">ch</span> := <span class="fn">make</span>(<span class="kw">chan</span> <span class="kw">int</span>)
+    <span class="kw">go</span> <span class="kw">func</span>() {
+        <span class="kw">select</span> {
+        <span class="kw">case</span> <span class="id">v</span> := &lt;-<span class="id">ch</span>:
+            <span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">v</span>)
+        <span class="kw">case</span> &lt;-<span class="id">ctx</span>.<span class="fn">Done</span>():
+            <span class="kw">return</span>  <span class="cm">// context 取消时退出</span>
+        }
+    }()
+}
+
+<span class="cm">// ❌ 模式 2：for 循环中错误使用 defer</span>
+<span class="kw">func</span> <span class="fn">processFiles</span>(<span class="id">files</span> []<span class="kw">string</span>) {
+    <span class="kw">for</span> <span class="id">_</span>, <span class="id">f</span> := <span class="kw">range</span> <span class="id">files</span> {
+        <span class="id">fp</span>, _ := <span class="pkg">os</span>.<span class="fn">Open</span>(<span class="id">f</span>)
+        <span class="kw">defer</span> <span class="id">fp</span>.<span class="fn">Close</span>()  <span class="cm">// defer 在函数返回时执行，不是循环结束！</span>
+        <span class="cm">// ... 全部文件打开后才关闭，fd 泄漏</span>
+    }
+}
+
+<span class="cm">// ✅ 修复：封装为内层函数</span>
+<span class="kw">func</span> <span class="fn">processFilesSafe</span>(<span class="id">files</span> []<span class="kw">string</span>) {
+    <span class="kw">for</span> <span class="id">_</span>, <span class="id">f</span> := <span class="kw">range</span> <span class="id">files</span> {
+        <span class="kw">func</span>() {
+            <span class="id">fp</span>, _ := <span class="pkg">os</span>.<span class="fn">Open</span>(<span class="id">f</span>)
+            <span class="kw">defer</span> <span class="id">fp</span>.<span class="fn">Close</span>()  <span class="cm">// 每次迭代结束时关闭</span>
+            <span class="cm">// ...</span>
+        }()
+    }
+}</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 5: mutex 竞争 -->
+    <section class="section" id="mutex">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>mutex 竞争与无锁优化</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>mutex profile 分析</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <p>mutex 和 block profile 默认关闭，需在代码中显式启用采样率，否则 profile 数据为空。</p>
+          <pre><span class="kw">func</span> <span class="fn">main</span>() {
+    <span class="cm">// mutex profile: 采样 1/5 的 mutex 争用事件</span>
+    <span class="pkg">runtime</span>.<span class="fn">SetMutexProfileFraction</span>(<span class="num">5</span>)
+    <span class="cm">// block profile: 每 10ms 阻塞事件采样一次</span>
+    <span class="pkg">runtime</span>.<span class="fn">SetBlockProfileRate</span>(<span class="num">10000000</span>)
+    <span class="cm">// ...</span>
+}</pre>
+          <div class="shell-block">
+<span class="cm"># 采集 mutex profile</span>
+<span class="prompt">$</span> <span class="cmd">go test -bench=. -mutexprofile=mutex.prof ./...</span>
+<span class="prompt">$</span> <span class="cmd">go tool pprof -http=:8083 mutex.prof</span>
+<span class="cm"># 关注 contentions/op（争用次数）和 delay/op（等待时间）</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>锁优化方案选型</h3>
+          <span class="badge badge-adv">adv</span>
+        </div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>场景</th><th>推荐方案</th><th>原因</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>读多写少（并发 map）</td><td><code>sync.Map</code></td><td>读路径无锁，写路径细粒度锁</td></tr>
+                <tr><td>高并发大 map</td><td>分片锁（sharded map）</td><td>降低锁粒度，减少竞争</td></tr>
+                <tr><td>简单计数器</td><td><code>atomic.Int64</code></td><td>无锁 CAS 操作</td></tr>
+                <tr><td>复杂状态机</td><td><code>sync.Mutex</code></td><td>简单正确，读多写少改用 RWMutex</td></tr>
+                <tr><td>生产/消费</td><td><code>channel</code></td><td>语义清晰，天然序列化</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <pre><span class="cm">// atomic.Value：无锁读写任意值（读多写极少场景）</span>
+<span class="kw">var</span> <span class="id">config</span> <span class="pkg">atomic</span>.<span class="id">Value</span>
+
+<span class="kw">func</span> <span class="fn">updateConfig</span>(<span class="id">c</span> *<span class="id">Config</span>) { <span class="id">config</span>.<span class="fn">Store</span>(<span class="id">c</span>) }
+<span class="kw">func</span> <span class="fn">getConfig</span>() *<span class="id">Config</span>   { <span class="kw">return</span> <span class="id">config</span>.<span class="fn">Load</span>().(*<span class="id">Config</span>) }
+
+<span class="cm">// 分片锁减少竞争（16 个分片）</span>
+<span class="kw">type</span> <span class="id">ShardedMap</span> <span class="kw">struct</span> {
+    <span class="id">shards</span> [<span class="num">16</span>]<span class="kw">struct</span> {
+        <span class="id">mu</span>   <span class="pkg">sync</span>.<span class="id">RWMutex</span>
+        <span class="id">data</span> <span class="kw">map</span>[<span class="kw">string</span>]<span class="kw">interface</span>{}
+    }
+}
+<span class="kw">func</span> (<span class="id">m</span> *<span class="id">ShardedMap</span>) <span class="fn">shard</span>(<span class="id">key</span> <span class="kw">string</span>) <span class="kw">int</span> {
+    <span class="id">h</span> := <span class="pkg">fnv</span>.<span class="fn">New32a</span>()
+    <span class="id">h</span>.<span class="fn">Write</span>([]<span class="kw">byte</span>(<span class="id">key</span>))
+    <span class="kw">return</span> <span class="kw">int</span>(<span class="id">h</span>.<span class="fn">Sum32</span>()) &amp; <span class="num">15</span>
+}</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 6: Benchmark -->
+    <section class="section" id="benchmark">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>Benchmark 正确写法</h2>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>testing.B 关键方法</h3>
+          <span class="badge badge-core">core</span>
+        </div>
+        <div class="card-body">
+          <pre><span class="kw">var</span> <span class="id">globalResult</span> <span class="kw">int</span>  <span class="cm">// sink：防止编译器消除无副作用代码</span>
+
+<span class="kw">func</span> <span class="fn">BenchmarkComplexOp</span>(<span class="id">b</span> *<span class="pkg">testing</span>.<span class="id">B</span>) {
+    <span class="cm">// 准备测试数据（不计入计时）</span>
+    <span class="id">data</span> := <span class="fn">generateLargeDataset</span>(<span class="num">100000</span>)
+
+    <span class="id">b</span>.<span class="fn">ResetTimer</span>()    <span class="cm">// 排除准备时间</span>
+    <span class="id">b</span>.<span class="fn">ReportAllocs</span>()  <span class="cm">// 等同 -benchmem，报告内存分配</span>
+
+    <span class="kw">var</span> <span class="id">result</span> <span class="kw">int</span>
+    <span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="id">b</span>.<span class="id">N</span>; <span class="id">i</span>++ {
+        <span class="id">b</span>.<span class="fn">StopTimer</span>()   <span class="cm">// 暂停计时（准备迭代级数据）</span>
+        <span class="fn">resetState</span>()
+        <span class="id">b</span>.<span class="fn">StartTimer</span>()  <span class="cm">// 恢复计时</span>
+
+        <span class="id">result</span> = <span class="fn">processData</span>(<span class="id">data</span>)
+    }
+    <span class="id">globalResult</span> = <span class="id">result</span>  <span class="cm">// 写入 sink，防止编译器消除</span>
+}
+
+<span class="cm">// 子 benchmark：不同数据规模对比</span>
+<span class="kw">func</span> <span class="fn">BenchmarkSort</span>(<span class="id">b</span> *<span class="pkg">testing</span>.<span class="id">B</span>) {
+    <span class="kw">for</span> <span class="id">_</span>, <span class="id">size</span> := <span class="kw">range</span> []<span class="kw">int</span>{<span class="num">100</span>, <span class="num">1000</span>, <span class="num">10000</span>} {
+        <span class="id">b</span>.<span class="fn">Run</span>(<span class="pkg">fmt</span>.<span class="fn">Sprintf</span>(<span class="st">"size=%d"</span>, <span class="id">size</span>), <span class="kw">func</span>(<span class="id">b</span> *<span class="pkg">testing</span>.<span class="id">B</span>) {
+            <span class="id">data</span> := <span class="fn">randSlice</span>(<span class="id">size</span>)
+            <span class="id">b</span>.<span class="fn">ResetTimer</span>()
+            <span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="id">b</span>.<span class="id">N</span>; <span class="id">i</span>++ {
+                <span class="pkg">sort</span>.<span class="fn">Ints</span>(<span class="id">data</span>)
+            }
+        })
+    }
+}</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hd">
+          <h3>benchstat：统计显著性对比</h3>
+          <span class="badge badge-adv">key</span>
+        </div>
+        <div class="card-body">
+          <p><code>benchstat</code> 通过 t 检验判断两组 benchmark 结果是否有统计显著差异，避免因测量噪声误判优化效果。</p>
+          <div class="shell-block">
+<span class="cm"># 安装</span>
+<span class="prompt">$</span> <span class="cmd">go install golang.org/x/perf/cmd/benchstat@latest</span>
+<br>
+<span class="cm"># 记录优化前（-count=6 多次运行减少噪声）</span>
+<span class="prompt">$</span> <span class="cmd">go test -bench=BenchmarkFoo -count=6 -benchmem > before.txt</span>
+<br>
+<span class="cm"># 实施优化...</span>
+<br>
+<span class="cm"># 记录优化后</span>
+<span class="prompt">$</span> <span class="cmd">go test -bench=BenchmarkFoo -count=6 -benchmem > after.txt</span>
+<br>
+<span class="cm"># 对比结果</span>
+<span class="prompt">$</span> <span class="cmd">benchstat before.txt after.txt</span>
+<span class="out">name     old time/op    new time/op    delta</span>
+<span class="out">Foo-8     2.10µs ± 3%   0.87µs ± 2%  -58.6%  (p=0.000 n=6+6)</span>
+<span class="out">name     old allocs/op  new allocs/op  delta</span>
+<span class="out">Foo-8      12.0 ± 0%      3.0 ± 0%   -75.0%  (p=0.000 n=6+6)</span>
+          </div>
+          <p style="font-size:.84rem;color:var(--dim);margin-top:8px;"><code>p=0.000</code> 表示 p 值极小，差异有统计显著性。<code>±3%</code> 是变异系数，小于 5% 说明测量稳定可信。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 7: Q&A -->
+    <section class="section" id="qa">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>面试题</h2>
+      </div>
+
+      <div class="qa-card" onclick="this.classList.toggle('open')">
+        <div class="qa-q">
+          如何定位一个 Go 服务 CPU 使用率突然升高的问题？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          三步走：①采集 CPU profile（通过 net/http/pprof 端点或 go test -cpuprofile）；②用 go tool pprof -http=:8080 打开火焰图；③找最宽的"平顶"函数（flat% 高）。<br><br>
+          常见根因：regexp 在热路径上重复编译（包级缓存解决）、json.Marshal 频繁调用（导致 mallocgc 占用）、GC 标记线程过多（说明堆分配量大，需减少逃逸）。
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="this.classList.toggle('open')">
+        <div class="qa-q">
+          sync.Pool 和 channel-based 对象池有什么区别，各自适用什么场景？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          <strong>sync.Pool</strong>：GC 友好，无需手动管理容量，GC 时自动清空；适合无状态的临时对象（[]byte、bytes.Buffer、json.Encoder），不适合要求持久化的对象（如 DB 连接）。<br><br>
+          <strong>channel 池</strong>：容量固定，Get/Put 有阻塞语义，适合有限资源的连接池（数据库、HTTP 连接、goroutine worker pool）；Get 阻塞意味着可以背压，而 sync.Pool.Get 永远成功（New() 兜底）。
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="this.classList.toggle('open')">
+        <div class="qa-q">
+          逃逸分析如何减少 GC 压力？常见触发逃逸的代码模式有哪些？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          栈上分配的变量随 goroutine 栈帧自动回收，不参与 GC 扫描；堆上分配的变量需要 GC 标记和清除，分配次数越多 GC 越频繁（触发阈值是堆增长 100%）。通过减少逃逸，allocs/op 降低，GC 频率也随之降低。<br><br>
+          常见逃逸触发：①返回局部变量指针；②赋值给 interface{}（如传给 fmt.Println）；③闭包捕获局部变量；④slice/map 中存储指针；⑤goroutine 中引用外部变量；⑥变量大小超过编译器阈值（64KB）。<br><br>
+          用 <code>go build -gcflags="-m"</code> 验证，<code>does not escape</code> 是目标，<code>escapes to heap</code> 需要分析原因。
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="this.classList.toggle('open')">
+        <div class="qa-q">
+          benchstat 对比两组 benchmark 时，p 值的意义是什么？为什么需要 -count=6？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          benchstat 使用 Welch's t-test 检验两组均值是否有显著差异。p 值是"观测到这种差异是随机噪声的概率"：p&lt;0.05 认为差异有统计显著性，p&gt;0.05 则结论不可信。<br><br>
+          <code>-count=1</code> 只有一次观测，无法区分信号和噪声（机器抖动、OS 调度、CPU 频率波动都会影响单次结果）。<code>-count=6</code> 提供足够样本量让 t-test 有统计功效。生产级性能测试建议 count≥6，且在空闲机器上运行（隔离噪声）。
+        </div>
+      </div>
+
+      <div class="qa-card" onclick="this.classList.toggle('open')">
+        <div class="qa-q">
+          如何检测和修复 goroutine 泄漏？
+          <span class="qa-arrow">▶</span>
+        </div>
+        <div class="qa-a">
+          检测方法：①监控 <code>runtime.NumGoroutine()</code> 是否持续增长；②通过 pprof goroutine profile（debug=2）查看所有 goroutine 调用栈；③集成 goleak 库在单元测试中自动检测。<br><br>
+          常见泄漏模式与修复：①channel 无人发送 → 传入 ctx 并用 select 监听 ctx.Done()；②HTTP client 未读完 Response.Body → 总是 <code>defer resp.Body.Close()</code> 并 <code>io.Copy(io.Discard, resp.Body)</code>；③worker goroutine 死循环无退出条件 → 传入 done channel 或 context；④循环 defer 不在函数结束执行 → 封装成闭包或函数。
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 8: Pitfalls -->
+    <section class="section" id="pitfalls">
+      <div class="section-title">
+        <div class="title-bar"></div>
+        <h2>易错点</h2>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">✗ sync.Pool.Put 前未重置对象状态</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// 错误：归还带有上次数据的 buffer</span>
+<span class="kw">func</span> <span class="fn">encode</span>(<span class="id">v</span> <span class="kw">interface</span>{}) []<span class="kw">byte</span> {
+    <span class="id">buf</span> := <span class="id">bufPool</span>.<span class="fn">Get</span>().(*<span class="pkg">bytes</span>.<span class="id">Buffer</span>)
+    <span class="cm">// 忘记 Reset！</span>
+    <span class="pkg">json</span>.<span class="fn">NewEncoder</span>(<span class="id">buf</span>).<span class="fn">Encode</span>(<span class="id">v</span>)
+    <span class="id">result</span> := <span class="id">buf</span>.<span class="fn">Bytes</span>()
+    <span class="id">bufPool</span>.<span class="fn">Put</span>(<span class="id">buf</span>)
+    <span class="kw">return</span> <span class="id">result</span>
+}</pre>
+            <p>下次 Get 时 buffer 残留旧数据，导致输出包含垃圾内容，难以排查的 bug。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 正确：Put 前先 Reset，Get 后也 Reset</span>
+<span class="kw">func</span> <span class="fn">encode</span>(<span class="id">v</span> <span class="kw">interface</span>{}) []<span class="kw">byte</span> {
+    <span class="id">buf</span> := <span class="id">bufPool</span>.<span class="fn">Get</span>().(*<span class="pkg">bytes</span>.<span class="id">Buffer</span>)
+    <span class="id">buf</span>.<span class="fn">Reset</span>()  <span class="cm">// Get 后立即 Reset</span>
+    <span class="pkg">json</span>.<span class="fn">NewEncoder</span>(<span class="id">buf</span>).<span class="fn">Encode</span>(<span class="id">v</span>)
+    <span class="id">result</span> := <span class="pkg">append</span>([]<span class="kw">byte</span>(<span class="kw">nil</span>), <span class="id">buf</span>.<span class="fn">Bytes</span>()...)
+    <span class="id">bufPool</span>.<span class="fn">Put</span>(<span class="id">buf</span>)  <span class="cm">// 归还时 buf 已被 Reset</span>
+    <span class="kw">return</span> <span class="id">result</span>
+}</pre>
+            <p>注意：result 需要 copy，否则 Put 后 buf 被复用，result 内容被覆盖。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">✗ Benchmark 结果被编译器优化掉</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm">// 错误：结果未使用，编译器可能消除整个循环</span>
+<span class="kw">func</span> <span class="fn">BenchmarkBad</span>(<span class="id">b</span> *<span class="pkg">testing</span>.<span class="id">B</span>) {
+    <span class="id">data</span> := []<span class="kw">byte</span>(<span class="st">"hello world"</span>)
+    <span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="id">b</span>.<span class="id">N</span>; <span class="id">i</span>++ {
+        <span class="pkg">sha256</span>.<span class="fn">Sum256</span>(<span class="id">data</span>) <span class="cm">// 丢弃结果</span>
+    }
+}
+<span class="cm"># 输出: 0.3 ns/op — 虚假极快</span></pre>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm">// 正确：sink 变量保留结果副作用</span>
+<span class="kw">var</span> <span class="id">benchSink</span> [<span class="num">32</span>]<span class="kw">byte</span>
+
+<span class="kw">func</span> <span class="fn">BenchmarkGood</span>(<span class="id">b</span> *<span class="pkg">testing</span>.<span class="id">B</span>) {
+    <span class="id">data</span> := []<span class="kw">byte</span>(<span class="st">"hello world"</span>)
+    <span class="kw">for</span> <span class="id">i</span> := <span class="num">0</span>; <span class="id">i</span> &lt; <span class="id">b</span>.<span class="id">N</span>; <span class="id">i</span>++ {
+        <span class="id">benchSink</span> = <span class="pkg">sha256</span>.<span class="fn">Sum256</span>(<span class="id">data</span>)
+    }
+}
+<span class="cm"># 输出: 312 ns/op — 真实结果</span></pre>
+            <p>全局变量赋值有副作用，编译器不会消除。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">✗ -count=1 的 benchmark 结论不可靠</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm"># 错误：只跑一次就下结论</span>
+$ go test -bench=. > after.txt
+$ benchstat before.txt after.txt
+name    old ns/op  new ns/op  delta
+Foo-8   2100 ± ?%   1850 ± ?%  ~  (p=1.000)
+<span class="cm"># p=1.000: 无法判断！只有 1 次观测</span></pre>
+            <p>单次 benchmark 受机器状态影响极大，无法做统计检验。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm"># 正确：-count=6 以上才有统计功效</span>
+$ go test -bench=. -count=6 > after.txt
+$ benchstat before.txt after.txt
+name    old ns/op    new ns/op    delta
+Foo-8   2100 ± 2%   1870 ± 3%  -11.0%
+<span class="cm">#                            (p=0.001 n=6+6)</span>
+<span class="cm"># p&lt;0.05: 差异有统计显著性</span></pre>
+            <p>建议 count=6 作为最小值，生产级测试用 count=10。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+</div>
+
+<script>
+if (typeof NavTracker !== 'undefined') {
+  NavTracker.track('Go 性能调优','golang/performance-tuning.html','⚡','Golang');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="开发者只需编写函数，平台负责容器创建、网络配置、弹性伸缩和销毁。无请求时实例数归零（scale-to-zero），请求到来时自动启动（冷启动）。">
+<link rel="canonical" href="https://melodycoder12345.github.io/cloud-native/serverless.html">
+<meta property="og:title" content="Serverless / FaaS — 码海拾贝">
+<meta property="og:description" content="开发者只需编写函数，平台负责容器创建、网络配置、弹性伸缩和销毁。无请求时实例数归零，请求到来时自动冷启动。AWS Lambda / Google Cloud Functions / Knative。">
+<meta property="og:url" content="https://melodycoder12345.github.io/cloud-native/serverless.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Serverless / FaaS — 码海拾贝">
+<meta name="twitter:description" content="冷启动、并发扩容、scale-to-zero、事件驱动触发完整动画解析。">
+<title>Serverless / FaaS - 云原生</title>
+<script src="../nav.js"></script>
+<style>
+:root{
+  --bg:#0f172a;
+  --text:#e2e8f0;
+  --dim:#94a3b8;
+  --dim2:#64748b;
+  --accent:#f59e0b;
+  --accent2:#fbbf24;
+  --ok:#4ade80;
+  --warn:#f87171;
+  --info:#60a5fa;
+  --purple:#a78bfa;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  min-height:100vh;
+  background:radial-gradient(circle at 30% 0%,rgba(245,158,11,.08),transparent 40%),var(--bg);
+  color:var(--text);
+  font-family:'Segoe UI',system-ui,-apple-system,sans-serif
+}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1320px;margin:0 auto;padding:40px 32px 80px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--dim2);margin-bottom:24px}
+.breadcrumb a{color:var(--dim2)}.breadcrumb a:hover{color:var(--text)}
+.page-title{
+  font-size:clamp(1.6rem,3.5vw,2.8rem);
+  letter-spacing:-.04em;
+  margin-bottom:6px;
+  background:linear-gradient(135deg,#f8fafc,var(--accent));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text
+}
+.subtitle{color:var(--dim);font-size:.92rem;margin-bottom:28px;max-width:700px;line-height:1.8}
+.layout{display:grid;grid-template-columns:280px 1fr;gap:20px}
+
+/* Left Panel */
+.left-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:18px}
+.left-panel h3{font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px;font-weight:700}
+.tab-btns{display:flex;flex-direction:column;gap:4px;margin-bottom:16px}
+.tab-btn{
+  width:100%;text-align:left;
+  border:1px solid rgba(255,255,255,.06);
+  background:rgba(255,255,255,.02);
+  color:var(--dim);
+  padding:9px 12px;border-radius:10px;cursor:pointer;
+  font-size:.8rem;line-height:1.4;transition:.15s;display:flex;align-items:center;gap:8px
+}
+.tab-btn:hover{border-color:rgba(245,158,11,.35);color:var(--text)}
+.tab-btn.active{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.45);color:var(--text)}
+.tab-icon{font-size:1rem;flex-shrink:0}
+.step-divider{border:none;border-top:1px solid rgba(255,255,255,.07);margin:12px 0}
+.step-btn{
+  width:100%;text-align:left;
+  border:1px solid transparent;
+  background:none;color:var(--dim);
+  padding:8px 10px;border-radius:9px;cursor:pointer;
+  font-size:.78rem;line-height:1.5;transition:.15s;margin-bottom:3px;display:block
+}
+.step-btn:hover{border-color:rgba(245,158,11,.3);color:var(--text)}
+.step-btn.active{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.4);color:var(--text)}
+.step-index{
+  display:inline-block;width:18px;height:18px;border-radius:50%;
+  background:rgba(245,158,11,.15);color:var(--accent);
+  font-size:.65rem;font-weight:700;text-align:center;line-height:18px;margin-right:6px
+}
+.ctrl{display:flex;gap:6px;margin-top:14px;flex-wrap:wrap}
+.ctrl button{
+  flex:1;min-width:56px;
+  border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.04);color:var(--dim);
+  border-radius:9px;padding:8px 4px;cursor:pointer;font-size:.74rem;transition:.15s
+}
+.ctrl button:hover{border-color:var(--accent);color:var(--text)}
+
+/* Center Panel */
+.center-panel{
+  border:1px solid rgba(255,255,255,.07);
+  background:rgba(17,24,39,.7);
+  border-radius:18px;padding:22px;min-height:560px;
+  display:flex;flex-direction:column;gap:16px
+}
+.step-msg{
+  border-left:3px solid var(--accent);
+  background:rgba(245,158,11,.06);
+  border-radius:0 10px 10px 0;
+  padding:10px 14px;font-size:.85rem;color:var(--text);line-height:1.75
+}
+
+/* === Scene 1: Cold Start === */
+.cold-start-scene{display:flex;flex-direction:column;gap:14px}
+.instance-counter{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07)}
+.ic-label{font-size:.78rem;color:var(--dim);min-width:100px}
+.ic-value{font-size:1.8rem;font-weight:800;color:var(--accent);min-width:48px;text-align:center;transition:all .4s}
+.ic-dots{display:flex;gap:6px;flex-wrap:wrap}
+.inst-dot{
+  width:28px;height:28px;border-radius:8px;
+  border:1px solid rgba(245,158,11,.3);
+  background:rgba(245,158,11,.12);
+  display:flex;align-items:center;justify-content:center;
+  font-size:.7rem;transition:all .4s;
+  position:relative;overflow:hidden
+}
+.inst-dot.warm{background:rgba(74,222,128,.15);border-color:rgba(74,222,128,.5);box-shadow:0 0 8px rgba(74,222,128,.2)}
+.inst-dot.cold{background:rgba(96,165,250,.15);border-color:rgba(96,165,250,.4);animation:pulse-cold .8s ease-in-out infinite}
+.inst-dot.zero{background:rgba(255,255,255,.03);border-color:rgba(255,255,255,.1);color:var(--dim2)}
+@keyframes pulse-cold{0%,100%{box-shadow:0 0 4px rgba(96,165,250,.3)}50%{box-shadow:0 0 14px rgba(96,165,250,.6)}}
+
+.timeline-row{display:flex;flex-direction:column;gap:10px}
+.tl-item{display:flex;align-items:center;gap:10px}
+.tl-label{font-size:.76rem;color:var(--dim);min-width:80px;text-align:right}
+.tl-bar-wrap{flex:1;height:22px;background:rgba(255,255,255,.04);border-radius:6px;overflow:hidden;position:relative;border:1px solid rgba(255,255,255,.07)}
+.tl-bar{height:100%;border-radius:5px;transition:width .6s cubic-bezier(.4,0,.2,1);position:relative;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;font-size:.65rem;white-space:nowrap}
+.tl-bar.seg-img{background:linear-gradient(90deg,#6366f1,#818cf8)}
+.tl-bar.seg-runtime{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
+.tl-bar.seg-init{background:linear-gradient(90deg,#10b981,#34d399)}
+.tl-bar.seg-exec{background:linear-gradient(90deg,#06b6d4,#38bdf8)}
+.tl-bar.seg-warm{background:linear-gradient(90deg,#4ade80,#86efac)}
+.tl-total{font-size:.74rem;color:var(--dim);min-width:52px;text-align:left}
+
+.stage-flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+.stage-box{
+  flex:1;min-width:100px;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:10px;padding:10px 12px;margin:4px;
+  background:rgba(255,255,255,.02);transition:all .4s;
+  position:relative
+}
+.stage-box.active{border-color:var(--accent);background:rgba(245,158,11,.1);box-shadow:0 0 16px rgba(245,158,11,.15)}
+.stage-box.done{border-color:rgba(74,222,128,.3);background:rgba(74,222,128,.05);opacity:.75}
+.stage-box.pending{opacity:.4}
+.stage-icon{font-size:1.2rem;margin-bottom:4px}
+.stage-name{font-size:.73rem;font-weight:600;color:var(--text)}
+.stage-time{font-size:.66rem;color:var(--dim);margin-top:2px}
+
+/* === Scene 2: Concurrent Scale === */
+.scale-scene{display:flex;flex-direction:column;gap:14px}
+.req-queue{display:flex;gap:5px;flex-wrap:wrap;padding:10px 14px;background:rgba(255,255,255,.03);border-radius:12px;border:1px solid rgba(255,255,255,.07);min-height:52px;align-items:center}
+.req-tag{
+  padding:4px 9px;border-radius:6px;font-size:.71rem;font-family:monospace;
+  background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.3);color:var(--info);
+  transition:all .3s
+}
+.req-tag.processing{background:rgba(74,222,128,.12);border-color:rgba(74,222,128,.4);color:var(--ok)}
+.req-tag.queued{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.3);color:var(--accent);animation:blink .7s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.5}}
+.req-tag.done{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.1);color:var(--dim2);opacity:.6}
+
+.instances-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:8px}
+.inst-card{
+  border:1px solid rgba(255,255,255,.1);border-radius:12px;
+  padding:10px 8px;text-align:center;
+  background:rgba(255,255,255,.02);transition:all .4s;
+  font-size:.7rem
+}
+.inst-card.idle{border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.08);color:var(--accent)}
+.inst-card.busy{border-color:rgba(74,222,128,.4);background:rgba(74,222,128,.1);color:var(--ok);animation:pulse-warm .9s ease-in-out infinite}
+.inst-card.booting{border-color:rgba(96,165,250,.4);background:rgba(96,165,250,.1);color:var(--info);animation:pulse-cold .8s ease-in-out infinite}
+.inst-card.ghost{border-color:rgba(255,255,255,.06);background:rgba(255,255,255,.02);color:var(--dim2);opacity:.35}
+.inst-card.dying{border-color:rgba(248,113,113,.3);background:rgba(248,113,113,.06);color:#f87171;opacity:.6}
+@keyframes pulse-warm{0%,100%{box-shadow:0 0 4px rgba(74,222,128,.2)}50%{box-shadow:0 0 12px rgba(74,222,128,.4)}}
+.inst-emoji{font-size:1.1rem;margin-bottom:4px}
+.inst-state{font-size:.63rem;color:inherit}
+
+/* === Scene 3: Scale to Zero === */
+.s2z-scene{display:flex;flex-direction:column;gap:14px}
+.timer-box{display:flex;align-items:center;gap:14px;padding:14px 18px;border-radius:12px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02)}
+.timer-dial{
+  width:62px;height:62px;border-radius:50%;
+  border:3px solid rgba(245,158,11,.3);
+  display:flex;align-items:center;justify-content:center;
+  flex-direction:column;position:relative;transition:all .5s
+}
+.timer-dial.warning{border-color:rgba(248,113,113,.6);box-shadow:0 0 16px rgba(248,113,113,.2)}
+.timer-val{font-size:1rem;font-weight:700;color:var(--accent)}
+.timer-unit{font-size:.6rem;color:var(--dim)}
+.timer-desc{flex:1}
+.timer-title{font-size:.84rem;font-weight:600;color:var(--text)}
+.timer-sub{font-size:.75rem;color:var(--dim);margin-top:3px}
+
+.cost-compare{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cost-card{border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px}
+.cost-card.traditional{border-color:rgba(248,113,113,.25);background:rgba(248,113,113,.04)}
+.cost-card.serverless{border-color:rgba(74,222,128,.25);background:rgba(74,222,128,.04)}
+.cost-title{font-size:.76rem;font-weight:700;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.cost-bar-wrap{height:14px;background:rgba(255,255,255,.05);border-radius:4px;overflow:hidden;margin:4px 0}
+.cost-bar{height:100%;border-radius:4px;transition:width .8s}
+.cost-bar.red{background:linear-gradient(90deg,#f87171,#fca5a5)}
+.cost-bar.green{background:linear-gradient(90deg,#4ade80,#86efac)}
+.cost-num{font-size:.7rem;color:var(--dim);margin-top:4px}
+
+/* === Scene 4: Event Driven === */
+.event-scene{display:flex;flex-direction:column;gap:14px}
+.trigger-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.trigger-card{
+  border:1px solid rgba(255,255,255,.08);border-radius:12px;
+  padding:10px;text-align:center;background:rgba(255,255,255,.02);
+  transition:all .35s;cursor:default
+}
+.trigger-card.active{border-color:var(--accent);background:rgba(245,158,11,.12);box-shadow:0 0 14px rgba(245,158,11,.2);transform:translateY(-2px)}
+.trigger-card.dim{opacity:.35}
+.trig-icon{font-size:1.4rem;margin-bottom:4px}
+.trig-name{font-size:.7rem;font-weight:600;color:var(--text)}
+.trig-desc{font-size:.63rem;color:var(--dim);margin-top:2px}
+
+.flow-list{display:flex;flex-direction:column;gap:6px}
+.flow-row{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 12px;border-radius:10px;
+  border:1px solid rgba(255,255,255,.06);
+  background:rgba(255,255,255,.02);
+  font-size:.8rem;transition:all .35s
+}
+.flow-row.active{border-color:var(--accent);background:rgba(245,158,11,.1);box-shadow:0 0 10px rgba(245,158,11,.1)}
+.flow-row.done{border-color:rgba(74,222,128,.25);background:rgba(74,222,128,.04);opacity:.7}
+.flow-row.error{border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.06)}
+.flow-row.warn{border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.06)}
+.flow-icon{font-size:.95rem;flex-shrink:0;width:22px;text-align:center}
+.flow-text{flex:1;line-height:1.4}
+.flow-badge{font-size:.65rem;padding:2px 7px;border-radius:5px;flex-shrink:0}
+.badge-ok{background:rgba(74,222,128,.15);color:var(--ok);border:1px solid rgba(74,222,128,.3)}
+.badge-err{background:rgba(248,113,113,.15);color:var(--warn);border:1px solid rgba(248,113,113,.3)}
+.badge-warn{background:rgba(251,191,36,.15);color:#fbbf24;border:1px solid rgba(251,191,36,.3)}
+.badge-info{background:rgba(96,165,250,.15);color:var(--info);border:1px solid rgba(96,165,250,.3)}
+
+/* Shared info note */
+.info-note{
+  display:flex;align-items:flex-start;gap:8px;
+  padding:8px 12px;border-radius:8px;font-size:.76rem;
+  background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);color:var(--dim);line-height:1.6
+}
+.info-note.blue{background:rgba(96,165,250,.06);border-color:rgba(96,165,250,.2)}
+.info-note.red{background:rgba(248,113,113,.06);border-color:rgba(248,113,113,.2)}
+.info-note.green{background:rgba(74,222,128,.06);border-color:rgba(74,222,128,.2)}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="breadcrumb">
+    <a href="../index.html">首页</a><span>/</span>
+    <a href="index.html">云原生</a><span>/</span>
+    <span>Serverless / FaaS</span>
+  </div>
+  <h1 class="page-title">Serverless / FaaS</h1>
+  <p class="subtitle">开发者只需编写函数，平台负责容器创建、网络配置、弹性伸缩和销毁。无请求时实例数归零（scale-to-zero），请求到来时自动启动（冷启动）。以 AWS Lambda / Google Cloud Functions / Knative 为代表，以事件驱动、按用量计费为核心特征。</p>
+
+  <div class="layout">
+    <!-- Left Panel -->
+    <div class="left-panel">
+      <h3>场景</h3>
+      <div class="tab-btns" id="tabBtns">
+        <button class="tab-btn active" onclick="switchTab(0)"><span class="tab-icon">🧊</span>冷启动流程</button>
+        <button class="tab-btn" onclick="switchTab(1)"><span class="tab-icon">📈</span>并发扩容</button>
+        <button class="tab-btn" onclick="switchTab(2)"><span class="tab-icon">⚡</span>Scale-to-Zero</button>
+        <button class="tab-btn" onclick="switchTab(3)"><span class="tab-icon">🔗</span>事件驱动触发</button>
+      </div>
+      <hr class="step-divider">
+      <h3>步骤</h3>
+      <div id="stepList"></div>
+      <div class="ctrl">
+        <button onclick="prev()">← 上一步</button>
+        <button onclick="next()">下一步 →</button>
+        <button onclick="reset()">重置</button>
+        <button id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      </div>
+    </div>
+
+    <!-- Center Panel -->
+    <div class="center-panel">
+      <div class="step-msg" id="stepMsg">选择场景，点击「下一步」开始。</div>
+      <div id="sceneArea"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+/* ====================== DATA ====================== */
+
+// Scene 1: Cold Start
+const COLD_STEPS = [
+  {
+    msg:'初始状态：函数实例数 = 0（scale-to-zero）。平台上没有任何运行中的容器，也不产生任何费用。',
+    inst:0, stageActive:-1, showBar:false
+  },
+  {
+    msg:'第一个 HTTP 请求到来。平台的 API Gateway / 负载均衡收到请求，路由到对应函数。',
+    inst:0, stageActive:-1, showBar:false, reqArrived:true
+  },
+  {
+    msg:'平台检测到没有可用实例（0 warm instances）。触发冷启动流程。',
+    inst:0, stageActive:-1, showBar:false, reqArrived:true, noInst:true
+  },
+  {
+    msg:'阶段 1 — 下载镜像层：从 Container Registry 拉取函数镜像（可能有多个层，总计 50-500MB）。这是冷启动耗时最长的阶段之一。',
+    inst:1, stageActive:0, showBar:true, bars:{img:45,runtime:0,init:0,exec:0}
+  },
+  {
+    msg:'阶段 2 — 启动运行时：解压镜像、分配内存（如 512MB）、启动语言运行时（如 Node.js / JVM / Python）。JVM 冷启动可达 1-3 秒。',
+    inst:1, stageActive:1, showBar:true, bars:{img:45,runtime:30,init:0,exec:0}
+  },
+  {
+    msg:'阶段 3 — 函数初始化：执行函数模块级代码，加载 SDK 依赖，建立数据库连接池、Redis 连接。这部分由开发者代码决定快慢。',
+    inst:1, stageActive:2, showBar:true, bars:{img:45,runtime:30,init:20,exec:0}
+  },
+  {
+    msg:'阶段 4 — 函数执行：处理实际业务逻辑。这才是真正的有效工作，通常只需几十毫秒。冷启动总延迟 300ms-2000ms，执行本身只占小部分。',
+    inst:1, stageActive:3, showBar:true, bars:{img:45,runtime:30,init:20,exec:5}
+  },
+  {
+    msg:'请求处理完毕，响应返回。容器保持温热（warm）状态，在超时时间内等待下一个请求，避免下次冷启动。',
+    inst:1, stageActive:3, showBar:true, bars:{img:45,runtime:30,init:20,exec:5}, warm:true
+  },
+  {
+    msg:'对比：温启动（warm start）——已有实例直接执行，跳过下载镜像和初始化，延迟 < 10ms，与传统服务无差异。合理保活策略可显著降低冷启动影响。',
+    inst:1, stageActive:3, showBar:true, bars:{img:45,runtime:30,init:20,exec:5}, warm:true, showWarm:true
+  },
+];
+
+// Scene 2: Concurrent Scale
+const SCALE_STEPS = [
+  {
+    msg:'初始状态：平台有 1 个温热实例（warm instance），处于空闲状态，随时可以处理请求。',
+    insts:[{s:'idle'}], reqs:[], qLabel:'等待请求…'
+  },
+  {
+    msg:'同时到来 10 个并发请求（流量峰值）。第 1 个请求立即被已有的温热实例接受，无延迟。',
+    insts:[{s:'busy',req:'R1'}], reqs:['R1','R2','R3','R4','R5','R6','R7','R8','R9','R10'], activeReqs:['R1'], queuedReqs:['R2','R3','R4','R5','R6','R7','R8','R9','R10'], qLabel:'R2~R10 等待实例'
+  },
+  {
+    msg:'后续 9 个请求触发扩容。平台并行创建 9 个新实例（冷启动，蓝色闪烁），每个实例独立启动互不阻塞。',
+    insts:[{s:'busy',req:'R1'},{s:'booting'},{s:'booting'},{s:'booting'},{s:'booting'},{s:'booting'},{s:'booting'},{s:'booting'},{s:'booting'},{s:'booting'}],
+    reqs:['R1','R2','R3','R4','R5','R6','R7','R8','R9','R10'], activeReqs:['R1'], queuedReqs:['R2','R3','R4','R5','R6','R7','R8','R9','R10'], qLabel:'9 个实例并行冷启动中'
+  },
+  {
+    msg:'新实例就绪，各自接手一个等待中的请求并发处理。10 个请求同时处理中，系统整体吞吐量线性扩展。',
+    insts:[{s:'busy',req:'R1'},{s:'busy',req:'R2'},{s:'busy',req:'R3'},{s:'busy',req:'R4'},{s:'busy',req:'R5'},{s:'busy',req:'R6'},{s:'busy',req:'R7'},{s:'busy',req:'R8'},{s:'busy',req:'R9'},{s:'busy',req:'R10'}],
+    reqs:['R1','R2','R3','R4','R5','R6','R7','R8','R9','R10'], activeReqs:['R1','R2','R3','R4','R5','R6','R7','R8','R9','R10'], queuedReqs:[], qLabel:'10 个请求并行处理'
+  },
+  {
+    msg:'所有请求处理完成。10 个实例变为温热等待状态。高峰结束，流量下降。',
+    insts:[{s:'idle'},{s:'idle'},{s:'idle'},{s:'idle'},{s:'idle'},{s:'idle'},{s:'idle'},{s:'idle'},{s:'idle'},{s:'idle'}],
+    reqs:['R1','R2','R3','R4','R5','R6','R7','R8','R9','R10'], activeReqs:[], queuedReqs:[], doneReqs:['R1','R2','R3','R4','R5','R6','R7','R8','R9','R10'], qLabel:'请求已完成'
+  },
+  {
+    msg:'缩容开始：平台检测到实例空闲，逐步销毁多余实例（通常每分钟缩减一批），最终保留少量或回到零实例。',
+    insts:[{s:'idle'},{s:'idle'},{s:'dying'},{s:'dying'},{s:'dying'},{s:'dying'},{s:'dying'},{s:'dying'},{s:'dying'},{s:'dying'}],
+    reqs:[], activeReqs:[], queuedReqs:[], doneReqs:[], qLabel:'缩容中 —— 实例逐步销毁', shrinking:true
+  },
+  {
+    msg:'缩容完成，仅保留 1-2 个实例以备下次请求，或完全归零（取决于配置）。扩缩容全程自动，无需运维干预。',
+    insts:[{s:'idle'},{s:'ghost'},{s:'ghost'},{s:'ghost'},{s:'ghost'},{s:'ghost'},{s:'ghost'},{s:'ghost'},{s:'ghost'},{s:'ghost'}],
+    reqs:[], activeReqs:[], queuedReqs:[], doneReqs:[], qLabel:'缩容完成'
+  },
+];
+
+// Scene 3: Scale to Zero
+const S2Z_STEPS = [
+  {
+    msg:'高峰刚过，有 3 个温热实例。流量已降为零，无新请求到来。平台开始计算空闲时间。',
+    insts:3, idle:0, zeroed:false, bills:{trad:100,sl:0}
+  },
+  {
+    msg:'空闲 5 分钟：实例仍然存活（保活，下次请求可秒级响应）。继续计费中……传统服务也在计费。',
+    insts:3, idle:5, zeroed:false, bills:{trad:100,sl:35}
+  },
+  {
+    msg:'空闲 10 分钟：平台策略触发，开始缩容，先销毁 2 个多余实例，保留 1 个用于快速响应。',
+    insts:1, idle:10, zeroed:false, bills:{trad:100,sl:13}
+  },
+  {
+    msg:'空闲 15 分钟（默认超时阈值）：最后一个实例也被销毁。实例数归零（scale-to-zero）。内存全部释放，计费完全停止。',
+    insts:0, idle:15, zeroed:true, bills:{trad:100,sl:5}
+  },
+  {
+    msg:'成本对比：传统常驻进程按机器时间（24h×30d）全额计费；Serverless 只为实际执行时间付费。空闲期间完全零成本，适合低频、间歇性负载。',
+    insts:0, idle:15, zeroed:true, bills:{trad:100,sl:5}, showCost:true
+  },
+];
+
+// Scene 4: Event Driven
+const EVENT_STEPS = [
+  {
+    msg:'Serverless 支持多种触发器类型，函数无需主动轮询，完全由事件驱动。平台按需实例化函数，事件处理完毕后释放。',
+    activeTrig:-1, flows:[], note:'选择下一步，观察 Kafka 消息队列触发完整流程。'
+  },
+  {
+    msg:'触发器类型展示：HTTP / 消息队列 / 定时器 / 对象存储。每种触发器都有自己的语义和并发模型。本场景演示 Kafka 消息触发。',
+    activeTrig:1, flows:[], note:'Kafka 触发器：每条消息（或一批消息）触发一次函数调用。'
+  },
+  {
+    msg:'Kafka Topic 有新消息到来。平台的 Event Source Mapping 机制检测到 Lag > 0，准备触发函数实例。',
+    activeTrig:1,
+    flows:[{icon:'📨',text:'Kafka broker: 新消息到达 topic=orders, partition=0, offset=1024',status:'done',badge:'✓',badgeType:'ok'}]
+  },
+  {
+    msg:'平台创建函数实例（冷/温启动），将消息 batch 注入函数上下文，开始执行业务逻辑。',
+    activeTrig:1,
+    flows:[
+      {icon:'📨',text:'Kafka 新消息: topic=orders, offset=1024',status:'done',badge:'✓',badgeType:'ok'},
+      {icon:'🚀',text:'平台实例化函数，注入消息 payload（batch size=10）',status:'active',badge:'运行中',badgeType:'info'},
+    ]
+  },
+  {
+    msg:'函数成功处理消息，调用 commitOffset() 提交偏移量，Kafka 消费组 offset 推进。',
+    activeTrig:1,
+    flows:[
+      {icon:'📨',text:'Kafka 新消息: topic=orders, offset=1024',status:'done',badge:'✓',badgeType:'ok'},
+      {icon:'🚀',text:'函数执行完毕，返回 success',status:'done',badge:'✓',badgeType:'ok'},
+      {icon:'✅',text:'commitOffset(partition=0, offset=1034)，消息已消费',status:'done',badge:'已提交',badgeType:'ok'},
+    ]
+  },
+  {
+    msg:'消息积压（Lag 增大）：发布者速率超过单实例处理能力。平台检测到 consumer lag 持续增长，自动扩容函数实例数（并行消费）。',
+    activeTrig:1,
+    flows:[
+      {icon:'📊',text:'Kafka consumer lag: 10,000 条消息积压（Lag 持续增长）',status:'warn',badge:'积压',badgeType:'warn'},
+      {icon:'📈',text:'平台自动扩容：1 → 8 个函数实例，并行消费 8 个 partition',status:'active',badge:'扩容',badgeType:'info'},
+    ]
+  },
+  {
+    msg:'边界情况：函数执行超时。配置了 30s 超时限制，但某条消息处理耗时 35s（如下游 DB 慢查询）。平台强制终止实例。',
+    activeTrig:1,
+    flows:[
+      {icon:'⏱️',text:'函数执行耗时 35s，超过 timeout=30s 限制',status:'error',badge:'超时',badgeType:'err'},
+      {icon:'🔪',text:'平台强制终止实例，该消息 offset 未提交',status:'error',badge:'强制终止',badgeType:'err'},
+      {icon:'🔄',text:'触发重试：相同消息被重新投递给新实例（at-least-once 语义）',status:'warn',badge:'重试',badgeType:'warn'},
+    ]
+  },
+  {
+    msg:'幂等设计的重要性：消息重试可能导致函数被调用多次，必须设计幂等逻辑（如使用 message ID 做去重，或使用数据库唯一键防止重复写入），避免重复副作用（如重复扣款、重复发送通知）。',
+    activeTrig:1,
+    flows:[
+      {icon:'🔄',text:'重试：相同 message_id=abc123 再次触发函数',status:'warn',badge:'重试',badgeType:'warn'},
+      {icon:'🔍',text:'幂等检查：SELECT processed WHERE message_id=abc123 → 已处理',status:'done',badge:'去重',badgeType:'ok'},
+      {icon:'✅',text:'跳过重复处理，commitOffset → 消费成功，无重复副作用',status:'done',badge:'幂等 ✓',badgeType:'ok'},
+    ],
+    note:'幂等 = 多次执行与执行一次效果相同。Serverless at-least-once 语义要求函数必须幂等。'
+  },
+];
+
+const ALL_SCENES = [COLD_STEPS, SCALE_STEPS, S2Z_STEPS, EVENT_STEPS];
+const TRIGGERS = [
+  {icon:'🌐',name:'HTTP 触发器',desc:'API Gateway'},
+  {icon:'📨',name:'消息队列',desc:'Kafka / SQS'},
+  {icon:'⏰',name:'定时器',desc:'Cron 表达式'},
+  {icon:'🗂️',name:'对象存储',desc:'S3 / OSS 事件'},
+];
+
+let curTab = 0, curStep = -1, timer = null;
+
+/* ====================== RENDER ====================== */
+
+function renderScene(tab, step) {
+  const area = document.getElementById('sceneArea');
+  const steps = ALL_SCENES[tab];
+  const s = step >= 0 ? steps[step] : steps[0];
+
+  if (tab === 0) area.innerHTML = renderColdScene(step >= 0 ? s : null);
+  else if (tab === 1) area.innerHTML = renderScaleScene(step >= 0 ? s : null);
+  else if (tab === 2) area.innerHTML = renderS2ZScene(step >= 0 ? s : null);
+  else area.innerHTML = renderEventScene(step >= 0 ? s : null);
+}
+
+function renderColdScene(s) {
+  const instCount = s ? s.inst : 0;
+  const warm = s && s.warm;
+  // Instance dots
+  const maxDots = 4;
+  let dotsHtml = '';
+  for (let i = 0; i < maxDots; i++) {
+    let cls = 'inst-dot zero', label = '○';
+    if (i < instCount) {
+      if (warm) { cls = 'inst-dot warm'; label = '●'; }
+      else { cls = 'inst-dot cold'; label = '●'; }
+    }
+    dotsHtml += `<div class="${cls}">${label}</div>`;
+  }
+
+  // Stage flow
+  const stages = [
+    {icon:'📦',name:'下载镜像',time:'~200ms'},
+    {icon:'⚙️',name:'启动运行时',time:'~500ms'},
+    {icon:'🔧',name:'函数初始化',time:'~300ms'},
+    {icon:'▶️',name:'函数执行',time:'~50ms'},
+  ];
+  const stageActive = s ? s.stageActive : -1;
+  let stagesHtml = stages.map((st, i) => {
+    let cls = 'stage-box pending';
+    if (i === stageActive) cls = 'stage-box active';
+    else if (s && i < stageActive) cls = 'stage-box done';
+    return `<div class="${cls}"><div class="stage-icon">${st.icon}</div><div class="stage-name">${st.name}</div><div class="stage-time">${st.time}</div></div>`;
+  }).join('');
+
+  // Timeline bars
+  let barHtml = '';
+  if (s && s.showBar) {
+    const b = s.bars;
+    const total = b.img + b.runtime + b.init + b.exec;
+    const totalMs = total * 22;
+    barHtml = `
+    <div class="timeline-row">
+      <div class="tl-item">
+        <span class="tl-label">冷启动</span>
+        <div class="tl-bar-wrap" style="display:flex;height:22px;overflow:hidden;border-radius:6px;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.04)">
+          <div class="tl-bar seg-img" style="width:${b.img}%;min-width:${b.img>0?'32px':'0'}" title="下载镜像">📦</div>
+          <div class="tl-bar seg-runtime" style="width:${b.runtime}%;min-width:${b.runtime>0?'32px':'0'}" title="启动运行时">⚙️</div>
+          <div class="tl-bar seg-init" style="width:${b.init}%;min-width:${b.init>0?'28px':'0'}" title="函数初始化">🔧</div>
+          <div class="tl-bar seg-exec" style="width:${b.exec}%;min-width:${b.exec>0?'28px':'0'}" title="执行">▶</div>
+        </div>
+        <span class="tl-total">~${totalMs}ms</span>
+      </div>
+      ${s.showWarm ? `<div class="tl-item">
+        <span class="tl-label">温启动</span>
+        <div class="tl-bar-wrap" style="display:flex;height:22px;overflow:hidden;border-radius:6px;border:1px solid rgba(74,222,128,.2);background:rgba(255,255,255,.04)">
+          <div class="tl-bar seg-warm" style="width:5%" title="执行">▶</div>
+        </div>
+        <span class="tl-total" style="color:var(--ok)">~10ms</span>
+      </div>` : ''}
+    </div>
+    <div class="info-note" style="margin-top:4px">
+      <span>💡</span>
+      <span>图例：<span style="color:#818cf8">■</span> 下载镜像 &nbsp;<span style="color:var(--accent)">■</span> 启动运行时 &nbsp;<span style="color:#34d399">■</span> 函数初始化 &nbsp;<span style="color:#38bdf8">■</span> 函数执行</span>
+    </div>`;
+  }
+
+  const reqNote = s && s.reqArrived ? `<div class="info-note blue" style="margin-top:8px"><span>📡</span><span>HTTP 请求到达：GET /api/process → 路由到函数 my-handler${s.noInst ? ' → <strong style="color:var(--warn)">无可用实例，触发冷启动！</strong>' : ''}</span></div>` : '';
+
+  return `<div class="cold-start-scene">
+    <div class="instance-counter">
+      <span class="ic-label">函数实例数</span>
+      <span class="ic-value" id="icVal">${instCount}</span>
+      <div class="ic-dots">${dotsHtml}</div>
+      <span style="font-size:.72rem;color:var(--dim);margin-left:auto">${warm ? '🟢 温热' : (instCount > 0 ? '🔵 冷启动中' : '⭕ 零实例')}</span>
+    </div>
+    ${reqNote}
+    <div class="stage-flow">${stagesHtml}</div>
+    ${barHtml}
+  </div>`;
+}
+
+function renderScaleScene(s) {
+  const dflt = {insts:[{s:'idle'}], reqs:[], activeReqs:[], queuedReqs:[], doneReqs:[], qLabel:'等待请求…'};
+  const d = s || dflt;
+
+  let instsHtml = d.insts.map((inst, i) => {
+    const stateMap = {idle:'空闲',busy:'处理中',booting:'启动中',ghost:'已销毁',dying:'缩容中'};
+    const emojiMap = {idle:'🟡',busy:'🟢',booting:'🔵',ghost:'⬜',dying:'🔴'};
+    return `<div class="inst-card ${inst.s}">
+      <div class="inst-emoji">${emojiMap[inst.s]||'⬜'}</div>
+      <div style="font-size:.68rem;font-weight:600">实例 ${i+1}</div>
+      <div class="inst-state">${stateMap[inst.s]||inst.s}${inst.req?`<br>${inst.req}`:''}</div>
+    </div>`;
+  }).join('');
+
+  let reqsHtml = '';
+  if (d.reqs && d.reqs.length > 0) {
+    reqsHtml = d.reqs.map(r => {
+      let cls = 'req-tag';
+      if (d.activeReqs && d.activeReqs.includes(r)) cls += ' processing';
+      else if (d.queuedReqs && d.queuedReqs.includes(r)) cls += ' queued';
+      else if (d.doneReqs && d.doneReqs.includes(r)) cls += ' done';
+      return `<span class="${cls}">${r}</span>`;
+    }).join('');
+  }
+
+  const instCount = d.insts.filter(i => i.s !== 'ghost').length;
+
+  return `<div class="scale-scene">
+    <div class="instance-counter" style="margin-bottom:4px">
+      <span class="ic-label">活跃实例</span>
+      <span class="ic-value" style="font-size:1.6rem">${instCount}</span>
+      <span style="font-size:.75rem;color:var(--dim);margin-left:auto">${d.qLabel||''}</span>
+    </div>
+    <div style="font-size:.76rem;color:var(--dim2);margin-bottom:4px">请求队列</div>
+    <div class="req-queue">${reqsHtml || '<span style="color:var(--dim2);font-size:.75rem">暂无请求</span>'}</div>
+    <div style="font-size:.76rem;color:var(--dim2);margin-bottom:4px">函数实例</div>
+    <div class="instances-grid">${instsHtml}</div>
+    ${d.shrinking ? '<div class="info-note red" style="margin-top:4px"><span>⚠️</span><span>缩容策略：平台检测到空闲实例，按比例逐步销毁（避免冷启动风暴）。</span></div>' : ''}
+  </div>`;
+}
+
+function renderS2ZScene(s) {
+  const idle = s ? s.idle : 0;
+  const instCount = s ? s.insts : 3;
+  const zeroed = s && s.zeroed;
+  const showCost = s && s.showCost;
+  const bills = s ? s.bills : {trad:0, sl:0};
+
+  let dotsHtml = '';
+  for (let i = 0; i < 3; i++) {
+    let cls = i < instCount ? 'inst-dot warm' : 'inst-dot zero';
+    dotsHtml += `<div class="${cls}">${i < instCount ? '●' : '○'}</div>`;
+  }
+
+  let costHtml = '';
+  if (showCost) {
+    costHtml = `<div class="cost-compare">
+      <div class="cost-card traditional">
+        <div class="cost-title">🖥️ 传统服务（常驻进程）</div>
+        <div class="cost-bar-wrap"><div class="cost-bar red" style="width:100%"></div></div>
+        <div class="cost-num">24h × 30d = 720h/月，全额计费，无论是否有流量</div>
+      </div>
+      <div class="cost-card serverless">
+        <div class="cost-title">⚡ Serverless</div>
+        <div class="cost-bar-wrap"><div class="cost-bar green" style="width:${bills.sl}%"></div></div>
+        <div class="cost-num">仅为实际执行时间付费，空闲时 = 0 成本，适合间歇性负载</div>
+      </div>
+    </div>`;
+  }
+
+  return `<div class="s2z-scene">
+    <div class="instance-counter">
+      <span class="ic-label">温热实例</span>
+      <span class="ic-value" style="${zeroed ? 'color:var(--warn)' : 'color:var(--ok)'}">${instCount}</span>
+      <div class="ic-dots">${dotsHtml}</div>
+    </div>
+    <div class="timer-box">
+      <div class="timer-dial ${idle >= 12 ? 'warning' : ''}">
+        <span class="timer-val">${idle}</span>
+        <span class="timer-unit">分钟</span>
+      </div>
+      <div class="timer-desc">
+        <div class="timer-title">${zeroed ? '⭕ Scale-to-Zero 完成' : (idle >= 10 ? '⚠️ 空闲时间接近阈值' : '💤 空闲计时中')}</div>
+        <div class="timer-sub">${zeroed ? '所有实例已销毁，内存释放，计费停止。下次请求触发冷启动。' : `已空闲 ${idle} 分钟 / 超时阈值 15 分钟`}</div>
+      </div>
+    </div>
+    ${showCost ? costHtml : `<div class="info-note ${zeroed ? 'green' : ''}">
+      <span>${zeroed ? '✅' : 'ℹ️'}</span>
+      <span>${zeroed ? 'scale-to-zero 是 Serverless 最核心的成本优势——空闲期间真正零计费。下次请求到来时触发冷启动（300ms-2s 延迟）。' : '平台持续监控实例空闲时间，超过配置阈值后触发缩容。阈值可调（AWS Lambda 默认约 15 分钟）。'}</span>
+    </div>`}
+    ${showCost ? '' : ''}
+  </div>`;
+}
+
+function renderEventScene(s) {
+  const activeTrig = s ? s.activeTrig : -1;
+
+  let trigsHtml = TRIGGERS.map((t, i) => {
+    let cls = 'trigger-card';
+    if (activeTrig === i) cls += ' active';
+    else if (activeTrig >= 0) cls += ' dim';
+    return `<div class="${cls}">
+      <div class="trig-icon">${t.icon}</div>
+      <div class="trig-name">${t.name}</div>
+      <div class="trig-desc">${t.desc}</div>
+    </div>`;
+  }).join('');
+
+  let flowsHtml = '';
+  if (s && s.flows && s.flows.length > 0) {
+    flowsHtml = s.flows.map(f => {
+      let rowCls = 'flow-row';
+      if (f.status === 'active') rowCls += ' active';
+      else if (f.status === 'done') rowCls += ' done';
+      else if (f.status === 'error') rowCls += ' error';
+      else if (f.status === 'warn') rowCls += ' warn';
+      let badgeCls = 'flow-badge badge-ok';
+      if (f.badgeType === 'err') badgeCls = 'flow-badge badge-err';
+      else if (f.badgeType === 'warn') badgeCls = 'flow-badge badge-warn';
+      else if (f.badgeType === 'info') badgeCls = 'flow-badge badge-info';
+      return `<div class="${rowCls}">
+        <span class="flow-icon">${f.icon}</span>
+        <span class="flow-text">${f.text}</span>
+        <span class="${badgeCls}">${f.badge}</span>
+      </div>`;
+    }).join('');
+  }
+
+  const note = s && s.note ? `<div class="info-note blue"><span>ℹ️</span><span>${s.note}</span></div>` : '';
+
+  return `<div class="event-scene">
+    <div style="font-size:.76rem;color:var(--dim2);margin-bottom:8px">触发器类型</div>
+    <div class="trigger-grid">${trigsHtml}</div>
+    ${flowsHtml ? `<div style="font-size:.76rem;color:var(--dim2);margin:10px 0 6px">事件流</div><div class="flow-list">${flowsHtml}</div>` : ''}
+    ${note}
+  </div>`;
+}
+
+/* ====================== STEP LIST ====================== */
+const STEP_NAMES = [
+  // cold start
+  ['初始：零实例状态','HTTP 请求到达','检测无可用实例','阶段1：下载镜像','阶段2：启动运行时','阶段3：函数初始化','阶段4：函数执行','容器保持温热','对比温启动延迟'],
+  // scale
+  ['初始：1个温热实例','10并发请求到来','并行创建9个实例','实例就绪并行处理','请求完成等待缩容','开始缩容','缩容完成'],
+  // s2z
+  ['高峰后3个实例','空闲5分钟','空闲10分钟缩容','15分钟归零','成本对比'],
+  // event
+  ['触发器类型概览','选择Kafka触发器','Kafka消息到达','函数实例化执行','提交offset消费完成','消息积压自动扩容','函数执行超时强制终止','幂等设计避免重复副作用'],
+];
+
+function buildStepList() {
+  const list = document.getElementById('stepList');
+  list.innerHTML = '';
+  const names = STEP_NAMES[curTab];
+  const steps = ALL_SCENES[curTab];
+  names.forEach((name, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-btn' + (i === curStep ? ' active' : '');
+    btn.innerHTML = `<span class="step-index">${i+1}</span>${name}`;
+    btn.onclick = () => { curStep = i; fullRender(); };
+    list.appendChild(btn);
+  });
+}
+
+function fullRender() {
+  const steps = ALL_SCENES[curTab];
+  const s = curStep >= 0 ? steps[curStep] : null;
+  document.getElementById('stepMsg').textContent = s ? s.msg : '点击「下一步」或步骤列表开始。';
+  renderScene(curTab, curStep);
+  buildStepList();
+  // update tab buttons
+  document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', i === curTab);
+  });
+}
+
+function switchTab(idx) {
+  stopPlay();
+  curTab = idx;
+  curStep = -1;
+  fullRender();
+}
+
+function next() {
+  const max = ALL_SCENES[curTab].length - 1;
+  if (curStep < max) { curStep++; fullRender(); }
+}
+function prev() {
+  if (curStep > -1) { curStep--; fullRender(); }
+}
+function reset() { stopPlay(); curStep = -1; fullRender(); }
+function togglePlay() { if (timer) stopPlay(); else startPlay(); }
+function startPlay() {
+  document.getElementById('playBtn').textContent = '⏸ 暂停';
+  timer = setInterval(() => {
+    const max = ALL_SCENES[curTab].length - 1;
+    if (curStep < max) { curStep++; fullRender(); }
+    else stopPlay();
+  }, 2400);
+}
+function stopPlay() {
+  if (timer) { clearInterval(timer); timer = null; }
+  document.getElementById('playBtn').textContent = '▶ 播放';
+}
+
+// Init
+fullRender();
+</script>
+</body>
+</html>

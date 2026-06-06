@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="供应链安全全景：SBOM 软件物料清单、Sigstore/Cosign 镜像签名、依赖安全审计、SolarWinds/xz-utils 真实攻击案例解析。">
+<link rel="canonical" href="https://melodycoder12345.github.io/security/supply-chain.html">
+<meta property="og:title" content="供应链安全 — 码海拾贝">
+<meta property="og:description" content="供应链安全全景：SBOM 软件物料清单、Sigstore/Cosign 镜像签名、依赖安全审计、SolarWinds/xz-utils 真实攻击案例解析。">
+<meta property="og:url" content="https://melodycoder12345.github.io/security/supply-chain.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="供应链安全 — 码海拾贝">
+<meta name="twitter:description" content="供应链安全全景：SBOM 软件物料清单、Sigstore/Cosign 镜像签名、依赖安全审计、SolarWinds/xz-utils 真实攻击案例解析。">
+<title>供应链安全 - Security</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 20% 0%,color-mix(in srgb,var(--accent) 14%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit;text-decoration:none}
+.content{max-width:1160px;margin:0 auto;padding:44px clamp(20px,4vw,58px) 76px}
+.hero{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr);gap:22px;align-items:stretch;margin-bottom:22px}
+.card,.section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.72);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.28)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.1rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.map{display:grid;grid-template-columns:1fr;gap:10px}
+.term{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.term strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.term span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.section h2{font-size:.9rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:13px}
+.section p,.section li{color:var(--dim);font-size:.92rem;line-height:1.85}
+.section ul{padding-left:18px;display:flex;flex-direction:column;gap:9px}
+.callout{margin-top:18px;border-left:3px solid var(--accent);padding:13px 15px;background:color-mix(in srgb,var(--accent) 10%,transparent);border-radius:0 12px 12px 0;color:var(--dim);line-height:1.75}
+.callout strong{color:var(--text)}
+pre{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.78rem;line-height:1.7;margin:12px 0}
+code{font-family:'JetBrains Mono','Fira Code',monospace;font-size:.82em;color:var(--accent)}
+.qa-card{border:1px solid rgba(255,255,255,.08);border-radius:14px;margin-bottom:10px;overflow:hidden}
+.qa-q{padding:13px 16px;background:rgba(248,113,113,.06);font-size:.88rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none}
+.qa-q:hover{background:rgba(248,113,113,.10)}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s}
+.qa-card.open .qa-arrow{transform:rotate(90deg)}
+.qa-a{display:none;padding:14px 16px;font-size:.86rem;color:var(--dim);line-height:1.78;border-top:1px solid var(--border)}
+.qa-card.open .qa-a{display:block}
+.pitfall{border:1px solid rgba(255,255,255,.08);border-radius:14px;margin-bottom:14px;overflow:hidden}
+.pitfall-hd{padding:10px 14px;font-size:.82rem;font-weight:700}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr}
+.pitfall-col{padding:12px 14px}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border)}
+.pitfall-col pre{font-size:.74rem}
+.pitfall-col p{font-size:.8rem;color:var(--dim);line-height:1.6;margin-top:6px}
+.incident-card{border:1px solid rgba(248,113,113,.2);background:rgba(248,113,113,.04);border-radius:16px;padding:18px;margin-bottom:14px}
+.incident-title{font-size:.86rem;font-weight:700;color:#f87171;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.incident-year{font-size:.72rem;background:rgba(248,113,113,.15);border:1px solid rgba(248,113,113,.3);border-radius:5px;padding:2px 7px;color:#fca5a5;font-family:monospace}
+.incident-body{font-size:.84rem;color:var(--dim);line-height:1.78}
+.incident-body strong{color:var(--text)}
+.timeline{position:relative;padding-left:20px;margin:12px 0}
+.timeline::before{content:'';position:absolute;left:6px;top:6px;bottom:6px;width:2px;background:rgba(248,113,113,.25);border-radius:2px}
+.timeline-item{position:relative;margin-bottom:12px;padding-left:14px}
+.timeline-item::before{content:'';position:absolute;left:-14px;top:7px;width:8px;height:8px;border-radius:50%;background:var(--accent);border:2px solid var(--bg)}
+.timeline-item .step-label{font-size:.75rem;color:var(--accent);font-family:monospace;font-weight:700;margin-bottom:2px}
+.timeline-item p{font-size:.83rem;color:var(--dim);line-height:1.65}
+.table-wrap{overflow-x:auto;margin:12px 0}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{background:var(--panel2);color:var(--accent);text-align:left;padding:9px 12px;font-size:.76rem;letter-spacing:.04em;border-bottom:1px solid var(--border)}
+td{padding:9px 12px;color:var(--dim);border-bottom:1px solid rgba(255,255,255,.05);line-height:1.6}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.back-row{margin-top:24px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:900px){.hero,.grid{grid-template-columns:1fr}.content{padding:30px 16px 58px}.pitfall-body{grid-template-columns:1fr}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border)}}
+</style>
+</head>
+<body>
+<main class="content" data-page-type="B">
+
+<section class="hero">
+  <div class="card">
+    <div class="eyebrow">Security / Supply Chain / B 类型</div>
+    <h1>供应链安全</h1>
+    <p class="summary">现代软件 90% 的代码来自第三方依赖和开源组件。当攻击者无法直接入侵目标时，转而污染上游软件供应链——镜像、依赖包、构建环境。SBOM 是物料清单，Cosign 是防伪签名，go.sum 是校验和，每一层都是抵御供应链攻击的防线。</p>
+    <div class="tags"><span>SBOM</span><span>SPDX</span><span>CycloneDX</span><span>Cosign</span><span>Sigstore</span><span>syft</span><span>Dependabot</span><span>go.sum</span><span>Keyless</span></div>
+    <div class="callout"><strong>核心威胁模型：</strong>攻击者不攻击你的代码，而是攻击你信任的代码。供应链攻击的特点是从可信渠道投递恶意内容，传统安全扫描无法发现。</div>
+  </div>
+  <div class="card map">
+    <div class="eyebrow">核心术语</div>
+    <div class="term"><strong>SBOM</strong><span>Software Bill of Materials，软件物料清单，记录软件中所有组件的完整列表，包括版本、许可证、来源。</span></div>
+    <div class="term"><strong>Sigstore</strong><span>Linux Foundation 项目，提供免费、透明的软件签名基础设施，包括 Cosign（签名工具）、Fulcio（CA）、Rekor（透明日志）。</span></div>
+    <div class="term"><strong>Keyless 签名</strong><span>使用 OIDC 身份（如 GitHub Actions workflow）做临时密钥签名，无需管理长期密钥，签名可通过工作流身份验证。</span></div>
+    <div class="term"><strong>SLSA</strong><span>Supply chain Levels for Software Artifacts，Google 提出的供应链安全成熟度框架，L1-L4 逐级加固。</span></div>
+    <div class="term"><strong>Provenance</strong><span>软件制品的出处证明，记录"谁"在"何时"用"什么"构建了这个版本，SLSA 的核心概念。</span></div>
+  </div>
+</section>
+
+<section class="grid">
+
+<article class="section">
+  <h2>供应链攻击背景：真实案例</h2>
+  <p>了解真实攻击才能理解防御的必要性：</p>
+
+  <div class="incident-card">
+    <div class="incident-title">SolarWinds Orion 后门 <span class="incident-year">2020</span></div>
+    <div class="incident-body">
+      <strong>攻击手法：</strong>攻击者（Cozy Bear/APT29）入侵了 SolarWinds 的构建服务器，在 Orion 软件的<strong>合法构建流程</strong>中植入后门 SUNBURST。恶意代码随官方软件更新推送给 18,000+ 客户（含美国政府、微软、FireEye）。<br><br>
+      <strong>关键特征：</strong>代码经过正常签名，来自官方渠道，传统病毒扫描无法检测。后门在安装后休眠 14 天再激活，绕过沙箱检测。<br><br>
+      <strong>防御启示：</strong>构建环境必须有独立安全保障；SBOM 可帮助快速定位受影响的组织；需要 Build Provenance（构建出处证明）验证构建过程的完整性。
+    </div>
+  </div>
+
+  <div class="incident-card">
+    <div class="incident-title">xz-utils 后门 <span class="incident-year">2024</span></div>
+    <div class="incident-body">
+      <strong>攻击手法（社会工程学）：</strong>攻击者"Jia Tan"用 2 年时间通过持续贡献高质量 patch 建立信任，逐步获得 xz-utils 核心开发者权限。最终在 5.6.0/5.6.1 版本中植入后门，通过 <code>liblzma</code> 劫持 <code>RSA_public_decrypt</code>，为特定 SSH 密钥提供 RCE 通道。<br><br>
+      <strong>关键特征：</strong>后门被混淆在测试文件（.m4 脚本）中，仅在 deb/rpm 打包流程中激活；正常 GitHub 源码编译不包含后门。Andres Freund 在注意到 SSH 延迟异常后靠人工审计发现。<br><br>
+      <strong>防御启示：</strong>开源项目的代码审查和维护者身份验证需要更严格的机制；重要库的变更需要多人审核；SBOM 帮助快速排查哪些系统引入了受影响版本。
+    </div>
+  </div>
+
+  <div class="callout"><strong>共同规律：</strong>两次攻击都通过合法渠道投递，且攻击者耐心准备时间以月/年计。防御方向：不仅要扫描代码，还要验证构建过程、签名和组件出处。</div>
+</article>
+
+<article class="section">
+  <h2>SBOM：软件物料清单</h2>
+  <p>SBOM 是"你的软件里用了什么"的完整清单，类比食品的配料表。当新的 CVE 出现时，SBOM 可在分钟内定位受影响的服务：</p>
+  <ul>
+    <li><strong>SPDX</strong>：Linux Foundation 标准，ISO/IEC 5962:2021，JSON/YAML/RDF 格式，支持许可证合规分析</li>
+    <li><strong>CycloneDX</strong>：OWASP 标准，JSON/XML，对安全分析更友好，被 Grype 原生支持</li>
+    <li><strong>syft</strong>：Anchore 出品，可从镜像、目录、文件系统生成 SBOM，支持两种格式输出</li>
+    <li><strong>grype</strong>：基于 SBOM 扫描 CVE，对接 NVD、GitHub Advisory、OSV 等多个漏洞数据库</li>
+  </ul>
+  <pre><code># 1. 生成镜像的 SBOM
+syft myapp:v1.2.3 -o cyclonedx-json > sbom.json
+syft myapp:v1.2.3 -o spdx-json > sbom-spdx.json
+
+# SBOM 内容示例（CycloneDX 片段）：
+# {
+#   "bomFormat": "CycloneDX",
+#   "components": [
+#     {
+#       "name": "log4j-core",
+#       "version": "2.14.0",
+#       "purl": "pkg:maven/org.apache.logging.log4j/log4j-core@2.14.0",
+#       "licenses": [{"license": {"id": "Apache-2.0"}}]
+#     },
+#     {
+#       "name": "github.com/gin-gonic/gin",
+#       "version": "v1.9.0",
+#       "purl": "pkg:golang/github.com/gin-gonic/gin@v1.9.0"
+#     }
+#   ]
+# }
+
+# 2. 用 SBOM 扫描 CVE
+grype sbom:./sbom.json --fail-on critical
+
+# 输出示例：
+# NAME          INSTALLED  FIXED-IN  TYPE  VULNERABILITY  SEVERITY
+# log4j-core    2.14.0     2.17.0    java  CVE-2021-44228 Critical
+
+# 3. 查询受 log4shell 影响的所有服务
+# 对每个服务的 SBOM 执行：
+grype sbom:sbom.json -q | grep "CVE-2021-44228"
+# 分钟内完成全公司服务的影响排查
+
+# 4. 将 SBOM 存储在镜像仓库（Cosign attach）
+cosign attach sbom --sbom sbom.json myapp:v1.2.3
+# SBOM 与镜像同仓库存储，易于审计</code></pre>
+
+  <div class="callout"><strong>实战价值：</strong>log4shell（CVE-2021-44228）爆出时，有 SBOM 的公司 1 小时内完成影响范围排查；没有的公司花了数天甚至数周。SBOM 不仅是安全工具，也是合规和事件响应的基础设施。</div>
+</article>
+
+<article class="section">
+  <h2>镜像签名：Sigstore / Cosign</h2>
+  <p>镜像 tag 是可变引用——同一个 <code>:latest</code> 可以指向完全不同的内容。镜像签名对不可变的 sha256 摘要签名，提供防篡改保证：</p>
+
+  <div class="timeline">
+    <div class="timeline-item">
+      <div class="step-label">传统问题</div>
+      <p>镜像 tag 被覆盖（恶意推送）或 registry 被攻击，Pull 到的镜像内容与预期不一致，且无法察觉</p>
+    </div>
+    <div class="timeline-item">
+      <div class="step-label">Cosign 方案</div>
+      <p>对镜像摘要（<code>sha256:...</code>）签名，签名以 OCI 格式存储在同一 registry，验证时对比签名和摘要</p>
+    </div>
+    <div class="timeline-item">
+      <div class="step-label">Keyless 签名</div>
+      <p>GitHub Actions 通过 OIDC 获取临时证书（Fulcio CA），用临时密钥签名，私钥立即销毁，签名记录写入 Rekor 透明日志</p>
+    </div>
+    <div class="timeline-item">
+      <div class="step-label">K8s 准入控制</div>
+      <p>Admission Webhook（Sigstore Policy Controller / Kyverno）在 Pod 创建时强制验证镜像签名，未签名的镜像拒绝部署</p>
+    </div>
+  </div>
+
+  <pre><code># === 镜像签名（GitHub Actions 中使用 Keyless）===
+
+# .github/workflows/build.yml
+jobs:
+  build:
+    permissions:
+      id-token: write       # 必须：允许 OIDC token 获取
+      packages: write
+    steps:
+    - name: Build and push
+      uses: docker/build-push-action@v5
+      with:
+        push: true
+        tags: ghcr.io/myorg/myapp:v1.2.3
+
+    - name: Sign image with Cosign (Keyless)
+      uses: sigstore/cosign-installer@v3
+    - run: |
+        cosign sign --yes \
+          ghcr.io/myorg/myapp@$(docker inspect \
+            --format='{{index .RepoDigests 0}}' \
+            ghcr.io/myorg/myapp:v1.2.3 | cut -d@ -f2)
+        # 签名绑定到摘要（sha256），而非可变的 tag
+        # 临时密钥用完即销毁，无密钥管理负担
+
+# === 验证镜像签名 ===
+cosign verify \
+  --certificate-identity "https://github.com/myorg/myapp/.github/workflows/build.yml@refs/heads/main" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  ghcr.io/myorg/myapp:v1.2.3
+
+# 验证通过输出：
+# Verification for ghcr.io/myorg/myapp:v1.2.3 --
+# The following checks were performed on each of these signatures:
+#   - The cosign claims were validated
+#   - Existence of the claims in the transparency log was verified offline
+#   - The code-signing certificate claims were validated
+
+# === K8s Admission Webhook 强制验签 ===
+# 使用 Sigstore Policy Controller
+apiVersion: policy.sigstore.dev/v1alpha1
+kind: ClusterImagePolicy
+metadata:
+  name: require-signed-images
+spec:
+  images:
+  - glob: "ghcr.io/myorg/**"    # 匹配的镜像范围
+  authorities:
+  - keyless:
+      url: https://fulcio.sigstore.dev
+      identities:
+      - issuer: https://token.actions.githubusercontent.com
+        subject: "https://github.com/myorg/myapp/.github/workflows/build.yml@refs/heads/main"
+  # 未通过验证的镜像 → AdmissionWebhook 拒绝部署</code></pre>
+</article>
+
+<article class="section">
+  <h2>依赖安全</h2>
+  <p>依赖包是供应链中最大的攻击面——你直接信任了成千上万行你从未读过的代码：</p>
+  <ul>
+    <li><strong>go.sum</strong>：Go Modules 的校验和文件，记录每个依赖的 sha256 摘要，<code>go get</code> 时自动校验，防止依赖被中间人篡改</li>
+    <li><strong>npm audit / pip audit</strong>：扫描已知 CVE，与 npm Advisory、PyPA Advisory 数据库对比</li>
+    <li><strong>Dependabot</strong>：GitHub 原生，自动检测依赖更新和安全漏洞，创建升级 PR</li>
+    <li><strong>Renovate</strong>：更灵活的依赖更新工具，支持 monorepo、自定义规则、版本分组</li>
+    <li><strong>私有镜像仓库</strong>：使用内部代理缓存公共镜像，避免直接依赖 Docker Hub（被删除或污染风险）</li>
+  </ul>
+  <pre><code># Go：go.sum 校验和保护
+# 每个依赖的行格式：
+# module@version h1:hash=
+# github.com/gin-gonic/gin v1.9.0 h1:ZDYWmrnFbnIIEKZjPyfkRhjGA5e2GQKV8bHmGNT50DY=
+# github.com/gin-gonic/gin v1.9.0/go.mod h1:W1Me9+hsUSyj3CePGrd1/QrKJMSJ1Tu/0hFEH89961k=
+
+# GONOSUMCHECK：私有模块不走公共 sum 校验
+export GONOSUMCHECK=github.com/mycompany/*
+export GONOSUMDB=github.com/mycompany/*
+
+# GOPROXY 使用内部代理（避免直接访问公网）
+export GOPROXY=https://goproxy.mycompany.com,direct
+
+# 扫描 Go 依赖 CVE
+govulncheck ./...    # Google 官方工具，直接分析调用图
+# 只报告实际调用到的漏洞函数（减少误报）
+
+# npm：扫描和修复
+npm audit                  # 列出已知漏洞
+npm audit fix              # 自动修复（minor/patch 版本）
+npm audit fix --force      # 包含 breaking change 的修复（需测试）
+
+# 锁定依赖版本（防止浮动版本被替换）
+npm ci                     # 严格按 package-lock.json 安装，不允许升级
+
+# pip：依赖安全
+pip-audit                              # 扫描 requirements.txt
+pip-audit --requirement requirements.txt --fix   # 自动修复
+
+# 固定版本（生产环境）
+pip freeze > requirements-lock.txt    # 锁定所有依赖精确版本
+
+# Dependabot 配置（.github/dependabot.yml）
+version: 2
+updates:
+- package-ecosystem: "gomod"
+  directory: "/"
+  schedule:
+    interval: "weekly"
+  groups:
+    go-dependencies:
+      patterns: ["*"]        # 将所有 Go 依赖升级合并为一个 PR
+  open-pull-requests-limit: 5
+
+- package-ecosystem: "docker"
+  directory: "/"
+  schedule:
+    interval: "weekly"      # 基础镜像也自动更新
+  reviewers: ["security-team"]</code></pre>
+
+  <div class="callout"><strong>typosquatting 警告：</strong>npm/PyPI 中存在大量故意拼写相似的恶意包（如 <code>lodahs</code> 冒充 <code>lodash</code>）。安装前核对包名，使用内部代理仓库缓存白名单包，可避免此类攻击。</div>
+</article>
+
+<article class="section">
+  <h2>SLSA 框架：供应链安全成熟度</h2>
+  <p>SLSA（Supply chain Levels for Software Artifacts）由 Google 提出，提供可量化的供应链安全等级：</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>等级</th><th>要求</th><th>防御的威胁</th></tr></thead>
+      <tbody>
+        <tr><td><code>SLSA L1</code></td><td>构建过程有脚本记录，可生成 Provenance（出处元数据）</td><td>防止误操作覆盖构建产物</td></tr>
+        <tr><td><code>SLSA L2</code></td><td>Provenance 由构建服务（如 GitHub Actions）自动生成和签名</td><td>防止开发者本地构建替换 CI 产物</td></tr>
+        <tr><td><code>SLSA L3</code></td><td>构建环境隔离，Provenance 不可伪造（硬件级信任根）</td><td>防止 CI 系统本身被攻击</td></tr>
+        <tr><td><code>SLSA L4</code></td><td>双人审核所有变更，可复现构建（hermetic build）</td><td>防止内部人员作恶（如 xz-utils 场景）</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <pre><code># GitHub Actions SLSA Provenance 自动生成
+jobs:
+  build:
+    uses: slsa-framework/slsa-github-generator/.github/workflows/builder_go_slsa3.yml@v1.9.0
+    with:
+      go-version: "1.22"
+    # 自动生成 SLSA L3 级别 provenance
+    # Provenance 记录：
+    # - 构建触发的 workflow 和 commit sha
+    # - 构建使用的镜像和工具版本
+    # - 输出产物的 sha256 摘要
+    # - OIDC 签名（可独立验证）
+
+# 验证 SLSA Provenance
+slsa-verifier verify-artifact myapp-binary \
+  --provenance-path provenance.intoto.jsonl \
+  --source-uri github.com/myorg/myapp \
+  --source-tag v1.2.3
+# 验证确认：这个二进制确实由指定 commit 的官方 CI 构建</code></pre>
+</article>
+
+<article class="section">
+  <h2>面试问答</h2>
+  <div class="qa-card" onclick="toggleQA(this)">
+    <div class="qa-q">SBOM 和漏洞扫描有什么区别？为什么需要两者？<span class="qa-arrow">&#9654;</span></div>
+    <div class="qa-a">漏洞扫描（Trivy/Grype）是扫描 + 报告的一次性动作，每次扫描都需要重新分析软件成分。SBOM 是持久化的软件成分清单，一次生成后可重复使用。两者协作：1) 构建时生成 SBOM，存储在仓库；2) 每次有新 CVE 发布时，用新的漏洞数据库对比旧 SBOM，无需重新构建或拉取镜像。实际价值：log4shell 爆出时，有完整 SBOM 的组织只需 <code>grype sbom:./service-sbom.json | grep CVE-2021-44228</code> 就能立即定位受影响服务；没有 SBOM 的组织需要逐个部署去扫描，耗费数天。</div>
+  </div>
+  <div class="qa-card" onclick="toggleQA(this)">
+    <div class="qa-q">Cosign Keyless 签名和传统 GPG 签名有什么优劣？<span class="qa-arrow">&#9654;</span></div>
+    <div class="qa-a">传统 GPG 问题：1) 私钥需要安全管理，泄露后历史签名全部失效；2) 公钥分发和信任建立复杂（Web of Trust）；3) CI 环境中需要存储长期私钥（Secret）。Cosign Keyless 优势：1) 无需管理长期私钥，每次签名用临时 OIDC 凭证；2) 签名身份绑定到工作流（"由 GitHub Actions 的某个 workflow 在某次 commit 构建"），更有语义；3) 所有签名记录在 Rekor 透明日志，不可否认，公开可审计。缺点：依赖 Sigstore 公共基础设施（Fulcio CA 和 Rekor），企业内网需自建实例（sigstore/scaffolding）。</div>
+  </div>
+  <div class="qa-card" onclick="toggleQA(this)">
+    <div class="qa-q">如何防止像 xz-utils 这样的社会工程学攻击？<span class="qa-arrow">&#9654;</span></div>
+    <div class="qa-a">技术层面：1) 重要版本发布必须有 Build Provenance，验证构建来自指定 CI 流程；2) 包含构建脚本的测试文件变更需要多人 review（xz 后门藏在 .m4 测试脚本中）；3) SBOM + 依赖 pinning，精确锁定版本；4) 开启 Rekor 透明日志，可审计每次发布的签名历史。流程层面：1) 维护者角色变更需要现有维护者投票；2) 重大变更（发布脚本、构建配置）需要至少 2 名核心维护者 approve；3) 新维护者在获得发布权限前有审查期。现实上：大型开源项目资源有限，防止有耐心的国家级攻击者极为困难。SLSA L4 要求双人审核是最高防线，但也意味着更高维护成本。</div>
+  </div>
+  <div class="qa-card" onclick="toggleQA(this)">
+    <div class="qa-q">构建环境（CI）的安全如何保障？<span class="qa-arrow">&#9654;</span></div>
+    <div class="qa-a">构建环境是供应链最关键的节点（SolarWinds 的教训）。关键措施：1) 最小权限 CI Token：能推送到 dev 的 token 不能推送到 prod；能推送镜像的 token 不能修改 registry 权限；2) Ephemeral Build Environment：每次构建使用全新的临时 runner（GitHub hosted runner 即是此模式），不复用环境，防止持久化后门；3) 依赖 pinning：Dockerfile 中的 base image 用 sha256 固定，GitHub Action 的 uses: 用 commit sha 而非 tag（<code>uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683</code>）；4) 构建日志不包含 secret：使用 masked secrets，日志中自动脱敏；5) 定期轮换所有 CI/CD 凭证（registry token、signing key）。</div>
+  </div>
+</article>
+
+<article class="section">
+  <h2>常见误区</h2>
+
+  <div class="pitfall">
+    <div class="pitfall-hd bad">⚠ 误区：只扫描自己写的代码，忽视依赖</div>
+    <div class="pitfall-body">
+      <div class="pitfall-col">
+        <pre><code># 典型错误：只扫描源码
+trivy fs ./src --security-checks vuln
+# 或只运行 SAST（静态应用安全测试）
+# semgrep --config=auto ./src
+
+# 问题：
+# - ./src 只包含业务代码
+# - 不扫描 node_modules（数千个包）
+# - 不扫描 vendor/ 目录
+# - 不扫描运行时依赖的系统包
+# - 现代应用 ~90% 代码来自第三方
+
+# 结果：log4shell 出来时
+# 不知道自己的 Java 服务是否用了 log4j
+# 花数天人工排查每个服务</code></pre>
+        <p><strong>问题</strong>：只扫描自研代码等于漏掉了 90% 的攻击面。大多数真实 CVE 都在依赖中。</p>
+      </div>
+      <div class="pitfall-col">
+        <pre><code># 正确：扫描镜像整体（含所有依赖）
+trivy image myapp:v1.2.3
+# 扫描范围：OS 包 + 语言依赖
+# - alpine/debian 系统包
+# - go.sum 中所有 Go 依赖
+# - package-lock.json npm 依赖
+# - requirements.txt pip 依赖
+# - jar 包内的 Maven 依赖（嵌套扫描）
+
+# 同时生成 SBOM 以备后续使用
+syft myapp:v1.2.3 -o cyclonedx-json > sbom.json
+
+# CI 门控：CRITICAL CVE 阻断
+trivy image --exit-code 1 \
+  --severity CRITICAL,HIGH \
+  myapp:v1.2.3
+
+# 持续监控：每天重扫已部署镜像
+# （新 CVE 每天都在发布）</code></pre>
+        <p><strong>正确</strong>：扫描完整镜像，包含所有系统包和语言依赖，并在 CI 中设置阻断门槛。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pitfall">
+    <div class="pitfall-hd bad">⚠ 误区：信任 Docker Hub "官方镜像" = 完全安全</div>
+    <div class="pitfall-body">
+      <div class="pitfall-col">
+        <pre><code># 常见误解
+FROM node:18-alpine
+# "官方镜像，应该是安全的"
+# 实际：
+# - 官方镜像基于 alpine 3.18
+# - alpine 3.18 有若干 CVE
+# - node 18 本身可能有未修复 CVE
+# - "官方" 只代表由 Docker 维护
+#   不代表 0 漏洞
+
+# 验证：
+trivy image node:18-alpine
+# 可能发现 5-20 个已知 CVE
+# 其中部分可能是 HIGH/CRITICAL
+
+# Docker Hub 本身的风险：
+# - 2023年 Docker Hub 限速/删除
+#   导致大量 CI 破坏
+# - 公共仓库无法验证推送者身份
+# - 镜像可随时被删除或覆盖</code></pre>
+        <p><strong>问题</strong>：官方镜像减少了维护负担，但不等于无漏洞。且对 Docker Hub 的直接依赖引入可用性风险。</p>
+      </div>
+      <div class="pitfall-col">
+        <pre><code># 正确：使用私有 registry 代理 + 定期扫描
+
+# 1. 搭建私有 registry（Harbor/Nexus/ECR）
+# 作为 Docker Hub 的缓存代理
+# 即使 Docker Hub 不可用，CI 仍正常
+
+# 2. 固定基础镜像到摘要
+FROM node:18-alpine@sha256:3d4a5d...9f1c
+# 确保每次构建拉取的是同一镜像
+# 摘要变化说明镜像被修改（需调查）
+
+# 3. 使用更小的基础镜像减少漏洞面
+FROM gcr.io/distroless/nodejs18-debian12
+# distroless 是 Google 维护的极简镜像
+# 无 shell / apt / 大量系统工具
+# CVE 数量远少于通用 ubuntu/debian 镜像
+
+# 4. CI 中自动扫描基础镜像更新
+# dependabot + docker ecosystem
+# 基础镜像有安全更新时自动 PR</code></pre>
+        <p><strong>正确</strong>：使用私有 registry 代理，固定到 sha256 摘要，选择最小化基础镜像，并持续扫描更新。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="pitfall">
+    <div class="pitfall-hd bad">⚠ 高危：CI/CD 令牌权限过大，成为攻击入口</div>
+    <div class="pitfall-body">
+      <div class="pitfall-col">
+        <pre><code># 危险：一个 token 统管所有环境
+# .env or GitHub Secret:
+# REGISTRY_TOKEN=超级管理员 token
+# （可推送到 dev/staging/prod 所有仓库）
+
+# GitHub Actions 权限未限制：
+# permissions: write-all  # 高危！
+
+# 问题：
+# - 开发者 fork 的 PR 可触发 CI
+#   并尝试读取 secrets
+# - CI runner 被攻击后可推送
+#   恶意镜像到 prod registry
+# - token 不轮换，长期暴露
+# - 单一 token 泄露 = 全线失守</code></pre>
+        <p><strong>问题</strong>：CI token 权限过大是最高风险的供应链节点，一旦 CI 环境被攻击，直接影响所有部署环境。</p>
+      </div>
+      <div class="pitfall-col">
+        <pre><code># 正确：最小权限 + 环境隔离 + OIDC
+
+# GitHub Actions 最小权限声明
+permissions:
+  contents: read     # 默认给予最小
+  packages: write    # 只给需要推送镜像的步骤
+
+# 使用 OIDC 替代长期 token
+# AWS OIDC（无需存储 AWS key）
+- uses: aws-actions/configure-aws-credentials@v4
+  with:
+    role-to-assume: arn:aws:iam::123456789:role/ci-ecr-push
+    aws-region: us-east-1
+    # 临时 STS token，15分钟有效
+
+# 环境隔离：prod 部署需要额外 approval
+environment: production
+# GitHub: 需要指定 reviewer 批准才能执行
+
+# 定期轮换 secrets（自动化）
+# Dependabot secrets rotate / Vault lease
+# 建议每 90 天轮换一次
+
+# fork PR 不可访问 org secrets（默认）
+# 只在 trusted PR 中开放（review 后允许）</code></pre>
+        <p><strong>正确</strong>：使用 OIDC 替代长期 token，按环境隔离权限，生产环境部署需人工批准，定期轮换凭证。</p>
+      </div>
+    </div>
+  </div>
+</article>
+
+</section>
+
+<div class="back-row">
+  <a class="btn" href="../security/index.html">← 安全基础</a>
+  <a class="btn" href="../index.html">首页</a>
+  <a class="btn" href="container-security.html">容器安全 →</a>
+</div>
+
+</main>
+<script>function toggleQA(el){el.classList.toggle('open')}</script>
+</body>
+</html>

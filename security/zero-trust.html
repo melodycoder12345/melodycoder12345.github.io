@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Never Trust, Always Verify。传统边界安全假设内网可信，零信任假设内外网均不可信，每次访问需要身份认证、设备健康检查和最小权限授权。BeyondCorp、mTLS、身份感知代理核心概念。">
+<link rel="canonical" href="https://melodycoder12345.github.io/security/zero-trust.html">
+<meta property="og:title" content="零信任网络 — 码海拾贝">
+<meta property="og:description" content="Never Trust, Always Verify。BeyondCorp、mTLS 和身份感知代理（IAP）核心机制可视化。">
+<meta property="og:url" content="https://melodycoder12345.github.io/security/zero-trust.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="零信任网络 — 码海拾贝">
+<meta name="twitter:description" content="Never Trust, Always Verify。mTLS 和身份感知代理。">
+<title>零信任网络 - 安全</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#f87171;--ok:#4ade80;--warn:#fbbf24;--err:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:radial-gradient(circle at 20% 0%,rgba(248,113,113,.09),transparent 38%),#0f172a;color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1300px;margin:0 auto;padding:40px 32px 80px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--dim2);margin-bottom:24px}
+.breadcrumb a{color:var(--dim2)}.breadcrumb a:hover{color:var(--text)}
+.page-title{font-size:clamp(1.6rem,3.5vw,2.8rem);letter-spacing:-.04em;margin-bottom:6px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{color:var(--dim);font-size:.95rem;margin-bottom:28px;max-width:680px;line-height:1.75}
+.layout{display:grid;grid-template-columns:268px 1fr;gap:20px;align-items:start}
+.left-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:18px;display:flex;flex-direction:column;position:sticky;top:20px;max-height:calc(100vh - 120px);overflow:hidden}
+.tab-group{margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.07);flex-shrink:0}
+.group-label{font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
+.tab-btn{width:100%;text-align:left;border:1px solid transparent;background:none;color:var(--dim);padding:8px 10px;border-radius:9px;cursor:pointer;font-size:.81rem;line-height:1.4;transition:.15s;margin-bottom:3px;display:flex;align-items:center;gap:8px}
+.tab-btn:hover{border-color:rgba(248,113,113,.3);color:var(--text)}
+.tab-btn.active{background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.4);color:var(--text);font-weight:600}
+.steps-section{flex:1;overflow-y:auto;min-height:0}
+.step-btn{width:100%;text-align:left;border:1px solid transparent;background:none;color:var(--dim);padding:7px 10px;border-radius:8px;cursor:pointer;font-size:.78rem;line-height:1.4;transition:.15s;margin-bottom:3px;display:block}
+.step-btn:hover{border-color:rgba(248,113,113,.3);color:var(--text)}
+.step-btn.active{background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.4);color:var(--text)}
+.si{display:inline-block;width:17px;height:17px;border-radius:50%;background:rgba(248,113,113,.15);color:var(--accent);font-size:.64rem;font-weight:700;text-align:center;line-height:17px;margin-right:6px}
+.ctrl{display:flex;gap:5px;margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.07);flex-shrink:0;flex-wrap:wrap}
+.ctrl button{flex:1;min-width:44px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:8px;padding:7px 3px;cursor:pointer;font-size:.73rem;transition:.15s}
+.ctrl button:hover{border-color:var(--accent);color:var(--text)}
+.center-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:22px;display:flex;flex-direction:column;gap:14px;min-height:600px}
+.step-msg{border-left:3px solid var(--accent);background:rgba(248,113,113,.06);border-radius:0 10px 10px 0;padding:10px 14px;font-size:.86rem;color:var(--text);line-height:1.7;white-space:pre-line}
+.anim-area{flex:1;min-height:440px}
+.anim-area svg{width:100%;display:block}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="breadcrumb">
+    <a href="../index.html">首页</a><span>/</span>
+    <a href="index.html">安全</a><span>/</span>
+    零信任网络
+  </div>
+  <h1 class="page-title">零信任网络</h1>
+  <p class="subtitle">Never Trust, Always Verify。传统边界安全模型假设内网可信，零信任则假设内外网均不可信，每次访问都需要身份认证、设备健康检查和最小权限授权。以 BeyondCorp（Google）为代表，mTLS 和身份感知代理是核心技术。</p>
+  <div class="layout">
+    <div class="left-panel">
+      <div class="tab-group">
+        <div class="group-label">场景选择</div>
+        <div id="tabList"></div>
+      </div>
+      <div class="steps-section">
+        <div class="group-label" style="margin-bottom:10px">步骤</div>
+        <div id="stepList"></div>
+      </div>
+      <div class="ctrl">
+        <button onclick="prev()">← 上一步</button>
+        <button onclick="next()">下一步 →</button>
+        <button onclick="reset()">重置</button>
+        <button id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      </div>
+    </div>
+    <div class="center-panel">
+      <div class="step-msg" id="stepMsg">选择左侧场景，点击"下一步"开始观察零信任网络核心概念。</div>
+      <div class="anim-area" id="animArea"></div>
+    </div>
+  </div>
+</main>
+<script>
+/* ─── SVG helpers ─── */
+const VW = 800, VH = 420;
+
+function svgWrap(content) {
+  return `<svg viewBox="0 0 ${VW} ${VH}" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <marker id="ah"     markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#94a3b8"/></marker>
+  <marker id="ah-ok"  markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#4ade80"/></marker>
+  <marker id="ah-err" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#f87171"/></marker>
+  <marker id="ah-warn"markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#fbbf24"/></marker>
+  <marker id="ah-ok-s"markerWidth="8" markerHeight="6" refX="1" refY="3" orient="auto"><polygon points="8 0,0 3,8 6" fill="#4ade80"/></marker>
+  <marker id="ah-b"   markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#38bdf8"/></marker>
+  <filter id="glow"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+${content}
+</svg>`;
+}
+
+function R(x,y,w,h,rx,fill,stroke,sw=1.5){
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
+}
+function Ci(cx,cy,r,fill,stroke,sw=1.5){
+  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}"/>`;
+}
+function T(x,y,s,fill,size=11,anchor='middle',extra=''){
+  return `<text x="${x}" y="${y}" text-anchor="${anchor}" dominant-baseline="middle" font-family="'Segoe UI',system-ui,sans-serif" font-size="${size}" fill="${fill}" ${extra}>${s}</text>`;
+}
+function L(x1,y1,x2,y2,col,mk='ah',sw=1.5,dash=''){
+  return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="${sw}" marker-end="url(#${mk})"${dash?` stroke-dasharray="${dash}"`:''}/>`;
+}
+function P(d,col,mk='ah',sw=1.5,dash=''){
+  return `<path d="${d}" stroke="${col}" stroke-width="${sw}" fill="none" marker-end="url(#${mk})"${dash?` stroke-dasharray="${dash}"`:''}/>`;
+}
+function node(x,y,w,h,label,sub,fill,stroke,sw=1.5){
+  let o = R(x-w/2,y-h/2,w,h,9,fill,stroke,sw);
+  o += T(x, sub?y-9:y, label,'#e2e8f0',10);
+  if(sub) o += T(x,y+8,sub,'#94a3b8',8);
+  return o;
+}
+function ck(x,y,ok){
+  const col=ok?'#4ade80':'#f87171', bg=ok?'rgba(74,222,128,.18)':'rgba(248,113,113,.18)';
+  return Ci(x,y,10,bg,col,2)+T(x,y,ok?'✓':'✗',col,11);
+}
+function badge(x,y,txt,col){
+  const w=txt.length*6.5+16;
+  return R(x-w/2,y-10,w,20,6,col.replace(')',',0.12)').replace('rgb','rgba'),'none')+
+         T(x,y,txt,col,8);
+}
+
+/* ─── SCENE 1: Traditional Perimeter ─── */
+function rings(innerOk=true, outerLabel='Internet / 外网'){
+  let s='';
+  s+=`<circle cx="310" cy="215" r="172" fill="rgba(248,113,113,0.03)" stroke="rgba(248,113,113,0.45)" stroke-width="1.5" stroke-dasharray="6,4"/>`;
+  s+=T(310,46,outerLabel,'#f87171',10);
+  s+=`<circle cx="310" cy="215" r="103" fill="${innerOk?'rgba(74,222,128,0.04)':'rgba(248,113,113,0.04)'}" stroke="${innerOk?'rgba(74,222,128,0.45)':'rgba(248,113,113,0.45)'}" stroke-width="1.5"/>`;
+  s+=T(310,120,innerOk?'可信内网':'已沦陷',innerOk?'#4ade80':'#f87171',9);
+  s+=R(386,188,70,24,5,'rgba(251,191,36,0.1)','rgba(251,191,36,0.4)');
+  s+=T(421,200,'🔥 防火墙','#fbbf24',9);
+  return s;
+}
+function internalNodes(webState,dbState,pcState){
+  const nodeColor=s=>({ok:'rgba(74,222,128,0.12)',err:'rgba(248,113,113,0.18)',neutral:'rgba(17,24,39,0.85)'}[s]||'rgba(17,24,39,0.85)');
+  const nodeStroke=s=>({ok:'rgba(74,222,128,0.55)',err:'rgba(248,113,113,0.65)',neutral:'rgba(255,255,255,0.15)'}[s]||'rgba(255,255,255,0.15)');
+  const labels={ok:'✓',err:'⚠ 入侵',neutral:''};
+  let o='';
+  o+=node(255,192,72,30,'Web Server',webState!=='neutral'?labels[webState]:'',nodeColor(webState),nodeStroke(webState));
+  o+=node(370,192,72,30,'Database',dbState!=='neutral'?labels[dbState]:'',nodeColor(dbState),nodeStroke(dbState));
+  o+=node(312,260,72,30,'Employee PC',pcState!=='neutral'?labels[pcState]:'',nodeColor(pcState),nodeStroke(pcState));
+  return o;
+}
+
+const PERIM_STEPS = [
+  { label:'传统架构概览',
+    msg:'传统边界安全模型：防火墙构成安全边界。\n\n• 防火墙外：危险区（Internet）\n• 防火墙内：可信区（内网）\n\n内网设备默认互相可信，几乎不设访问控制。Web Server、Database、员工 PC 之间可以自由通信。\n\n核心假设：只要在防火墙内，就是可信的。',
+    draw(){
+      let s=rings();
+      s+=internalNodes('neutral','neutral','neutral');
+      s+=R(505,80,265,130,10,'rgba(255,255,255,0.03)','rgba(255,255,255,0.08)');
+      s+=T(637,100,'传统安全模型','#94a3b8',11,'middle','font-weight="600"');
+      s+=T(637,122,'防火墙 = 边界','#e2e8f0',10,'middle');
+      s+=T(637,140,'内网 = 可信区','#4ade80',10,'middle');
+      s+=T(637,158,'外网 = 危险区','#f87171',10,'middle');
+      s+=T(637,180,'内部设备互相默认信任','#94a3b8',9,'middle');
+      return svgWrap(s);
+    }
+  },
+  { label:'VPN 接入内网',
+    msg:'员工在家通过 VPN 连接内网。\n\n传统模型处理：VPN 认证成功后，员工设备被视为"可信内网成员"，可访问大部分内网资源，几乎不受限制。\n\n这就是"隐式信任"（Implicit Trust）的问题所在：认证一次，全域通行。',
+    draw(){
+      let s=rings();
+      s+=internalNodes('neutral','neutral','ok');
+      s+=node(125,330,76,32,'Employee','(Remote)','rgba(74,222,128,0.1)','rgba(74,222,128,0.5)');
+      s+=P(`M 125 314 Q 170 278 252 264`,'#4ade80','ah-ok',1.5);
+      s+=T(175,282,'VPN','#4ade80',9,'middle');
+      s+=R(220,133,80,18,5,'rgba(74,222,128,0.12)','rgba(74,222,128,0.4)');
+      s+=T(260,142,'全信任 ✓','#4ade80',9,'middle');
+      s+=R(505,90,265,120,10,'rgba(251,191,36,0.05)','rgba(251,191,36,0.2)');
+      s+=T(637,108,'隐式信任问题','#fbbf24',11,'middle','font-weight="600"');
+      s+=T(637,128,'VPN 认证成功','#e2e8f0',10,'middle');
+      s+=T(637,146,'= 内网全域访问权','#fbbf24',10,'middle');
+      s+=T(637,166,'没有细粒度权限控制','#94a3b8',9,'middle');
+      s+=T(637,182,'没有持续验证机制','#94a3b8',9,'middle');
+      return svgWrap(s);
+    }
+  },
+  { label:'钓鱼攻击入侵',
+    msg:'攻击者发送钓鱼邮件给内网员工。\n\n员工点击恶意链接后，攻击者获得了员工 PC 的控制权——这是"初始攻击立足点"（Initial Access）。\n\n此时防火墙对内-内流量没有检测，攻击者完全在防火墙内部活动。',
+    draw(){
+      let s=rings();
+      s+=internalNodes('neutral','neutral','err');
+      s+=node(125,330,76,32,'Hacker','🎣 钓鱼','rgba(248,113,113,0.12)','rgba(248,113,113,0.6)');
+      s+=P(`M 135 314 Q 180 278 278 264`,'#f87171','ah-err',1.5,'4,3');
+      s+=T(200,282,'钓鱼邮件','#f87171',9,'middle');
+      s+=R(490,90,280,130,10,'rgba(248,113,113,0.05)','rgba(248,113,113,0.25)');
+      s+=T(630,110,'初始攻击立足点','#f87171',11,'middle','font-weight="600"');
+      s+=T(630,130,'攻击者控制了','#94a3b8',10,'middle');
+      s+=T(630,148,'内网一台机器','#e2e8f0',10,'middle');
+      s+=T(630,168,'防火墙对此无感知','#fbbf24',9,'middle');
+      s+=T(630,186,'（内-内流量不检测）','#94a3b8',9,'middle');
+      return svgWrap(s);
+    }
+  },
+  { label:'横向移动',
+    msg:'内网默认信任，攻击者从被入侵的 PC 开始自由扫描并访问其他内网资源。\n\n这就是"横向移动"（Lateral Movement）：\n• 端口扫描发现 Web Server（开放 8080）\n• 尝试 SSH 到 Database 服务器\n• 内网没有访问控制，全部成功\n\n传统模型对此几乎无阻碍。',
+    draw(){
+      let s=rings(false);
+      s+=internalNodes('err','err','err');
+      s+=node(125,330,76,32,'Hacker','已入内网','rgba(248,113,113,0.15)','rgba(248,113,113,0.7)');
+      s+=L(290,260,265,208,'#f87171','ah-err',2);
+      s+=L(335,258,360,208,'#f87171','ah-err',2);
+      s+=L(265,192,350,192,'#f87171','ah-err',2);
+      s+=T(290,175,'扫描','#f87171',8,'middle');
+      s+=R(490,75,285,155,10,'rgba(248,113,113,0.07)','rgba(248,113,113,0.3)');
+      s+=T(633,98,'横向移动 Lateral Movement','#f87171',11,'middle','font-weight="600"');
+      s+=T(633,118,'① 端口扫描发现内网服务','#e2e8f0',10,'middle');
+      s+=T(633,138,'② SSH / RDP 尝试连接','#e2e8f0',10,'middle');
+      s+=T(633,158,'③ 内网无访问控制，成功','#fbbf24',10,'middle');
+      s+=T(633,180,'④ 横扫内网资产','#e2e8f0',10,'middle');
+      s+=T(633,200,'防火墙内几乎无阻碍','#94a3b8',9,'middle');
+      return svgWrap(s);
+    }
+  },
+  { label:'数据库泄露',
+    msg:'扫描发现数据库服务开放，且数据库没有身份认证（或弱认证）。\n\n攻击者直接连接数据库，拖走全部数据。\n\n问题根源：内网设备只要能建立 TCP 连接就能访问 DB，没有身份验证机制，也没有访问日志。',
+    draw(){
+      let s=rings(false);
+      s+=internalNodes('err','err','err');
+      s+=node(125,330,76,32,'Hacker','已入内网','rgba(248,113,113,0.15)','rgba(248,113,113,0.7)');
+      s+=R(326,165,88,36,9,'rgba(248,113,113,0.25)','#f87171',2.5);
+      s+=T(370,178,'Database','#e2e8f0',10);
+      s+=T(370,192,'无认证！','#f87171',9);
+      s+=L(334,256,365,212,'#f87171','ah-err',2);
+      s+=P(`M 415 175 Q 470 140 510 180 Q 520 240 470 310`,'#f87171','ah-err',2,'5,3');
+      s+=T(500,205,'数据泄露','#f87171',11,'middle','font-weight="700"');
+      s+=R(525,340,100,24,5,'rgba(248,113,113,0.12)','rgba(248,113,113,0.4)');
+      s+=T(575,352,'💀 数据泄露','#f87171',9,'middle');
+      s+=R(490,60,280,120,10,'rgba(248,113,113,0.08)','rgba(248,113,113,0.4)',2);
+      s+=T(630,80,'⚠ 问题根源','#f87171',11,'middle','font-weight="600"');
+      s+=T(630,100,'DB 无认证，直接访问','#e2e8f0',10,'middle');
+      s+=T(630,118,'内网没有访问日志','#e2e8f0',10,'middle');
+      s+=T(630,136,'没有异常行为告警','#e2e8f0',10,'middle');
+      s+=T(630,158,'边界即城墙，突破即沦陷','#fbbf24',10,'middle','font-style="italic"');
+      return svgWrap(s);
+    }
+  },
+  { label:'攻击总结',
+    msg:'传统边界模型的根本缺陷总结：\n\n❌ 一旦突破边界（VPN 盗用、物理入侵、钓鱼），内部几乎无阻碍\n❌ 内网隐式信任，没有持续身份验证\n❌ 没有设备健康检查\n❌ 没有细粒度权限控制\n❌ 缺乏完整审计和实时告警\n\n零信任的核心思想：不相信任何隐式信任，每次访问都验证。',
+    draw(){
+      let s='';
+      s+=R(20,20,370,380,12,'rgba(248,113,113,0.05)','rgba(248,113,113,0.3)',2);
+      s+=T(205,44,'传统模型 ❌','#f87171',13,'middle','font-weight="700"');
+      const fails=['一旦突破边界，内部无阻碍','内网隐式信任所有设备','无设备健康检查','无细粒度权限控制（RBAC）','无持续身份验证','缺乏审计日志和告警'];
+      fails.forEach((f,i)=>{ s+=ck(50,82+i*44,false); s+=T(72,82+i*44,f,'#94a3b8',10,'start'); });
+      s+=R(410,20,370,380,12,'rgba(74,222,128,0.04)','rgba(74,222,128,0.3)',2);
+      s+=T(595,44,'零信任模型 ✓','#4ade80',13,'middle','font-weight="700"');
+      const wins=['Never Trust, Always Verify','每次访问均验证身份 (OIDC)','设备健康持续检查 (EDR)','最小权限授权 (RBAC/ABAC)','持续验证，短期 Token','完整审计日志 + 异常告警'];
+      wins.forEach((w,i)=>{ s+=ck(440,82+i*44,true); s+=T(462,82+i*44,w,'#94a3b8',10,'start'); });
+      s+=T(400,390,'代表实现：Google BeyondCorp | Cloudflare Zero Trust | Zscaler','#64748b',9,'middle');
+      return svgWrap(s);
+    }
+  }
+];
+
+/* ─── SCENE 2: Zero Trust Verification Chain ─── */
+function gate(x,y,title,sub,state){
+  const fills={idle:'rgba(17,24,39,0.85)',check:'rgba(251,191,36,0.12)',pass:'rgba(74,222,128,0.12)',fail:'rgba(248,113,113,0.12)'};
+  const strokes={idle:'rgba(255,255,255,0.15)',check:'rgba(251,191,36,0.6)',pass:'rgba(74,222,128,0.6)',fail:'rgba(248,113,113,0.6)'};
+  const icons={idle:'□',check:'🔍',pass:'✓',fail:'✗'};
+  const icols={idle:'#64748b',check:'#fbbf24',pass:'#4ade80',fail:'#f87171'};
+  let o=R(x-46,y-33,92,66,9,fills[state],strokes[state],state==='idle'?1:2);
+  o+=T(x,y-16,title,'#e2e8f0',10);
+  o+=T(x,y-2,sub,'#94a3b8',8);
+  o+=T(x,y+17,icons[state],icols[state],state==='idle'?10:13);
+  return o;
+}
+
+const ZT_STEPS = [
+  { label:'发起访问请求',
+    msg:'员工尝试访问内部 HR 系统。\n\n零信任架构关键：HR 系统不直接暴露在网络上，没有公网 IP，员工无法直接访问。\n\n所有请求必须先经过身份感知代理（Identity-Aware Proxy，IAP）。IAP 是零信任的核心执行点。',
+    draw(){
+      let s='';
+      s+=node(75,210,82,36,'Employee','John Doe','rgba(74,222,128,0.1)','rgba(74,222,128,0.4)');
+      s+=L(120,210,175,210,'#94a3b8','ah',1.5);
+      s+=T(147,200,'请求','#94a3b8',8,'middle');
+      s+=node(232,210,92,42,'IAP','Identity-Aware Proxy','rgba(248,113,113,0.08)','rgba(248,113,113,0.4)');
+      s+=gate(385,152,'身份认证','OAuth2/OIDC','idle');
+      s+=gate(385,210,'设备健康','Device Posture','idle');
+      s+=gate(385,268,'权限授权','RBAC/ABAC','idle');
+      s+=L(280,210,337,210,'#64748b','ah',1,'4,3');
+      s+=node(560,210,100,42,'HR System','(隔离，无直接访问)','rgba(255,255,255,0.03)','rgba(255,255,255,0.09)');
+      s+=T(560,268,'不暴露在网络，仅代理可达','#64748b',8,'middle');
+      s+=R(630,60,150,60,8,'rgba(248,113,113,0.06)','rgba(248,113,113,0.2)');
+      s+=T(705,78,'零信任原则','#f87171',9,'middle','font-weight="600"');
+      s+=T(705,96,'默认拒绝所有请求','#94a3b8',9,'middle');
+      return svgWrap(s);
+    }
+  },
+  { label:'IAP 拦截请求',
+    msg:'请求到达 IAP，IAP 不会放行任何请求。\n\n它对每个请求逐一执行三项检查：\n  1. 身份认证（Who are you?）\n  2. 设备健康（Is your device safe?）\n  3. 权限授权（Are you allowed?）\n\n任何一项失败，请求立即被拒绝。',
+    draw(){
+      let s='';
+      s+=node(75,210,82,36,'Employee','发起请求...','rgba(74,222,128,0.1)','rgba(74,222,128,0.4)');
+      s+=L(120,210,175,210,'#f87171','ah-err',1.5);
+      s+=node(232,210,92,42,'IAP','🔒 拦截中','rgba(248,113,113,0.15)','rgba(248,113,113,0.7)',2);
+      s+=gate(385,152,'身份认证','OAuth2/OIDC','check');
+      s+=gate(385,210,'设备健康','Device Posture','idle');
+      s+=gate(385,268,'权限授权','RBAC/ABAC','idle');
+      s+=P(`M 280 206 Q 320 176 338 158`,'#fbbf24','ah-warn',1.5);
+      s+=node(560,210,100,42,'HR System','等待...','rgba(255,255,255,0.03)','rgba(255,255,255,0.09)');
+      s+=R(610,60,175,150,10,'rgba(251,191,36,0.06)','rgba(251,191,36,0.25)');
+      s+=T(697,80,'IAP 三步验证','#fbbf24',10,'middle','font-weight="600"');
+      s+=T(697,100,'① 身份认证 ← 当前','#fbbf24',9,'middle');
+      s+=T(697,118,'② 设备健康检查','#64748b',9,'middle');
+      s+=T(697,136,'③ 权限授权 (RBAC)','#64748b',9,'middle');
+      s+=T(697,158,'任意失败 → 直接拒绝','#94a3b8',9,'middle');
+      return svgWrap(s);
+    }
+  },
+  { label:'身份认证通过',
+    msg:'身份认证检查（OAuth2/OIDC）通过：\n\n✓ 用户已通过 SSO 登录（Google / Okta）\n✓ ID Token 有效，未过期\n✓ 用户属于组织账号域\n\n进入下一项检查：设备健康状态。',
+    draw(){
+      let s='';
+      s+=node(75,210,82,36,'Employee','已认证 ✓','rgba(74,222,128,0.1)','rgba(74,222,128,0.4)');
+      s+=L(120,210,175,210,'#4ade80','ah-ok',1.5);
+      s+=node(232,210,92,42,'IAP','检查中...','rgba(248,113,113,0.1)','rgba(248,113,113,0.5)');
+      s+=gate(385,152,'身份认证','OAuth2/OIDC','pass');
+      s+=gate(385,210,'设备健康','Device Posture','check');
+      s+=gate(385,268,'权限授权','RBAC/ABAC','idle');
+      s+=ck(350,152,true);
+      s+=P(`M 280 210 Q 320 210 338 210`,'#4ade80','ah-ok',1.5);
+      s+=node(560,210,100,42,'HR System','等待...','rgba(255,255,255,0.03)','rgba(255,255,255,0.09)');
+      s+=R(600,55,180,160,10,'rgba(74,222,128,0.05)','rgba(74,222,128,0.25)');
+      s+=T(690,75,'身份认证通过 ✓','#4ade80',10,'middle','font-weight="600"');
+      s+=T(690,95,'SSO Token 有效','#94a3b8',9,'middle');
+      s+=T(690,113,'john@company.com','#e2e8f0',9,'middle');
+      s+=T(690,131,'Token TTL: 45min 剩余','#94a3b8',9,'middle');
+      s+=T(690,149,'Issuer: accounts.google.com','#94a3b8',8,'middle');
+      s+=T(690,168,'→ 下一关：设备健康检查','#fbbf24',9,'middle');
+      s+=T(690,185,'(Device Posture Check)','#64748b',8,'middle');
+      return svgWrap(s);
+    }
+  },
+  { label:'设备健康检查',
+    msg:'设备健康检查（Device Posture Check）通过：\n\n✓ 设备已安装公司 EDR Agent（CrowdStrike）\n✓ OS 补丁已更新至最新版本\n✓ 磁盘加密已启用（FileVault）\n✓ 设备证书有效（由内部 CA 签发）\n✓ 设备在公司 MDM 注册\n\n继续第三项：权限授权。',
+    draw(){
+      let s='';
+      s+=node(75,210,82,36,'Employee','设备合规 ✓','rgba(74,222,128,0.1)','rgba(74,222,128,0.4)');
+      s+=L(120,210,175,210,'#4ade80','ah-ok',1.5);
+      s+=node(232,210,92,42,'IAP','检查中...','rgba(248,113,113,0.1)','rgba(248,113,113,0.5)');
+      s+=gate(385,152,'身份认证','OAuth2/OIDC','pass');
+      s+=gate(385,210,'设备健康','Device Posture','pass');
+      s+=gate(385,268,'权限授权','RBAC/ABAC','check');
+      s+=ck(350,152,true); s+=ck(350,210,true);
+      s+=P(`M 280 214 Q 320 238 338 260`,'#4ade80','ah-ok',1.5);
+      s+=node(560,210,100,42,'HR System','即将放行...','rgba(74,222,128,0.05)','rgba(74,222,128,0.25)');
+      s+=R(598,48,190,180,10,'rgba(74,222,128,0.05)','rgba(74,222,128,0.25)');
+      s+=T(693,67,'设备健康检查通过 ✓','#4ade80',10,'middle','font-weight="600"');
+      s+=ck(620,90,true); s+=T(636,90,'EDR Agent 已安装','#94a3b8',9,'start');
+      s+=ck(620,112,true); s+=T(636,112,'OS 补丁最新','#94a3b8',9,'start');
+      s+=ck(620,134,true); s+=T(636,134,'磁盘加密启用','#94a3b8',9,'start');
+      s+=ck(620,156,true); s+=T(636,156,'设备证书有效','#94a3b8',9,'start');
+      s+=ck(620,178,true); s+=T(636,178,'MDM 已注册','#94a3b8',9,'start');
+      s+=T(693,206,'→ 下一关：RBAC 权限授权','#fbbf24',9,'middle');
+      return svgWrap(s);
+    }
+  },
+  { label:'权限授权通过',
+    msg:'权限授权检查（RBAC/ABAC）通过：\n\n✓ 用户 john 属于 hr-staff 组（RBAC）\n✓ hr-staff 组拥有 /api/hr/* 读权限\n✓ 当前时间在工作时间范围内（ABAC 时间策略）\n\n三项全部通过！IAP 将请求转发至 HR 系统。',
+    draw(){
+      let s='';
+      s+=node(75,210,82,36,'Employee','已授权 ✓','rgba(74,222,128,0.1)','rgba(74,222,128,0.4)');
+      s+=L(120,210,175,210,'#4ade80','ah-ok',1.5);
+      s+=node(232,210,92,42,'IAP','✓ 三项全通过','rgba(74,222,128,0.12)','rgba(74,222,128,0.6)',2);
+      s+=gate(385,152,'身份认证','OAuth2/OIDC','pass');
+      s+=gate(385,210,'设备健康','Device Posture','pass');
+      s+=gate(385,268,'权限授权','RBAC/ABAC','pass');
+      s+=ck(350,152,true); s+=ck(350,210,true); s+=ck(350,268,true);
+      s+=L(434,210,505,210,'#4ade80','ah-ok',2);
+      s+=node(565,210,100,42,'HR System','✅ 访问成功','rgba(74,222,128,0.12)','rgba(74,222,128,0.6)',2);
+      s+=R(598,60,190,170,10,'rgba(74,222,128,0.05)','rgba(74,222,128,0.25)');
+      s+=T(693,78,'RBAC 授权通过 ✓','#4ade80',10,'middle','font-weight="600"');
+      s+=T(693,98,'用户: john@company.com','#94a3b8',9,'middle');
+      s+=T(693,116,'角色: hr-staff','#e2e8f0',9,'middle');
+      s+=T(693,134,'权限: /api/hr/* READ','#e2e8f0',9,'middle');
+      s+=T(693,152,'时间策略: 09:00-18:00 ✓','#4ade80',9,'middle');
+      s+=T(693,174,'IAP 代理转发请求至 HR','#fbbf24',9,'middle');
+      s+=T(693,192,'HR 系统对外不可见','#94a3b8',8,'middle');
+      s+=T(693,210,'仅通过 IAP 代理访问','#94a3b8',8,'middle');
+      return svgWrap(s);
+    }
+  },
+  { label:'HR 系统隔离',
+    msg:'零信任网络隔离原则：\n\nHR 系统没有公网 IP，没有直接访问入口。它只接受来自 IAP 的请求（通过内部 VPN 或 Service Mesh）。\n\n即使攻击者进入内网，也无法直接访问 HR 系统——必须通过 IAP 的三重验证。\n\n这就是"最小暴露面"（Minimal Attack Surface）。',
+    draw(){
+      let s='';
+      s+=node(75,130,88,36,'Employee','已通过验证','rgba(74,222,128,0.1)','rgba(74,222,128,0.4)');
+      s+=node(75,250,88,36,'Attacker','内网渗透者','rgba(248,113,113,0.12)','rgba(248,113,113,0.5)');
+      s+=L(122,130,190,130,'#4ade80','ah-ok',1.5);
+      s+=L(122,250,188,250,'#f87171','ah-err',1.5,'4,3');
+      s+=node(250,190,92,42,'IAP','验证中心','rgba(248,113,113,0.08)','rgba(248,113,113,0.5)');
+      s+=L(298,190,380,190,'#4ade80','ah-ok',2);
+      s+=node(450,190,90,36,'Network','隔离层','rgba(255,255,255,0.04)','rgba(255,255,255,0.12)');
+      s+=L(498,190,560,190,'#4ade80','ah-ok',2);
+      s+=node(625,190,96,42,'HR System','无直接访问入口','rgba(74,222,128,0.08)','rgba(74,222,128,0.4)');
+      s+=ck(210,248,false);
+      s+=T(245,252,'攻击者被 IAP 拒绝','#f87171',9,'start');
+      s+=R(530,270,250,110,9,'rgba(74,222,128,0.05)','rgba(74,222,128,0.2)');
+      s+=T(655,288,'最小暴露面原则','#4ade80',10,'middle','font-weight="600"');
+      s+=T(655,308,'HR 无公网 IP','#94a3b8',9,'middle');
+      s+=T(655,326,'无直接 TCP 访问入口','#94a3b8',9,'middle');
+      s+=T(655,344,'仅接受 IAP 内部转发','#e2e8f0',9,'middle');
+      s+=T(655,362,'Minimal Attack Surface','#64748b',8,'middle','font-style="italic"');
+      return svgWrap(s);
+    }
+  },
+  { label:'完整审计日志',
+    msg:'零信任的最后一环：每次访问（成功/失败）都完整记录。\n\n审计日志包含：用户身份、设备信息、源 IP、目标资源、时间戳、三项检查结果、最终决策。\n\n这些日志用于：安全审计 · 异常检测 · 合规报告 · 事后溯源。',
+    draw(){
+      let s='';
+      s+=node(80,80,90,32,'Employee','请求方','rgba(74,222,128,0.08)','rgba(74,222,128,0.3)');
+      s+=node(80,180,90,32,'IAP','决策中心','rgba(248,113,113,0.08)','rgba(248,113,113,0.3)');
+      s+=node(80,280,90,32,'HR System','响应 200 OK','rgba(74,222,128,0.08)','rgba(74,222,128,0.3)');
+      s+=L(80,96,80,163,'#4ade80','ah-ok',1);
+      s+=L(80,196,80,263,'#4ade80','ah-ok',1);
+      s+=R(200,30,570,360,12,'rgba(17,24,39,0.9)','rgba(248,113,113,0.35)',1.5);
+      s+=T(485,56,'📋  审计日志 / Audit Log','#f87171',12,'middle','font-weight="700"');
+      const rows=[
+        ['time','2024-01-15 14:23:05 UTC'],
+        ['user','john@company.com'],
+        ['device','MacBook-Pro-8A3F (compliant=true)'],
+        ['src_ip','192.168.1.45 (US, New York)'],
+        ['resource','GET /api/hr/employees'],
+        ['identity_check','PASS (token_ttl=2700s)'],
+        ['device_check','PASS (edr=true, patch=latest)'],
+        ['rbac_check','PASS (role=hr-staff)'],
+        ['decision','ALLOW'],
+        ['latency_ms','28'],
+        ['response_status','200'],
+      ];
+      rows.forEach(([k,v],i)=>{
+        s+=T(220,82+i*27,k+':','#64748b',9,'start','font-family="\'Courier New\',monospace"');
+        s+=T(350,82+i*27,v,'#e2e8f0',9,'start','font-family="\'Courier New\',monospace"');
+      });
+      return svgWrap(s);
+    }
+  }
+];
+
+/* ─── SCENE 3: mTLS ─── */
+function certBox(x,y,subject,spiffe){
+  let o=R(x-80,y-40,160,80,8,'rgba(56,189,248,0.07)','rgba(56,189,248,0.35)');
+  o+=T(x,y-22,'📜 Certificate','#bae6fd',9);
+  o+=T(x,y-6,'Subject: '+subject,'#94a3b8',8);
+  o+=T(x,y+8,'Issuer: Internal CA','#94a3b8',8);
+  o+=T(x,y+24,spiffe,'#64748b',7.5);
+  return o;
+}
+
+const MTLS_STEPS = [
+  { label:'初始状态',
+    msg:'初始状态：Service A 和 Service B 需要建立安全通信。\n\n零信任要求：服务间通信不能依赖 IP 信任，必须通过证书进行双向身份认证（mTLS）。\n\n内部 CA（Certificate Authority）负责为每个服务签发证书，证书中包含 SPIFFE ID（服务身份标识）。\n\nSPIFFE = Secure Production Identity Framework for Everyone',
+    draw(){
+      let s='';
+      s+=node(130,210,100,44,'Service A','serviceA.svc','rgba(17,24,39,0.85)','rgba(255,255,255,0.2)');
+      s+=node(400,80,110,44,'Internal CA','Root of Trust','rgba(251,191,36,0.1)','rgba(251,191,36,0.5)');
+      s+=node(670,210,100,44,'Service B','serviceB.svc','rgba(17,24,39,0.85)','rgba(255,255,255,0.2)');
+      s+=P(`M 368 103 L 175 188`,'rgba(251,191,36,0.35)','ah-warn',1,'7,4');
+      s+=P(`M 432 103 L 625 188`,'rgba(251,191,36,0.35)','ah-warn',1,'7,4');
+      s+=T(255,148,'证书签发','#fbbf24',8,'middle');
+      s+=T(550,148,'证书签发','#fbbf24',8,'middle');
+      s+=T(400,210,'?','#64748b',28,'middle');
+      s+=T(400,250,'尚未建立安全通道','#64748b',10,'middle');
+      s+=R(180,300,440,100,10,'rgba(255,255,255,0.03)','rgba(255,255,255,0.08)');
+      s+=T(400,320,'SPIFFE ID 格式','#94a3b8',9,'middle','font-weight="600"');
+      s+=T(400,342,'spiffe://cluster.local/ns/{namespace}/sa/{service-account}','#64748b',8,'middle','font-family="\'Courier New\',monospace"');
+      s+=T(400,362,'唯一标识服务身份，跨集群可用，不依赖 IP','#64748b',8,'middle');
+      return svgWrap(s);
+    }
+  },
+  { label:'A 发送证书给 B',
+    msg:'Step 1：Service A 发起连接，将自己的证书发送给 Service B。\n\n证书内容：\n• Subject: CN=serviceA\n• Issuer: Internal CA\n• SPIFFE ID: spiffe://cluster.local/ns/default/sa/service-a\n• Not After: 2024-06-15（证书有效期，通常 1-24h）\n\nService B 收到后开始验证。',
+    draw(){
+      let s='';
+      s+=node(130,210,100,44,'Service A','发送证书 →','rgba(74,222,128,0.1)','rgba(74,222,128,0.5)');
+      s+=node(400,80,110,44,'Internal CA','Root of Trust','rgba(251,191,36,0.1)','rgba(251,191,36,0.4)');
+      s+=node(670,210,100,44,'Service B','← 收到证书','rgba(17,24,39,0.85)','rgba(255,255,255,0.2)');
+      s+=certBox(400,230,'serviceA','spiffe://.../sa/service-a');
+      s+=L(184,210,315,230,'#4ade80','ah-ok',2);
+      s+=P(`M 368 103 L 175 188`,'rgba(251,191,36,0.25)','ah-warn',1,'7,4');
+      s+=P(`M 432 103 L 625 188`,'rgba(251,191,36,0.25)','ah-warn',1,'7,4');
+      s+=R(520,300,240,100,8,'rgba(56,189,248,0.06)','rgba(56,189,248,0.2)');
+      s+=T(640,320,'A 发送自己的证书','#38bdf8',10,'middle','font-weight="600"');
+      s+=T(640,340,'Service B 将验证：','#94a3b8',9,'middle');
+      s+=T(640,358,'CA 签发？吊销？SPIFFE？','#e2e8f0',9,'middle');
+      return svgWrap(s);
+    }
+  },
+  { label:'B 验证 A 的证书',
+    msg:'Service B 对 Service A 的证书执行三项验证：\n\n① CA 签发验证：证书是否由受信任的 Internal CA 签发？ ✓\n② CRL/OCSP 检查：证书是否已被吊销？ ✓（未吊销）\n③ SPIFFE ID 策略匹配：spiffe://.../sa/service-a 是否在访问白名单内？ ✓\n\n三项全部通过！',
+    draw(){
+      let s='';
+      s+=node(130,210,100,44,'Service A','证书已发送','rgba(74,222,128,0.1)','rgba(74,222,128,0.5)');
+      s+=node(400,80,110,44,'Internal CA','验证中...','rgba(251,191,36,0.15)','rgba(251,191,36,0.7)',2);
+      s+=node(670,210,100,44,'Service B','验证 A 证书...','rgba(74,222,128,0.08)','rgba(74,222,128,0.4)');
+      s+=P(`M 638 193 L 462 103`,'#fbbf24','ah-warn',1.5);
+      s+=T(535,150,'OCSP/CRL 查询','#fbbf24',8,'middle');
+      s+=certBox(400,310,'serviceA','spiffe://.../sa/service-a');
+      s+=R(500,120,220,100,8,'rgba(74,222,128,0.06)','rgba(74,222,128,0.3)');
+      s+=T(610,140,'B 验证 A 的证书','#4ade80',10,'middle','font-weight="600"');
+      s+=ck(518,163,true); s+=T(536,163,'CA 签发验证 ✓','#94a3b8',9,'start');
+      s+=ck(518,185,true); s+=T(536,185,'CRL 未吊销 ✓','#94a3b8',9,'start');
+      s+=ck(518,207,true); s+=T(536,207,'SPIFFE ID 匹配 ✓','#94a3b8',9,'start');
+      return svgWrap(s);
+    }
+  },
+  { label:'B 发送自己的证书',
+    msg:'mTLS 关键区别：服务端也必须向客户端提交证书。\n\nService B 发送自己的证书给 Service A，完成双向身份认证。\n\n对比单向 TLS（普通 HTTPS）：\n• 单向 TLS：只有客户端验证服务端证书\n• mTLS：双方都需验证对方证书\n\nmTLS 无需 API Key、无需共享 Secret，身份完全由证书承载。',
+    draw(){
+      let s='';
+      s+=node(130,210,100,44,'Service A','← 收到 B 证书','rgba(17,24,39,0.85)','rgba(255,255,255,0.2)');
+      s+=node(400,80,110,44,'Internal CA','Root of Trust','rgba(251,191,36,0.1)','rgba(251,191,36,0.4)');
+      s+=node(670,210,100,44,'Service B','发送证书 →','rgba(74,222,128,0.1)','rgba(74,222,128,0.5)');
+      s+=certBox(400,230,'serviceB','spiffe://.../sa/service-b');
+      s+=L(616,210,480,230,'#4ade80','ah-ok',2);
+      s+=P(`M 368 103 L 175 188`,'rgba(251,191,36,0.25)','ah-warn',1,'7,4');
+      s+=P(`M 432 103 L 625 188`,'rgba(251,191,36,0.25)','ah-warn',1,'7,4');
+      s+=R(10,310,290,100,8,'rgba(251,191,36,0.06)','rgba(251,191,36,0.25)');
+      s+=T(155,330,'vs 单向 TLS','#fbbf24',10,'middle','font-weight="600"');
+      s+=T(155,350,'HTTPS：只有客户端验证服务端','#94a3b8',9,'middle');
+      s+=T(155,368,'mTLS：双方均验证对方身份','#e2e8f0',9,'middle');
+      s+=T(155,386,'mTLS 无需 API Key','#4ade80',9,'middle');
+      return svgWrap(s);
+    }
+  },
+  { label:'A 验证 B 的证书',
+    msg:'Service A 验证 Service B 的证书（同样三项检查）：\n\n① CA 签发验证 ✓\n② CRL/OCSP 检查 ✓（未吊销）\n③ SPIFFE ID 策略匹配：spiffe://.../sa/service-b 在白名单 ✓\n\n双向验证完成！接下来建立 mTLS 加密通道。',
+    draw(){
+      let s='';
+      s+=node(130,210,100,44,'Service A','验证 B 证书...','rgba(74,222,128,0.08)','rgba(74,222,128,0.4)');
+      s+=node(400,80,110,44,'Internal CA','验证中...','rgba(251,191,36,0.15)','rgba(251,191,36,0.7)',2);
+      s+=node(670,210,100,44,'Service B','证书已发送','rgba(74,222,128,0.1)','rgba(74,222,128,0.5)');
+      s+=P(`M 165 193 L 340 103`,'#fbbf24','ah-warn',1.5);
+      s+=T(235,150,'OCSP/CRL 查询','#fbbf24',8,'middle');
+      s+=certBox(400,310,'serviceB','spiffe://.../sa/service-b');
+      s+=R(10,120,220,100,8,'rgba(74,222,128,0.06)','rgba(74,222,128,0.3)');
+      s+=T(120,140,'A 验证 B 的证书','#4ade80',10,'middle','font-weight="600"');
+      s+=ck(28,163,true); s+=T(46,163,'CA 签发验证 ✓','#94a3b8',9,'start');
+      s+=ck(28,185,true); s+=T(46,185,'CRL 未吊销 ✓','#94a3b8',9,'start');
+      s+=ck(28,207,true); s+=T(46,207,'SPIFFE ID 匹配 ✓','#94a3b8',9,'start');
+      return svgWrap(s);
+    }
+  },
+  { label:'mTLS 通道建立',
+    msg:'双向验证完成，建立 mTLS 加密通道！\n\n通道属性：\n• 双向身份认证（无需 API Key / Secret）\n• TLS 1.3 加密（AES-256-GCM）\n• 证书通常有效期 1-24h，自动轮换（SPIRE）\n• 基于 SPIFFE 标准，可跨集群、跨云使用\n• Envoy Sidecar 可透明处理 mTLS（Service Mesh）',
+    draw(){
+      let s='';
+      s+=node(130,210,100,44,'Service A','身份已验证','rgba(74,222,128,0.12)','rgba(74,222,128,0.6)',2);
+      s+=node(400,80,110,44,'Internal CA','Root of Trust','rgba(251,191,36,0.1)','rgba(251,191,36,0.4)');
+      s+=node(670,210,100,44,'Service B','身份已验证','rgba(74,222,128,0.12)','rgba(74,222,128,0.6)',2);
+      s+=`<line x1="184" y1="204" x2="616" y2="204" stroke="#4ade80" stroke-width="3" marker-end="url(#ah-ok)" marker-start="url(#ah-ok-s)" filter="url(#glow)"/>`;
+      s+=`<line x1="184" y1="217" x2="616" y2="217" stroke="#4ade80" stroke-width="3" opacity="0.3"/>`;
+      s+=Ci(400,210,24,'rgba(74,222,128,0.15)','#4ade80',2);
+      s+=T(400,210,'🔒','#4ade80',15);
+      s+=T(400,248,'mTLS 加密通道 (TLS 1.3)','#4ade80',10,'middle','font-weight="700"');
+      s+=P(`M 368 103 L 175 188`,'rgba(251,191,36,0.25)','ah-warn',1,'7,4');
+      s+=P(`M 432 103 L 625 188`,'rgba(251,191,36,0.25)','ah-warn',1,'7,4');
+      s+=R(155,290,490,120,10,'rgba(74,222,128,0.04)','rgba(74,222,128,0.2)');
+      s+=T(400,310,'mTLS 通道属性','#4ade80',10,'middle','font-weight="600"');
+      s+=T(400,330,'双向身份认证（无需 API Key）  |  AES-256-GCM 加密','#94a3b8',9,'middle');
+      s+=T(400,350,'证书自动轮换（SPIRE）  |  跨集群 SPIFFE 标准','#94a3b8',9,'middle');
+      s+=T(400,370,'Envoy/Istio 可在 Sidecar 层透明处理，服务无感知','#94a3b8',9,'middle');
+      s+=T(400,390,'证书有效期通常 1-24h，比 API Key 安全得多','#64748b',8,'middle');
+      return svgWrap(s);
+    }
+  },
+  { label:'对比单向 TLS',
+    msg:'mTLS 与普通 TLS/HTTPS 的核心区别：\n\n单向 TLS（HTTPS）：\n• 客户端验证服务端证书（防止中间人）\n• 服务端不知道客户端是谁\n• 需要额外的 API Key/Token 做客户端鉴权\n\nmTLS（双向 TLS）：\n• 双方都通过证书验证身份\n• 服务端确认客户端身份 = 不需要 API Key\n• 适合微服务东西流量（Service-to-Service）',
+    draw(){
+      let s='';
+      s+=R(20,30,370,360,12,'rgba(56,189,248,0.05)','rgba(56,189,248,0.25)',1.5);
+      s+=T(205,56,'单向 TLS (HTTPS)','#38bdf8',12,'middle','font-weight="700"');
+      s+=node(100,130,80,34,'Client','','rgba(17,24,39,0.85)','rgba(255,255,255,0.15)');
+      s+=node(295,130,80,34,'Server','','rgba(17,24,39,0.85)','rgba(255,255,255,0.15)');
+      s+=L(143,130,250,130,'#38bdf8','ah-b',1.5);
+      s+=T(197,118,'验证服务端证书','#38bdf8',8,'middle');
+      s+=L(253,144,145,144,'#94a3b8','ah',1,'4,3');
+      s+=T(197,156,'Server 不知道 Client 是谁','#94a3b8',8,'middle');
+      s+=R(50,180,310,60,6,'rgba(251,191,36,0.08)','rgba(251,191,36,0.25)');
+      s+=T(205,200,'需要额外鉴权机制','#fbbf24',9,'middle');
+      s+=T(205,218,'Authorization: Bearer [token]','#94a3b8',8,'middle','font-family="\'Courier New\',monospace"');
+      s+=T(205,260,'✓ 防止中间人攻击','#4ade80',10,'middle');
+      s+=T(205,282,'✗ 服务端无法验证客户端身份','#f87171',10,'middle');
+      s+=T(205,304,'✗ 需要 API Key 等额外机制','#f87171',10,'middle');
+      s+=T(205,330,'适合：浏览器-服务器通信','#94a3b8',9,'middle');
+      s+=R(410,30,370,360,12,'rgba(74,222,128,0.04)','rgba(74,222,128,0.25)',1.5);
+      s+=T(595,56,'mTLS (双向 TLS)','#4ade80',12,'middle','font-weight="700"');
+      s+=node(500,130,80,34,'Service A','','rgba(74,222,128,0.1)','rgba(74,222,128,0.4)');
+      s+=node(685,130,80,34,'Service B','','rgba(74,222,128,0.1)','rgba(74,222,128,0.4)');
+      s+=`<line x1="543" y1="124" x2="642" y2="124" stroke="#4ade80" stroke-width="1.5" marker-end="url(#ah-ok)" marker-start="url(#ah-ok-s)"/>`;
+      s+=T(595,112,'双向验证证书','#4ade80',8,'middle');
+      s+=Ci(595,144,10,'rgba(74,222,128,0.15)','#4ade80',1.5);
+      s+=T(595,144,'🔒','#4ade80',9);
+      s+=R(440,180,310,60,6,'rgba(74,222,128,0.07)','rgba(74,222,128,0.25)');
+      s+=T(595,200,'证书即身份，无需额外鉴权','#4ade80',9,'middle');
+      s+=T(595,218,'SPIFFE ID = 服务身份标识符','#94a3b8',8,'middle','font-family="\'Courier New\',monospace"');
+      s+=T(595,260,'✓ 双向身份认证','#4ade80',10,'middle');
+      s+=T(595,282,'✓ 无需 API Key / Token','#4ade80',10,'middle');
+      s+=T(595,304,'✓ 证书自动轮换，安全性更高','#4ade80',10,'middle');
+      s+=T(595,330,'适合：微服务东西流量','#94a3b8',9,'middle');
+      return svgWrap(s);
+    }
+  }
+];
+
+/* ─── SCENE 4: Anomaly Blocking ─── */
+const ANOMALY_STEPS = [
+  { label:'账号密码被盗',
+    msg:'员工 alice@company.com 的账号密码被钓鱼邮件盗取。\n\n攻击者现在持有合法的账号密码。\n\n传统 VPN 模型：账号密码 = 进入内网的全部凭证，这已经足够了。\n\n零信任模型：仅凭账号密码不够——还需要通过设备健康检查。',
+    draw(){
+      let s='';
+      s+=node(130,145,100,40,'Alice','alice@co.com','rgba(74,222,128,0.1)','rgba(74,222,128,0.4)');
+      s+=node(130,295,100,40,'Attacker','境外 IP 203.x','rgba(248,113,113,0.12)','rgba(248,113,113,0.6)');
+      s+=P(`M 130 275 Q 130 230 130 190`,'#f87171','ah-err',1.5,'4,3');
+      s+=T(98,232,'钓鱼','#f87171',8,'middle');
+      s+=R(278,248,200,70,8,'rgba(248,113,113,0.08)','rgba(248,113,113,0.35)');
+      s+=T(378,268,'已盗取凭证','#f87171',10,'middle','font-weight="600"');
+      s+=T(378,286,'alice@company.com','#94a3b8',9,'middle','font-family="\'Courier New\',monospace"');
+      s+=T(378,304,'Password: P@$$w0rd123','#94a3b8',9,'middle','font-family="\'Courier New\',monospace"');
+      s+=node(600,145,90,40,'IAP','等待请求','rgba(248,113,113,0.06)','rgba(248,113,113,0.3)');
+      s+=node(600,295,90,40,'HR System','隔离中','rgba(255,255,255,0.03)','rgba(255,255,255,0.09)');
+      s+=R(510,200,260,80,8,'rgba(251,191,36,0.05)','rgba(251,191,36,0.2)');
+      s+=T(640,220,'传统 VPN 模型','#fbbf24',10,'middle','font-weight="600"');
+      s+=T(640,238,'密码 = 内网全域通行证','#f87171',9,'middle');
+      s+=T(640,256,'这已经足够了（危险）','#94a3b8',8,'middle');
+      return svgWrap(s);
+    }
+  },
+  { label:'攻击者尝试登录',
+    msg:'攻击者从中国上海（IP: 203.0.113.45）使用盗取的凭证登录。\n\n身份认证步骤结果：\n✓ 账号 alice@company.com 存在\n✓ 密码正确\n✓ ID Token 成功颁发\n\n⚠️ 注意：身份认证通过了！但这只是第一关。\n下一关：设备健康检查。',
+    draw(){
+      let s='';
+      s+=node(100,210,100,42,'Attacker','CN: 203.0.113.45','rgba(248,113,113,0.12)','rgba(248,113,113,0.6)');
+      s+=L(153,210,360,210,'#f87171','ah-err',1.5);
+      s+=T(255,198,'POST /auth alice:••••••','#94a3b8',8,'middle','font-family="\'Courier New\',monospace"');
+      s+=node(420,210,100,44,'IAP','身份验证中...','rgba(251,191,36,0.12)','rgba(251,191,36,0.55)');
+      s+=R(545,100,230,160,9,'rgba(251,191,36,0.06)','rgba(251,191,36,0.3)');
+      s+=T(660,120,'身份认证结果','#fbbf24',10,'middle','font-weight="600"');
+      s+=ck(563,143,true); s+=T(581,143,'账号存在 ✓','#94a3b8',9,'start');
+      s+=ck(563,165,true); s+=T(581,165,'密码正确 ✓','#94a3b8',9,'start');
+      s+=ck(563,187,true); s+=T(581,187,'Token 颁发 ✓','#94a3b8',9,'start');
+      s+=R(556,207,198,20,4,'rgba(251,191,36,0.12)','rgba(251,191,36,0.35)');
+      s+=T(655,217,'⚠ 下一关：设备健康检查','#fbbf24',8,'middle');
+      s+=T(660,244,'密码通过不等于放行','#94a3b8',9,'middle','font-style="italic"');
+      s+=node(100,340,200,40,'Alice (真实员工)','14:18 已从纽约登录','rgba(74,222,128,0.08)','rgba(74,222,128,0.3)');
+      s+=T(100,392,'真实 Alice 在纽约正常工作中...','#64748b',9,'middle');
+      return svgWrap(s);
+    }
+  },
+  { label:'设备健康检查失败',
+    msg:'设备健康检查（Device Posture Check）失败！\n\n✗ 攻击者的机器没有公司 EDR Agent 证书\n✗ 设备不在公司 MDM 注册系统中\n✗ 没有有效的设备客户端证书\n\nIAP 立即拒绝请求，返回 403 Forbidden。\n同时生成高风险审计日志记录。',
+    draw(){
+      let s='';
+      s+=node(100,180,100,42,'Attacker','CN: 203.0.113.45','rgba(248,113,113,0.12)','rgba(248,113,113,0.6)');
+      s+=L(153,180,348,180,'#f87171','ah-err',1.5);
+      s+=node(408,180,100,46,'IAP','🚫 拒绝访问','rgba(248,113,113,0.2)','rgba(248,113,113,0.8)',2.5);
+      s+=L(458,165,540,120,'#f87171','ah-err',1.5,'4,3');
+      s+=R(540,100,200,40,6,'rgba(248,113,113,0.15)','rgba(248,113,113,0.5)');
+      s+=T(640,120,'HTTP 403 Forbidden','#f87171',10,'middle','font-weight="700"');
+      s+=R(60,270,330,140,10,'rgba(248,113,113,0.07)','rgba(248,113,113,0.35)');
+      s+=T(225,292,'设备健康检查失败','#f87171',11,'middle','font-weight="600"');
+      s+=ck(85,315,false); s+=T(103,315,'无 EDR Agent 证书','#94a3b8',9,'start');
+      s+=ck(85,340,false); s+=T(103,340,'设备不在 MDM 系统','#94a3b8',9,'start');
+      s+=ck(85,365,false); s+=T(103,365,'无有效设备客户端证书','#94a3b8',9,'start');
+      s+=R(430,240,340,170,9,'rgba(248,113,113,0.06)','rgba(248,113,113,0.25)');
+      s+=T(600,262,'审计日志 - 拒绝记录','#f87171',10,'middle','font-weight="600"');
+      s+=T(600,282,'decision: DENY','#e2e8f0',9,'middle','font-family="\'Courier New\',monospace"');
+      s+=T(600,300,'reason: device_check_failed','#94a3b8',8,'middle','font-family="\'Courier New\',monospace"');
+      s+=T(600,318,'src_ip: 203.0.113.45 (CN)','#94a3b8',8,'middle','font-family="\'Courier New\',monospace"');
+      s+=T(600,336,'user: alice@company.com','#94a3b8',8,'middle','font-family="\'Courier New\',monospace"');
+      s+=T(600,356,'risk_score: HIGH','#fbbf24',9,'middle','font-family="\'Courier New\',monospace"');
+      s+=T(600,376,'alert: true','#f87171',9,'middle','font-family="\'Courier New\',monospace"');
+      s+=T(600,396,'5 分钟内设备检查失败，触发告警','#f87171',8,'middle');
+      return svgWrap(s);
+    }
+  },
+  { label:'Impossible Travel 告警',
+    msg:'安全系统自动检测到"不可能旅行"（Impossible Travel）异常：\n\n同一账号在 5 分钟内从两个不同大洲登录——物理上不可能发生！\n\n• 14:18 从美国纽约成功登录（真实 Alice）\n• 14:23 从中国上海登录尝试（攻击者）\n\n系统判定：账号已被盗取。立即触发 P1 告警。',
+    draw(){
+      let s='';
+      s+=R(20,20,760,380,12,'rgba(248,113,113,0.06)','rgba(248,113,113,0.5)',2);
+      s+=T(400,46,'🚨  SECURITY ALERT: Impossible Travel Detected','#f87171',12,'middle','font-weight="700"');
+      s+=R(40,70,335,145,9,'rgba(74,222,128,0.08)','rgba(74,222,128,0.3)');
+      s+=T(207,92,'14:18  — 美国 纽约','#4ade80',11,'middle','font-weight="600"');
+      s+=T(207,112,'alice@company.com','#94a3b8',9,'middle');
+      s+=T(207,130,'IP: 198.51.100.22','#94a3b8',9,'middle');
+      s+=T(207,148,'设备: MacBook-Alice (compliant)','#94a3b8',9,'middle');
+      s+=T(207,168,'结果: SUCCESS ✓','#4ade80',10,'middle','font-weight="600"');
+      s+=R(424,70,336,145,9,'rgba(248,113,113,0.1)','rgba(248,113,113,0.4)');
+      s+=T(592,92,'14:23  — 中国 上海','#f87171',11,'middle','font-weight="600"');
+      s+=T(592,112,'alice@company.com','#94a3b8',9,'middle');
+      s+=T(592,130,'IP: 203.0.113.45','#94a3b8',9,'middle');
+      s+=T(592,148,'设备: UNKNOWN (non-compliant)','#94a3b8',9,'middle');
+      s+=T(592,168,'结果: DENIED ✗','#f87171',10,'middle','font-weight="600"');
+      s+=L(377,142,422,142,'#fbbf24','ah-warn',2);
+      s+=T(400,130,'5 min','#fbbf24',10,'middle','font-weight="700"');
+      s+=R(40,240,760,140,9,'rgba(248,113,113,0.08)','rgba(248,113,113,0.3)');
+      s+=T(400,264,'系统判定：账号已被盗取（Impossible Travel）','#f87171',11,'middle','font-weight="600"');
+      s+=T(400,284,'同一账号无法在 5 分钟内同时出现在纽约和上海','#94a3b8',10,'middle');
+      s+=T(400,306,'告警级别: P1 CRITICAL  |  类型: ACCOUNT_COMPROMISE','#fbbf24',10,'middle');
+      s+=T(400,326,'SLA: 15 分钟内安全团队响应','#94a3b8',9,'middle');
+      s+=T(400,348,'通知渠道: PagerDuty + Slack #security-alerts + Email','#64748b',9,'middle');
+      return svgWrap(s);
+    }
+  },
+  { label:'吊销 Session Token',
+    msg:'安全团队立即响应（< 5 分钟）：\n\n① 吊销 alice 所有活跃 Session Token\n② 强制全设备重新认证\n③ 临时锁定账号（等待 alice 验证身份）\n④ 向 alice 发送安全通知\n⑤ 审计回溯过去 24h 的所有访问记录\n⑥ 更新 SIEM 规则，强化检测\n\n攻击者被完全阻断，攻击时间窗口 = 5 分钟（仅身份认证通过，未实际进入任何系统）。',
+    draw(){
+      let s='';
+      s+=node(140,145,110,40,'Alice (真实)','被迫重新认证','rgba(74,222,128,0.1)','rgba(74,222,128,0.4)');
+      s+=node(140,300,110,40,'Attacker','已被完全阻断','rgba(248,113,113,0.12)','rgba(248,113,113,0.5)');
+      s+=R(310,100,230,85,9,'rgba(248,113,113,0.1)','rgba(248,113,113,0.5)',2);
+      s+=T(425,117,'Session Token 已吊销','#f87171',10,'middle','font-weight="700"');
+      s+=T(425,136,'eyJhbGciOiJSUzI1NiIsIn...','#64748b',8,'middle','font-family="\'Courier New\',monospace" text-decoration="line-through"');
+      s+=T(425,154,'状态: REVOKED | 全设备生效','#f87171',9,'middle');
+      s+=L(198,145,308,140,'#f87171','ah-err',1.5);
+      s+=ck(340,300,false);
+      s+=T(380,300,'攻击者被阻断，无任何资源访问','#f87171',9,'start');
+      s+=R(580,80,200,320,10,'rgba(74,222,128,0.04)','rgba(74,222,128,0.25)');
+      s+=T(680,100,'安全响应 Timeline','#4ade80',10,'middle','font-weight="600"');
+      const acts=['T+0: IAP 检测设备异常','T+1: 生成 P1 告警','T+2: 吊销所有 Session','T+3: 账号临时锁定','T+5: 安全团队介入','T+8: 通知真实 Alice','T+12: 回溯 24h 日志','T+15: 账号完全处置'];
+      acts.forEach((a,i)=>{ s+=T(680,122+i*33,a,'#94a3b8',9,'middle'); });
+      s+=T(680,390,'攻击有效时间窗口：约 5 分钟','#4ade80',8,'middle');
+      return svgWrap(s);
+    }
+  },
+  { label:'对比传统 VPN',
+    msg:'终极对比：同样的账号被盗场景，两种模型的结果完全不同。\n\n传统 VPN 模型：密码 = 通行证，攻击者进入内网后自由横移，可能数周甚至数月未被发现。\n\n零信任模型：即使第一道防线（密码）失守，设备检查、持续验证、实时告警依然阻止了攻击，且响应时间 < 15 分钟。',
+    draw(){
+      let s='';
+      s+=R(10,25,375,385,12,'rgba(248,113,113,0.05)','rgba(248,113,113,0.3)',2);
+      s+=T(197,50,'传统 VPN 模型','#f87171',12,'middle','font-weight="700"');
+      s+=node(80,105,80,32,'Attacker','盗取密码','rgba(248,113,113,0.12)','rgba(248,113,113,0.5)');
+      s+=L(80,121,80,160,'#f87171','ah-err',1.5);
+      s+=node(80,185,80,32,'VPN','仅密码验证','rgba(248,113,113,0.08)','rgba(248,113,113,0.3)');
+      s+=ck(100,204,true); s+=T(115,204,'密码 ✓','#4ade80',8,'start');
+      s+=L(80,201,80,248,'#4ade80','ah-ok',2);
+      s+=node(80,270,80,32,'内网','攻击者进入','rgba(248,113,113,0.2)','rgba(248,113,113,0.7)',2.5);
+      s+=L(80,286,80,320,'#f87171','ah-err',1.5);
+      s+=node(210,270,80,32,'DB/API','无访问控制','rgba(248,113,113,0.15)','rgba(248,113,113,0.5)');
+      s+=L(80,270,165,270,'#f87171','ah-err',1.5);
+      s+=T(197,340,'横向移动，数据泄露','#f87171',10,'middle');
+      s+=T(197,360,'可能持续数周未被发现','#94a3b8',9,'middle');
+      s+=T(197,380,'😱 无感知，无告警','#f87171',9,'middle','font-weight="600"');
+      s+=R(400,25,375,385,12,'rgba(74,222,128,0.04)','rgba(74,222,128,0.3)',2);
+      s+=T(587,50,'零信任模型','#4ade80',12,'middle','font-weight="700"');
+      s+=node(490,105,80,32,'Attacker','盗取密码','rgba(248,113,113,0.12)','rgba(248,113,113,0.5)');
+      s+=L(490,121,490,158,'#f87171','ah-err',1.5);
+      s+=node(490,182,80,32,'IAP','三重验证','rgba(74,222,128,0.1)','rgba(74,222,128,0.5)');
+      s+=ck(510,200,true); s+=T(524,200,'密码 ✓','#4ade80',8,'start');
+      s+=ck(510,218,false); s+=T(524,218,'设备 ✗','#f87171',8,'start');
+      s+=L(490,198,490,244,'#f87171','ah-err',2,'5,3');
+      s+=node(490,268,80,32,'阻断','403 Denied','rgba(248,113,113,0.2)','rgba(248,113,113,0.7)',2.5);
+      s+=node(620,182,80,32,'HR System','隔离，不可达','rgba(255,255,255,0.03)','rgba(255,255,255,0.09)');
+      s+=T(587,340,'设备检查失败，立即阻断','#4ade80',10,'middle');
+      s+=T(587,360,'5 分钟内 P1 告警触发','#4ade80',9,'middle');
+      s+=T(587,380,'✅ 零损失','#4ade80',9,'middle','font-weight="600"');
+      return svgWrap(s);
+    }
+  }
+];
+
+/* ─── Main Logic ─── */
+const SCENARIOS = [
+  { name:'传统边界缺陷', icon:'🏰', steps: PERIM_STEPS },
+  { name:'零信任验证链', icon:'🔐', steps: ZT_STEPS },
+  { name:'mTLS 服务互信', icon:'🔒', steps: MTLS_STEPS },
+  { name:'异常访问阻断', icon:'🚨', steps: ANOMALY_STEPS },
+];
+
+let curTab=0, curStep=-1, timer=null;
+
+function renderTabs(){
+  const el=document.getElementById('tabList');
+  el.innerHTML='';
+  SCENARIOS.forEach((sc,i)=>{
+    const btn=document.createElement('button');
+    btn.className='tab-btn'+(i===curTab?' active':'');
+    btn.innerHTML=`<span style="font-size:1rem;line-height:1">${sc.icon}</span>${sc.name}`;
+    btn.onclick=()=>{ curTab=i; curStep=-1; stopPlay(); render(); };
+    el.appendChild(btn);
+  });
+}
+
+function renderStepList(){
+  const el=document.getElementById('stepList');
+  el.innerHTML='';
+  SCENARIOS[curTab].steps.forEach((s,i)=>{
+    const btn=document.createElement('button');
+    btn.className='step-btn'+(i===curStep?' active':'');
+    btn.innerHTML=`<span class="si">${i+1}</span>${s.label}`;
+    btn.onclick=()=>{ curStep=i; stopPlay(); render(); };
+    el.appendChild(btn);
+  });
+}
+
+function getPreview(tab){
+  const icons=['🏰','🔐','🔒','🚨'];
+  const labels=['传统边界安全模型','零信任请求验证链','mTLS 服务间互信','异常访问阻断'];
+  return svgWrap(
+    Ci(400,190,70,'rgba(248,113,113,0.06)','rgba(248,113,113,0.2)')+
+    T(400,186,icons[tab],'#f87171',40)+
+    T(400,272,labels[tab],'#94a3b8',13)+
+    T(400,298,'点击"下一步"开始观察','#64748b',10)
+  );
+}
+
+function render(){
+  const sc=SCENARIOS[curTab];
+  const step=curStep>=0?sc.steps[curStep]:null;
+  document.getElementById('stepMsg').textContent=step
+    ?step.msg
+    :`场景 ${curTab+1}：${sc.name}\n\n点击"下一步"开始观察。`;
+  document.getElementById('animArea').innerHTML=step?step.draw():getPreview(curTab);
+  renderTabs();
+  renderStepList();
+}
+
+function next(){ const l=SCENARIOS[curTab].steps.length; if(curStep<l-1){curStep++;render();} }
+function prev(){ if(curStep>-1){curStep--;render();} }
+function reset(){ curStep=-1; stopPlay(); render(); }
+function togglePlay(){ if(timer) stopPlay(); else startPlay(); }
+function startPlay(){
+  document.getElementById('playBtn').textContent='⏸ 暂停';
+  timer=setInterval(()=>{
+    const l=SCENARIOS[curTab].steps.length;
+    if(curStep<l-1){curStep++;render();}else stopPlay();
+  },2400);
+}
+function stopPlay(){
+  if(timer){clearInterval(timer);timer=null;}
+  document.getElementById('playBtn').textContent='▶ 播放';
+}
+
+render();
+</script>
+</body>
+</html>

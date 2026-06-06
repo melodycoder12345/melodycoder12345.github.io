@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="GPU 架构：SM、Warp、HBM 带宽瓶颈与 PCIe 数据传输的动画演示。">
+<link rel="canonical" href="https://melodycoder12345.github.io/cs/gpu-architecture.html">
+<meta property="og:title" content="GPU 架构 — 码海拾贝">
+<meta property="og:description" content="GPU 架构：SM、Warp、HBM 带宽瓶颈与 PCIe 数据传输的动画演示。">
+<meta property="og:url" content="https://melodycoder12345.github.io/cs/gpu-architecture.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="GPU 架构 — 码海拾贝">
+<meta name="twitter:description" content="GPU 架构：SM、Warp、HBM 带宽瓶颈与 PCIe 数据传输的动画演示。">
+<title>GPU 架构 - 计算机组成原理</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<script src="../footer.js"></script>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"SM（Streaming Multiprocessor）","body":"GPU 的核心计算单元，每个 SM 包含若干 CUDA Core、Warp 调度器、寄存器文件和共享内存（L1 缓存）。NVIDIA A100 有 108 个 SM，每个 SM 64 个 FP32 CUDA Core。","tag":"硬件"},
+  {"title":"Warp（线程束）","body":"GPU 调度的基本单位，一个 Warp 包含 32 个并行执行的线程，在同一 SM 上同步执行相同指令（SIMT）。Warp 分叉（Divergence）发生在 if/else 分支不一致时，导致两个分支串行执行，效率减半。","tag":"调度"},
+  {"title":"HBM（High Bandwidth Memory）","body":"GPU 专用高带宽内存，A100 HBM2e 带宽 2TB/s，远高于 CPU DDR5 的 100GB/s。LLM 推理 Decode 阶段受 HBM 带宽限制（Memory Bound），Prefill 受计算量限制（Compute Bound）。","tag":"内存"}
+];</script>
+<style>
+:root{--bg:#090d1a;--panel:#111827;--panel2:#172033;--border:#29364f;--text:#e5edff;--dim:#9aa8c7;--dim2:#65728f;--accent:#8b5cf6;--cyan:#22d3ee;--green:#4ade80;--yellow:#fbbf24;--red:#fb7185}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:radial-gradient(circle at 15% 0%,color-mix(in srgb,var(--accent) 24%,transparent),transparent 34%),radial-gradient(circle at 85% 12%,rgba(34,211,238,.12),transparent 30%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;line-height:1.7}
+.main{display:flex}
+.shell{max-width:1240px;margin:0 auto;padding:46px clamp(22px,4vw,58px) 78px;flex:1;min-width:0}
+.hero{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr);gap:22px;align-items:stretch;margin-bottom:24px}
+.card,.section,.panel{border:1px solid rgba(255,255,255,.08);background:linear-gradient(180deg,rgba(17,24,39,.86),rgba(15,23,42,.72));border-radius:24px;box-shadow:0 24px 80px rgba(0,0,0,.34)}
+.card{padding:26px}
+.eyebrow{font-size:.72rem;font-weight:800;letter-spacing:.17em;text-transform:uppercase;color:var(--accent);margin-bottom:13px}
+h1{font-size:clamp(2.15rem,5vw,4.6rem);line-height:1.02;letter-spacing:-.06em;margin-bottom:16px;background:linear-gradient(135deg,#f8fbff 0%,var(--cyan) 44%,var(--accent) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{max-width:780px;color:var(--dim);font-size:1rem;line-height:1.86}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 36%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:'JetBrains Mono','Fira Code',monospace;color:#eef2ff}
+.map{display:grid;gap:10px}
+.term{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:15px;padding:13px 14px}
+.term strong{display:block;font-size:.88rem;margin-bottom:4px}
+.term span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.scenario-tabs{display:flex;gap:8px;margin:0 0 16px;flex-wrap:wrap}
+.stab{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--dim);border-radius:12px;padding:8px 14px;cursor:pointer;font-family:inherit;font-size:.82rem;transition:all .18s}
+.stab:hover{color:var(--text);border-color:rgba(255,255,255,.2)}
+.stab.active{border-color:var(--accent);color:#f5f3ff;background:color-mix(in srgb,var(--accent) 16%,transparent)}
+.lab{display:grid;grid-template-columns:280px minmax(0,1fr) 320px;gap:16px;margin:0 0 20px}
+.panel{overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.76rem;color:var(--dim);text-transform:uppercase;letter-spacing:.12em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:500px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:13px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.73rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:500px;display:flex;flex-direction:column;padding:18px}
+.stage{flex:1;min-height:360px;border:1px solid rgba(255,255,255,.07);border-radius:20px;background:radial-gradient(circle at 50% 20%,rgba(255,255,255,.06),transparent 48%),rgba(8,13,28,.72);overflow:hidden;display:flex;align-items:center;justify-content:center}
+.ai-svg{width:100%;max-width:560px;height:auto}
+.ai-edge{stroke:rgba(255,255,255,.16);stroke-width:1.8;fill:none;transition:all .25s}
+.ai-edge.active{stroke:var(--accent);stroke-width:3;filter:drop-shadow(0 0 5px color-mix(in srgb,var(--accent) 70%,transparent))}
+.ai-edge.warn{stroke:var(--yellow);stroke-dasharray:6 4}
+.ai-edge.bad{stroke:var(--red);stroke-dasharray:6 4}
+.ai-node rect{fill:rgba(255,255,255,.055);stroke:rgba(255,255,255,.13);stroke-width:1.5;transition:all .25s}
+.ai-node text{fill:#9aa8c7;transition:fill .25s}
+.ai-node.active rect{fill:color-mix(in srgb,var(--accent) 18%,transparent);stroke:var(--accent);stroke-width:2.2}
+.ai-node.active text{fill:#f8fbff}
+.ai-node.good rect{fill:rgba(74,222,128,.12);stroke:var(--green);stroke-width:2.2}
+.ai-node.good text{fill:#dcfce7}
+.ai-node.warn rect{fill:rgba(251,191,36,.12);stroke:var(--yellow);stroke-width:2.2}
+.ai-node.warn text{fill:#fef3c7}
+.ai-node.bad rect{fill:rgba(251,113,133,.12);stroke:var(--red);stroke-width:2.2}
+.ai-node.bad text{fill:#ffe4e6}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:11px;padding:8px 12px;cursor:pointer;font-family:inherit}
+.ctrl.primary{border-color:var(--accent);color:#f5f3ff;background:color-mix(in srgb,var(--accent) 18%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.status{padding:15px}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.warn{border-color:var(--yellow);color:var(--yellow)}
+.badge.bad{border-color:var(--red);color:var(--red)}
+.badge.good{border-color:var(--green);color:var(--green)}
+.status h2{font-size:1rem;margin-bottom:8px}
+.status p{color:var(--dim);font-size:.9rem;line-height:1.78}
+.metrics{display:grid;gap:8px;margin-top:14px}
+.metric{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:12px;padding:9px 10px}
+.metric span{display:block;color:var(--dim2);font-size:.68rem;text-transform:uppercase;letter-spacing:.08em}
+.metric strong{display:block;color:var(--text);font-size:.9rem;margin-top:2px}
+.codebox{margin-top:14px}
+.codebox h3{font-size:.74rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px}
+pre{background:#0d1324;border:1px solid var(--border);border-radius:12px;padding:14px 16px;overflow:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.78rem;line-height:1.68;color:#dbeafe;margin-top:10px}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--cyan);font-size:.86em}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
+.section{padding:22px}
+.section h2{font-size:.92rem;color:var(--accent);text-transform:uppercase;letter-spacing:.09em;margin-bottom:12px}
+.section p,.section li{color:var(--dim);font-size:.92rem;line-height:1.84}
+.section ul{padding-left:18px;display:flex;flex-direction:column;gap:8px}
+.back-row{margin-top:24px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:13px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:1060px){.hero,.lab,.grid{grid-template-columns:1fr}.shell{padding:30px 16px 58px}.viz{min-height:auto}.stage{min-height:320px}}
+</style>
+</head>
+<body>
+<div class="main">
+<main class="shell" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">计算机组成原理 / GPU / C 类型</div>
+      <h1>GPU 架构</h1>
+      <p class="summary">GPU 不是一个大 CPU，而是数千个轻量级核心组成的大规模并行处理器。理解 SM、Warp 调度、HBM 带宽层次和 PCIe 传输开销，是优化 AI 推理、图形渲染和通用计算（GPGPU）的基础。</p>
+      <div class="tags"><span>SM</span><span>Warp</span><span>SIMT</span><span>HBM</span><span>PCIe</span><span>CUDA</span></div>
+    </div>
+    <div class="card map">
+      <div class="eyebrow">核心观察</div>
+      <div class="term"><strong>SIMT 隐藏延迟</strong><span>一个 Warp 等待内存时，调度器切换另一个 Warp 执行，HBM 延迟被计算掩盖。充足 Warp 数（Occupancy）是关键。</span></div>
+      <div class="term"><strong>Divergence 代价</strong><span>if/else 分叉让 32 个线程分两批执行，吞吐减半。避免在 kernel 热路径出现分支。</span></div>
+      <div class="term"><strong>LLM Decode 是 Memory Bound</strong><span>每步只做小矩阵乘，但要反复读 KV Cache，HBM 带宽是瓶颈，加算力无效。</span></div>
+    </div>
+  </section>
+
+  <div class="scenario-tabs" id="scenarioTabs"></div>
+
+  <section class="lab">
+    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <section class="panel viz">
+      <div class="stage" id="gpuStage"></div>
+      <div class="controls">
+        <button class="ctrl" id="btnReset">重置</button>
+        <button class="ctrl" id="btnPrev">上一步</button>
+        <button class="ctrl primary" id="btnPlay">播放</button>
+        <button class="ctrl" id="btnNext">下一步</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-hd">当前状态</div>
+      <div class="status">
+        <span class="badge" id="stateBadge">normal</span>
+        <h2 id="stepTitle"></h2>
+        <p id="stepDesc"></p>
+        <p id="stepDetail" style="margin-top:6px;font-size:.82rem;color:var(--dim2)"></p>
+        <div class="metrics" id="metrics"></div>
+        <div class="codebox"><h3>伪代码</h3><pre id="codeBlock"></pre></div>
+      </div>
+    </aside>
+  </section>
+
+  <section class="grid">
+    <article class="section">
+      <h2>GPU 推理服务配置指南</h2>
+      <ul>
+        <li><strong>显存估算</strong>：模型参数量 × 精度字节 + KV Cache。7B FP16 = 14GB，加 KV Cache 通常需要 20-24GB。</li>
+        <li><strong>Batch size 影响 MFU</strong>：小 batch decode 阶段 MFU 极低（&lt;5%），大 batch prefill MFU 可达 40-60%。Continuous batching 让 GPU 保持满载。</li>
+        <li><strong>Tensor Parallelism</strong>：多卡通过 NVLink（600 GB/s）切分权重矩阵，降低单卡内存压力，代价是 AllReduce 通信开销。</li>
+        <li><strong>Flash Attention</strong>：将 Attention 计算分块在 L1/Shared Memory 完成，减少 HBM 读写次数，大幅提升 Memory Bound 效率。</li>
+      </ul>
+    </article>
+    <article class="section">
+      <h2>LLM 显存占用计算</h2>
+      <ul>
+        <li><strong>模型权重</strong>：参数量 × dtype。7B FP16 = 14GB；INT8 量化减半，INT4 再减半。</li>
+        <li><strong>KV Cache</strong>：2 × 层数 × 头数 × 头维度 × 序列长度 × batch × dtype。Llama-2-7B 在 seq=4096、batch=32 时约 8 GB。</li>
+        <li><strong>为什么 batch 影响 MFU</strong>：算术强度 = FLOP / HBM 字节。batch 越大 → 每次读权重服务更多 token → 算术强度越高 → 越接近 Compute Bound。</li>
+        <li><strong>量化加速 Decode</strong>：INT8 量化让同等 HBM 带宽传输的权重量翻倍，Decode 吞吐可提升约 2x。</li>
+      </ul>
+    </article>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← 计算机组成原理</a>
+    <a class="btn" href="numa.html">NUMA</a>
+    <a class="btn" href="cache.html">Cache 层次</a>
+  </div>
+</main>
+</div>
+<script>
+(function () {
+  'use strict';
+  var markerId = 'arr-gpu';
+  var currentScenario = 0;
+  var currentStep = 0;
+  var timer = null;
+
+  var GPU_SCENARIOS = [
+    {
+      id: 'simt', label: 'SIMT 并行执行',
+      viewBox: '0 0 560 310',
+      code: 'for each warp in SM:\n  if warp.ready:\n    dispatch(warp)\n  elif warp.waiting_mem:\n    switch_to_ready_warp()',
+      nodes: [
+        {id:'sched',label:'Warp Scheduler',sub:'dispatcher',x:280,y:52,w:150},
+        {id:'w0',label:'Warp 0',sub:'32 threads',x:90,y:160,w:108},
+        {id:'w1',label:'Warp 1',sub:'32 threads',x:220,y:160,w:108},
+        {id:'w2',label:'Warp 2',sub:'32 threads',x:350,y:160,w:108},
+        {id:'w3',label:'Warp 3',sub:'32 threads',x:475,y:160,w:108},
+        {id:'hbm',label:'HBM Memory',sub:'2 TB/s',x:280,y:270,w:140}
+      ],
+      edges: [
+        {id:'sw0',x1:230,y1:79,x2:112,y2:133},
+        {id:'sw1',x1:255,y1:79,x2:220,y2:133},
+        {id:'sw2',x1:305,y1:79,x2:350,y2:133},
+        {id:'sw3',x1:330,y1:79,x2:453,y2:133},
+        {id:'w0mem',x1:90,y1:187,x2:218,y2:243},
+        {id:'memw0',x1:222,y1:243,x2:94,y2:187}
+      ],
+      steps: [
+        {kicker:'overview',title:'SM 内 Warp 调度总览',badge:'sm',nodes:['sched','w0','w1','w2','w3'],desc:'一个 SM 内同时有多个 Warp，Warp 调度器每时钟周期选一个就绪 Warp 发射指令。Warp 切换零开销（寄存器独立）。',metrics:[{label:'SM',value:'1 个'},{label:'Warp 数',value:'4（示意）'}]},
+        {kicker:'dispatch',title:'发射 Warp 0 执行',badge:'dispatch',nodes:['sched','w0'],edges:['sw0'],desc:'调度器选择 Warp 0 并发射指令。Warp 0 的 32 个线程同步执行相同的指令（SIMT），比如 LOAD 全局内存。',metrics:[{label:'执行单元',value:'Warp 0'},{label:'线程数',value:'32'}]},
+        {kicker:'stall',title:'Warp 0 等待 HBM 访存',badge:'stall',tone:'warn',warnNodes:['w0','hbm'],edges:['w0mem'],desc:'Warp 0 触发全局内存访问（读 HBM），需等待约 400-800 个时钟周期。此时 Warp 0 进入 stalled 状态。',detail:'HBM 延迟高但吞吐大。这段等待时间若没有其他 Warp，GPU 就会空转。',metrics:[{label:'HBM 延迟',value:'~500 cycles'}]},
+        {kicker:'switch',title:'切换到 Warp 1 隐藏延迟',badge:'switch',goodNodes:['w1'],warnNodes:['w0'],edges:['sw1'],desc:'调度器立即切换到就绪的 Warp 1 执行。切换开销为零，每个 Warp 有独立的寄存器文件，无需保存/恢复上下文。'},
+        {kicker:'continue',title:'Warp 2/3 轮流执行',badge:'execute',goodNodes:['w1','w2','w3'],warnNodes:['w0'],desc:'在 Warp 0 等待期间，调度器轮流发射 Warp 1/2/3，GPU 核心保持忙碌。这正是 GPU 靠大量 Warp 隐藏延迟的核心机制。'},
+        {kicker:'ready',title:'Warp 0 内存数据就绪',badge:'ready',goodNodes:['hbm'],nodes:['w0'],edges:['memw0'],desc:'HBM 返回数据，Warp 0 重新变为就绪状态，等待调度器下次发射。',metrics:[{label:'状态变化',value:'stalled → ready'}]},
+        {kicker:'hidden',title:'延迟完全隐藏',badge:'optimal',tone:'good',goodNodes:['w0','w1','w2','w3'],desc:'所有 Warp 交替执行，HBM 访存延迟被计算完全掩盖。GPU 核心利用率接近 100%。',detail:'充足的 Warp 数量（Occupancy）是发挥 GPU 性能的关键。Occupancy = 活跃 Warp 数 / SM 最大 Warp 数。',metrics:[{label:'延迟掩盖',value:'完全隐藏'},{label:'核心利用率',value:'~100%'}]}
+      ]
+    },
+    {
+      id: 'diverge', label: 'Warp 分叉',
+      viewBox: '0 0 560 300',
+      code: '// 导致 Warp 分叉\nif (threadIdx.x < 16) {\n  doIfBranch();   // 线程 0-15\n} else {\n  doElseBranch(); // 线程 16-31\n}\n// 代价: 2 个时钟周期',
+      nodes: [
+        {id:'warp',label:'Warp（32 threads）',sub:'threadIdx 0-31',x:280,y:52,w:210},
+        {id:'ift',label:'if branch',sub:'threads 0-15',x:140,y:155,w:138},
+        {id:'elset',label:'else branch',sub:'threads 16-31',x:420,y:155,w:138},
+        {id:'c1',label:'Cycle 1',sub:'if执行 else masked',x:140,y:255,w:148},
+        {id:'c2',label:'Cycle 2',sub:'else执行 if masked',x:420,y:255,w:148}
+      ],
+      edges: [
+        {id:'wi',x1:216,y1:79,x2:164,y2:128},
+        {id:'we',x1:344,y1:79,x2:396,y2:128},
+        {id:'ic1',x1:140,y1:182,x2:140,y2:228},
+        {id:'ec2',x1:420,y1:182,x2:420,y2:228}
+      ],
+      steps: [
+        {kicker:'branch',title:'Warp 遇到 if/else 分支',badge:'diverge',nodes:['warp'],desc:'一个 Warp 的 32 个线程遇到 if/else 语句。前 16 个满足条件走 if，后 16 个走 else，无法同时执行不同指令。',metrics:[{label:'Warp 大小',value:'32 线程'}]},
+        {kicker:'split',title:'32 线程分裂为两组',badge:'split',nodes:['warp','ift','elset'],edges:['wi','we'],desc:'SIMT 要求所有线程执行相同指令，但两组路径不同，必须串行化。GPU 硬件自动处理，但代价是吞吐减半。'},
+        {kicker:'cycle1',title:'Cycle 1：执行 if 分支',badge:'cycle1',goodNodes:['ift','c1'],warnNodes:['elset'],edges:['ic1'],desc:'16 个走 if 的线程正常执行；16 个走 else 的线程被 mask（屏蔽），不产生副作用但占用时间槽。',metrics:[{label:'活跃线程',value:'16 / 32'},{label:'利用率',value:'50%'}]},
+        {kicker:'masked',title:'else 分支线程被 mask',badge:'mask',tone:'warn',badNodes:['elset'],nodes:['c1'],desc:'被 mask 的线程不执行任何操作，但硬件仍为其保留了时间槽（predicated execution）。硬件资源浪费 50%。'},
+        {kicker:'cycle2',title:'Cycle 2：执行 else 分支',badge:'cycle2',goodNodes:['elset','c2'],warnNodes:['ift'],edges:['ec2'],desc:'换 16 个走 else 的线程执行；前 16 个走 if 的线程此时被 mask。',metrics:[{label:'活跃线程',value:'16 / 32'},{label:'利用率',value:'50%'}]},
+        {kicker:'cost',title:'Divergence 代价：吞吐减半',badge:'cost',tone:'warn',warnNodes:['c1','c2'],desc:'无分叉: 1 周期完成 32 线程。有分叉: 2 周期，每周期只有 16 线程有效。优化手段：数据重排使同一 Warp 的线程走相同分支。',detail:'CUDA 术语：Warp Efficiency = 有效线程数 / Warp 大小。分叉将 Warp Efficiency 从 100% 降至 50%。',metrics:[{label:'有效吞吐',value:'50% vs 无分叉'},{label:'时钟周期',value:'2x'}]}
+      ]
+    },
+    {
+      id: 'bandwidth', label: '显存带宽层次',
+      viewBox: '0 0 560 340',
+      code: '// Compute Bound (Prefill)\nmatmul(Q, K_T)  // 大矩阵，算术强度高\n\n// Memory Bound (Decode)\nfor step in decode_steps:\n  kv = load_kv_cache()  // 读 HBM\n  logits = small_matmul(x, W)  // 小矩阵',
+      nodes: [
+        {id:'hbm',label:'HBM',sub:'2 TB/s  40 GB',x:280,y:55,w:170},
+        {id:'l2',label:'L2 Cache',sub:'4 TB/s  40 MB',x:280,y:140,w:170},
+        {id:'l1',label:'L1 / Shared',sub:'20 TB/s  192 KB/SM',x:280,y:225,w:170},
+        {id:'cores',label:'CUDA Cores',sub:'6912 FP32 (A100)',x:280,y:308,w:170}
+      ],
+      edges: [
+        {id:'hl2',x1:280,y1:82,x2:280,y2:113},
+        {id:'l2l1',x1:280,y1:167,x2:280,y2:198},
+        {id:'l1c',x1:280,y1:252,x2:280,y2:281}
+      ],
+      steps: [
+        {kicker:'hierarchy',title:'GPU 内存层次结构',badge:'memory',nodes:['hbm','l2','l1','cores'],edges:['hl2','l2l1','l1c'],desc:'GPU 有严格的内存层次：HBM（片外）→ L2（片内共享）→ L1/Shared（SM 内）→ CUDA Core 寄存器。带宽从 2TB/s 到 20TB/s 逐层递增。',metrics:[{label:'HBM',value:'2 TB/s'},{label:'L1/Shared',value:'20 TB/s'}]},
+        {kicker:'hbm_detail',title:'HBM：高带宽但高延迟',badge:'hbm',nodes:['hbm'],desc:'HBM 是 GPU 专用堆叠内存，通过宽总线（4096-bit）实现 2TB/s 带宽。但访问延迟约 400-800 cycles，比 L1 慢 100 倍。',metrics:[{label:'带宽',value:'2 TB/s'},{label:'延迟',value:'~500 cycles'},{label:'容量',value:'40 GB (A100)'}]},
+        {kicker:'l2_detail',title:'L2 Cache：多 SM 共享',badge:'l2',nodes:['l2','hbm'],edges:['hl2'],desc:'L2 Cache 被所有 SM 共享，40MB（A100），命中时带宽约 4TB/s，延迟约 200 cycles。频繁访问的权重矩阵部分由 L2 缓存。',metrics:[{label:'容量',value:'40 MB'},{label:'延迟',value:'~200 cycles'}]},
+        {kicker:'l1_detail',title:'L1/Shared Memory：片上最快',badge:'l1',nodes:['l1','l2'],edges:['l2l1'],desc:'L1 和 Shared Memory 共用同一 SRAM，每 SM 192KB（A100）。Shared Memory 由程序员显式控制，Flash Attention 正是利用它减少 HBM 读写。',metrics:[{label:'带宽',value:'~20 TB/s'},{label:'延迟',value:'~20 cycles'}]},
+        {kicker:'compute_bound',title:'Compute Bound：计算密集',badge:'compute',goodNodes:['cores','l1'],nodes:['l2'],desc:'Prefill 阶段：大矩阵乘（整个 prompt 的 Q×K^T），算术强度高（FLOP/Byte 比值大），HBM 带宽不是瓶颈，CUDA Core 是瓶颈。',metrics:[{label:'瓶颈',value:'CUDA Core 算力'},{label:'算术强度',value:'高 (>200 FLOP/B)'}]},
+        {kicker:'memory_bound',title:'Memory Bound：访存密集',badge:'memory',warnNodes:['hbm'],badNodes:['cores'],desc:'Decode 阶段：每步只生成 1 个 token，矩阵规模极小，但需要把全量权重从 HBM 读一遍，算术强度极低，CUDA Core 大量空转。',metrics:[{label:'瓶颈',value:'HBM 带宽'},{label:'CUDA 利用率',value:'< 5%'}]},
+        {kicker:'llm_decode',title:'LLM Decode：KV Cache 反复读',badge:'decode',tone:'warn',warnNodes:['hbm','l2'],nodes:['cores'],desc:'每个 decode step 需读全量 KV Cache + 权重，小矩阵乘。加更多 CUDA Core 无法提速，提升 HBM 带宽（H100 SXM 的 3.35TB/s）或量化才有帮助。',detail:'INT8 量化让同等带宽传输的权重量翻倍，Decode 吞吐可提升约 2x，是最高 ROI 的优化手段。',metrics:[{label:'瓶颈',value:'HBM 带宽'},{label:'优化方向',value:'量化/Flash Decoding'}]}
+      ]
+    },
+    {
+      id: 'pcie', label: 'CPU-GPU PCIe 传输',
+      viewBox: '0 0 560 260',
+      code: 'import torch\n# H2D\nx = x.cuda()  # PCIe 16 GB/s\n\n# CUDA Stream 流水线\ns1 = torch.cuda.Stream()\ns2 = torch.cuda.Stream()\nwith torch.cuda.stream(s1):\n    batch_next.cuda()  # H2D\nwith torch.cuda.stream(s2):\n    model(batch_cur)   # compute',
+      nodes: [
+        {id:'cpu',label:'CPU / Host',sub:'DDR5  100 GB/s',x:90,y:95,w:138},
+        {id:'pcie',label:'PCIe Gen4 x16',sub:'16 GB/s',x:280,y:95,w:140},
+        {id:'gpu',label:'GPU / Device',sub:'HBM  2 TB/s',x:470,y:95,w:138},
+        {id:'h2d',label:'H2D Copy',sub:'Host to Device',x:130,y:210,w:120},
+        {id:'kern',label:'Kernel Exec',sub:'GPU compute',x:280,y:210,w:120},
+        {id:'d2h',label:'D2H Copy',sub:'Device to Host',x:430,y:210,w:120}
+      ],
+      edges: [
+        {id:'cp',x1:161,y1:95,x2:210,y2:95},
+        {id:'pg',x1:350,y1:95,x2:401,y2:95},
+        {id:'hk',x1:190,y1:210,x2:220,y2:210},
+        {id:'kd',x1:340,y1:210,x2:370,y2:210}
+      ],
+      steps: [
+        {kicker:'overview',title:'CPU-GPU 数据传输链路',badge:'pcie',nodes:['cpu','pcie','gpu'],edges:['cp','pg'],desc:'CPU 通过 PCIe 总线与 GPU 通信。PCIe Gen4 x16 带宽约 16 GB/s，远低于 GPU 内部 HBM 的 2TB/s，是数据传输的主要瓶颈。',metrics:[{label:'PCIe',value:'16 GB/s'},{label:'HBM',value:'2 TB/s (125x)'}]},
+        {kicker:'h2d',title:'H2D：Host to Device 数据拷贝',badge:'h2d',nodes:['cpu','pcie'],goodNodes:['h2d'],edges:['cp'],desc:'将 CPU 内存的数据拷贝到 GPU 显存。PyTorch: tensor.cuda() 或 tensor.to("cuda")。使用 Pinned Memory 可提升带宽。',metrics:[{label:'操作',value:'H2D Copy'},{label:'实测带宽',value:'~14 GB/s'}]},
+        {kicker:'bottleneck',title:'PCIe 是传输瓶颈',badge:'bottleneck',tone:'warn',warnNodes:['pcie'],desc:'16 GB/s 传输速度意味着 1 GB 数据需约 62.5ms，而 GPU 内部 HBM 传同样数据只需 0.5ms。频繁 H2D/D2H 会让 GPU 等待数据而空转。',metrics:[{label:'1GB H2D 时间',value:'~62.5 ms'},{label:'HBM 时间',value:'~0.5 ms'}]},
+        {kicker:'kernel',title:'Kernel 在 GPU 上执行',badge:'kernel',goodNodes:['gpu','kern'],desc:'数据在显存后，启动 CUDA Kernel 计算。Kernel 启动本身约 10-20 μs 开销，频繁小 Kernel 不如一个大 Kernel 高效。'},
+        {kicker:'d2h',title:'D2H：结果传回 CPU',badge:'d2h',nodes:['gpu','pcie','cpu'],goodNodes:['d2h'],edges:['pg','cp','kd'],desc:'将计算结果从显存拷贝回 CPU 内存。如果结果只用于 GPU 后续计算，应尽量留在显存避免 D2H 开销。'},
+        {kicker:'stream',title:'CUDA Stream：传输与计算重叠',badge:'stream',goodNodes:['h2d','kern','d2h'],edges:['hk','kd'],desc:'不同 CUDA Stream 可以并行执行：Stream 1 做 H2D，Stream 2 同时执行上一批数据的 Kernel 计算，流水线消除等待。',detail:'PyTorch DataLoader 的 prefetch_factor 和 pin_memory=True 就是利用此机制预先加载下一批数据。',metrics:[{label:'Stream 1',value:'H2D 传输'},{label:'Stream 2',value:'Kernel 执行'}]},
+        {kicker:'pipeline',title:'最优流水线：完全重叠',badge:'optimal',tone:'good',goodNodes:['cpu','gpu','h2d','kern','d2h'],desc:'通过多 Stream 流水线，处理第 N 批时同时传输第 N+1 批。PCIe 带宽被充分利用，GPU 不再等待数据。',metrics:[{label:'GPU 利用率',value:'显著提升'},{label:'有效吞吐',value:'接近理论值'}]}
+      ]
+    }
+  ];
+
+  function $(id) { return document.getElementById(id); }
+
+  function svgEl(name, attrs, parent) {
+    var node = document.createElementNS('http://www.w3.org/2000/svg', name);
+    Object.entries(attrs || {}).forEach(function(e) { node.setAttribute(e[0], e[1]); });
+    if (parent) parent.appendChild(node);
+    return node;
+  }
+
+  function buildScenarioTabs() {
+    var container = $('scenarioTabs');
+    container.innerHTML = '';
+    GPU_SCENARIOS.forEach(function(sc, idx) {
+      var btn = document.createElement('button');
+      btn.className = 'stab' + (idx === 0 ? ' active' : '');
+      btn.textContent = (idx + 1) + '. ' + sc.label;
+      btn.addEventListener('click', function() { switchScenario(idx); });
+      container.appendChild(btn);
+    });
+  }
+
+  function switchScenario(idx) {
+    stop();
+    currentScenario = idx;
+    currentStep = 0;
+    document.querySelectorAll('.stab').forEach(function(b, i) {
+      b.classList.toggle('active', i === idx);
+    });
+    buildSvg();
+    buildSteps();
+    setStep(0);
+  }
+
+  function buildSvg() {
+    var sc = GPU_SCENARIOS[currentScenario];
+    var mount = $('gpuStage');
+    mount.innerHTML = '';
+    var svg = svgEl('svg', {class:'ai-svg', viewBox: sc.viewBox, role:'img'}, mount);
+    var defs = svgEl('defs', {}, svg);
+    var marker = svgEl('marker', {id:markerId, markerWidth:8, markerHeight:8, refX:6, refY:3, orient:'auto'}, defs);
+    svgEl('path', {d:'M0,0 L0,6 L8,3 z', fill:'rgba(255,255,255,.25)'}, marker);
+    var edgesLayer = svgEl('g', {id:'edgeLayer'}, svg);
+    var nodesLayer = svgEl('g', {id:'nodeLayer'}, svg);
+    (sc.edges || []).forEach(function(edge) {
+      var line = svgEl('line', {
+        id:'edge-'+edge.id, class:'ai-edge',
+        x1:edge.x1, y1:edge.y1, x2:edge.x2, y2:edge.y2
+      }, edgesLayer);
+      line.style.markerEnd = 'url(#' + markerId + ')';
+    });
+    (sc.nodes || []).forEach(function(node) {
+      var g = svgEl('g', {id:'node-'+node.id, class:'ai-node', transform:'translate('+node.x+','+node.y+')'}, nodesLayer);
+      var w = node.w || 112, h = 54;
+      svgEl('rect', {x:-w/2, y:-h/2, width:w, height:h, rx:12}, g);
+      svgEl('text', {x:0, y:-4, 'text-anchor':'middle', 'font-size':11, 'font-weight':800}, g).textContent = node.label;
+      svgEl('text', {x:0, y:13, 'text-anchor':'middle', 'font-size':8.5, fill:'#65728f'}, g).textContent = node.sub || '';
+    });
+  }
+
+  function buildSteps() {
+    var sc = GPU_SCENARIOS[currentScenario];
+    var list = $('stepList');
+    list.innerHTML = '';
+    sc.steps.forEach(function(step, idx) {
+      var btn = document.createElement('button');
+      btn.className = 'step-btn';
+      btn.type = 'button';
+      btn.innerHTML = '<b>' + String(idx+1).padStart(2,'0') + ' · ' + (step.kicker||'step') + '</b>' + step.title;
+      btn.addEventListener('click', function() { stop(); setStep(idx); });
+      list.appendChild(btn);
+    });
+  }
+
+  function clearClasses() {
+    document.querySelectorAll('.ai-node,.ai-edge').forEach(function(n) {
+      n.classList.remove('active','good','warn','bad');
+    });
+  }
+
+  function applyClasses(ids, prefix, cls) {
+    (ids || []).forEach(function(id) {
+      var node = $(prefix + id);
+      if (node) node.classList.add(cls);
+    });
+  }
+
+  function setStep(idx) {
+    var sc = GPU_SCENARIOS[currentScenario];
+    currentStep = Math.max(0, Math.min(idx, sc.steps.length - 1));
+    var step = sc.steps[currentStep];
+    clearClasses();
+    applyClasses(step.nodes, 'node-', 'active');
+    applyClasses(step.goodNodes, 'node-', 'good');
+    applyClasses(step.warnNodes, 'node-', 'warn');
+    applyClasses(step.badNodes, 'node-', 'bad');
+    applyClasses(step.edges, 'edge-', 'active');
+    applyClasses(step.warnEdges, 'edge-', 'warn');
+    applyClasses(step.badEdges, 'edge-', 'bad');
+    document.querySelectorAll('.step-btn').forEach(function(b, i) {
+      b.classList.toggle('active', i === currentStep);
+    });
+    $('stepTitle').textContent = step.title;
+    $('stepDesc').textContent = step.desc;
+    $('stepDetail').textContent = step.detail || '';
+    var badge = $('stateBadge');
+    badge.textContent = step.badge || 'normal';
+    badge.className = 'badge ' + (step.tone || '');
+    var metrics = $('metrics');
+    metrics.innerHTML = '';
+    (step.metrics || []).forEach(function(m) {
+      var item = document.createElement('div');
+      item.className = 'metric';
+      item.innerHTML = '<span>' + m.label + '</span><strong>' + m.value + '</strong>';
+      metrics.appendChild(item);
+    });
+    var code = $('codeBlock');
+    if (code) code.textContent = step.code || sc.code || '';
+    $('btnPrev').disabled = currentStep === 0;
+    $('btnNext').disabled = currentStep === sc.steps.length - 1;
+  }
+
+  function stop() {
+    if (timer) clearInterval(timer);
+    timer = null;
+    $('btnPlay').textContent = '播放';
+  }
+
+  function play() {
+    if (timer) { stop(); return; }
+    $('btnPlay').textContent = '暂停';
+    timer = setInterval(function() {
+      var sc = GPU_SCENARIOS[currentScenario];
+      if (currentStep >= sc.steps.length - 1) { stop(); return; }
+      setStep(currentStep + 1);
+    }, 1600);
+  }
+
+  function init() {
+    buildScenarioTabs();
+    buildSvg();
+    buildSteps();
+    $('btnReset').addEventListener('click', function() { stop(); setStep(0); });
+    $('btnPrev').addEventListener('click', function() { stop(); setStep(currentStep - 1); });
+    $('btnNext').addEventListener('click', function() { stop(); setStep(currentStep + 1); });
+    $('btnPlay').addEventListener('click', play);
+    setStep(0);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else { init(); }
+})();
+</script>
+<script>
+if (typeof NavTracker !== 'undefined') {
+  NavTracker.track('GPU 架构','cs/gpu-architecture.html','GPU','计算机组成原理');
+}
+</script>
+</body>
+</html>

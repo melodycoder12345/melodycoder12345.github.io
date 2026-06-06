@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="网络层协议：IP 寻址、ARP 解析、路由转发、TTL 与 Traceroute 原理及 CIDR 子网划分。">
+<link rel="canonical" href="https://melodycoder12345.github.io/network/ip.html">
+<meta property="og:title" content="IP 协议基础 — 码海拾贝">
+<meta property="og:description" content="网络层协议：IP 寻址、ARP 解析、路由转发、TTL 与 Traceroute 原理及 CIDR 子网划分。">
+<meta property="og:url" content="https://melodycoder12345.github.io/network/ip.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="IP 协议基础 — 码海拾贝">
+<meta name="twitter:description" content="网络层协议：IP 寻址、ARP 解析、路由转发、TTL 与 Traceroute 原理及 CIDR 子网划分。">
+<title>IP 协议基础 - 网络可视化</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#34d399;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+/* Scene tabs */
+.scene-tabs{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.scene-tab{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:10px;padding:8px 16px;cursor:pointer;font-family:inherit;font-size:.82rem;transition:all .16s}
+.scene-tab:hover{color:var(--text);border-color:var(--accent)}
+.scene-tab.active{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+/* Lab layout */
+.lab{display:grid;grid-template-columns:260px minmax(0,1fr) 280px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:480px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:440px;display:flex;flex-direction:column;padding:16px}
+.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:radial-gradient(circle at 50% 20%,rgba(255,255,255,.04),transparent 50%),rgba(15,23,42,.64);overflow:hidden;position:relative}
+#vizCanvas{display:block}
+.step-msg{margin-top:12px;padding:12px 14px;border:1px solid rgba(255,255,255,.07);border-radius:12px;background:rgba(255,255,255,.03);font-size:.87rem;color:var(--dim);min-height:44px;line-height:1.65}
+.status{padding:14px}
+.status-inner{border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status-inner h2{font-size:.95rem;margin-bottom:8px;color:var(--text)}
+.status-inner p{color:var(--dim);font-size:.85rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.warn{border-color:#fbbf24;color:#fbbf24}
+.badge.fail{border-color:#f87171;color:#f87171}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit;font-size:.85rem;transition:all .15s}
+.ctrl:hover{background:rgba(255,255,255,.1)}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+@media(max-width:1060px){.lab{grid-template-columns:1fr}.hero,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"ARP（地址解析协议）","body":"将 IP 地址映射到 MAC 地址。同子网通信必须先通过 ARP 获得目标 MAC，结果缓存在 ARP 表中（通常 20 分钟）。","tag":"term"},
+  {"title":"路由表 / 最长前缀匹配","body":"路由器用目标 IP 与路由表条目做前缀匹配，选择最长匹配（最精确）的下一跳。默认路由 0.0.0.0/0 匹配所有 IP。","tag":"term"},
+  {"title":"TTL（生存时间）","body":"IP 包携带的跳数计数器。每经过一台路由器减 1，降至 0 时丢弃并返回 ICMP Time Exceeded，Traceroute 利用此机制。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">网络 / IP 协议 / C 类型</div>
+      <h1>IP 协议基础</h1>
+      <p class="summary">网络层协议，负责主机间数据包的寻址和路由。IP 地址标识主机，子网掩码划分网络边界，路由表决定下一跳。ARP 将 IP 地址解析为 MAC 地址，TTL 防止包无限转发，ICMP 用于网络诊断。</p>
+      <div class="tags"><span>IP / CIDR</span><span>ARP</span><span>路由表</span><span>TTL</span><span>ICMP</span><span>Traceroute</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>ARP（地址解析协议）</strong><span>广播询问"Who has IP X?"，目标主机单播回复自己的 MAC，结果缓存在 ARP 表。</span></li>
+        <li><strong>路由表 / 最长前缀匹配</strong><span>路由器对目标 IP 做最长前缀匹配找下一跳，默认路由 0.0.0.0/0 是最后兜底。</span></li>
+        <li><strong>TTL（生存时间）</strong><span>每路由器减 1，到 0 时丢包并返回 ICMP Time Exceeded，Traceroute 原理。</span></li>
+        <li><strong>CIDR 子网划分</strong><span>/24 可拆为两个 /25，每个子网独立广播域，不同子网通信必须经路由器。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="scene-tabs" id="sceneTabs"></div>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">Step Timeline</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <canvas id="vizCanvas"></canvas>
+      </div>
+      <div class="step-msg" id="stepMsg">选择场景和步骤开始演示</div>
+      <div class="controls">
+        <button class="ctrl" id="btnReset" onclick="doReset()">重置</button>
+        <button class="ctrl" id="btnPrev" onclick="doPrev()">上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="doToggle()">播放</button>
+        <button class="ctrl" id="btnNext" onclick="doNext()">下一步</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-hd">当前状态</div>
+      <div class="status">
+        <div class="status-inner">
+          <span class="badge" id="stateBadge">normal</span>
+          <h2 id="stepTitle">等待开始</h2>
+          <p id="stepDesc">点击播放或步骤按钮开始演示。</p>
+          <p id="stepDetail" style="margin-top:8px;font-size:.82rem;"></p>
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>背景与机制</h2>
+      <p>IP 协议（RFC 791）是 Internet 的基石，工作在网络层（OSI L3），提供无连接、尽力而为的数据包交付。主要组件：<br><br>
+      <strong>IP 地址</strong> 32 位逻辑地址，点分十进制表示（如 192.168.1.1）。与 MAC 地址不同，IP 地址是网络拓扑上的逻辑位置，可以重新分配；MAC 地址是硬件标识，通常固定。<br><br>
+      <strong>子网掩码/CIDR</strong> 决定哪部分是网络位、哪部分是主机位。/24 = 255.255.255.0，前 24 位是网络位，最多 254 台主机（去掉网络地址和广播地址）。<br><br>
+      <strong>路由</strong> 数据包到达路由器时，查路由表找最长前缀匹配，确定下一跳 IP，再通过 ARP 找到下一跳 MAC 封装以太网帧。</p>
+    </section>
+    <section>
+      <h2>常见误区</h2>
+      <ul>
+        <li>ARP 只在同子网内有效。跨子网通信时，源主机的 ARP 请求是找"默认网关"的 MAC，而不是目标主机的 MAC。目标主机 MAC 只在最后一跳路由器的局域网段才需要。</li>
+        <li>TTL 减到 0 时，路由器会丢包并向<strong>源主机</strong>发 ICMP Time Exceeded，不是向目标主机。Traceroute 正是利用这一点逐跳探测路径。</li>
+        <li>CIDR 拆分后的子网<strong>必须经路由器转发</strong>才能互通，同一物理交换机下的两个 /25 子网，主机也无法直接二层通信。</li>
+        <li>IP 头的 Checksum 只校验头部，不校验数据负载。数据完整性由上层 TCP/UDP Checksum 负责。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>工程场景</h2>
+      <ul>
+        <li><strong>ARP 缓存投毒（ARP Spoofing）</strong>：攻击者发送伪造 ARP 回复将网关 IP 映射到自己的 MAC，实现中间人攻击。防御：Dynamic ARP Inspection (DAI)、静态 ARP 绑定。</li>
+        <li><strong>Traceroute 诊断网络路径</strong>：逐 TTL 探测，结合响应延迟可识别网络抖动点，<code>mtr</code> 命令提供连续 ping+traceroute。</li>
+        <li><strong>云 VPC 子网规划</strong>：/16 VPC 划分多个 /24 子网（不同可用区），跨 AZ 通信走 VPC 路由，不同子网间用 Security Group + NACL 控制访问。</li>
+        <li><strong>BGP/OSPF 路由协议</strong>：大型网络中路由表由动态路由协议维护，而不是手动配置，路由变更可以毫秒级收敛。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>边界情况</h2>
+      <p>动画涵盖：① ARP 广播→单播回复→缓存建立；② 跨子网 3 跳路由，每跳 MAC 重新封装；③ TTL 从 1 开始递增探测 Traceroute 完整路径；④ /24 拆分为 /25，广播域隔离，主机范围变化。<br><br>
+      注意：每跳路由器重写以太网帧的源/目标 MAC（L2），但 IP 头中的源/目标 IP 始终保持不变（NAT 例外）。这是 L2 和 L3 分层的关键体现。</p>
+    </section>
+  </section>
+</main>
+
+<script>
+const W_BASE = 680, H_BASE = 340;
+
+// ── Drawing helpers ──
+function rr(ctx, x, y, w, h, r, fill, stroke, lw) {
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw||1.5; ctx.stroke(); }
+}
+function txt(ctx, t, x, y, size, color, align, weight) {
+  ctx.font = `${weight||'400'} ${size}px system-ui,sans-serif`;
+  ctx.fillStyle = color;
+  ctx.textAlign = align||'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(t, x, y);
+}
+function arrow(ctx, x1, y1, x2, y2, color, dashed) {
+  ctx.strokeStyle = color; ctx.lineWidth = 2;
+  if (dashed) ctx.setLineDash([5,4]); else ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  ctx.setLineDash([]);
+  const a = Math.atan2(y2-y1, x2-x1);
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2-10*Math.cos(a-0.35), y2-10*Math.sin(a-0.35));
+  ctx.lineTo(x2-10*Math.cos(a+0.35), y2-10*Math.sin(a+0.35));
+  ctx.closePath(); ctx.fill();
+}
+function node(ctx, x, y, w, h, label, sublabel, color, highlight) {
+  const bg = highlight ? color.replace('1)', '0.15)') : 'rgba(30,41,59,0.9)';
+  const stroke = highlight ? color : 'rgba(255,255,255,0.15)';
+  rr(ctx, x-w/2, y-h/2, w, h, 10, bg, stroke, highlight?2:1.5);
+  txt(ctx, label, x, y-6, 12, '#e2e8f0', 'center', '600');
+  if (sublabel) txt(ctx, sublabel, x, y+9, 9, '#94a3b8', 'center');
+}
+function pkt(ctx, x, y, label, color) {
+  rr(ctx, x-28, y-12, 56, 24, 6, color.replace('1)', '0.2)'), color, 1.5);
+  txt(ctx, label, x, y, 9, '#e2e8f0', 'center', '600');
+}
+
+// ── Scene definitions ──
+// TAB 0: ARP same-subnet
+const TAB0 = [
+  {
+    title: '初始状态 — ARP 缓存未命中',
+    badge: 'normal',
+    desc: 'Host A (192.168.1.1) 要发数据给 192.168.1.2，查找 ARP 缓存没有对应 MAC 地址。必须先发送 ARP 广播请求。',
+    detail: 'ARP 缓存（ARP Table）保存 IP→MAC 的映射，有效期通常 20 分钟。缓存未命中时才需要 ARP 广播。',
+    draw(ctx,W,H){ drawSubnet0(ctx,W,H,0); }
+  },
+  {
+    title: 'A 广播 ARP Request',
+    badge: 'normal',
+    desc: 'Host A 广播 ARP 请求："Who has 192.168.1.2? Tell 192.168.1.1"，目标 MAC 是 FF:FF:FF:FF:FF:FF（广播）。同子网所有主机都会收到。',
+    detail: 'ARP 请求在数据链路层广播，子网内所有主机都收到，但只有 IP 地址匹配的主机才会回复。',
+    draw(ctx,W,H){ drawSubnet0(ctx,W,H,1); }
+  },
+  {
+    title: 'B 单播回复 ARP Reply',
+    badge: 'normal',
+    desc: 'Host B 收到 ARP Request，发现目标 IP 是自己，单播回复："192.168.1.2 is at BB:BB:CC:DD:EE:FF"。只有 A 收到这个回复。',
+    detail: 'ARP Reply 是单播（unicast），目标 MAC 是 A 的 MAC 地址，不再广播。这减少了不必要的网络流量。',
+    draw(ctx,W,H){ drawSubnet0(ctx,W,H,2); }
+  },
+  {
+    title: 'A 缓存 ARP 条目，发送数据包',
+    badge: 'normal',
+    desc: 'A 收到回复后，将 IP→MAC 映射缓存到 ARP 表。之后直接封装以太网帧，目标 MAC=BB:BB，发送数据包给 B。',
+    detail: '缓存建立后，后续发包不再需要 ARP，直到条目过期（通常 20 分钟）。可用 `arp -n` 或 `ip neigh` 查看 ARP 缓存。',
+    draw(ctx,W,H){ drawSubnet0(ctx,W,H,3); }
+  }
+];
+
+function drawSubnet0(ctx,W,H,step) {
+  ctx.clearRect(0,0,W,H);
+  const aX=W*0.18, bX=W*0.5, cX=W*0.82, midY=H*0.42;
+  const swY=H*0.72;
+  // subnet label
+  rr(ctx,W*0.05,H*0.1,W*0.9,H*0.58,12,'rgba(52,211,153,0.04)','rgba(52,211,153,0.15)',1);
+  txt(ctx,'192.168.1.0/24',W/2,H*0.18,10,'#34d399','center','600');
+  // switch
+  rr(ctx,W/2-40,swY-14,80,28,6,'rgba(30,41,59,0.9)','rgba(255,255,255,0.2)',1.5);
+  txt(ctx,'Switch',W/2,swY,11,'#94a3b8','center');
+  // links
+  ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.lineWidth=1.5; ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(aX,midY+20); ctx.lineTo(W/2-35,swY-10); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(bX,midY+20); ctx.lineTo(W/2,swY-14); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cX,midY+20); ctx.lineTo(W/2+35,swY-10); ctx.stroke();
+  ctx.setLineDash([]);
+  // nodes
+  node(ctx,aX,midY,100,46,'Host A','192.168.1.1 / AA:AA','rgba(52,211,153,1)',step>=0);
+  node(ctx,bX,midY,100,46,'Host B','192.168.1.2 / BB:BB','rgba(56,189,248,1)',step>=2);
+  node(ctx,cX,midY,100,46,'Host C','192.168.1.3 / CC:CC','rgba(148,163,184,1)',false);
+  // ARP broadcast (step 1)
+  if(step===1){
+    const cols=['rgba(251,191,36,1)','rgba(251,191,36,0.5)'];
+    [[aX,midY,bX,midY],[aX,midY,cX,midY]].forEach(([x1,y1,x2,y2],i)=>{
+      arrow(ctx,x1+50,y1,x2 < x1 ? x2+50 : x2-50,y2,cols[i],false);
+    });
+    txt(ctx,'ARP Broadcast: Who has 192.168.1.2?',W/2,H*0.2,10,'#fbbf24','center','600');
+    pkt(ctx,(aX+bX)/2,midY-32,'FF:FF:FF:FF:FF:FF (广播)','rgba(251,191,36,1)');
+  }
+  // ARP reply (step 2)
+  if(step===2){
+    arrow(ctx,bX-50,midY,aX+50,midY,'rgba(52,211,153,1)',false);
+    txt(ctx,'ARP Reply (单播): 192.168.1.2 is at BB:BB',W/2,H*0.2,10,'#34d399','center','600');
+    pkt(ctx,(aX+bX)/2,midY-32,'BB:BB → AA:AA','rgba(52,211,153,1)');
+  }
+  // Data packet (step 3)
+  if(step>=3){
+    arrow(ctx,aX+50,midY-8,bX-50,midY-8,'rgba(52,211,153,1)',false);
+    txt(ctx,'数据包 (以太网帧: src=AA:AA, dst=BB:BB)',W/2,H*0.2,10,'#34d399','center','600');
+    pkt(ctx,(aX+bX)/2,midY-32,'数据包','rgba(52,211,153,1)');
+    // ARP cache indicator
+    rr(ctx,aX-54,midY+28,108,22,6,'rgba(52,211,153,0.1)','rgba(52,211,153,0.4)',1);
+    txt(ctx,'ARP: 192.168.1.2 → BB:BB ✓',aX,midY+39,8,'#34d399','center');
+  }
+}
+
+// TAB 1: Cross-subnet routing
+const TAB1 = [
+  {
+    title: '初始状态 — 不同子网',
+    badge: 'normal',
+    desc: 'Host A (192.168.1.1) 要发包给 Host C (10.1.0.5)。目标 IP 不在同一子网（192.168.1.0/24 vs 10.1.0.0/24），必须经过路由器转发。',
+    detail: '主机用目标 IP & 子网掩码判断是否同子网：dst & mask ≠ src & mask → 不同子网 → 发往默认网关。',
+    draw(ctx,W,H){ drawCrossSubnet(ctx,W,H,-1,64); }
+  },
+  {
+    title: 'A 查路由表 → 发往默认网关',
+    badge: 'normal',
+    desc: 'A 查路由表，没有到 10.1.0.0/24 的具体路由，命中默认路由 (0.0.0.0/0) → 网关 R1 (192.168.1.254)。A 通过 ARP 找到 R1 的 MAC，封帧发出。',
+    detail: '注意：A 封装的以太网帧目标 MAC 是 R1 的 MAC（不是 C 的 MAC！），但 IP 头目标 IP 是 10.1.0.5。',
+    draw(ctx,W,H){ drawCrossSubnet(ctx,W,H,0,64); }
+  },
+  {
+    title: 'R1 收包：解封→路由→重封',
+    badge: 'normal',
+    desc: 'R1 收到帧，剥掉 L2 头，看 IP 目标地址 10.1.0.5。查路由表：10.0.1.0/24 → R2。TTL 减 1（64→63），重新封装以太网帧（src=R1 MAC，dst=R2 MAC），发给 R2。',
+    detail: '每经过一台路由器：① TTL-1；② 重写 L2 头（MAC 地址）；③ L3 头（IP 地址）不变。',
+    draw(ctx,W,H){ drawCrossSubnet(ctx,W,H,1,63); }
+  },
+  {
+    title: 'R2 转发 → Host C 收包',
+    badge: 'normal',
+    desc: 'R2 查路由表，10.1.0.0/24 是直连网段，ARP 找到 C 的 MAC，封帧发给 C。C 收到后解封 IP 包（TTL=62），交给上层协议处理。',
+    detail: 'TTL 记录了包经过的跳数（64-62=2 跳路由器）。整个过程 IP 头的源/目标 IP 始终是 192.168.1.1 和 10.1.0.5，不变。',
+    draw(ctx,W,H){ drawCrossSubnet(ctx,W,H,2,62); }
+  }
+];
+
+function drawCrossSubnet(ctx,W,H,activeHop,ttl) {
+  ctx.clearRect(0,0,W,H);
+  const nodes = [
+    {x:W*0.08, y:H*0.42, label:'Host A', sub:'192.168.1.1', color:'rgba(52,211,153,1)'},
+    {x:W*0.33, y:H*0.42, label:'R1',     sub:'路由器 1',    color:'rgba(251,191,36,1)'},
+    {x:W*0.61, y:H*0.42, label:'R2',     sub:'路由器 2',    color:'rgba(251,191,36,1)'},
+    {x:W*0.87, y:H*0.42, label:'Host C', sub:'10.1.0.5',    color:'rgba(56,189,248,1)'},
+  ];
+  // subnet labels
+  const subnets = [
+    {x:W*0.08,w:W*0.22,label:'192.168.1.0/24'},
+    {x:W*0.22,w:W*0.28,label:'10.0.0.0/24'},
+    {x:W*0.44,w:W*0.28,label:'10.0.1.0/24'},
+    {x:W*0.66,w:W*0.28,label:'10.1.0.0/24'},
+  ];
+  subnets.forEach((s,i)=>{
+    rr(ctx,s.x,H*0.2,s.w,H*0.52,8,'rgba(255,255,255,0.02)','rgba(255,255,255,0.06)',1);
+    txt(ctx,s.label,s.x+s.w/2,H*0.27,8.5,'#64748b','center');
+  });
+  // connections
+  for(let i=0;i<nodes.length-1;i++){
+    const isActive = activeHop>=i;
+    ctx.strokeStyle=isActive?'rgba(52,211,153,0.7)':'rgba(255,255,255,0.1)'; ctx.lineWidth=isActive?2:1.5;
+    ctx.setLineDash(isActive?[]:[4,3]);
+    ctx.beginPath(); ctx.moveTo(nodes[i].x+50,nodes[i].y); ctx.lineTo(nodes[i+1].x-50,nodes[i+1].y); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  nodes.forEach((n,i)=>{
+    const hl = i<=activeHop+1;
+    node(ctx,n.x,n.y,90,44,n.label,n.sub,n.color,hl);
+  });
+  // packet position
+  if(activeHop>=0){
+    const px = activeHop>=2 ? nodes[3].x : activeHop>=1 ? (nodes[1].x+nodes[2].x)/2 : (nodes[0].x+nodes[1].x)/2;
+    pkt(ctx,px,nodes[0].y-36,`IP pkt TTL=${ttl}`,'rgba(52,211,153,1)');
+    // L2 frame label
+    const labels = [
+      'L2: src=AA:AA dst=R1-MAC',
+      'L2: src=R1-MAC dst=R2-MAC',
+      'L2: src=R2-MAC dst=C-MAC',
+    ];
+    if(activeHop>=0 && activeHop<=2){
+      txt(ctx,labels[activeHop],W/2,H*0.15,9,'#94a3b8','center');
+    }
+  }
+  // TTL label
+  if(activeHop>=0) txt(ctx,`每跳重写 L2 头，IP 头不变`,W/2,H*0.88,9.5,'#64748b','center');
+}
+
+// TAB 2: TTL / Traceroute
+const TAB2 = [
+  {
+    title: 'Traceroute 原理：从 TTL=1 开始',
+    badge: 'normal',
+    desc: 'Traceroute 发送 TTL=1 的 UDP 探测包。包到达第一台路由器 R1 时，R1 将 TTL 减为 0，丢弃包，并返回 ICMP Time Exceeded 给源主机。',
+    detail: 'Traceroute (Linux: traceroute, Windows: tracert) 每次发 3 个探测包测量延迟抖动。ICMP Time Exceeded 携带了路由器的 IP 地址，即第 1 跳路由器。',
+    draw(ctx,W,H){ drawTraceroute(ctx,W,H,0); }
+  },
+  {
+    title: 'R1 → ICMP Time Exceeded，记录第 1 跳',
+    badge: 'normal',
+    desc: 'R1 返回 ICMP Type 11 (Time Exceeded)，源 IP 是 R1 自己的接口 IP。Traceroute 记录 R1 IP 和往返时间（RTT）。',
+    detail: 'ICMP Time Exceeded 包含被丢弃包的 IP 头 + 前 8 字节数据，帮助 Traceroute 将响应与探测包对应匹配。',
+    draw(ctx,W,H){ drawTraceroute(ctx,W,H,1); }
+  },
+  {
+    title: 'TTL=2：探测到第 2 跳 R2',
+    badge: 'normal',
+    desc: '发送 TTL=2 的探测包。R1 将 TTL 减为 1 并转发，R2 收到后 TTL 减为 0，返回 ICMP Time Exceeded。Traceroute 记录 R2 的 IP 和 RTT。',
+    detail: 'TTL 从 1 逐步递增，就像剥洋葱一样，逐跳揭示网络路径。每跳耗时差值反映了该段链路延迟。',
+    draw(ctx,W,H){ drawTraceroute(ctx,W,H,2); }
+  },
+  {
+    title: 'TTL=3：到达目标主机 C',
+    badge: 'normal',
+    desc: 'TTL=3 的包经过 R1(TTL=2)、R2(TTL=1) 到达 Host C(TTL=0)。C 接收到包（UDP 端口不可达），返回 ICMP Port Unreachable，Traceroute 记录最终目标 IP，路径探测完成。',
+    detail: 'Traceroute 用高号 UDP 端口（>33434），目标主机通常没有监听这些端口，所以返回 ICMP Port Unreachable（Type 3），这是 Traceroute 判断"到达目标"的信号。',
+    draw(ctx,W,H){ drawTraceroute(ctx,W,H,3); }
+  }
+];
+
+function drawTraceroute(ctx,W,H,step) {
+  ctx.clearRect(0,0,W,H);
+  const nodes=[
+    {x:W*0.1, y:H*0.4, label:'Host A', sub:'源主机'},
+    {x:W*0.37,y:H*0.4, label:'R1',     sub:'路由器 1'},
+    {x:W*0.63,y:H*0.4, label:'R2',     sub:'路由器 2'},
+    {x:W*0.9, y:H*0.4, label:'Host C', sub:'目标主机'},
+  ];
+  const ttls=[1,2,3];
+  const ttlCurr=ttls[Math.min(step,2)];
+  // baseline links
+  for(let i=0;i<nodes.length-1;i++){
+    ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.lineWidth=1.5; ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(nodes[i].x+48,nodes[i].y); ctx.lineTo(nodes[i+1].x-48,nodes[i+1].y); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  nodes.forEach((n,i)=>node(ctx,n.x,n.y,86,42,n.label,n.sub,'rgba(255,255,255,0.5)',false));
+  // probe arrow
+  const probeColors=['rgba(52,211,153,1)','rgba(52,211,153,1)','rgba(52,211,153,1)','rgba(52,211,153,1)'];
+  const probeEnd = [nodes[1].x-44, nodes[2].x-44, nodes[3].x-44, nodes[3].x+44][Math.min(step,3)];
+  arrow(ctx,nodes[0].x+44,nodes[0].y-10,probeEnd,nodes[0].y-10,probeColors[step],false);
+  txt(ctx,`TTL=${ttlCurr} 探测包`,W*0.35,nodes[0].y-28,9,'#34d399','center','600');
+  // ICMP reply
+  const icmpLabels=[
+    'ICMP Time Exceeded (R1)',
+    'ICMP Time Exceeded (R2)',
+    'ICMP Port Unreachable (Host C)',
+  ];
+  if(step>=1){
+    const replyFrom=[nodes[1].x,nodes[2].x,nodes[3].x][step-1];
+    arrow(ctx,replyFrom,nodes[0].y+10,nodes[0].x+44,nodes[0].y+10,'rgba(248,113,113,0.9)',false);
+    txt(ctx,icmpLabels[step-1],W*0.42,nodes[0].y+28,9,'#f87171','center','600');
+  }
+  // Traceroute result table
+  const rows=[
+    ['1','R1 IP: 10.0.0.1','RTT: ~1ms'],
+    ['2','R2 IP: 10.0.1.1','RTT: ~5ms'],
+    ['3','C IP:  10.1.0.5','RTT: ~8ms ← 目标'],
+  ];
+  rr(ctx,W*0.05,H*0.68,W*0.9,H*0.27,10,'rgba(17,24,39,0.7)','rgba(255,255,255,0.08)',1);
+  txt(ctx,'Traceroute 结果:',W*0.08,H*0.72,9,'#94a3b8','left','700');
+  rows.slice(0,step).forEach((r,i)=>{
+    txt(ctx,`跳 ${r[0]}: ${r[1]}   ${r[2]}`,W*0.1,H*0.78+i*16,9,'#34d399','left');
+  });
+}
+
+// TAB 3: CIDR subnet division
+const TAB3 = [
+  {
+    title: '192.168.1.0/24 — 单一广播域',
+    badge: 'normal',
+    desc: '/24 子网包含 256 个地址（192.168.1.0–192.168.1.255）。网络地址 .0，广播地址 .255，可用主机 254 台。所有主机在同一广播域，ARP 广播会发送给全部主机。',
+    detail: '子网大小 = 2^(32-prefix) 个地址。/24 = 2^8 = 256 个，减去网络地址和广播地址，可用 254 个。',
+    draw(ctx,W,H){ drawCIDR(ctx,W,H,0); }
+  },
+  {
+    title: '拆分为两个 /25',
+    badge: 'normal',
+    desc: '将 /24 对半拆分为两个 /25。子网 A：192.168.1.0/25（0–127）；子网 B：192.168.1.128/25（128–255）。每个子网 128 个地址，可用主机各 126 台。',
+    detail: '/25 = 25 位网络位，每个子网 2^7=128 个地址。拆分后产生两个独立广播域，通信必须经路由器。',
+    draw(ctx,W,H){ drawCIDR(ctx,W,H,1); }
+  },
+  {
+    title: '子网 A 主机范围',
+    badge: 'normal',
+    desc: '子网 A (192.168.1.0/25)：网络地址 192.168.1.0，广播地址 192.168.1.127，可用主机范围 192.168.1.1–192.168.1.126（共 126 台）。',
+    detail: '子网掩码：255.255.255.128 (二进制: 1111 1111.1111 1111.1111 1111.1000 0000)。主机位最高位为 0 的地址属于子网 A。',
+    draw(ctx,W,H){ drawCIDR(ctx,W,H,2); }
+  },
+  {
+    title: '子网 B 主机范围 & 隔离',
+    badge: 'normal',
+    desc: '子网 B (192.168.1.128/25)：网络地址 .128，广播地址 .255，可用主机 .129–.254。两个子网虽然在同一物理交换机，但必须经过路由器（L3）才能互通。',
+    detail: '不同 /25 子网的主机直接 ARP 会失败（不同广播域）。VLAN 可以在 L2 物理隔离，配合 L3 路由器或三层交换机实现受控互通。',
+    draw(ctx,W,H){ drawCIDR(ctx,W,H,3); }
+  }
+];
+
+function drawCIDR(ctx,W,H,step) {
+  ctx.clearRect(0,0,W,H);
+  // /24 block
+  rr(ctx,W*0.05,H*0.08,W*0.9,H*0.28,10,'rgba(52,211,153,0.06)','rgba(52,211,153,0.3)',1.5);
+  txt(ctx,'192.168.1.0/24 — 256 个地址',W/2,H*0.22,11,'#34d399','center','700');
+  txt(ctx,'网络地址: 192.168.1.0 | 广播地址: 192.168.1.255 | 可用主机: 254 台',W/2,H*0.31,9,'#94a3b8','center');
+  if(step>=1){
+    // /25 blocks
+    rr(ctx,W*0.05,H*0.46,W*0.43,H*0.26,10,'rgba(56,189,248,0.07)','rgba(56,189,248,0.4)',1.5);
+    txt(ctx,'子网 A: 192.168.1.0/25',W*0.265,H*0.54,10,'#38bdf8','center','700');
+    txt(ctx,'128 个地址（.0–.127）',W*0.265,H*0.63,9,'#94a3b8','center');
+    rr(ctx,W*0.52,H*0.46,W*0.43,H*0.26,10,'rgba(251,191,36,0.07)','rgba(251,191,36,0.4)',1.5);
+    txt(ctx,'子网 B: 192.168.1.128/25',W*0.735,H*0.54,10,'#fbbf24','center','700');
+    txt(ctx,'128 个地址（.128–.255）',W*0.735,H*0.63,9,'#94a3b8','center');
+    // router in the middle
+    if(step>=3){
+      rr(ctx,W*0.455,H*0.52,W*0.09,H*0.14,8,'rgba(248,113,113,0.08)','rgba(248,113,113,0.4)',1.5);
+      txt(ctx,'路由器',W*0.5,H*0.585,9,'#f87171','center','700');
+      arrow(ctx,W*0.48,H*0.545,W*0.265+0.215*W,H*0.59,'rgba(56,189,248,0.6)',false);
+      arrow(ctx,W*0.52,H*0.545,W*0.52+0.215*W,H*0.59,'rgba(251,191,36,0.6)',false);
+    }
+  }
+  if(step>=2){
+    rr(ctx,W*0.05,H*0.77,W*0.43,H*0.17,8,'rgba(56,189,248,0.05)','rgba(56,189,248,0.2)',1);
+    txt(ctx,'网络地址: .0 | 广播: .127',W*0.265,H*0.82,9,'#7dd3fc','center');
+    txt(ctx,'可用: .1–.126 (共 126 台)',W*0.265,H*0.89,9,'#38bdf8','center','600');
+  }
+  if(step>=3){
+    rr(ctx,W*0.52,H*0.77,W*0.43,H*0.17,8,'rgba(251,191,36,0.05)','rgba(251,191,36,0.2)',1);
+    txt(ctx,'网络地址: .128 | 广播: .255',W*0.735,H*0.82,9,'#fde68a','center');
+    txt(ctx,'可用: .129–.254 (共 126 台)',W*0.735,H*0.89,9,'#fbbf24','center','600');
+  }
+}
+
+const TABS = [
+  {label:'ARP 同子网', steps:TAB0, badge:'normal'},
+  {label:'跨子网路由', steps:TAB1, badge:'normal'},
+  {label:'TTL / Traceroute', steps:TAB2, badge:'normal'},
+  {label:'CIDR 子网划分', steps:TAB3, badge:'normal'},
+];
+
+let tabIdx=0, stepIdx=0, timer=null;
+const canvas=document.getElementById('vizCanvas');
+const ctx=canvas.getContext('2d');
+
+function resizeCanvas(){
+  const stage=document.getElementById('stage');
+  const rect=stage.getBoundingClientRect();
+  const dpr=window.devicePixelRatio||1;
+  canvas.width=rect.width*dpr; canvas.height=rect.height*dpr;
+  canvas.style.width=rect.width+'px'; canvas.style.height=rect.height+'px';
+  ctx.scale(dpr,dpr);
+  draw();
+}
+function draw(){
+  const s=TABS[tabIdx].steps[stepIdx];
+  const rect=canvas.getBoundingClientRect();
+  s.draw(ctx,rect.width,rect.height);
+  document.getElementById('stepMsg').textContent=s.desc;
+  document.getElementById('stepTitle').textContent=s.title;
+  document.getElementById('stepDesc').textContent=s.desc;
+  document.getElementById('stepDetail').textContent=s.detail;
+  document.getElementById('stateBadge').textContent=s.badge;
+  document.getElementById('stateBadge').className='badge'+(s.badge==='fail'?' fail':s.badge==='warn'?' warn':'');
+  document.querySelectorAll('.step-btn').forEach((b,i)=>b.classList.toggle('active',i===stepIdx));
+  document.getElementById('btnPrev').disabled=stepIdx===0;
+  document.getElementById('btnNext').disabled=stepIdx===TABS[tabIdx].steps.length-1;
+}
+function buildStepList(){
+  const list=document.getElementById('stepList');
+  list.innerHTML=TABS[tabIdx].steps.map((s,i)=>
+    `<button class="step-btn${i===stepIdx?' active':''}" data-i="${i}"><b>Step ${i+1}</b>${s.title}</button>`
+  ).join('');
+  list.querySelectorAll('button').forEach(b=>b.onclick=()=>{stepIdx=+b.dataset.i;doPause();draw();});
+}
+function buildTabs(){
+  document.getElementById('sceneTabs').innerHTML=TABS.map((t,i)=>
+    `<button class="scene-tab${i===tabIdx?' active':''}" onclick="switchTab(${i})">${t.label}</button>`
+  ).join('');
+}
+function switchTab(i){tabIdx=i;stepIdx=0;doPause();buildTabs();buildStepList();resizeCanvas();}
+function doNext(){if(stepIdx<TABS[tabIdx].steps.length-1){stepIdx++;draw();buildStepList();}else doPause();}
+function doPrev(){if(stepIdx>0){stepIdx--;draw();buildStepList();}}
+function doReset(){doPause();stepIdx=0;draw();buildStepList();}
+function doPause(){if(timer){clearInterval(timer);timer=null;document.getElementById('btnPlay').textContent='播放';}}
+function doToggle(){if(timer){doPause();}else{document.getElementById('btnPlay').textContent='暂停';timer=setInterval(doNext,2000);}}
+
+buildTabs();
+buildStepList();
+window.addEventListener('resize',resizeCanvas);
+window.addEventListener('load',()=>setTimeout(resizeCanvas,50));
+setTimeout(resizeCanvas,80);
+</script>
+<script>if(window.NavTracker) NavTracker.track('IP 协议基础', window.location.href, '🌐', '网络');</script>
+<script src="../footer.js"></script>
+</body>
+</html>

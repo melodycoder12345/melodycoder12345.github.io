@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="无需重新训练，通过合并多个微调模型的权重来组合不同能力。SLERP、Task Arithmetic、TIES/DARE 是主流融合方法。">
+<link rel="canonical" href="https://melodycoder12345.github.io/ai/model-merging.html">
+<meta property="og:title" content="模型融合（Model Merging）— 码海拾贝">
+<meta property="og:description" content="无需重新训练，通过合并多个微调模型的权重来组合不同能力。SLERP、Task Arithmetic、TIES/DARE 是主流融合方法。">
+<meta property="og:url" content="https://melodycoder12345.github.io/ai/model-merging.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="模型融合（Model Merging）— 码海拾贝">
+<meta name="twitter:description" content="无需重新训练，通过合并多个微调模型的权重来组合不同能力。SLERP、Task Arithmetic、TIES/DARE 是主流融合方法。">
+<title>模型融合（Model Merging）- AI 系统</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<link rel="stylesheet" href="ai.css">
+<style>
+table{width:100%;border-collapse:collapse;margin:12px 0}
+th{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent);padding:8px 10px;text-align:left;border:1px solid rgba(255,255,255,.08);font-size:.75rem;letter-spacing:.05em}
+td{padding:8px 10px;border:1px solid rgba(255,255,255,.06);color:var(--dim);font-size:.82rem;line-height:1.6}
+td:first-child{color:var(--text);font-weight:600;font-size:.84rem}
+.full{grid-column:1/-1}
+.warn-box{border-left:3px solid var(--yellow);background:color-mix(in srgb,var(--yellow) 8%,transparent);border-radius:0 12px 12px 0;padding:11px 14px;margin:12px 0;color:var(--dim);font-size:.88rem;line-height:1.75}
+.warn-box strong{color:var(--yellow)}
+.ok-box{border-left:3px solid var(--green);background:color-mix(in srgb,var(--green) 7%,transparent);border-radius:0 12px 12px 0;padding:11px 14px;margin:12px 0;color:var(--dim);font-size:.88rem;line-height:1.75}
+.ok-box strong{color:var(--green)}
+.formula{background:rgba(0,0,0,.38);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:12px 16px;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.9rem;color:#c4b5fd;margin:12px 0;text-align:center;letter-spacing:.03em}
+.kw{color:#c084fc}.fn{color:#38bdf8}.st{color:#86efac}.cm{color:#4b5e7e;font-style:italic}.num{color:#fb923c}.va{color:#e2e8f0}
+.merge-flow{display:flex;flex-direction:column;gap:8px;margin:12px 0}
+.flow-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.flow-box{border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:7px 12px;font-size:.8rem;background:rgba(255,255,255,.04);color:var(--dim)}
+.flow-box.base{border-color:color-mix(in srgb,var(--cyan) 40%,transparent);background:color-mix(in srgb,var(--cyan) 8%,transparent);color:var(--cyan)}
+.flow-box.ft{border-color:color-mix(in srgb,var(--accent) 40%,transparent);background:color-mix(in srgb,var(--accent) 8%,transparent);color:#c4b5fd}
+.flow-box.out{border-color:color-mix(in srgb,var(--green) 40%,transparent);background:color-mix(in srgb,var(--green) 8%,transparent);color:var(--green)}
+.flow-arrow{color:var(--dim);font-size:.9rem}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Task Arithmetic（任务向量算术）","body":"微调后的模型权重减去预训练权重得到"任务向量"(task vector)。多个任务向量可以直接相加到预训练模型上：加法方向=增强该能力，减法方向=削弱（遗忘）该能力。公式：θ_merge = θ_base + λΣ task_vector_i。实现简单但多个向量参数干扰时效果下降。","tag":"term"},
+  {"title":"SLERP（球形线性插值）","body":"Spherical Linear Interpolation，在权重参数空间的高维超球面上做插值，比简单的线性插值（LERP）路径更短、过渡更平滑。融合两个同架构同基座的模型时，SLERP 得到的中间模型在两端能力之间平衡，不会出现向量长度缩短的问题。仅适合融合两个模型。","tag":"term"},
+  {"title":"TIES/DARE（参数稀疏化）","body":"DARE 以随机丢弃方式稀疏化任务向量（保留绝对值大的参数，其余置零并重新缩放），TIES 在融合前执行三步：Trim（裁剪绝对值小的参数）→ Elect Sign（解决符号冲突，多数票决定符号方向）→ Merge（加权平均保留参数）。主要解决多个任务向量直接相加时的参数干扰问题。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="shell" data-page-type="B">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">AI 系统 / 模型融合 / B 类型</div>
+      <h1>模型融合</h1>
+      <p class="summary">Model Merging 让我们无需重新训练，直接通过合并多个微调模型的权重来组合不同专业能力——将代码能力、数学推理、安全对齐融合进同一个模型。核心洞见是：微调改变的增量权重（任务向量）可以像向量一样叠加。SLERP 做两模型的球面插值，Task Arithmetic 支持多任务向量相加，TIES/DARE 解决参数冲突。Mergekit 等开源工具让这一切在 CPU 上就能完成，无需 GPU。</p>
+      <div class="tags"><span>Task Arithmetic</span><span>SLERP</span><span>TIES</span><span>DARE</span><span>Mergekit</span><span>任务向量</span><span>权重空间</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <div class="map">
+        <div class="term"><strong>Task Arithmetic</strong><span>任务向量 = θ_ft − θ_base，多个向量直接相加到基座模型，加法增强/减法削弱能力。</span></div>
+        <div class="term"><strong>SLERP</strong><span>球面线性插值，在权重超球面上平滑融合两个模型，比 LERP 路径更短更稳定。</span></div>
+        <div class="term"><strong>TIES / DARE</strong><span>稀疏化任务向量后再融合，解决多向量相加时的参数符号冲突问题。</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="section">
+      <h2>为什么需要模型融合？</h2>
+      <ul>
+        <li><strong>微调成本高：</strong>每次全参数微调需要数十到数百 GPU 小时；融合已有的微调模型，几分钟 CPU 时间就能组合新能力，成本接近零</li>
+        <li><strong>组合专业能力：</strong>单次微调让模型专注一个方向（代码/数学/安全）；通过融合可以将多个专家模型的能力合并进同一个检查点</li>
+        <li><strong>不需要原始训练数据：</strong>许多微调模型的训练数据不公开；模型融合完全基于权重文件，无需访问数据</li>
+        <li><strong>Mergekit 生态：</strong>arcee-ai/mergekit 提供 YAML 配置一键完成融合，Hugging Face 上存在大量社区融合模型（如 Mistral、LLaMA 的多种融合变体）</li>
+        <li><strong>DARE+TIES 的突破：</strong>2023-2024 年研究表明，稀疏化后融合多个模型不仅可行，甚至可以超过单独任意一个基础模型</li>
+      </ul>
+      <div class="warn-box"><strong>局限前提：</strong>所有要融合的模型必须来自同一基座（same base model）且架构相同，Llama-3-8B 的微调版不能与 Mistral-7B 的微调版直接融合。</div>
+    </section>
+
+    <section class="section">
+      <h2>Task Arithmetic 详解</h2>
+      <ul>
+        <li><strong>任务向量定义：</strong>τ_i = θ_ft_i − θ_base，即微调模型权重减去预训练基座权重，表示"微调在参数空间中移动的方向和幅度"</li>
+        <li><strong>融合公式：</strong>λ 是缩放系数（通常 0.3～0.7），控制任务向量对基座的影响程度</li>
+      </ul>
+      <div class="formula">θ_merge = θ_base + λ · (τ₁ + τ₂ + … + τₙ)</div>
+      <ul>
+        <li><strong>向量减法（遗忘）：</strong>θ_merge = θ_base − λ · τ_toxic，用负号可以消除某种能力（如有毒内容生成）</li>
+        <li><strong>多任务融合：</strong>将代码向量、数学向量、安全向量相加，理论上得到三者兼备的模型</li>
+        <li><strong>参数干扰问题：</strong>向量之间并非正交，直接相加时参数相互干扰，任务数量越多效果越差；这也是 TIES/DARE 需要解决的问题</li>
+      </ul>
+      <div class="merge-flow">
+        <div class="flow-row">
+          <div class="flow-box base">θ_base（LLaMA-3-8B）</div>
+          <div class="flow-arrow">←</div>
+          <div class="flow-box ft">θ_ft1（Code）</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box ft">τ₁ = ft1 − base</div>
+        </div>
+        <div class="flow-row">
+          <div class="flow-box base">θ_base（LLaMA-3-8B）</div>
+          <div class="flow-arrow">←</div>
+          <div class="flow-box ft">θ_ft2（Math）</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box ft">τ₂ = ft2 − base</div>
+        </div>
+        <div class="flow-row">
+          <div class="flow-box base">θ_base</div>
+          <div class="flow-arrow">+</div>
+          <div class="flow-box ft">λ·(τ₁ + τ₂)</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box out">θ_merge（Code + Math）</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>SLERP 球形插值</h2>
+      <ul>
+        <li><strong>问题背景：</strong>线性插值（LERP）在中间点时向量长度缩短（趋近于零），导致模型能力下降。SLERP 在超球面上等速率弧线插值，保持向量长度不变</li>
+        <li><strong>公式：</strong></li>
+      </ul>
+      <div class="formula">SLERP(θ₁, θ₂, t) = sin((1-t)·Ω)/sin(Ω) · θ₁ + sin(t·Ω)/sin(Ω) · θ₂<br><small style="color:var(--dim);font-size:.78rem">Ω = arccos(θ₁·θ₂ / (‖θ₁‖·‖θ₂‖))，t ∈ [0,1]</small></div>
+      <ul>
+        <li><strong>适用场景：</strong>融合两个模型（只支持两路）；同基座的两个微调变体，例如 Instruct 版本与 Chat 版本的平衡</li>
+        <li><strong>t=0.5 的含义：</strong>两个模型能力等权重融合，t 偏向 0 时更接近 θ₁，偏向 1 时更接近 θ₂</li>
+        <li><strong>与 LERP 对比：</strong>向量角度大时 SLERP 明显优于 LERP；角度接近零时两者效果相近。实际权重矩阵的差异通常足够大，推荐优先使用 SLERP</li>
+      </ul>
+      <pre><span class="kw">import</span> <span class="va">torch</span>
+
+<span class="kw">def</span> <span class="fn">slerp</span>(t: <span class="va">float</span>, w1: <span class="va">torch.Tensor</span>, w2: <span class="va">torch.Tensor</span>) -&gt; <span class="va">torch.Tensor</span>:
+    w1_flat = w1.flatten()
+    w2_flat = w2.flatten()
+    <span class="cm"># 计算夹角 Ω</span>
+    cos_omega = (w1_flat @ w2_flat) / (w1_flat.norm() * w2_flat.norm())
+    cos_omega = cos_omega.clamp(-<span class="num">1</span>, <span class="num">1</span>)
+    omega = torch.acos(cos_omega)
+    <span class="kw">if</span> omega.abs() &lt; <span class="num">1e-6</span>:  <span class="cm"># 近似平行，退回线性插值</span>
+        <span class="kw">return</span> (<span class="num">1</span> - t) * w1 + t * w2
+    sin_omega = torch.sin(omega)
+    <span class="kw">return</span> (torch.sin((<span class="num">1</span> - t) * omega) / sin_omega * w1_flat +
+            torch.sin(t * omega) / sin_omega * w2_flat).reshape(w1.shape)</pre>
+    </section>
+
+    <section class="section">
+      <h2>TIES / DARE 方法</h2>
+      <ul>
+        <li><strong>问题根源：</strong>多个任务向量直接相加时，不同任务的参数更新方向可能相互抵消（符号冲突）或干扰，导致融合后性能低于预期</li>
+      </ul>
+      <p style="color:var(--dim);font-size:.9rem;line-height:1.8;margin:10px 0"><strong style="color:var(--text)">DARE（随机丢弃稀疏化）：</strong>以概率 p 随机将任务向量中的参数置零，剩余参数按 1/(1-p) 缩放补偿，降低参数间干扰密度。类似 Dropout 的思路，实验证明 p=0.9 时效果仍然保持。</p>
+      <p style="color:var(--dim);font-size:.9rem;line-height:1.8;margin:10px 0"><strong style="color:var(--text)">TIES 三步流程：</strong></p>
+      <ul>
+        <li><strong>① Trim（裁剪）：</strong>对每个任务向量，仅保留绝对值最大的 top-k% 参数，其余置零，减少噪声干扰</li>
+        <li><strong>② Elect Sign（选举符号）：</strong>对每个参数位置，统计所有任务向量中该位置正值之和 vs 负值之和，取绝对值更大的方向作为最终符号，解决符号冲突</li>
+        <li><strong>③ Merge（融合）：</strong>对符号一致的参数取均值（或加权平均），符号不一致的参数丢弃</li>
+      </ul>
+      <div class="ok-box"><strong>实验效果：</strong>TIES 在融合 7 个任务向量时，比直接 Task Arithmetic 平均提升 2-4%；DARE 可以将稀疏率提高到 90%，同时仅损失 1% 以内的性能。</div>
+    </section>
+
+    <section class="section">
+      <h2>工程实践与选型</h2>
+      <ul>
+        <li><strong>Mergekit 配置示例：</strong>YAML 声明即可完成融合，支持 SLERP / Task Arithmetic / TIES / DARE 等多种方法</li>
+      </ul>
+      <pre><span class="cm"># mergekit config: TIES 融合三个模型</span>
+<span class="va">merge_method</span>: <span class="st">ties</span>
+<span class="va">base_model</span>: <span class="st">meta-llama/Meta-Llama-3-8B</span>
+<span class="va">models</span>:
+  - <span class="va">model</span>: <span class="st">codellama/CodeLlama-7b-hf</span>
+    <span class="va">parameters</span>:
+      <span class="va">density</span>: <span class="num">0.53</span>   <span class="cm"># DARE 稀疏率</span>
+      <span class="va">weight</span>: <span class="num">1.0</span>
+  - <span class="va">model</span>: <span class="st">WizardMath-7B-V1.1</span>
+    <span class="va">parameters</span>:
+      <span class="va">density</span>: <span class="num">0.53</span>
+      <span class="va">weight</span>: <span class="num">1.0</span>
+<span class="va">parameters</span>:
+  <span class="va">normalize</span>: <span class="kw">true</span>
+  <span class="va">int8_mask</span>: <span class="kw">true</span></pre>
+      <table>
+        <tr><th>场景</th><th>推荐方法</th><th>原因</th></tr>
+        <tr><td>融合 2 个模型</td><td>SLERP</td><td>球面插值最平滑，能力均衡</td></tr>
+        <tr><td>融合 3-5 个任务</td><td>Task Arithmetic</td><td>配置简单，λ 调参快</td></tr>
+        <tr><td>融合 5+ 个任务</td><td>TIES + DARE</td><td>稀疏化解决参数干扰</td></tr>
+        <tr><td>能力遗忘修复</td><td>向量减法</td><td>用任务向量减法削弱有害能力</td></tr>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>Task Arithmetic 实现代码</h2>
+      <pre><span class="kw">import</span> <span class="va">torch</span>
+<span class="kw">from</span> <span class="va">transformers</span> <span class="kw">import</span> <span class="fn">AutoModelForCausalLM</span>
+
+<span class="kw">def</span> <span class="fn">task_arithmetic_merge</span>(
+    base_path: <span class="va">str</span>,
+    finetuned_paths: <span class="va">list</span>[<span class="va">str</span>],
+    lam: <span class="va">float</span> = <span class="num">0.4</span>
+) -&gt; <span class="va">dict</span>:
+    <span class="st">"""Task Arithmetic 模型融合"""</span>
+    base = <span class="fn">AutoModelForCausalLM</span>.from_pretrained(base_path)
+    base_sd = base.state_dict()
+
+    <span class="cm"># 收集所有任务向量</span>
+    task_vectors = []
+    <span class="kw">for</span> path <span class="kw">in</span> finetuned_paths:
+        ft_sd = <span class="fn">AutoModelForCausalLM</span>.from_pretrained(path).state_dict()
+        tv = {k: ft_sd[k].float() - base_sd[k].float()
+              <span class="kw">for</span> k <span class="kw">in</span> base_sd}
+        task_vectors.append(tv)
+
+    <span class="cm"># 将所有任务向量求和后叠加到基座</span>
+    merged = {}
+    <span class="kw">for</span> k <span class="kw">in</span> base_sd:
+        tv_sum = <span class="va">torch</span>.stack([tv[k] <span class="kw">for</span> tv <span class="kw">in</span> task_vectors]).sum(<span class="num">0</span>)
+        merged[k] = base_sd[k].float() + lam * tv_sum
+    <span class="kw">return</span> merged
+
+<span class="cm"># Task Vector 减法：削弱 toxic 能力</span>
+<span class="kw">def</span> <span class="fn">negate_task_vector</span>(base_sd, toxic_sd, lam=<span class="num">0.3</span>):
+    tv_toxic = {k: toxic_sd[k].float() - base_sd[k].float()
+                <span class="kw">for</span> k <span class="kw">in</span> base_sd}
+    <span class="kw">return</span> {k: base_sd[k].float() - lam * tv_toxic[k]
+            <span class="kw">for</span> k <span class="kw">in</span> base_sd}</pre>
+    </section>
+
+    <section class="section full">
+      <h2>局限与工程场景</h2>
+      <ul>
+        <li><strong>同架构同基座限制：</strong>融合的所有模型必须来自完全相同的基座（相同的权重初始化），Llama 3.1 8B Instruct 的各种微调版可以互相融合，但 Llama 3.1 8B 与 Mistral-7B-v0.3 不可融合</li>
+        <li><strong>能力平均化：</strong>融合后的模型在各任务上通常接近所有源模型的平均水平，而不是取每个任务的最优值；若需某一任务最佳，仍应使用该任务的专用微调版</li>
+        <li><strong>量化兼容性：</strong>融合前需要将模型反量化到 float32 或 bfloat16，融合后可再次量化（GPTQ/AWQ），整个流程需要 2-3× 模型大小的 RAM</li>
+        <li><strong>生产中的用法：</strong>融合模型通常用于 "capability combination" 原型验证，快速测试多能力组合效果；商业部署时仍需完整评估各任务 benchmark（MMLU、HumanEval、GSM8K 等）</li>
+        <li><strong>输出乱码问题：</strong>融合参数冲突严重时，模型可能重复输出或乱码；调低 λ（0.1-0.3）或使用 TIES 稀疏化可缓解，也可以检查各任务向量的 L2 范数是否差异悬殊</li>
+        <li><strong>跨架构融合研究：</strong>LinearMoE、FrankenMerge（拼接不同模型的层）等方法可部分突破同架构限制，但需要额外对齐训练，仍处于研究阶段</li>
+      </ul>
+      <div class="warn-box"><strong>经验法则：</strong>λ 总和控制在 0.5-1.0 之间；多个任务向量时建议先用 DARE（density=0.5）稀疏化后再融合；融合后必须在目标任务上跑 eval 验证，不要直接发布。</div>
+    </section>
+  </div>
+
+  <div class="back-row">
+    <a class="btn" href="../ai/index.html">← AI 系统</a>
+    <a class="btn" href="../graph.html?q=model-merging">星图</a>
+  </div>
+</main>
+<script src="../footer.js"></script>
+</body>
+</html>

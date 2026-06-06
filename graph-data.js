@@ -73,8 +73,11 @@
     {id:'dijkstra', label:'Dijkstra', module:'algo', type:'page', href:'algo/dijkstra.html', desc:'单源最短路径算法，是理解路由选择、网络代价和服务路径优化的基础。'},
     {id:'algo-bellman-ford', label:'Bellman-Ford', module:'algo', type:'page', href:'algo/bellman-ford.html', desc:'可处理负权边的单源最短路径算法。'},
     {id:'algo-kruskal', label:'Kruskal', module:'algo', type:'page', href:'algo/kruskal.html', desc:'基于并查集构造最小生成树。'},
+    {id:'algo-prim', label:'Prim', module:'algo', type:'page', href:'algo/prim.html', desc:'从起点出发，优先队列贪心扩展，与 Kruskal 互补的最小生成树算法。'},
     {id:'algo-knapsack', label:'背包问题', module:'algo', type:'page', href:'algo/knapsack.html', desc:'动态规划经典问题，展示状态与选择的关系。'},
     {id:'algo-lcs', label:'最长公共子序列', module:'algo', type:'page', href:'algo/lcs.html', desc:'用二维动态规划处理序列匹配。'},
+    {id:'algo-edit-distance', label:'编辑距离', module:'algo', type:'page', href:'algo/edit-distance.html', desc:'Levenshtein Distance，插入/删除/替换三操作的最小代价，搜索纠错和 diff 工具基础。'},
+    {id:'algo-interval-dp', label:'区间 DP', module:'algo', type:'page', href:'algo/interval-dp.html', desc:'外层枚举区间长度，内层枚举分割点，矩阵链乘和合并石子的通用框架。'},
     {id:'algo-lis', label:'最长递增子序列', module:'algo', type:'page', href:'algo/lis.html', desc:'连接动态规划、二分优化和有序边界维护。'},
     {id:'db-architecture', label:'数据库架构', module:'db', type:'page', href:'db/db-architecture.html', desc:'从连接层、解析优化、执行引擎到存储引擎理解数据库整体链路。'},
     {id:'query-path', label:'查询执行路径', module:'db', type:'page', href:'db/query-path.html', desc:'SQL 从客户端到磁盘页的完整执行路径。'},
@@ -255,17 +258,82 @@
     {id:'cn-scheduling', label:'Pod 调度', module:'cloud-native', type:'page', href:'cloud-native/k8s-scheduling.html', desc:'Filter 淘汰不满足节点（资源/Taint），Score 多插件加权打分，最优节点绑定 Pod。'},
     {id:'cn-networking', label:'Service 网络', module:'cloud-native', type:'page', href:'cloud-native/k8s-networking.html', desc:'ClusterIP 是虚拟 IP，iptables DNAT 规则完成真正的负载均衡转发，VXLAN 跨节点。'},
     {id:'cn-hpa', label:'HPA 弹性伸缩', module:'cloud-native', type:'page', href:'cloud-native/k8s-hpa.html', desc:'metrics-server 提供 CPU 指标，HPA 公式计算目标副本数，冷却期防频繁伸缩。'},
+    {id:'cn-serverless', label:'Serverless / FaaS', module:'cloud-native', type:'page', href:'cloud-native/serverless.html', desc:'函数即服务：冷启动分段耗时、scale-to-zero 零成本空闲、并发扩容、事件驱动触发与幂等设计。'},
+    {id:'cn-gitops', label:'GitOps / ArgoCD', module:'cloud-native', type:'page', href:'cloud-native/gitops.html', desc:'以 Git 为唯一事实来源，ArgoCD 持续对比 Git 与集群状态，检测 drift 后自动将集群拉回声明状态，可审计可回溯。'},
+    {id:'cn-service-mesh', label:'Service Mesh', module:'cloud-native', type:'page', href:'cloud-native/service-mesh.html', desc:'Sidecar 代理（Envoy）拦截所有流量，Istiod 通过 xDS 下发路由/限流/熔断/mTLS 策略，业务代码零改动实现服务治理。'},
+    {id:'cn-helm', label:'Helm 包管理', module:'cloud-native', type:'page', href:'cloud-native/helm.html', desc:'K8s 包管理器，Chart 打包多个 Manifest，values.yaml 参数化多环境差异，支持版本控制和一键回滚。'},
+    {id:'cn-operator', label:'Kubernetes Operator', module:'cloud-native', type:'page', href:'cloud-native/operator.html', desc:'CRD 描述期望状态，自定义 Controller Reconcile 循环持续将实际状态拉向期望，让 K8s 能管理有状态应用。'},
+    {id:'cn-storage', label:'K8s 存储 PV/PVC', module:'cloud-native', type:'page', href:'cloud-native/k8s-storage.html', desc:'StorageClass → CSI Driver 动态创建 PV，PVC 申请绑定，Pod 重调度时数据持久保留，支持在线扩容。'},
     // 可观测性模块
     {id:'observability', label:'可观测性', module:'observability', type:'module', href:'observability/index.html', desc:'Prometheus 指标采集、OpenTelemetry 链路追踪和 SLO Error Budget 管理三大支柱。'},
     {id:'obs-prometheus', label:'Prometheus', module:'observability', type:'page', href:'observability/prometheus.html', desc:'拉取模式 Scrape 每 15s、TSDB 内存块压缩到磁盘和 Alertmanager 规则持续评估。'},
     {id:'obs-tracing', label:'OpenTelemetry 追踪', module:'observability', type:'page', href:'observability/tracing.html', desc:'traceparent 头传播 traceId/spanId，Span 批量 OTLP 上报，瀑布图可视化调用链。'},
     {id:'obs-slo', label:'SLO & Error Budget', module:'observability', type:'page', href:'observability/slo.html', desc:'SLO 目标定义月故障预算，Error Budget 耗尽冻结发布，Burn Rate 预警。'},
+    {id:'obs-logging', label:'日志体系 ELK/Loki', module:'observability', type:'page', href:'observability/logging.html', desc:'Fluentd/Promtail 采集 → Elasticsearch/Loki 存储，倒排索引全文检索，Agent 崩溃从 checkpoint 续传不丢日志。'},
+    {id:'obs-otel', label:'OpenTelemetry', module:'observability', type:'page', href:'observability/opentelemetry.html', desc:'统一 SDK 采集 Trace/Metric/Log，Collector Pipeline 批量处理和多 Exporter 扇出，Tail Sampling 按完整 Trace 决策。'},
+    {id:'obs-grafana', label:'Grafana 与告警', module:'observability', type:'page', href:'observability/grafana.html', desc:'Dashboard 分层设计（USE/RED 方法），Alertmanager 路由/分组/抑制/静默，告警信噪比与 SLO 联动设计。'},
+    {id:'obs-chaos', label:'混沌工程', module:'observability', type:'page', href:'observability/chaos.html', desc:'稳态假说 → 注入故障 → 观测偏差 → 修复薄弱点，Chaos Mesh/Monkey 实现 Pod Kill/网络分区/延迟注入。'},
     // 安全基础模块
     {id:'security', label:'安全基础', module:'security', type:'module', href:'security/index.html', desc:'对称非对称加密原理、OAuth 2.0 授权码流程、Web 攻击防御和 JWT 令牌机制。'},
     {id:'sec-crypto', label:'对称/非对称加密', module:'security', type:'page', href:'security/crypto.html', desc:'AES-CBC 链式加密和 RSA 加密/签名方向，加密保机密性，签名保真实性。'},
     {id:'sec-oauth', label:'OAuth 2.0', module:'security', type:'page', href:'security/oauth.html', desc:'授权码流程四角色，Code 一次性后端渠道换 Token，Access Token 有过期时间。'},
     {id:'sec-web-attacks', label:'Web 攻击', module:'security', type:'page', href:'security/web-attacks.html', desc:'SQL 注入代码数据混淆、XSS 输出编码防御和 CSRF SameSite Cookie+Token 双重防御。'},
-    {id:'sec-jwt', label:'JWT', module:'security', type:'page', href:'security/jwt.html', desc:'三段 Base64 结构解析、HMAC-SHA256 签名验证流程和 alg:none 安全漏洞说明。'}
+    {id:'sec-jwt', label:'JWT', module:'security', type:'page', href:'security/jwt.html', desc:'三段 Base64 结构解析、HMAC-SHA256 签名验证流程和 alg:none 安全漏洞说明。'},
+    {id:'sec-pki', label:'PKI 与证书体系', module:'security', type:'page', href:'security/pki.html', desc:'CA 层级签发证书链，浏览器从叶证书向上逐层验证到根 CA，ACME 自动续签，OCSP 吊销检查。'},
+    {id:'sec-secrets', label:'密钥管理 Vault', module:'security', type:'page', href:'security/secrets.html', desc:'Vault 动态凭据：服务请求后生成一次性账号（TTL），到期自动销毁，凭据不持久存在，自动轮换消除静态密码。'},
+    {id:'sec-container', label:'容器安全', module:'security', type:'page', href:'security/container-security.html', desc:'镜像 CVE 扫描（Trivy），securityContext 限制权限，Seccomp/AppArmor 限制 syscall，K8s RBAC 最小权限原则。'},
+    {id:'sec-supply-chain', label:'供应链安全', module:'security', type:'page', href:'security/supply-chain.html', desc:'SBOM 软件物料清单，Cosign 对镜像摘要签名，K8s Admission Webhook 强制验签，防止构建链污染。'},
+    {id:'sec-zero-trust', label:'零信任网络', module:'security', type:'page', href:'security/zero-trust.html', desc:'Never Trust Always Verify：每次访问经过身份认证+设备健康检查+最小权限授权，mTLS 服务间双向验证。'},
+    // 算法模块新增
+    {id:'algo-prim', label:'Prim 最小生成树', module:'algo', type:'page', href:'algo/prim.html', desc:'从起始节点出发，每步从已选节点相邻边中贪心选最小权重边，配合优先队列 O(E log V)，适合稠密图。'},
+    {id:'algo-edit-distance', label:'编辑距离', module:'algo', type:'page', href:'algo/edit-distance.html', desc:'DP 二维表格：dp[i][j] = min(替换/插入/删除)，回溯还原操作序列，搜索纠错/diff/DNA 比对的基础。'},
+    {id:'algo-interval-dp', label:'区间 DP', module:'algo', type:'page', href:'algo/interval-dp.html', desc:'外层枚举区间长度，内层枚举分割点，dp[i][j] 表示区间最优值。矩阵链乘/合并石子/戳气球的通用模型。'},
+    // 数据库模块新增
+    {id:'db-timeseries', label:'时序数据库', module:'db', type:'page', href:'db/timeseries.html', desc:'Delta-of-Delta 时间戳压缩和 XOR 浮点编码，时间分区剪枝查询，TTL 整分区 O(1) 删除，降采样降存储压力。'},
+    {id:'db-column-store', label:'列存储 ClickHouse', module:'db', type:'page', href:'db/column-store.html', desc:'同列连续存储减少 OLAP 查询 IO，RLE/字典/Delta 列压缩，SIMD 向量化执行，MergeTree 后台合并排序。'},
+    {id:'db-graph-db', label:'图数据库', module:'db', type:'page', href:'db/graph-db.html', desc:'节点和关系带直接指针，多跳遍历 O(degree) vs SQL JOIN 指数膨胀，Cypher 路径查询，社交/知识图谱场景。'},
+    // 网络模块新增
+    {id:'network-ip', label:'IP 协议基础', module:'network', type:'page', href:'network/ip.html', desc:'ARP 解析 IP→MAC，路由表逐跳转发，TTL 递减防循环（Traceroute 原理），CIDR 子网划分与广播域。'},
+    {id:'network-vxlan', label:'VXLAN Overlay', module:'network', type:'page', href:'network/vxlan.html', desc:'二层帧封装在 UDP 中，VTEP 封包/解包，VNI 区分租户，EVPN 控制平面分发 MAC-IP 映射，K8s 跨主机 Pod 通信基础。'},
+    // 分布式模块新增
+    {id:'dist-lease', label:'分布式租约', module:'distributed', type:'page', href:'distributed/lease.html', desc:'TTL 心跳续约保活，到期自动释放，Fencing Token 防脑裂后旧持有者操作资源，惊群效应用随机抖动缓解。'},
+    {id:'dist-quorum', label:'Quorum 读写', module:'distributed', type:'page', href:'distributed/quorum.html', desc:'W+R>N 保证读到最新写，读修复异步修复落后副本，W+R=N 时存在脏读风险，Cassandra/DynamoDB 的一致性旋钮。'},
+    // AI 模块新增
+    {id:'ai-guardrails', label:'AI 安全护栏', module:'ai', type:'page', href:'ai/guardrails.html', desc:'Prompt Injection/越狱攻击模式，多层防御：输入过滤+Prompt 加固+输出检测+审计，Llama Guard 等护栏框架。'},
+    {id:'ai-structured-output', label:'结构化输出', module:'ai', type:'page', href:'ai/structured-output.html', desc:'JSON mode 强制输出有效 JSON，Function Calling 返回结构化调用请求，Constrained Decoding 约束 token 选择。'},
+    {id:'ai-inference-opt', label:'推理优化', module:'ai', type:'page', href:'ai/inference-optimization.html', desc:'Speculative Decoding 小模型猜大模型验加速 2x，FlashAttention IO 感知分块减少 HBM 访问，PagedAttention 消除显存碎片。'},
+    // Linux 模块新增
+    {id:'linux-io-uring', label:'io_uring', module:'linux', type:'page', href:'linux/io-uring.html', desc:'SQ/CQ 环形队列批量提交 I/O，一次系统调用处理多个请求，减少用户态/内核态切换，零拷贝固定缓冲区。'},
+    {id:'linux-dpdk', label:'DPDK 用户态网络', module:'linux', type:'page', href:'linux/dpdk.html', desc:'PMD 轮询模式绕过内核中断，大页内存减少 TLB miss，用户态直接读写网卡 DMA，千万 pps 级高性能网络处理。'},
+    // 系统设计模块新增
+    {id:'sd-config-center', label:'配置中心', module:'system-design', type:'page', href:'system-design/config-center.html', desc:'集中管理配置，Long Poll 推送变更，服务热更新不重启，灰度推送按实例分批，宕机时降级读本地缓存。'},
+    {id:'sd-multi-region', label:'多活与异地容灾', module:'system-design', type:'page', href:'system-design/multi-region.html', desc:'GSLB 就近路由双 Region，CDC 跨区同步存在延迟窗口，故障切换保 RTO/RPO 指标，仲裁节点防脑裂。'},
+    // Golang 模块新增
+    {id:'go-cgo', label:'CGO', module:'golang', type:'page', href:'golang/cgo.html', desc:'Go 调用 C 库需切换 goroutine 栈到 OS 线程，约 100ns 额外开销，阻塞 C 调用触发新 M 创建，不支持交叉编译。'},
+    {id:'go-build', label:'Go 构建系统', module:'golang', type:'page', href:'golang/build.html', desc:'build tag 条件编译，GOOS/GOARCH 交叉编译，go:generate 代码生成，内容寻址 build cache，go work 多模块工作区。'},
+    // AI 模块新增
+    {id:'ai-spec-decode', label:'投机解码', module:'ai', type:'page', href:'ai/speculative-decoding.html', desc:'Draft Model 快速生成 token 候选，Target Model 并行验证，接受则保留，拒绝则截断重采样，在不降低输出质量前提下加速推理 2-3x。'},
+    {id:'ai-llm-reasoning', label:'LLM 推理增强', module:'ai', type:'page', href:'ai/llm-reasoning.html', desc:'Chain-of-Thought 中间步骤引导推理，Tree-of-Thought 将搜索空间展为树并剪枝，ReAct 交替推理和工具调用，Self-Consistency 多路采样投票提升准确率。'},
+    {id:'ai-model-merging', label:'模型融合', module:'ai', type:'page', href:'ai/model-merging.html', desc:'SLERP 球形插值平滑融合参数，Task Arithmetic 用微调 delta 向量加减组合能力，TIES/DARE 稀疏化参数冲突再融合，无需重新训练即可组合多种专业能力。'},
+    // Algo 模块新增
+    {id:'algo-suffix-array', label:'后缀数组', module:'algo', type:'page', href:'algo/suffix-array.html', desc:'SA-IS 算法线性构建后缀数组，LCP 数组记录相邻后缀最长公共前缀，配合二分查找支持 O(m log n) 子串匹配，是处理复杂字符串问题的高效工具。'},
+    {id:'algo-tarjan-scc', label:'Tarjan SCC', module:'algo', type:'page', href:'algo/tarjan-scc.html', desc:'DFS 过程中用时间戳 disc 和 low 值识别回退边，栈弹出同一 SCC 节点，线性时间 O(V+E) 找出所有强连通分量，缩点后形成 DAG 支持后续拓扑排序。'},
+    {id:'algo-bipartite', label:'二分图匹配', module:'algo', type:'page', href:'algo/bipartite-matching.html', desc:'匈牙利算法 DFS 寻找增广路交替扩大匹配集，Hopcroft-Karp 分层 BFS 批量找多条不相交增广路，复杂度 O(sqrt(V)·E)，应用于任务分配和网络流。'},
+    {id:'algo-hld', label:'树链剖分', module:'algo', type:'page', href:'algo/hld.html', desc:'按子树大小标记重边轻边，将树拆成若干重链，配合线段树实现 O(log²n) 路径查询和修改，是树上高效区间操作的核心技巧。'},
+    // System Design 模块新增
+    {id:'sd-recommendation', label:'推荐系统', module:'system-design', type:'page', href:'system-design/recommendation.html', desc:'协同过滤/双塔向量召回生成候选集，轻量粗排过滤，精排 DNN 打分，Rerank 多样性调整，实时用户行为特征更新驱动推荐效果迭代。'},
+    {id:'sd-live-streaming', label:'直播系统', module:'system-design', type:'page', href:'system-design/live-streaming.html', desc:'主播 RTMP 推流到 Origin，转码集群生成多分辨率 HLS，CDN 边缘节点拉流分发，LLHLS 把端到端延迟压到 2-5 秒，弹幕用 WebSocket 广播同步。'},
+    {id:'sd-search-engine', label:'搜索引擎', module:'system-design', type:'page', href:'system-design/search-engine.html', desc:'爬虫并行抓取页面，分词后构建倒排索引，BM25/TF-IDF 相关性打分，PageRank 衡量权威度，分布式 Shard 并行检索后合并排序返回。'},
+    // Distributed 模块新增
+    {id:'dist-3pc', label:'三阶段提交', module:'distributed', type:'page', href:'distributed/3pc.html', desc:'在 2PC 基础上增加 CanCommit 预备阶段，引入超时机制，协调者故障后参与者可协商自行提交，消除单点阻塞，但仍无法解决网络分区导致的脑裂。'},
+    {id:'dist-spanner', label:'Spanner / TrueTime', module:'distributed', type:'page', href:'distributed/spanner.html', desc:'Google Spanner 通过 GPS+原子钟提供有界误差时间戳，commit-wait 等待误差窗口保证外部一致性，Paxos 分组管理分片，支持全球范围强一致事务。'},
+    // Golang 新增页面
+    {id:'go-perf-tuning', label:'Go 性能调优', module:'golang', type:'page', href:'golang/performance-tuning.html', desc:'系统性调优路径：CPU 火焰图定位热点 → 内存分配减少 heap escape → goroutine 泄漏检测 → mutex 竞争分析，结合 pprof/trace/benchstat 工具链闭环。'},
+    {id:'go-assembly', label:'Go 汇编', module:'golang', type:'page', href:'golang/go-assembly.html', desc:'Plan 9 汇编语法、函数调用约定（寄存器传参 ABI）、栈帧结构和伪寄存器（FP/SP/PC/SB），帮助理解 Go 编译器输出和手写汇编优化的边界。'},
+    // CS 模块新增
+    {id:'cs-gpu-arch', label:'GPU 架构', module:'cs', type:'page', href:'cs/gpu-architecture.html', desc:'SM/Warp/SIMT 并行执行模型，显存层次 L1/L2/HBM 带宽差异，Warp 分叉导致效率下降，CPU-GPU 通过 PCIe 协作，是深度学习推理的算力底座。'},
+    // DB 模块新增
+    {id:'db-nosql', label:'NoSQL 分类', module:'db', type:'page', href:'db/nosql.html', desc:'文档型（MongoDB）/宽列型（Cassandra）/KV 型（DynamoDB）/图型（Neo4j）四类 NoSQL 的数据模型、CAP 选择、典型场景和关系型数据库选型矩阵。'}
   ];
 
   window.GRAPH_EDGES = [
@@ -373,11 +441,76 @@
     ['cn-docker','linux-container'],['cn-docker','cgroup'],['cn-kubernetes','raft'],['cn-kubernetes','cn-docker'],
     ['cn-scheduling','cn-kubernetes'],['cn-networking','tcp'],['cn-networking','linux-container'],
     ['cn-hpa','sd-monitoring'],['cn-hpa','obs-prometheus'],
+    ['cn-serverless','cn-docker'],['cn-serverless','cn-hpa'],['cn-serverless','kafka-consumer'],
+    ['cn-gitops','cn-kubernetes'],['cn-gitops','cn-docker'],['cn-gitops','raft'],
+    ['cn-service-mesh','cn-networking'],['cn-service-mesh','tls'],['cn-service-mesh','obs-tracing'],['cn-service-mesh','sec-pki'],
+    ['cn-operator','cn-kubernetes'],['cn-operator','raft'],
+    ['cn-storage','cn-kubernetes'],['cn-storage','distributed-db'],
+    ['cn-helm','cn-kubernetes'],
     // Observability 内部
     ['obs-prometheus','sd-monitoring'],['obs-prometheus','kafka-consumer'],['obs-tracing','dist-tracing'],
     ['obs-tracing','http'],['obs-slo','obs-prometheus'],['obs-slo','sd-monitoring'],
+    ['obs-logging','kafka-consumer'],['obs-logging','obs-otel'],
+    ['obs-otel','obs-tracing'],['obs-otel','obs-prometheus'],['obs-otel','obs-logging'],
+    ['obs-grafana','obs-prometheus'],['obs-grafana','obs-slo'],
+    ['obs-chaos','obs-prometheus'],['obs-chaos','obs-slo'],
     // Security 内部
     ['sec-crypto','tls'],['sec-oauth','sec-jwt'],['sec-oauth','http'],['sec-jwt','http'],
-    ['sec-web-attacks','db'],['sec-web-attacks','http'],['sec-jwt','redis-types']
+    ['sec-web-attacks','db'],['sec-web-attacks','http'],['sec-jwt','redis-types'],
+    ['sec-pki','tls'],['sec-pki','sec-crypto'],
+    ['sec-secrets','sec-pki'],['sec-secrets','cn-kubernetes'],
+    ['sec-container','cn-docker'],['sec-container','cn-kubernetes'],['sec-container','cgroup'],
+    ['sec-supply-chain','cn-docker'],['sec-supply-chain','sec-pki'],
+    ['sec-zero-trust','sec-pki'],['sec-zero-trust','tls'],['sec-zero-trust','cn-service-mesh'],
+    // Algo 新增
+    ['algo-prim','algo-kruskal'],['algo-prim','heap'],['algo-prim','union-find'],
+    ['algo-edit-distance','algo-lcs'],['algo-edit-distance','dp'],
+    ['algo-interval-dp','dp'],['algo-interval-dp','algo-edit-distance'],
+    // DB 新增
+    ['db-timeseries','lsm'],['db-timeseries','wal'],['db-timeseries','obs-prometheus'],
+    ['db-column-store','storage-layout'],['db-column-store','db-timeseries'],
+    ['db-graph-db','bfs'],['db-graph-db','dijkstra'],['db-graph-db','vector'],
+    // Network 新增
+    ['network-ip','tcp'],['network-ip','network-vxlan'],
+    ['network-vxlan','cn-networking'],['network-vxlan','network-ip'],
+    // Distributed 新增
+    ['dist-lease','raft'],['dist-lease','zookeeper'],['dist-lease','redis-lock'],
+    ['dist-quorum','raft'],['dist-quorum','consistent-hash'],['dist-quorum','dist-lease'],
+    // AI 新增
+    ['ai-guardrails','ai-llm-overview'],['ai-guardrails','ai-prompt-eng'],
+    ['ai-structured-output','ai-llm-overview'],['ai-structured-output','ai-agent'],
+    ['ai-inference-opt','ai-kv-cache'],['ai-inference-opt','ai-llm-serving'],['ai-inference-opt','ai-attention'],
+    // Linux 新增
+    ['linux-io-uring','epoll'],['linux-io-uring','zero-copy'],
+    ['linux-dpdk','linux-io-uring'],['linux-dpdk','zero-copy'],['linux-dpdk','network-ip'],
+    // System Design 新增
+    ['sd-config-center','kafka-consumer'],['sd-config-center','redis-types'],
+    ['sd-multi-region','raft'],['sd-multi-region','consistent-hash'],['sd-multi-region','distributed-db'],
+    // Golang 新增
+    ['go-cgo','go-runtime'],['go-cgo','go-unsafe'],
+    ['go-build','go-modules'],['go-build','go-testing'],
+    // AI 新增
+    ['ai-spec-decode','ai-inference-opt'],['ai-spec-decode','ai-kv-cache'],['ai-spec-decode','ai-llm-serving'],
+    ['ai-llm-reasoning','ai-prompt-eng'],['ai-llm-reasoning','ai-agent'],['ai-llm-reasoning','ai-llm-overview'],
+    ['ai-model-merging','ai-fine-tuning'],['ai-model-merging','ai-llm-overview'],['ai-model-merging','ai-rlhf'],
+    // Algo 新增
+    ['algo-suffix-array','kmp'],['algo-suffix-array','algo-strhash'],['algo-suffix-array','trie'],
+    ['algo-tarjan-scc','dfs'],['algo-tarjan-scc','union-find'],['algo-tarjan-scc','topo'],
+    ['algo-bipartite','bfs'],['algo-bipartite','algo-maxflow'],['algo-bipartite','union-find'],
+    ['algo-hld','segment-tree'],['algo-hld','algo-tree-traversal'],['algo-hld','dfs'],
+    // System Design 新增
+    ['sd-recommendation','db-vector'],['sd-recommendation','redis-types'],['sd-recommendation','kafka-consumer'],
+    ['sd-live-streaming','network-cdn'],['sd-live-streaming','sd-video'],['sd-live-streaming','websocket'],
+    ['sd-search-engine','db-fulltext'],['sd-search-engine','sd-webcrawler'],['sd-search-engine','kafka-consumer'],
+    // Distributed 新增
+    ['dist-3pc','dist-2pc'],['dist-3pc','raft'],['dist-3pc','paxos'],
+    ['dist-spanner','paxos'],['dist-spanner','dist-2pc'],['dist-spanner','consistent-hash'],['dist-spanner','dist-3pc'],
+    // Golang 新增页面
+    ['go-perf-tuning','go-pprof'],['go-perf-tuning','go-escape'],['go-perf-tuning','go-syncpool'],['go-perf-tuning','go-runtime'],
+    ['go-assembly','go-runtime'],['go-assembly','go-unsafe'],['go-assembly','go-mem-alloc'],
+    // CS 新增
+    ['cs-gpu-arch','cpu-pipeline'],['cs-gpu-arch','cache-hierarchy'],['cs-gpu-arch','cs-numa'],['cs-gpu-arch','ai-llm-serving'],
+    // DB 新增
+    ['db-nosql','distributed-db'],['db-nosql','db-sharding'],['db-nosql','db-graph-db']
   ];
 })();

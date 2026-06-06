@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="后缀数组构建、LCP 数组计算与子串二分查找的交互式可视化演示。">
+<link rel="canonical" href="https://melodycoder12345.github.io/algo/suffix-array.html">
+<meta property="og:title" content="后缀数组 Suffix Array — 码海拾贝">
+<meta property="og:description" content="后缀数组构建、LCP 数组计算与子串二分查找的交互式可视化演示。">
+<meta property="og:url" content="https://melodycoder12345.github.io/algo/suffix-array.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="后缀数组 Suffix Array — 码海拾贝">
+<meta name="twitter:description" content="后缀数组构建、LCP 数组计算与子串二分查找的交互式可视化演示。">
+<title>后缀数组 Suffix Array - 算法可视化</title>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.back-btn{color:var(--dim);text-decoration:none;font-size:0.9rem;}.back-btn:hover{color:var(--text);}
+nav h1{font-size:1.2rem;font-weight:600;}.complexity{margin-left:auto;display:flex;gap:8px;}
+.badge{font-size:0.75rem;padding:3px 10px;border-radius:100px;font-family:monospace;}
+.badge.time{background:rgba(251,191,36,0.15);color:var(--yellow);}.badge.space{background:rgba(56,189,248,0.15);color:var(--blue);}
+.main{display:flex;flex:1;overflow:hidden;}
+.viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
+.op-row{display:flex;gap:8px;padding:10px 24px;border-bottom:1px solid var(--border);align-items:center;flex-wrap:wrap;}
+.start-label{font-size:0.82rem;color:var(--dim);}
+.start-btns{display:flex;gap:4px;}
+.start-btn{background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:5px;cursor:pointer;font-size:0.8rem;font-family:monospace;font-weight:600;transition:all 0.15s;}
+.start-btn:hover{background:rgba(255,255,255,0.1);}.start-btn.active-start{background:rgba(251,191,36,0.15);border-color:var(--yellow);color:var(--yellow);}
+.viz-area{flex:1;overflow:hidden;position:relative;}
+svg#mainSvg{width:100%;height:100%;}
+.desc-box{padding:10px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.9rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
+.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
+.code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.code-dot{width:10px;height:10px;border-radius:50%;}
+.code-body{flex:1;overflow-y:auto;padding:16px 0;background:#0d1117;}
+.code-body::-webkit-scrollbar{width:6px;}.code-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.code-line{display:flex;align-items:stretch;padding:1px 0;cursor:pointer;transition:background 0.15s;font-family:'JetBrains Mono',monospace;font-size:0.82rem;line-height:1.6;}
+.code-line:hover{background:rgba(255,255,255,0.04);}.code-line.active{background:rgba(251,191,36,0.12);}.code-line.active .ln{color:var(--yellow);}
+.ln{min-width:48px;padding:0 12px 0 16px;color:#4b5563;text-align:right;user-select:none;flex-shrink:0;font-size:0.78rem;}
+.lc{padding:0 16px 0 4px;flex:1;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.pkg{color:#ffa657;}.cm{color:#8b949e;font-style:italic;}
+.controls{display:flex;align-items:center;gap:10px;padding:12px 24px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+.btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
+.btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(251,191,36,0.15);border-color:rgba(251,191,36,0.3);color:var(--yellow);}
+.btn:disabled{opacity:0.4;cursor:not-allowed;}
+.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
+input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--yellow);cursor:pointer;}
+.legend{display:flex;gap:12px;margin-left:auto;}.leg{display:flex;align-items:center;gap:4px;font-size:0.72rem;color:var(--dim);}
+.leg-dot{width:10px;height:10px;border-radius:50%;}
+</style>
+<script src="../nav.js"></script>
+<script src="../lang.js"></script>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="back-btn">← 返回</a>
+  <h1>后缀数组 Suffix Array</h1>
+  <div class="complexity">
+    <span class="badge time">构建 O(n log n)</span>
+    <span class="badge space">查询 O(m log n)</span>
+  </div>
+</nav>
+<div class="main">
+  <div class="viz-panel">
+    <div class="op-row">
+      <span class="start-label">场景：</span>
+      <div class="start-btns" id="sceneBtns">
+        <button class="start-btn active-start" data-scene="1">① 构建 SA</button>
+        <button class="start-btn" data-scene="2">② LCP 数组</button>
+        <button class="start-btn" data-scene="3">③ 子串查找</button>
+      </div>
+      <div class="legend">
+        <div class="leg"><div class="leg-dot" style="background:#94a3b8"></div>未处理</div>
+        <div class="leg"><div class="leg-dot" style="background:#fbbf24"></div>比较中</div>
+        <div class="leg"><div class="leg-dot" style="background:#4ade80"></div>已完成</div>
+        <div class="leg"><div class="leg-dot" style="background:#38bdf8"></div>匹配</div>
+      </div>
+    </div>
+    <div class="viz-area">
+      <svg id="mainSvg"></svg>
+    </div>
+    <div class="desc-box">
+      <span id="descText">选择场景开始动画</span>
+      <span class="step-counter" id="stepCounter"></span>
+    </div>
+  </div>
+  <div class="code-panel">
+    <div class="code-panel-header">
+      <div class="code-dot" style="background:#ff5f57"></div>
+      <div class="code-dot" style="background:#febc2e"></div>
+      <div class="code-dot" style="background:#28c840"></div>
+      <span style="margin-left:4px">suffix_array.go</span>
+    </div>
+    <div class="code-body" id="codeBody"></div>
+  </div>
+</div>
+<div class="controls">
+  <button class="btn" id="btnReset">⏮ 重置</button>
+  <button class="btn" id="btnPrev">◀ 上一步</button>
+  <button class="btn primary" id="btnPlay">▶ 播放</button>
+  <button class="btn" id="btnNext">下一步 ▶</button>
+  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+</div>
+<script>
+// ── Code Lines ──
+const CODE_LINES = [
+  {html:`<span class="cm">// buildSA: 构建后缀数组（简化版 O(n log²n)）</span>`},
+  {html:`<span class="kw">func</span> <span class="fn">buildSA</span>(s <span class="kw">string</span>) []<span class="kw">int</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;n := <span class="fn">len</span>(s)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;sa := <span class="fn">make</span>([]<span class="kw">int</span>, n)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> i := <span class="kw">range</span> sa { sa[i] = i }`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;sort.<span class="fn">Slice</span>(sa, <span class="kw">func</span>(i, j <span class="kw">int</span>) <span class="kw">bool</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> s[sa[i]:] &lt; s[sa[j]:]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;})`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> sa`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="cm">// buildLCP: Kasai 算法 O(n)</span>`},
+  {html:`<span class="kw">func</span> <span class="fn">buildLCP</span>(s <span class="kw">string</span>, sa []<span class="kw">int</span>) []<span class="kw">int</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;n := <span class="fn">len</span>(sa)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;lcp := <span class="fn">make</span>([]<span class="kw">int</span>, n)`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> i := <span class="num">1</span>; i &lt; n; i++ {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;a, b := sa[i-<span class="num">1</span>], sa[i]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">for</span> a &lt; n &amp;&amp; b &lt; n &amp;&amp; s[a] == s[b] {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;a++; b++; lcp[i]++`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> lcp`},
+  {html:`}`},
+  {html:``},
+  {html:`<span class="cm">// search: SA 上的二分查找</span>`},
+  {html:`<span class="kw">func</span> <span class="fn">search</span>(s, pat <span class="kw">string</span>, sa []<span class="kw">int</span>) []<span class="kw">int</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;lo := <span class="fn">lowerBound</span>(s, pat, sa) <span class="cm">// 下界</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;hi := <span class="fn">upperBound</span>(s, pat, sa) <span class="cm">// 上界</span>`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> sa[lo:hi]`},
+  {html:`}`},
+];
+
+// ── Data ──
+const STR = "banana";
+const SA_FINAL = [5,3,1,0,4,2];
+const LCP_FINAL = [0,1,3,0,0,2];
+const PATTERN = "ana";
+
+// ── Step Generators ──
+function makeScene1Steps() {
+  const steps = [];
+  const add = (sufOrder, highlighting, sorted, saFinal, desc, lines) =>
+    steps.push({scene:1, sufOrder, highlighting, sorted, saFinal, description:desc, highlightLines:lines});
+
+  add([0,1,2,3,4,5], [], 0, null,
+    '列出字符串 "banana" 的所有 6 个后缀（起始位置 0～5）', [1,2,3,4]);
+  add([0,1,2,3,4,5], [0,1], 0, null,
+    '调用 sort.Slice，开始按字典序比较后缀', [5,6,7]);
+  add([5,0,1,2,3,4], [0], 1, null,
+    '后缀 5（"a"）字典序最小，移至第 1 位', [6,7]);
+  add([5,3,0,1,2,4], [1], 2, null,
+    '后缀 3（"ana"）次之，移至第 2 位', [6,7]);
+  add([5,3,1,0,2,4], [2], 3, null,
+    '后缀 1（"anana"）移至第 3 位', [6,7]);
+  add([5,3,1,0,2,4], [3], 4, null,
+    '后缀 0（"banana"）移至第 4 位', [6,7]);
+  add([5,3,1,0,4,2], [4], 5, null,
+    '后缀 4（"na"）移至第 5 位', [6,7]);
+  add([5,3,1,0,4,2], [], 6, [5,3,1,0,4,2],
+    '排序完成！SA = [5, 3, 1, 0, 4, 2]', [8,9]);
+  return steps;
+}
+
+function makeScene2Steps() {
+  const sa = SA_FINAL;
+  const steps = [];
+  const add = (lcp, ci, pl, desc, lines) =>
+    steps.push({scene:2, sa, lcpArr:lcp, compareI:ci, prefixLen:pl, description:desc, highlightLines:lines});
+
+  add([0,null,null,null,null,null], -1, 0,
+    'SA=[5,3,1,0,4,2] 就绪，LCP[0]=0（规定），开始逐对计算 LCP', [12,13,14,15]);
+  add([0,null,null,null,null,null], 1, 0,
+    'LCP[1]：比较 SA[0]=5（"a"）与 SA[1]=3（"ana"）', [16,17]);
+  add([0,1,null,null,null,null], 1, 1,
+    '公共前缀 "a"（长度 1），LCP[1] = 1', [18,19]);
+  add([0,1,null,null,null,null], 2, 0,
+    'LCP[2]：比较 SA[1]=3（"ana"）与 SA[2]=1（"anana"）', [16,17]);
+  add([0,1,3,null,null,null], 2, 3,
+    '公共前缀 "ana"（长度 3），LCP[2] = 3', [18,19]);
+  add([0,1,3,null,null,null], 3, 0,
+    'LCP[3]：比较 SA[2]=1（"anana"）与 SA[3]=0（"banana"），a≠b', [16,17]);
+  add([0,1,3,0,null,null], 3, 0,
+    '首字符不同，LCP[3] = 0', [18,19,20]);
+  add([0,1,3,0,null,null], 4, 0,
+    'LCP[4]：比较 SA[3]=0（"banana"）与 SA[4]=4（"na"），b≠n', [16,17]);
+  add([0,1,3,0,0,null], 4, 0,
+    '首字符不同，LCP[4] = 0', [18,19,20]);
+  add([0,1,3,0,0,null], 5, 0,
+    'LCP[5]：比较 SA[4]=4（"na"）与 SA[5]=2（"nana"）', [16,17]);
+  add([0,1,3,0,0,2], 5, 2,
+    '公共前缀 "na"（长度 2），LCP[5] = 2', [18,19]);
+  add([0,1,3,0,0,2], -1, 0,
+    'LCP 数组完成：[0, 1, 3, 0, 0, 2]', [21,22]);
+  return steps;
+}
+
+function makeScene3Steps() {
+  const sa = SA_FINAL;
+  const m = PATTERN.length;
+  const steps = [];
+  const add = (lo, hi, mid, phase, loBound, hiBound, mr, desc, lines) =>
+    steps.push({scene:3, sa, lo, hi, mid, phase, loBound, hiBound, matchRange:mr, description:desc, highlightLines:lines});
+
+  add(-1,-1,-1,'init',-1,-1,null,
+    `在 SA=[5,3,1,0,4,2] 上二分查找模式串 "${PATTERN}"（m=${m}）`, [24,25]);
+  // Lower bound: find first i where s[SA[i]:SA[i]+m] >= pat
+  add(0,6,3,'lower',-1,-1,null,
+    `下界搜索 lo=0,hi=6,mid=3 → SA[3]=0,"ban">"ana" → hi=3`, [25,26]);
+  add(0,3,1,'lower',-1,-1,null,
+    `lo=0,hi=3,mid=1 → SA[1]=3,"ana">="ana" → hi=1`, [25,26]);
+  add(0,1,0,'lower',-1,-1,null,
+    `lo=0,hi=1,mid=0 → SA[0]=5,"a"<"ana" → lo=1`, [25,26]);
+  add(1,1,-1,'lower',1,-1,null,
+    'lo=hi=1，下界确定：loBound = 1', [25,26]);
+  // Upper bound: find first i where s[SA[i]:SA[i]+m] > pat
+  add(1,6,3,'upper',1,-1,null,
+    `上界搜索 lo=1,hi=6,mid=3 → SA[3]=0,"ban">"ana" → hi=3`, [26,27]);
+  add(1,3,2,'upper',1,-1,null,
+    `lo=1,hi=3,mid=2 → SA[2]=1,"ana"<="ana" → lo=3`, [26,27]);
+  add(3,3,-1,'upper',1,3,[1,3],
+    'lo=hi=3，上界确定：hiBound=3，匹配范围 SA[1..2]', [26,27]);
+  add(-1,-1,-1,'done',1,3,[1,3],
+    '找到 2 处匹配：位置 SA[1]=3 和 SA[2]=1（"banana" 下标 1 和 3）', [27,28]);
+  return steps;
+}
+
+const ALL_SCENES = {
+  1: makeScene1Steps(),
+  2: makeScene2Steps(),
+  3: makeScene3Steps(),
+};
+
+// ── SVG Utilities ──
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs, text) {
+  const e = document.createElementNS(SVG_NS, tag);
+  if (attrs) Object.entries(attrs).forEach(([k,v]) => e.setAttribute(k, String(v)));
+  if (text != null) e.textContent = String(text);
+  return e;
+}
+
+const mainSvg = document.getElementById('mainSvg');
+
+function draw(step) {
+  mainSvg.innerHTML = '';
+  if (!step) return;
+  const r = mainSvg.getBoundingClientRect();
+  const W = r.width || 700, H = r.height || 360;
+  if (step.scene === 1) drawScene1(step, W, H);
+  else if (step.scene === 2) drawScene2(step, W, H);
+  else drawScene3(step, W, H);
+}
+
+// ── Scene 1: Build SA ──
+function drawScene1(step, W, H) {
+  const {sufOrder, highlighting, sorted, saFinal} = step;
+  const sw = 46, sh = 36;
+  const startX = (W - 6*sw) / 2;
+  const strY = 22;
+
+  // String label
+  mainSvg.appendChild(svgEl('text',
+    {x:W/2, y:strY-4, fill:'#64748b', 'font-size':11, 'text-anchor':'middle', 'font-family':'monospace'},
+    's = "banana"'));
+
+  // String boxes
+  for (let i = 0; i < 6; i++) {
+    const x = startX + i*sw;
+    mainSvg.appendChild(svgEl('rect', {x, y:strY, width:sw-2, height:sh, rx:4,
+      fill:'rgba(30,41,59,0.9)', stroke:'#334155', 'stroke-width':1.5}));
+    mainSvg.appendChild(svgEl('text',
+      {x:x+(sw-2)/2, y:strY+sh/2+6, fill:'#38bdf8', 'font-size':16, 'font-weight':'700',
+       'text-anchor':'middle', 'font-family':'monospace'}, STR[i]));
+    mainSvg.appendChild(svgEl('text',
+      {x:x+(sw-2)/2, y:strY+sh+13, fill:'#475569', 'font-size':10,
+       'text-anchor':'middle', 'font-family':'monospace'}, i));
+  }
+
+  // Suffix list
+  const listY0 = strY + sh + 28;
+  const rowH = Math.min(34, (H - listY0 - 30) / 6);
+  const colW = Math.min(W * 0.82, 520);
+  const listX = (W - colW) / 2;
+
+  // Column headers
+  mainSvg.appendChild(svgEl('text',
+    {x:listX+18, y:listY0-6, fill:'#475569', 'font-size':9, 'font-family':'monospace'}, '#'));
+  mainSvg.appendChild(svgEl('text',
+    {x:listX+45, y:listY0-6, fill:'#475569', 'font-size':9, 'font-family':'monospace'}, 'idx'));
+  mainSvg.appendChild(svgEl('text',
+    {x:listX+100, y:listY0-6, fill:'#475569', 'font-size':9, 'font-family':'monospace'}, '后缀内容'));
+
+  sufOrder.forEach((idx, pos) => {
+    const y = listY0 + pos*rowH;
+    const isHL = highlighting.includes(pos);
+    const isDone = pos < sorted;
+
+    let bg = 'transparent', border = 'transparent', tc = '#64748b';
+    if (isDone)  { bg = 'rgba(74,222,128,0.07)';  border = 'rgba(74,222,128,0.25)';  tc = '#4ade80'; }
+    if (isHL)    { bg = 'rgba(251,191,36,0.12)';   border = 'rgba(251,191,36,0.4)';   tc = '#fbbf24'; }
+
+    if (bg !== 'transparent')
+      mainSvg.appendChild(svgEl('rect',
+        {x:listX, y:y+2, width:colW, height:rowH-4, rx:4, fill:bg, stroke:border, 'stroke-width':1}));
+
+    // Row number
+    mainSvg.appendChild(svgEl('text',
+      {x:listX+18, y:y+rowH/2+5, fill:'#475569', 'font-size':11,
+       'text-anchor':'middle', 'font-family':'monospace'}, pos+1));
+
+    // Index badge
+    const bx = listX+36;
+    mainSvg.appendChild(svgEl('rect',
+      {x:bx, y:y+7, width:26, height:rowH-14, rx:3,
+       fill: isDone?'rgba(74,222,128,0.15)':isHL?'rgba(251,191,36,0.15)':'rgba(56,189,248,0.1)',
+       stroke: isDone?'rgba(74,222,128,0.35)':isHL?'rgba(251,191,36,0.35)':'rgba(56,189,248,0.25)'}));
+    mainSvg.appendChild(svgEl('text',
+      {x:bx+13, y:y+rowH/2+5, fill: isDone?'#4ade80':isHL?'#fbbf24':'#38bdf8',
+       'font-size':12, 'font-weight':'700', 'text-anchor':'middle', 'font-family':'monospace'}, idx));
+
+    // Suffix text
+    mainSvg.appendChild(svgEl('text',
+      {x:listX+100, y:y+rowH/2+5, fill:tc,
+       'font-size':13, 'font-weight': isHL?'700':'400', 'font-family':'monospace'},
+      '"' + STR.slice(idx) + '"'));
+
+    if (isDone)
+      mainSvg.appendChild(svgEl('text',
+        {x:listX+colW-10, y:y+rowH/2+5, fill:'#4ade80', 'font-size':11, 'text-anchor':'end'}, '✓'));
+  });
+
+  // Final SA display
+  if (saFinal) {
+    const saY = listY0 + 6*rowH + 10;
+    mainSvg.appendChild(svgEl('text',
+      {x:W/2, y:saY, fill:'#fbbf24', 'font-size':14, 'font-weight':'700',
+       'text-anchor':'middle', 'font-family':'monospace'},
+      'SA = [' + saFinal.join(', ') + ']'));
+  }
+}
+
+// ── Scene 2: LCP ──
+function drawScene2(step, W, H) {
+  const {sa, lcpArr, compareI, prefixLen} = step;
+  const n = sa.length;
+  const cellW = Math.min(Math.floor(W * 0.68 / n), 72);
+  const cellH = 36;
+  const arrStartX = (W - n*cellW) / 2;
+
+  // SA array row
+  const saY = 30;
+  mainSvg.appendChild(svgEl('text',
+    {x:arrStartX-10, y:saY+cellH/2+6, fill:'#94a3b8', 'font-size':11,
+     'text-anchor':'end', 'font-family':'monospace'}, 'SA:'));
+  for (let i = 0; i < n; i++) {
+    const x = arrStartX + i*cellW;
+    const isActive = compareI > 0 && (i === compareI-1 || i === compareI);
+    mainSvg.appendChild(svgEl('rect',
+      {x, y:saY, width:cellW-2, height:cellH, rx:4,
+       fill: isActive?'rgba(251,191,36,0.15)':'rgba(30,41,59,0.8)',
+       stroke: isActive?'#fbbf24':'#334155', 'stroke-width':1.5}));
+    mainSvg.appendChild(svgEl('text',
+      {x:x+(cellW-2)/2, y:saY+cellH/2+6, fill: isActive?'#fbbf24':'#e2e8f0',
+       'font-size':14, 'font-weight':'700', 'text-anchor':'middle', 'font-family':'monospace'}, sa[i]));
+    mainSvg.appendChild(svgEl('text',
+      {x:x+(cellW-2)/2, y:saY-5, fill:'#475569', 'font-size':9,
+       'text-anchor':'middle', 'font-family':'monospace'}, i));
+  }
+
+  // LCP array row
+  const lcpY = saY + cellH + 28;
+  mainSvg.appendChild(svgEl('text',
+    {x:arrStartX-10, y:lcpY+cellH/2+6, fill:'#94a3b8', 'font-size':11,
+     'text-anchor':'end', 'font-family':'monospace'}, 'LCP:'));
+  for (let i = 0; i < n; i++) {
+    const x = arrStartX + i*cellW;
+    const val = lcpArr[i];
+    const isDone = val !== null;
+    const isActive = i === compareI && compareI > 0;
+    let fill = 'rgba(15,23,42,0.5)', stroke = '#1e293b', textFill = '#475569';
+    if (isDone)   { fill = 'rgba(74,222,128,0.1)';   stroke = 'rgba(74,222,128,0.4)';  textFill = '#4ade80'; }
+    if (isActive) { fill = 'rgba(192,132,252,0.15)';  stroke = '#c084fc';               textFill = '#c084fc'; }
+    mainSvg.appendChild(svgEl('rect',
+      {x, y:lcpY, width:cellW-2, height:cellH, rx:4, fill, stroke, 'stroke-width':1.5}));
+    mainSvg.appendChild(svgEl('text',
+      {x:x+(cellW-2)/2, y:lcpY+cellH/2+6, fill:textFill, 'font-size':14, 'font-weight':'700',
+       'text-anchor':'middle', 'font-family':'monospace'}, val !== null ? val : '?'));
+    mainSvg.appendChild(svgEl('text',
+      {x:x+(cellW-2)/2, y:lcpY-5, fill:'#475569', 'font-size':9,
+       'text-anchor':'middle', 'font-family':'monospace'}, i));
+  }
+
+  // Comparison area
+  if (compareI > 0 && compareI < n) {
+    const s1 = STR.slice(sa[compareI-1]);
+    const s2 = STR.slice(sa[compareI]);
+    const maxLen = Math.max(s1.length, s2.length);
+    const compY = lcpY + cellH + 26;
+
+    mainSvg.appendChild(svgEl('text',
+      {x:W/2, y:compY-4, fill:'#64748b', 'font-size':10, 'text-anchor':'middle', 'font-family':'monospace'},
+      `比较 SA[${compareI-1}]=${sa[compareI-1]} 与 SA[${compareI}]=${sa[compareI]} 的公共前缀`));
+
+    const charW = 26, charH = 28;
+    const totalW = maxLen * charW;
+    const cx0 = (W - totalW) / 2;
+    const row1Y = compY + 10;
+    const row2Y = compY + 44;
+    const labelOffX = -36;
+
+    mainSvg.appendChild(svgEl('text',
+      {x:cx0+labelOffX, y:row1Y+charH/2+5, fill:'#94a3b8', 'font-size':10, 'text-anchor':'end', 'font-family':'monospace'},
+      `[${sa[compareI-1]}]:`));
+    mainSvg.appendChild(svgEl('text',
+      {x:cx0+labelOffX, y:row2Y+charH/2+5, fill:'#94a3b8', 'font-size':10, 'text-anchor':'end', 'font-family':'monospace'},
+      `[${sa[compareI]}]:`));
+
+    for (let j = 0; j < maxLen; j++) {
+      const isCommon = j < prefixLen;
+      const cx = cx0 + j*charW;
+      if (j < s1.length) {
+        mainSvg.appendChild(svgEl('rect',
+          {x:cx, y:row1Y, width:charW-2, height:charH, rx:3,
+           fill: isCommon?'rgba(74,222,128,0.2)':'rgba(30,41,59,0.6)',
+           stroke: isCommon?'#4ade80':'#334155', 'stroke-width':1}));
+        mainSvg.appendChild(svgEl('text',
+          {x:cx+(charW-2)/2, y:row1Y+charH/2+5, fill: isCommon?'#4ade80':'#e2e8f0',
+           'font-size':13, 'font-weight': isCommon?'700':'400', 'text-anchor':'middle', 'font-family':'monospace'},
+          s1[j]));
+      }
+      if (j < s2.length) {
+        mainSvg.appendChild(svgEl('rect',
+          {x:cx, y:row2Y, width:charW-2, height:charH, rx:3,
+           fill: isCommon?'rgba(74,222,128,0.2)':'rgba(30,41,59,0.6)',
+           stroke: isCommon?'#4ade80':'#334155', 'stroke-width':1}));
+        mainSvg.appendChild(svgEl('text',
+          {x:cx+(charW-2)/2, y:row2Y+charH/2+5, fill: isCommon?'#4ade80':'#e2e8f0',
+           'font-size':13, 'font-weight': isCommon?'700':'400', 'text-anchor':'middle', 'font-family':'monospace'},
+          s2[j]));
+      }
+    }
+
+    // LCP bracket
+    if (prefixLen > 0) {
+      const bY = row2Y + charH + 6;
+      const bW = prefixLen * charW - 4;
+      mainSvg.appendChild(svgEl('line',
+        {x1:cx0+2, y1:bY+4, x2:cx0+bW, y2:bY+4, stroke:'#4ade80', 'stroke-width':2}));
+      mainSvg.appendChild(svgEl('text',
+        {x:cx0+bW/2, y:bY+16, fill:'#4ade80', 'font-size':10, 'text-anchor':'middle', 'font-family':'monospace'},
+        'LCP=' + prefixLen));
+    }
+  }
+}
+
+// ── Scene 3: Binary Search ──
+function drawScene3(step, W, H) {
+  const {sa, lo, hi, mid, phase, loBound, hiBound, matchRange} = step;
+  const n = sa.length;
+  const cellW = 50, cellH = 32, rowH = 44;
+  const listX = Math.max(60, W * 0.08);
+  const listY0 = 44;
+  const m = PATTERN.length;
+
+  // Title
+  mainSvg.appendChild(svgEl('text',
+    {x:W/2, y:20, fill:'#94a3b8', 'font-size':12, 'text-anchor':'middle', 'font-family':'monospace'},
+    `查找模式串: "${PATTERN}" (m=${m}) 在 s="${STR}" 中的位置`));
+
+  // SA vertical list
+  mainSvg.appendChild(svgEl('text',
+    {x:listX+cellW/2, y:listY0-8, fill:'#64748b', 'font-size':9,
+     'text-anchor':'middle', 'font-family':'monospace'}, 'SA[i]'));
+  const sfxLabelX = listX + cellW + 14;
+  mainSvg.appendChild(svgEl('text',
+    {x:sfxLabelX, y:listY0-8, fill:'#64748b', 'font-size':9, 'font-family':'monospace'},
+    `s[SA[i]:SA[i]+${m}]`));
+
+  for (let i = 0; i < n; i++) {
+    const y = listY0 + i*rowH;
+    const isMatch = matchRange && i >= matchRange[0] && i < matchRange[1];
+    const isMid = mid === i;
+    const inRange = phase !== 'init' && phase !== 'done' && lo >= 0 && i >= lo && i < hi;
+    let fill = 'rgba(30,41,59,0.6)', stroke = '#334155', textFill = '#64748b';
+    if (inRange) { fill = 'rgba(56,189,248,0.06)'; stroke = 'rgba(56,189,248,0.2)'; textFill = '#94a3b8'; }
+    if (isMid)   { fill = 'rgba(251,191,36,0.15)'; stroke = '#fbbf24';              textFill = '#fbbf24'; }
+    if (isMatch) { fill = 'rgba(74,222,128,0.15)'; stroke = '#4ade80';              textFill = '#4ade80'; }
+
+    mainSvg.appendChild(svgEl('rect',
+      {x:listX, y, width:cellW, height:cellH, rx:4, fill, stroke, 'stroke-width':1.5}));
+    mainSvg.appendChild(svgEl('text',
+      {x:listX+5, y:y+11, fill:'#475569', 'font-size':9, 'font-family':'monospace'}, '['+i+']'));
+    mainSvg.appendChild(svgEl('text',
+      {x:listX+cellW/2, y:y+cellH/2+6, fill:textFill, 'font-size':14, 'font-weight':'700',
+       'text-anchor':'middle', 'font-family':'monospace'}, sa[i]));
+
+    // Suffix prefix chars
+    const sfx = STR.slice(sa[i], sa[i]+m);
+    mainSvg.appendChild(svgEl('text',
+      {x:sfxLabelX, y:y+cellH/2+6, fill: isMatch?'#4ade80':isMid?'#fbbf24':'#64748b',
+       'font-size':12, 'font-family':'monospace'}, '"' + sfx + '"'));
+
+    // Pointer labels
+    if (lo === i && phase !== 'init' && phase !== 'done')
+      mainSvg.appendChild(svgEl('text',
+        {x:listX-6, y:y+cellH/2+5, fill:'#38bdf8', 'font-size':10,
+         'text-anchor':'end', 'font-family':'monospace'}, 'lo→'));
+    if (hi === i && phase !== 'init' && phase !== 'done')
+      mainSvg.appendChild(svgEl('text',
+        {x:listX-6, y:y+cellH/2+(lo===i?-5:5), fill:'#fb923c', 'font-size':10,
+         'text-anchor':'end', 'font-family':'monospace'}, 'hi→'));
+    if (isMid)
+      mainSvg.appendChild(svgEl('text',
+        {x:sfxLabelX+90, y:y+cellH/2+6, fill:'#fbbf24', 'font-size':9, 'font-family':'monospace'}, '← mid'));
+  }
+
+  // Info box
+  const infoX = W - 210, infoY = listY0;
+  mainSvg.appendChild(svgEl('rect',
+    {x:infoX, y:infoY, width:190, height:140, rx:6,
+     fill:'rgba(30,41,59,0.95)', stroke:'#334155', 'stroke-width':1}));
+  mainSvg.appendChild(svgEl('text',
+    {x:infoX+12, y:infoY+20, fill:'#94a3b8', 'font-size':11, 'font-family':'monospace', 'font-weight':'600'},
+    '搜索状态'));
+  mainSvg.appendChild(svgEl('text',
+    {x:infoX+12, y:infoY+42, fill:'#64748b', 'font-size':10, 'font-family':'monospace'}, '阶段:'));
+  mainSvg.appendChild(svgEl('text',
+    {x:infoX+54, y:infoY+42,
+     fill: phase==='done'?'#4ade80':phase==='init'?'#64748b':'#fbbf24',
+     'font-size':10, 'font-family':'monospace'},
+    {init:'初始化',lower:'找下界',upper:'找上界',done:'完成'}[phase]||phase));
+  if (lo >= 0) {
+    mainSvg.appendChild(svgEl('text',
+      {x:infoX+12, y:infoY+64, fill:'#64748b', 'font-size':10, 'font-family':'monospace'}, 'lo:'));
+    mainSvg.appendChild(svgEl('text',
+      {x:infoX+40, y:infoY+64, fill:'#38bdf8', 'font-size':11, 'font-weight':'700', 'font-family':'monospace'}, lo));
+    mainSvg.appendChild(svgEl('text',
+      {x:infoX+70, y:infoY+64, fill:'#64748b', 'font-size':10, 'font-family':'monospace'}, 'hi:'));
+    mainSvg.appendChild(svgEl('text',
+      {x:infoX+96, y:infoY+64, fill:'#fb923c', 'font-size':11, 'font-weight':'700', 'font-family':'monospace'}, hi));
+  }
+  if (mid >= 0) {
+    mainSvg.appendChild(svgEl('text',
+      {x:infoX+12, y:infoY+86, fill:'#64748b', 'font-size':10, 'font-family':'monospace'}, 'mid:'));
+    mainSvg.appendChild(svgEl('text',
+      {x:infoX+48, y:infoY+86, fill:'#fbbf24', 'font-size':11, 'font-weight':'700', 'font-family':'monospace'}, mid));
+  }
+  if (loBound >= 0) {
+    mainSvg.appendChild(svgEl('text',
+      {x:infoX+12, y:infoY+108, fill:'#64748b', 'font-size':10, 'font-family':'monospace'}, 'loBound:'));
+    mainSvg.appendChild(svgEl('text',
+      {x:infoX+82, y:infoY+108, fill:'#4ade80', 'font-size':11, 'font-weight':'700', 'font-family':'monospace'}, loBound));
+  }
+  if (hiBound >= 0) {
+    mainSvg.appendChild(svgEl('text',
+      {x:infoX+12, y:infoY+128, fill:'#64748b', 'font-size':10, 'font-family':'monospace'}, 'hiBound:'));
+    mainSvg.appendChild(svgEl('text',
+      {x:infoX+82, y:infoY+128, fill:'#4ade80', 'font-size':11, 'font-weight':'700', 'font-family':'monospace'}, hiBound));
+  }
+
+  // Match result
+  if (matchRange) {
+    const resultY = listY0 + n*rowH + 16;
+    const positions = sa.slice(matchRange[0], matchRange[1]).join(', ');
+    mainSvg.appendChild(svgEl('text',
+      {x:W/2, y:resultY, fill:'#4ade80', 'font-size':13, 'font-weight':'700',
+       'text-anchor':'middle', 'font-family':'monospace'},
+      `匹配位置：SA[${matchRange[0]}..${matchRange[1]-1}] = [${positions}]`));
+  }
+}
+
+// ── State ──
+let currentScene = 1;
+let steps = ALL_SCENES[1];
+let cur = 0, playing = false, timer = null;
+const SPEED = [900,550,320,180,80];
+
+const descText = document.getElementById('descText');
+const stepCounter = document.getElementById('stepCounter');
+const codeBody = document.getElementById('codeBody');
+const btnPlay = document.getElementById('btnPlay');
+const btnPrev = document.getElementById('btnPrev');
+const btnNext = document.getElementById('btnNext');
+const btnReset = document.getElementById('btnReset');
+const speedRange = document.getElementById('speedRange');
+
+// Scene tabs
+document.getElementById('sceneBtns').querySelectorAll('.start-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    pause();
+    currentScene = parseInt(btn.dataset.scene);
+    steps = ALL_SCENES[currentScene];
+    cur = 0;
+    document.querySelectorAll('#sceneBtns .start-btn').forEach(b => b.classList.remove('active-start'));
+    btn.classList.add('active-start');
+    render();
+  });
+});
+
+function buildCode() {
+  codeBody.innerHTML = CODE_LINES.map((l,i) =>
+    `<div class="code-line" data-line="${i}"><span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`
+  ).join('');
+}
+
+function highlightLines(lines) {
+  codeBody.querySelectorAll('.code-line').forEach(el => el.classList.remove('active'));
+  (lines||[]).forEach(ln => {
+    const e = codeBody.querySelector(`[data-line="${ln}"]`);
+    if (e) e.classList.add('active');
+  });
+  if (lines && lines.length > 0) {
+    const f = codeBody.querySelector(`[data-line="${lines[0]}"]`);
+    if (f) f.scrollIntoView({block:'nearest'});
+  }
+}
+
+function render() {
+  if (!steps.length) return;
+  if (cur >= steps.length) cur = steps.length - 1;
+  const s = steps[cur];
+  draw(s);
+  descText.textContent = s.description;
+  stepCounter.textContent = `${cur+1} / ${steps.length}`;
+  highlightLines(s.highlightLines || []);
+  btnPrev.disabled = cur === 0;
+  btnNext.disabled = cur === steps.length - 1;
+}
+
+function play() {
+  if (cur >= steps.length - 1) cur = 0;
+  playing = true;
+  btnPlay.innerHTML = '⏸ 暂停';
+  tick();
+}
+function pause() {
+  playing = false;
+  clearTimeout(timer);
+  btnPlay.innerHTML = '▶ 播放';
+}
+function tick() {
+  if (!playing) return;
+  if (cur < steps.length - 1) {
+    cur++;
+    render();
+    timer = setTimeout(tick, SPEED[parseInt(speedRange.value)-1]);
+  } else pause();
+}
+
+btnPlay.addEventListener('click', () => playing ? pause() : play());
+btnPrev.addEventListener('click', () => { pause(); if (cur > 0) { cur--; render(); } });
+btnNext.addEventListener('click', () => { pause(); if (cur < steps.length-1) { cur++; render(); } });
+btnReset.addEventListener('click', () => { pause(); cur = 0; render(); });
+
+buildCode();
+render();
+window.addEventListener('resize', () => { const s = steps[cur]; if (s) draw(s); });
+</script>
+</body>
+</html>

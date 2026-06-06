@@ -1,0 +1,962 @@
+<!DOCTYPE html><html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Kubernetes 的包管理器，将一组相关的 K8s Manifests 打包为 Chart，支持版本控制、参数化安装、升级和回滚，大幅降低复杂应用的部署运维成本。">
+<link rel="canonical" href="https://melodycoder12345.github.io/cloud-native/helm.html">
+<meta property="og:title" content="Helm 包管理 — 码海拾贝">
+<meta property="og:description" content="Kubernetes 的包管理器，将一组相关的 K8s Manifests 打包为 Chart，支持版本控制、参数化安装、升级和回滚，大幅降低复杂应用的部署运维成本。">
+<meta property="og:url" content="https://melodycoder12345.github.io/cloud-native/helm.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Helm 包管理 — 码海拾贝">
+<meta name="twitter:description" content="Kubernetes 的包管理器，将一组相关的 K8s Manifests 打包为 Chart，支持版本控制、参数化安装、升级和回滚，大幅降低复杂应用的部署运维成本。">
+<title>Helm 包管理 - 云原生深度笔记</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#38bdf8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+.page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
+.side-nav{width:168px;flex-shrink:0;position:sticky;top:72px;height:fit-content;padding:20px 0;}
+.side-nav ul{list-style:none;display:flex;flex-direction:column;gap:6px;}
+.side-nav a{text-decoration:none;color:var(--dim);font-size:.8rem;padding:4px 8px;border-radius:6px;display:block;transition:all .15s;}
+.side-nav a:hover{color:var(--text);background:rgba(255,255,255,.05);}
+.main-content{flex:1;min-width:0;padding:40px 0;}
+.section{margin-bottom:48px;}
+.section-title{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+.title-bar{width:4px;height:22px;border-radius:2px;background:var(--accent);}
+.section-title h2{font-size:1.25rem;font-weight:700;}
+.card{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.card-hd{padding:14px 18px;background:rgba(56,189,248,.06);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.card-hd h3{font-size:.95rem;font-weight:700;}
+.badge{font-size:.64rem;padding:2px 8px;border-radius:99px;font-family:monospace;}
+.badge-core{background:rgba(56,189,248,.12);color:var(--accent);border:1px solid rgba(56,189,248,.2);}
+.badge-adv{background:rgba(192,132,252,.12);color:#c084fc;border:1px solid rgba(192,132,252,.2);}
+.badge-high{background:rgba(251,146,60,.12);color:#fb923c;border:1px solid rgba(251,146,60,.2);}
+.badge-tip{background:rgba(74,222,128,.12);color:#4ade80;border:1px solid rgba(74,222,128,.2);}
+.card-body{padding:16px 18px;}
+.card-body p{font-size:.88rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
+.card-body ul,.card-body ol{padding-left:18px;font-size:.86rem;color:var(--dim);line-height:1.7;}
+.card-body li{margin-bottom:6px;}
+.card-body strong{color:var(--text);}
+pre{background:var(--panel2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:'JetBrains Mono','Fira Code',monospace;font-size:.76rem;line-height:1.65;margin:10px 0;}
+code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font-size:.82em;}
+.kw{color:#ff7b72;}.fn{color:#d2a8ff;}.st{color:#a5d6ff;}.num{color:#79c0ff;}.cm{color:#8b949e;}.id{color:#e6edf3;}.pkg{color:#ffa657;}.op{color:#ff7b72;}
+.qa-card{border:1px solid var(--border2);border-radius:12px;margin-bottom:10px;overflow:hidden;}
+.qa-q{padding:12px 16px;background:rgba(56,189,248,.06);font-size:.86rem;font-weight:600;color:var(--accent);cursor:pointer;display:flex;justify-content:space-between;align-items:center;user-select:none;}
+.qa-q:hover{background:rgba(56,189,248,.1);}
+.qa-arrow{font-size:.7rem;color:var(--dim);transition:transform .2s;}
+.qa-card.open .qa-arrow{transform:rotate(90deg);}
+.qa-a{display:none;padding:12px 16px;font-size:.84rem;color:var(--dim);line-height:1.72;border-top:1px solid var(--border2);}
+.qa-card.open .qa-a{display:block;}
+.pitfall{border:1px solid var(--border2);border-radius:12px;margin-bottom:14px;overflow:hidden;}
+.pitfall-hd{padding:10px 14px;font-size:.8rem;font-weight:700;}
+.pitfall-hd.bad{background:rgba(248,113,113,.06);color:#f87171;}
+.pitfall-hd.good{background:rgba(74,222,128,.06);color:#4ade80;}
+.pitfall-body{display:grid;grid-template-columns:1fr 1fr;}
+.pitfall-col{padding:12px 14px;}
+.pitfall-col+.pitfall-col{border-left:1px solid var(--border2);}
+.pitfall-col pre{font-size:.72rem;}
+.pitfall-col p{font-size:.78rem;color:var(--dim);line-height:1.6;margin-top:6px;}
+.nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;margin-bottom:0;}
+.back{color:var(--dim);text-decoration:none;font-size:.88rem;}
+.back:hover{color:var(--text);}
+.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
+.ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
+.table-wrap{overflow-x:auto;margin:10px 0;}
+table{width:100%;border-collapse:collapse;font-size:.82rem;}
+th{background:rgba(56,189,248,.08);color:var(--accent);padding:8px 12px;text-align:left;border:1px solid var(--border2);font-size:.78rem;}
+td{padding:7px 12px;border:1px solid var(--border2);color:var(--dim);}
+tr:hover td{background:rgba(255,255,255,.02);}
+.flow-diagram{display:flex;align-items:center;gap:0;flex-wrap:wrap;margin:12px 0;}
+.flow-box{background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.25);border-radius:8px;padding:8px 14px;font-size:.78rem;color:var(--text);white-space:nowrap;}
+.flow-arrow{color:var(--accent);font-size:.9rem;padding:0 8px;}
+.callout{border-left:3px solid var(--accent);padding:12px 16px;background:rgba(56,189,248,.06);border-radius:0 8px 8px 0;margin:12px 0;}
+.callout p{font-size:.84rem;color:var(--dim);line-height:1.7;margin:0;}
+.callout strong{color:var(--text);}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:10px 0;}
+.sub-card{background:rgba(255,255,255,.02);border:1px solid var(--border2);border-radius:8px;padding:12px 14px;}
+.sub-card h4{font-size:.82rem;color:var(--accent);margin-bottom:8px;font-weight:700;}
+.sub-card p,.sub-card li{font-size:.8rem;color:var(--dim);line-height:1.65;}
+.sub-card ul{padding-left:16px;}
+.sub-card li{margin-bottom:4px;}
+.priority-row{display:flex;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:.84rem;}
+.priority-row:last-child{border-bottom:none;}
+.priority-num{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0;}
+.p1{background:rgba(248,113,113,.2);color:#f87171;}
+.p2{background:rgba(251,146,60,.2);color:#fb923c;}
+.p3{background:rgba(56,189,248,.2);color:#38bdf8;}
+.p4{background:rgba(100,116,139,.2);color:#94a3b8;}
+.priority-label{color:var(--text);font-weight:600;min-width:80px;}
+.priority-desc{color:var(--dim);}
+@media(max-width:900px){.side-nav{display:none;}.page-wrap{padding:0 16px;}.pitfall-body,.two-col{grid-template-columns:1fr;}.pitfall-col+.pitfall-col{border-left:none;border-top:1px solid var(--border2);}}
+</style>
+</head>
+<body>
+<div class="nav-bar">
+  <a href="index.html" class="back">← 返回</a>
+  <span class="nav-title">⎈ Helm 包管理</span>
+  <div class="nav-tags">
+    <span class="ntag">helm</span>
+    <span class="ntag">chart</span>
+    <span class="ntag">release</span>
+    <span class="ntag">kubernetes</span>
+  </div>
+</div>
+<div class="page-wrap">
+  <aside class="side-nav" id="sideNav">
+    <nav><ul>
+      <li><a href="#background">背景与痛点</a></li>
+      <li><a href="#concepts">核心概念</a></li>
+      <li><a href="#chart-structure">Chart 结构</a></li>
+      <li><a href="#template-syntax">Template 语法</a></li>
+      <li><a href="#values">Values 优先级</a></li>
+      <li><a href="#lifecycle">关键流程</a></li>
+      <li><a href="#engineering">工程场景</a></li>
+      <li><a href="#hooks">Helm Hooks</a></li>
+      <li><a href="#interview">面试题</a></li>
+      <li><a href="#pitfalls">常见误区</a></li>
+    </ul></nav>
+  </aside>
+  <main class="main-content">
+
+    <!-- ========== 背景与痛点 ========== -->
+    <div class="section" id="background">
+      <div class="section-title"><div class="title-bar"></div><h2>背景与痛点</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>没有 Helm 时的痛苦</h3><span class="badge badge-high">高频考点</span></div>
+        <div class="card-body">
+          <p>部署一个生产级微服务到 Kubernetes，你需要手工维护至少 5 个 YAML 文件：</p>
+          <pre><span class="cm"># 没有 Helm 时，一个微服务的典型文件清单</span>
+myservice/
+  deployment.yaml     <span class="cm"># 副本数、镜像、资源限制、探针</span>
+  service.yaml        <span class="cm"># ClusterIP / LoadBalancer 暴露端口</span>
+  configmap.yaml      <span class="cm"># 应用配置（数据库地址、日志级别等）</span>
+  hpa.yaml            <span class="cm"># HorizontalPodAutoscaler，CPU/内存弹性</span>
+  ingress.yaml        <span class="cm"># Ingress 路由规则（域名、TLS 证书）</span></pre>
+          <p>这带来三类典型痛点：</p>
+          <ul>
+            <li><strong>手工 apply 易出错</strong>：<code>kubectl apply -f .</code> 要确保目录完整、顺序正确，一旦出错无法自动回滚</li>
+            <li><strong>多环境重复维护</strong>：dev / staging / prod 各自一套几乎相同的文件，只有 image tag、副本数、资源限制不同——修改一处要同步三份</li>
+            <li><strong>版本管理缺失</strong>：谁在什么时候 apply 了什么版本？没有 release 历史，无法快速回退到上一个已知正常状态</li>
+          </ul>
+          <div class="callout">
+            <p><strong>Helm 的解法：</strong>将这 5 个文件打包成一个 <strong>Chart</strong>，用 <code>values.yaml</code> 参数化环境差异，一条 <code>helm install</code> 完成所有资源的有序创建，并记录 Release 历史支持随时回滚。</p>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>Helm 在 DevOps 中的定位</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <div class="flow-diagram">
+            <div class="flow-box">源代码</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-box">Docker 镜像</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-box">Helm Chart</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-box">K8s 集群 Release</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-box">运行中 Pod</div>
+          </div>
+          <p>Helm 是 K8s 生态的"apt / yum"，职责边界清晰：</p>
+          <div class="table-wrap">
+            <table>
+              <tr><th>工具</th><th>类比</th><th>管理单元</th><th>核心能力</th></tr>
+              <tr><td>apt / brew</td><td>OS 包管理</td><td>.deb / .bottle</td><td>安装、升级、删除二进制</td></tr>
+              <tr><td><strong>Helm</strong></td><td><strong>K8s 包管理</strong></td><td><strong>Chart</strong></td><td><strong>渲染 Manifests、管理 Release、回滚</strong></td></tr>
+              <tr><td>Kustomize</td><td>K8s 配置覆写</td><td>overlay 目录</td><td>无模板，纯 patch 覆写</td></tr>
+              <tr><td>ArgoCD</td><td>GitOps 交付</td><td>Application</td><td>与 Git 状态持续同步（可调用 Helm）</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 核心概念 ========== -->
+    <div class="section" id="concepts">
+      <div class="section-title"><div class="title-bar"></div><h2>核心概念</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>五大核心对象</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <tr><th>概念</th><th>定义</th><th>类比</th></tr>
+              <tr><td><strong>Chart</strong></td><td>Helm 包，包含 K8s Manifest 模板 + 默认 values + 元信息</td><td>软件安装包（.deb）</td></tr>
+              <tr><td><strong>Release</strong></td><td>Chart 在集群中的一次安装实例，同一 Chart 可有多个 Release（不同名）</td><td>已安装的软件实例</td></tr>
+              <tr><td><strong>Repository</strong></td><td>Chart 仓库，存储打包好的 Chart（ArtifactHub、Harbor、OCI Registry）</td><td>apt 软件源 / npm registry</td></tr>
+              <tr><td><strong>Values</strong></td><td>参数文件，覆盖 Chart 默认配置，template 中用 <code>{{ .Values.xxx }}</code> 引用</td><td>软件安装时的配置选项</td></tr>
+              <tr><td><strong>Revision</strong></td><td>每次 install/upgrade/rollback 都生成一个新的修订版本号，从 1 递增</td><td>git commit 历史</td></tr>
+            </table>
+          </div>
+          <div class="callout">
+            <p><strong>Release 独立性：</strong>在同一个集群同一个 Namespace 中，可以运行 <code>helm install myapp-v1 ./mychart</code> 和 <code>helm install myapp-v2 ./mychart</code> 两个完全独立的 Release，互不干扰。这是 Helm 与直接 kubectl apply 的关键区别之一。</p>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>Release 状态机</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <tr><th>状态</th><th>含义</th><th>如何恢复</th></tr>
+              <tr><td><code>deployed</code></td><td>当前活跃的已部署版本</td><td>—</td></tr>
+              <tr><td><code>failed</code></td><td>install 或 upgrade 失败（超时、K8s 拒绝等）</td><td><code>helm rollback</code> 或 <code>helm upgrade --atomic</code></td></tr>
+              <tr><td><code>superseded</code></td><td>已被新 revision 替代的历史版本</td><td>可 rollback 到该版本</td></tr>
+              <tr><td><code>uninstalling</code></td><td>正在删除中</td><td>等待完成</td></tr>
+              <tr><td><code>pending-install</code></td><td>install 正在进行（Hooks 执行中）</td><td>等待或检查 Hooks</td></tr>
+              <tr><td><code>pending-upgrade</code></td><td>upgrade 正在进行</td><td>等待或强制回滚</td></tr>
+            </table>
+          </div>
+          <p>Release 历史存储在 Kubernetes <strong>Secret</strong> 中（Helm v3 默认），格式为 <code>sh.helm.release.v1.&lt;release-name&gt;.v&lt;N&gt;</code>。可用 <code>helm history &lt;release&gt;</code> 查看完整历史。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== Chart 结构 ========== -->
+    <div class="section" id="chart-structure">
+      <div class="section-title"><div class="title-bar"></div><h2>Chart 目录结构</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>完整 Chart 目录解析</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <pre><span class="id">mychart/</span>
+<span class="st">├── Chart.yaml</span>          <span class="cm"># 必填：Chart 元信息</span>
+<span class="st">├── values.yaml</span>         <span class="cm"># 默认参数（可被 --set 或 -f 覆盖）</span>
+<span class="st">├── values.schema.json</span>  <span class="cm"># 可选：对 values 做 JSON Schema 校验</span>
+<span class="st">├── templates/</span>          <span class="cm"># Go template 渲染的 K8s Manifest 模板</span>
+<span class="st">│   ├── deployment.yaml</span>
+<span class="st">│   ├── service.yaml</span>
+<span class="st">│   ├── ingress.yaml</span>
+<span class="st">│   ├── hpa.yaml</span>
+<span class="st">│   ├── _helpers.tpl</span>    <span class="cm"># 下划线开头：命名 helper，不直接渲染</span>
+<span class="st">│   └── NOTES.txt</span>       <span class="cm"># install 成功后显示给用户的说明文本</span>
+<span class="st">├── charts/</span>             <span class="cm"># 子 Chart（依赖），由 helm dependency update 填充</span>
+<span class="st">│   └── redis-18.0.0.tgz</span>
+<span class="st">├── Chart.lock</span>          <span class="cm"># 锁定依赖版本（类似 package-lock.json）</span>
+<span class="st">└── .helmignore</span>         <span class="cm"># 打包时忽略的文件（类似 .gitignore）</span></pre>
+          <div class="two-col">
+            <div class="sub-card">
+              <h4>Chart.yaml 必填字段</h4>
+              <pre><span class="id">apiVersion</span><span class="op">:</span> <span class="st">v2</span>       <span class="cm"># Helm v3 固定为 v2</span>
+<span class="id">name</span><span class="op">:</span> <span class="st">mychart</span>
+<span class="id">version</span><span class="op">:</span> <span class="st">1.0.0</span>       <span class="cm"># Chart 版本（SemVer）</span>
+<span class="id">appVersion</span><span class="op">:</span> <span class="st">"2.3.1"</span>  <span class="cm"># 应用版本（仅标注用）</span>
+<span class="id">description</span><span class="op">:</span> <span class="st">My web app</span>
+<span class="id">type</span><span class="op">:</span> <span class="st">application</span>    <span class="cm"># application | library</span>
+<span class="id">dependencies</span><span class="op">:</span>
+  <span class="op">-</span> <span class="id">name</span><span class="op">:</span> <span class="st">redis</span>
+    <span class="id">version</span><span class="op">:</span> <span class="st">"18.x.x"</span>
+    <span class="id">repository</span><span class="op">:</span> <span class="st">https://charts.bitnami.com/bitnami</span></pre>
+            </div>
+            <div class="sub-card">
+              <h4>values.yaml 示例</h4>
+              <pre><span class="id">replicaCount</span><span class="op">:</span> <span class="num">2</span>
+
+<span class="id">image</span><span class="op">:</span>
+  <span class="id">repository</span><span class="op">:</span> <span class="st">myrepo/myapp</span>
+  <span class="id">tag</span><span class="op">:</span> <span class="st">"latest"</span>
+  <span class="id">pullPolicy</span><span class="op">:</span> <span class="st">IfNotPresent</span>
+
+<span class="id">service</span><span class="op">:</span>
+  <span class="id">type</span><span class="op">:</span> <span class="st">ClusterIP</span>
+  <span class="id">port</span><span class="op">:</span> <span class="num">8080</span>
+
+<span class="id">resources</span><span class="op">:</span>
+  <span class="id">requests</span><span class="op">:</span>
+    <span class="id">cpu</span><span class="op">:</span> <span class="st">100m</span>
+    <span class="id">memory</span><span class="op">:</span> <span class="st">128Mi</span>
+  <span class="id">limits</span><span class="op">:</span>
+    <span class="id">cpu</span><span class="op">:</span> <span class="st">500m</span>
+    <span class="id">memory</span><span class="op">:</span> <span class="st">512Mi</span>
+
+<span class="id">ingress</span><span class="op">:</span>
+  <span class="id">enabled</span><span class="op">:</span> <span class="kw">false</span>
+  <span class="id">host</span><span class="op">:</span> <span class="st">myapp.example.com</span></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>Deployment 模板示例（templates/deployment.yaml）</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <pre><span class="id">apiVersion</span><span class="op">:</span> <span class="st">apps/v1</span>
+<span class="id">kind</span><span class="op">:</span> <span class="st">Deployment</span>
+<span class="id">metadata</span><span class="op">:</span>
+  <span class="id">name</span><span class="op">:</span> <span class="fn">{{ include "mychart.fullname" . }}</span>    <span class="cm"># 调用 _helpers.tpl 中的命名函数</span>
+  <span class="id">labels</span><span class="op">:</span>
+    <span class="fn">{{- include "mychart.labels" . | nindent 4 }}</span>  <span class="cm"># 缩进 4 空格插入</span>
+<span class="id">spec</span><span class="op">:</span>
+  <span class="id">replicas</span><span class="op">:</span> <span class="fn">{{ .Values.replicaCount }}</span>              <span class="cm"># 引用 values</span>
+  <span class="id">selector</span><span class="op">:</span>
+    <span class="id">matchLabels</span><span class="op">:</span>
+      <span class="fn">{{- include "mychart.selectorLabels" . | nindent 6 }}</span>
+  <span class="id">template</span><span class="op">:</span>
+    <span class="id">metadata</span><span class="op">:</span>
+      <span class="id">labels</span><span class="op">:</span>
+        <span class="fn">{{- include "mychart.selectorLabels" . | nindent 8 }}</span>
+    <span class="id">spec</span><span class="op">:</span>
+      <span class="id">containers</span><span class="op">:</span>
+        <span class="op">-</span> <span class="id">name</span><span class="op">:</span> <span class="fn">{{ .Chart.Name }}</span>
+          <span class="id">image</span><span class="op">:</span> <span class="st">"</span><span class="fn">{{ .Values.image.repository }}:{{ .Values.image.tag }}</span><span class="st">"</span>
+          <span class="id">imagePullPolicy</span><span class="op">:</span> <span class="fn">{{ .Values.image.pullPolicy }}</span>
+          <span class="id">ports</span><span class="op">:</span>
+            <span class="op">-</span> <span class="id">containerPort</span><span class="op">:</span> <span class="fn">{{ .Values.service.port }}</span>
+          <span class="id">resources</span><span class="op">:</span>
+            <span class="fn">{{- toYaml .Values.resources | nindent 12 }}</span>  <span class="cm"># 将 values 转为 YAML 并缩进</span>
+          <span class="id">livenessProbe</span><span class="op">:</span>
+            <span class="id">httpGet</span><span class="op">:</span>
+              <span class="id">path</span><span class="op">:</span> <span class="st">/healthz</span>
+              <span class="id">port</span><span class="op">:</span> <span class="fn">{{ .Values.service.port }}</span>
+<span class="cm">          {{- if .Values.ingress.enabled }}</span>  <span class="cm"># 条件渲染</span>
+          <span class="id">env</span><span class="op">:</span>
+            <span class="op">-</span> <span class="id">name</span><span class="op">:</span> <span class="st">APP_HOST</span>
+              <span class="id">value</span><span class="op">:</span> <span class="fn">{{ .Values.ingress.host }}</span>
+<span class="cm">          {{- end }}</span></pre>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>_helpers.tpl — 命名助手模板</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-body">
+          <p><code>_helpers.tpl</code> 是 Helm 约定的辅助文件，文件名以 <code>_</code> 开头不会被直接渲染，专门用于定义可复用的命名 template，避免每个文件重复写相同的 label 和 name 逻辑。</p>
+          <pre><span class="cm">{{/*
+返回 Chart 全名（Release.Name + Chart.Name，最长 63 字符）
+*/}}</span>
+<span class="fn">{{- define "mychart.fullname" -}}</span>
+<span class="fn">{{- if .Values.fullnameOverride }}</span>
+<span class="fn">{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}</span>
+<span class="fn">{{- else }}</span>
+<span class="fn">{{- printf "%s-%s" .Release.Name .Chart.Name | trunc 63 | trimSuffix "-" }}</span>
+<span class="fn">{{- end }}</span>
+<span class="fn">{{- end }}</span>
+
+<span class="cm">{{/* 公共标签（所有资源都应携带） */}}</span>
+<span class="fn">{{- define "mychart.labels" -}}</span>
+<span class="id">helm.sh/chart</span><span class="op">:</span> <span class="fn">{{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}</span>
+<span class="fn">{{ include "mychart.selectorLabels" . }}</span>
+<span class="id">app.kubernetes.io/managed-by</span><span class="op">:</span> <span class="fn">{{ .Release.Service }}</span>
+<span class="fn">{{- end }}</span>
+
+<span class="cm">{{/* Selector 标签（Deployment / Service 匹配用） */}}</span>
+<span class="fn">{{- define "mychart.selectorLabels" -}}</span>
+<span class="id">app.kubernetes.io/name</span><span class="op">:</span> <span class="fn">{{ .Chart.Name }}</span>
+<span class="id">app.kubernetes.io/instance</span><span class="op">:</span> <span class="fn">{{ .Release.Name }}</span>
+<span class="fn">{{- end }}</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== Template 语法 ========== -->
+    <div class="section" id="template-syntax">
+      <div class="section-title"><div class="title-bar"></div><h2>Template 语法</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>Go template 核心语法速查</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <tr><th>语法</th><th>说明</th><th>示例</th></tr>
+              <tr><td><code>{{ .Values.x }}</code></td><td>引用 values 字段</td><td><code>{{ .Values.image.tag }}</code></td></tr>
+              <tr><td><code>{{ .Release.Name }}</code></td><td>Release 名称</td><td><code>myapp</code></td></tr>
+              <tr><td><code>{{ .Chart.Version }}</code></td><td>Chart 版本</td><td><code>1.0.0</code></td></tr>
+              <tr><td><code>{{- if cond }}</code></td><td>条件（<code>-</code> 吃掉空白行）</td><td><code>{{- if .Values.ingress.enabled }}</code></td></tr>
+              <tr><td><code>{{ range .list }}</code></td><td>循环</td><td><code>{{ range .Values.env }}</code></td></tr>
+              <tr><td><code>{{ include "name" . }}</code></td><td>调用命名 template 并传入当前作用域</td><td><code>{{ include "mychart.labels" . }}</code></td></tr>
+              <tr><td><code>| nindent N</code></td><td>管道：加 N 个空格缩进（带前导换行）</td><td><code>{{- toYaml .Values.env | nindent 10 }}</code></td></tr>
+              <tr><td><code>| default "x"</code></td><td>管道：提供默认值</td><td><code>{{ .Values.tag | default "latest" }}</code></td></tr>
+              <tr><td><code>| quote</code></td><td>加引号（字符串强制引用）</td><td><code>{{ .Values.version | quote }}</code></td></tr>
+              <tr><td><code>{{ with .Values.x }}</code></td><td>非空时进入作用域，内部用 <code>.</code> 直接访问</td><td><code>{{ with .Values.config }}{{ .timeout }}{{ end }}</code></td></tr>
+            </table>
+          </div>
+          <pre><span class="cm"># 实用示例：循环生成环境变量</span>
+<span class="id">env</span><span class="op">:</span>
+<span class="fn">{{- range $key, $val := .Values.envVars }}</span>
+  <span class="op">-</span> <span class="id">name</span><span class="op">:</span> <span class="fn">{{ $key | upper }}</span>
+    <span class="id">value</span><span class="op">:</span> <span class="fn">{{ $val | quote }}</span>
+<span class="fn">{{- end }}</span>
+
+<span class="cm"># values.yaml 中对应：</span>
+<span class="id">envVars</span><span class="op">:</span>
+  <span class="id">db_host</span><span class="op">:</span> <span class="st">mysql.svc</span>
+  <span class="id">log_level</span><span class="op">:</span> <span class="st">info</span>
+<span class="cm"># 渲染结果：</span>
+<span class="cm"># - name: DB_HOST</span>
+<span class="cm">#   value: "mysql.svc"</span>
+<span class="cm"># - name: LOG_LEVEL</span>
+<span class="cm">#   value: "info"</span></pre>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>内置对象速查</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <div class="table-wrap">
+            <table>
+              <tr><th>对象</th><th>常用字段</th><th>说明</th></tr>
+              <tr><td><code>.Release</code></td><td><code>.Name .Namespace .Service .Revision .IsInstall .IsUpgrade</code></td><td>当前 Release 的运行时信息</td></tr>
+              <tr><td><code>.Values</code></td><td>用户自定义</td><td>合并后的最终 values（已应用所有覆盖）</td></tr>
+              <tr><td><code>.Chart</code></td><td><code>.Name .Version .AppVersion .Description</code></td><td>来自 Chart.yaml 的元信息</td></tr>
+              <tr><td><code>.Files</code></td><td><code>.Get "conf.ini"  .AsConfig  .AsSecret</code></td><td>访问 Chart 中的非 template 文件</td></tr>
+              <tr><td><code>.Capabilities</code></td><td><code>.KubeVersion.Minor .APIVersions.Has</code></td><td>目标集群的 K8s 能力，用于条件渲染不同 API</td></tr>
+              <tr><td><code>.Template</code></td><td><code>.Name .BasePath</code></td><td>当前模板文件路径（调试用）</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== Values 优先级 ========== -->
+    <div class="section" id="values">
+      <div class="section-title"><div class="title-bar"></div><h2>Values 优先级</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>六层 Values 覆盖优先级（高 → 低）</h3><span class="badge badge-high">高频考点</span></div>
+        <div class="card-body">
+          <p>同一个 key 在多个地方设置时，<strong>优先级高的覆盖优先级低的</strong>（merge，非替换整个文件）：</p>
+          <div style="margin:12px 0;">
+            <div class="priority-row">
+              <div class="priority-num p1">1</div>
+              <div class="priority-label"><code>--set</code></div>
+              <div class="priority-desc">命令行直接设置，最高优先级。<code>helm install ... --set image.tag=v2.0</code></div>
+            </div>
+            <div class="priority-row">
+              <div class="priority-num p1">2</div>
+              <div class="priority-label"><code>--set-string</code></div>
+              <div class="priority-desc">同 <code>--set</code>，但强制值类型为字符串（避免 <code>10</code> 被解析为数字）</div>
+            </div>
+            <div class="priority-row">
+              <div class="priority-num p2">3</div>
+              <div class="priority-label"><code>-f file.yaml</code></div>
+              <div class="priority-desc">指定 values 文件，可多次使用，后面的覆盖前面的。<code>-f values-prod.yaml</code></div>
+            </div>
+            <div class="priority-row">
+              <div class="priority-num p3">4</div>
+              <div class="priority-label"><code>values.yaml</code></div>
+              <div class="priority-desc">Chart 内置默认 values，优先级较低</div>
+            </div>
+            <div class="priority-row">
+              <div class="priority-num p4">5</div>
+              <div class="priority-label">父 Chart</div>
+              <div class="priority-desc">父 Chart 的 values.yaml 中 <code>子chartname.key</code> 可覆盖子 Chart 默认值</div>
+            </div>
+            <div class="priority-row">
+              <div class="priority-num p4">6</div>
+              <div class="priority-label">子 Chart 默认</div>
+              <div class="priority-desc">子 Chart（依赖）自带的 values.yaml，优先级最低</div>
+            </div>
+          </div>
+          <pre><span class="cm"># 多环境部署：只维护差异文件，不重复整份配置</span>
+<span class="cm"># values.yaml（公共基准）</span>
+<span class="id">image</span><span class="op">:</span>
+  <span class="id">repository</span><span class="op">:</span> <span class="st">myrepo/myapp</span>
+  <span class="id">tag</span><span class="op">:</span> <span class="st">"latest"</span>
+<span class="id">replicaCount</span><span class="op">:</span> <span class="num">1</span>
+
+<span class="cm"># values-dev.yaml（只写差异）</span>
+<span class="id">replicaCount</span><span class="op">:</span> <span class="num">1</span>
+<span class="id">resources</span><span class="op">:</span>
+  <span class="id">limits</span><span class="op">:</span> <span class="op">{</span><span class="id">cpu</span><span class="op">:</span> <span class="st">200m</span>, <span class="id">memory</span><span class="op">:</span> <span class="st">256Mi</span><span class="op">}</span>
+
+<span class="cm"># values-prod.yaml（只写差异）</span>
+<span class="id">replicaCount</span><span class="op">:</span> <span class="num">3</span>
+<span class="id">resources</span><span class="op">:</span>
+  <span class="id">limits</span><span class="op">:</span> <span class="op">{</span><span class="id">cpu</span><span class="op">:</span> <span class="st">2000m</span>, <span class="id">memory</span><span class="op">:</span> <span class="st">2Gi</span><span class="op">}</span>
+<span class="id">ingress</span><span class="op">:</span>
+  <span class="id">enabled</span><span class="op">:</span> <span class="kw">true</span>
+  <span class="id">host</span><span class="op">:</span> <span class="st">myapp.prod.example.com</span>
+
+<span class="cm"># 部署命令</span>
+helm upgrade --install myapp ./mychart -f values.yaml -f values-prod.yaml \
+  --set image.tag=<span class="st">"$(GIT_SHA)"</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 关键流程 ========== -->
+    <div class="section" id="lifecycle">
+      <div class="section-title"><div class="title-bar"></div><h2>关键流程</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>helm install — 安装流程</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <div class="flow-diagram">
+            <div class="flow-box">helm install</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-box">合并 Values</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-box">渲染 Templates</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-box">执行 pre-install Hooks</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-box">提交 K8s API</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-box">执行 post-install Hooks</div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-box">写入 Release Secret</div>
+          </div>
+          <pre><span class="cm"># 基本安装</span>
+helm install &lt;release-name&gt; &lt;chart&gt; [flags]
+
+helm install myapp ./mychart                   <span class="cm"># 本地 Chart</span>
+helm install myapp stable/nginx                <span class="cm"># 仓库 Chart</span>
+helm install myapp oci://registry.io/charts/x  <span class="cm"># OCI Registry</span>
+
+<span class="cm"># 常用参数</span>
+  --namespace prod         <span class="cm"># 安装到指定 Namespace</span>
+  --create-namespace       <span class="cm"># Namespace 不存在时自动创建</span>
+  -f values-prod.yaml      <span class="cm"># 指定 values 覆盖文件</span>
+  --set image.tag=v1.2.3   <span class="cm"># 直接覆盖单个值</span>
+  --wait                   <span class="cm"># 等待所有资源 Ready 再返回（默认 5 min）</span>
+  --timeout 10m            <span class="cm"># 自定义超时</span>
+  --atomic                 <span class="cm"># 失败自动回滚（隐含 --wait）</span>
+  --dry-run                <span class="cm"># 只渲染，不实际提交</span>
+  --debug                  <span class="cm"># 打印渲染后的完整 Manifest</span></pre>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>helm upgrade — 三路合并</h3><span class="badge badge-high">高频考点</span></div>
+        <div class="card-body">
+          <p>upgrade 不是简单替换，而是 <strong>三路合并（3-way strategic merge patch）</strong>，类似 git 的三方合并：</p>
+          <div class="table-wrap">
+            <table>
+              <tr><th>路径</th><th>含义</th></tr>
+              <tr><td><strong>previous</strong></td><td>上次 helm install/upgrade 时记录的 Manifest（存在 Release Secret 中）</td></tr>
+              <tr><td><strong>current</strong></td><td>集群中实际存在的资源状态（可能被 kubectl 手动修改过）</td></tr>
+              <tr><td><strong>desired</strong></td><td>本次 helm upgrade 渲染出的新 Manifest</td></tr>
+            </table>
+          </div>
+          <p style="margin-top:10px;">合并规则：如果 current 相对 previous 有变化（手动改过），且 desired 没有覆盖这个字段，则保留 current 的修改；如果 desired 明确指定了这个字段，desired 优先。这解决了"手动 kubectl 修改 vs Helm 管理"的冲突问题。</p>
+          <pre><span class="cm"># upgrade 基本用法</span>
+helm upgrade &lt;release-name&gt; &lt;chart&gt; [flags]
+
+helm upgrade myapp ./mychart -f values-prod.yaml --set image.tag=v1.3.0
+
+<span class="cm"># --install：Release 不存在时自动 install（CI/CD 幂等部署）</span>
+helm upgrade --install myapp ./mychart -f values-prod.yaml
+
+<span class="cm"># --atomic：任何步骤失败则自动 rollback 并返回非零退出码</span>
+helm upgrade --install myapp ./mychart --atomic --timeout 5m
+
+<span class="cm"># --cleanup-on-fail：upgrade 失败时删除本次新创建的资源（不是回滚，是清理）</span>
+helm upgrade myapp ./mychart --cleanup-on-fail</pre>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>helm rollback / uninstall</h3><span class="badge badge-core">核心</span></div>
+        <div class="card-body">
+          <pre><span class="cm"># 查看历史（每次 install/upgrade/rollback 都是一个 revision）</span>
+helm history myapp
+<span class="cm"># REVISION  UPDATED           STATUS     CHART          APP VERSION   DESCRIPTION</span>
+<span class="cm"># 1         2024-01-01 ...    superseded mychart-1.0.0  2.3.0         Install complete</span>
+<span class="cm"># 2         2024-01-02 ...    superseded mychart-1.1.0  2.4.0         Upgrade complete</span>
+<span class="cm"># 3         2024-01-03 ...    failed     mychart-1.2.0  2.5.0         Upgrade "myapp" failed: ...</span>
+<span class="cm"># 4         2024-01-03 ...    deployed   mychart-1.1.0  2.4.0         Rollback to 2</span>
+
+<span class="cm"># 回滚到上一个 revision（不带版本号 = 上一个）</span>
+helm rollback myapp
+
+<span class="cm"># 回滚到指定 revision</span>
+helm rollback myapp 2
+
+<span class="cm"># rollback 的本质：把 revision 2 的 Manifest 重新 apply 给 K8s</span>
+<span class="cm"># K8s 执行 Deployment 滚动更新回退，同时生成新的 revision（此处为 4）</span>
+
+<span class="cm"># 卸载 Release（删除所有关联 K8s 资源）</span>
+helm uninstall myapp
+
+<span class="cm"># 保留 Release 历史（默认删除）—— 便于后续查看或重装</span>
+helm uninstall myapp --keep-history</pre>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>helm template — 纯渲染调试</h3><span class="badge badge-tip">调试必备</span></div>
+        <div class="card-body">
+          <p><code>helm template</code> 在本地渲染 Chart（不连接集群，不创建 Release），是 CI 校验和调试模板的利器：</p>
+          <pre><span class="cm"># 渲染全部 Manifest 到 stdout</span>
+helm template myapp ./mychart -f values-prod.yaml
+
+<span class="cm"># 只渲染指定 template 文件</span>
+helm template myapp ./mychart --show-only templates/deployment.yaml
+
+<span class="cm"># 输出到文件后用 kubectl apply（GitOps 纯 Manifest 模式）</span>
+helm template myapp ./mychart -f values-prod.yaml > manifests.yaml
+kubectl apply -f manifests.yaml
+
+<span class="cm"># 配合 kubeval / conftest 做 CI 校验</span>
+helm template myapp ./mychart | kubeval --strict
+helm template myapp ./mychart | conftest test -</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 工程场景 ========== -->
+    <div class="section" id="engineering">
+      <div class="section-title"><div class="title-bar"></div><h2>工程场景</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>CI/CD 幂等部署模式</h3><span class="badge badge-high">工程核心</span></div>
+        <div class="card-body">
+          <p><code>helm upgrade --install</code> 是 CI/CD 的标准做法：Release 存在则 upgrade，不存在则 install，天然幂等，重跑不报错。</p>
+          <pre><span class="cm">## GitHub Actions / GitLab CI 示例</span>
+<span class="id">deploy</span><span class="op">:</span>
+  <span class="id">script</span><span class="op">:</span>
+    <span class="cm"># 1. 配置 kubeconfig（或通过 OIDC 获取临时凭证）</span>
+    <span class="op">-</span> <span class="id">aws eks update-kubeconfig --name prod-cluster</span>
+
+    <span class="cm"># 2. 幂等部署：同一命令在首次和后续部署都有效</span>
+    <span class="op">-</span> <span class="id">helm upgrade --install myapp ./charts/myapp</span>
+        <span class="st">--namespace prod</span>
+        <span class="st">--create-namespace</span>
+        <span class="st">-f charts/myapp/values.yaml</span>
+        <span class="st">-f charts/myapp/values-prod.yaml</span>
+        <span class="st">--set image.tag=${CI_COMMIT_SHA:0:8}</span>  <span class="cm"># 用 Git SHA 固定镜像版本</span>
+        <span class="st">--atomic</span>          <span class="cm"># 失败自动回滚，保障集群稳定</span>
+        <span class="st">--timeout 8m</span>      <span class="cm"># 超时时间 > K8s readinessProbe 等待时间</span>
+        <span class="st">--wait</span>             <span class="cm"># 等到 Pod Ready 才算成功</span>
+
+    <span class="cm"># 3. 验证（可选）</span>
+    <span class="op">-</span> <span class="id">helm test myapp --namespace prod</span></pre>
+          <div class="callout">
+            <p><strong>最佳实践：</strong>始终用 Git SHA（而非 <code>latest</code>）作为镜像 tag，确保每次部署可追溯、可回滚到精确版本。结合 <code>--atomic</code> 保证集群状态一致性。</p>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>Chart 测试：helm test</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-body">
+          <p>Helm Test 在安装后执行一次性测试 Pod，验证服务是否真正可用（不只是 Pod Running，而是业务层面的健康）。</p>
+          <pre><span class="cm"># templates/tests/test-connection.yaml</span>
+<span class="id">apiVersion</span><span class="op">:</span> <span class="st">v1</span>
+<span class="id">kind</span><span class="op">:</span> <span class="st">Pod</span>
+<span class="id">metadata</span><span class="op">:</span>
+  <span class="id">name</span><span class="op">:</span> <span class="st">"</span><span class="fn">{{ include "mychart.fullname" . }}</span><span class="st">-test-connection"</span>
+  <span class="id">annotations</span><span class="op">:</span>
+    <span class="st">"helm.sh/hook"</span><span class="op">:</span> <span class="st">test</span>          <span class="cm"># 关键注解：标记为 test hook</span>
+    <span class="st">"helm.sh/hook-delete-policy"</span><span class="op">:</span> <span class="st">hook-succeeded</span>  <span class="cm"># 成功后自动清理</span>
+<span class="id">spec</span><span class="op">:</span>
+  <span class="id">restartPolicy</span><span class="op">:</span> <span class="st">Never</span>
+  <span class="id">containers</span><span class="op">:</span>
+    <span class="op">-</span> <span class="id">name</span><span class="op">:</span> <span class="st">wget</span>
+      <span class="id">image</span><span class="op">:</span> <span class="st">busybox</span>
+      <span class="id">command</span><span class="op">:</span> [<span class="st">'wget'</span>]
+      <span class="id">args</span><span class="op">:</span> [<span class="st">'--spider'</span>, <span class="st">'--timeout=5'</span>,
+             <span class="st">'http://</span><span class="fn">{{ include "mychart.fullname" . }}</span><span class="st">:</span><span class="fn">{{ .Values.service.port }}</span><span class="st">/healthz'</span>]
+
+<span class="cm"># 运行测试</span>
+helm test myapp --namespace prod
+<span class="cm"># Pod 退出码 0 = 测试通过，非 0 = 失败</span></pre>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hd"><h3>仓库管理与 OCI Registry</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-body">
+          <pre><span class="cm"># 添加公共仓库</span>
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update            <span class="cm"># 同步本地仓库索引缓存</span>
+
+<span class="cm"># 搜索 Chart</span>
+helm search repo nginx       <span class="cm"># 在已添加的仓库搜索</span>
+helm search hub nginx        <span class="cm"># 在 ArtifactHub 搜索（需联网）</span>
+
+<span class="cm"># 打包 Chart</span>
+helm package ./mychart       <span class="cm"># 生成 mychart-1.0.0.tgz</span>
+helm package ./mychart --sign --key "My Key"  <span class="cm"># GPG 签名（供应链安全）</span>
+
+<span class="cm"># OCI Registry（Helm v3.8+，推荐替代传统 HTTP 仓库）</span>
+helm push mychart-1.0.0.tgz oci://registry.example.com/charts
+helm pull oci://registry.example.com/charts/mychart --version 1.0.0
+helm install myapp oci://registry.example.com/charts/mychart --version 1.0.0
+
+<span class="cm"># 自建 Harbor 作为 Chart 仓库</span>
+helm registry login harbor.example.com
+helm push mychart-1.0.0.tgz oci://harbor.example.com/library</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== Helm Hooks ========== -->
+    <div class="section" id="hooks">
+      <div class="section-title"><div class="title-bar"></div><h2>Helm Hooks</h2></div>
+      <div class="card">
+        <div class="card-hd"><h3>Hook 生命周期与类型</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-body">
+          <p>Hook 是在 Release 生命周期的特定阶段执行的 K8s 资源（通常是 Job 或 Pod），用于数据库迁移、配置初始化、健康验证等需要在部署前/后执行的一次性操作。</p>
+          <div class="table-wrap">
+            <table>
+              <tr><th>Hook 类型</th><th>触发时机</th><th>典型用途</th></tr>
+              <tr><td><code>pre-install</code></td><td>模板渲染后，任何资源创建前</td><td>创建数据库 schema、申请证书</td></tr>
+              <tr><td><code>post-install</code></td><td>所有资源创建并 Ready 后</td><td>发送 Slack 通知、暖机 API</td></tr>
+              <tr><td><code>pre-upgrade</code></td><td>upgrade 时，更新任何资源前</td><td>数据库迁移（migrate）</td></tr>
+              <tr><td><code>post-upgrade</code></td><td>upgrade 完成所有资源更新后</td><td>缓存预热、冒烟测试</td></tr>
+              <tr><td><code>pre-rollback</code></td><td>rollback 执行前</td><td>备份当前状态</td></tr>
+              <tr><td><code>post-rollback</code></td><td>rollback 完成后</td><td>告警、清理临时资源</td></tr>
+              <tr><td><code>pre-delete</code></td><td>uninstall 删除资源前</td><td>备份数据、优雅排水</td></tr>
+              <tr><td><code>post-delete</code></td><td>所有资源删除后</td><td>清理外部资源（S3、DNS 记录）</td></tr>
+              <tr><td><code>test</code></td><td><code>helm test</code> 命令触发</td><td>端到端功能验证</td></tr>
+            </table>
+          </div>
+          <pre><span class="cm"># 数据库迁移 Hook 示例</span>
+<span class="cm"># templates/hooks/pre-upgrade-migrate.yaml</span>
+<span class="id">apiVersion</span><span class="op">:</span> <span class="st">batch/v1</span>
+<span class="id">kind</span><span class="op">:</span> <span class="st">Job</span>
+<span class="id">metadata</span><span class="op">:</span>
+  <span class="id">name</span><span class="op">:</span> <span class="st">"</span><span class="fn">{{ .Release.Name }}</span><span class="st">-pre-upgrade-migrate"</span>
+  <span class="id">annotations</span><span class="op">:</span>
+    <span class="st">"helm.sh/hook"</span><span class="op">:</span> <span class="st">pre-upgrade</span>
+    <span class="st">"helm.sh/hook-weight"</span><span class="op">:</span> <span class="st">"-5"</span>   <span class="cm"># 多个同类型 Hook 的执行顺序（数字小先执行）</span>
+    <span class="st">"helm.sh/hook-delete-policy"</span><span class="op">:</span> <span class="st">before-hook-creation,hook-succeeded</span>
+<span class="id">spec</span><span class="op">:</span>
+  <span class="id">backoffLimit</span><span class="op">:</span> <span class="num">3</span>
+  <span class="id">template</span><span class="op">:</span>
+    <span class="id">spec</span><span class="op">:</span>
+      <span class="id">restartPolicy</span><span class="op">:</span> <span class="st">OnFailure</span>
+      <span class="id">containers</span><span class="op">:</span>
+        <span class="op">-</span> <span class="id">name</span><span class="op">:</span> <span class="st">migrate</span>
+          <span class="id">image</span><span class="op">:</span> <span class="st">"</span><span class="fn">{{ .Values.image.repository }}:{{ .Values.image.tag }}</span><span class="st">"</span>
+          <span class="id">command</span><span class="op">:</span> [<span class="st">"./migrate"</span>, <span class="st">"--direction=up"</span>]
+          <span class="id">env</span><span class="op">:</span>
+            <span class="op">-</span> <span class="id">name</span><span class="op">:</span> <span class="st">DB_URL</span>
+              <span class="id">valueFrom</span><span class="op">:</span>
+                <span class="id">secretKeyRef</span><span class="op">:</span>
+                  <span class="id">name</span><span class="op">:</span> <span class="fn">{{ .Release.Name }}</span><span class="st">-db-secret</span>
+                  <span class="id">key</span><span class="op">:</span> <span class="st">url</span></pre>
+          <div class="callout">
+            <p><strong>hook-delete-policy 说明：</strong><code>before-hook-creation</code>（再次触发时先删旧的）+ <code>hook-succeeded</code>（成功后自动删除）是最常见组合，可避免 Job 残留导致下次 upgrade 时的命名冲突。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 面试题 ========== -->
+    <div class="section" id="interview">
+      <div class="section-title"><div class="title-bar"></div><h2>面试题</h2></div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">Helm v2 和 v3 的核心区别是什么？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">最核心区别是 <strong>去掉了 Tiller</strong>（v2 的服务端组件）。<br><br>
+        Helm v2：客户端 helm CLI + 服务端 Tiller（运行在 K8s 中，拥有 cluster-admin 权限），所有操作通过 gRPC 调用 Tiller。Release 历史存在 ConfigMap 中。<br><br>
+        Helm v3：纯客户端，直接调用 K8s API Server，权限与 kubectl 用户权限相同（RBAC 约束）。Release 历史改存在 Secret 中（数据加密更安全）。三路合并策略也是 v3 引入的改进。<br><br>
+        工程意义：v3 不再有 RBAC 漏洞（Tiller 过于强大的权限问题），多租户集群更安全。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">Chart.version 和 Chart.appVersion 有什么区别？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a"><code>version</code>（Chart 版本）：Chart 包本身的 SemVer 版本，每次修改 templates、values、依赖等 Chart 内容时递增。Helm 用它做版本管理和依赖解析。<br><br>
+        <code>appVersion</code>（应用版本）：仅供标注用的字符串，表示该 Chart 默认安装的应用软件版本，不影响 Helm 任何行为，只在 <code>helm list</code> 中显示。<br><br>
+        实际场景：<code>image.tag</code> 通常与 appVersion 对应，但更好的做法是通过 CI 的 <code>--set image.tag=...</code> 覆盖，而非频繁修改 appVersion。Chart.version 应在 Chart 本身逻辑发生变化时才递增。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">helm upgrade 失败后集群处于什么状态？如何恢复？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">失败后 Release 状态变为 <code>failed</code>，<strong>K8s 资源可能处于部分更新状态</strong>（一部分 Pod 已是新版本，另一部分仍是旧版本，取决于 RollingUpdate 进度）。<br><br>
+        恢复方式：<br>
+        1. <code>helm rollback myapp</code>：推荐。Helm 将上一个 superseded 版本的 Manifest 重新 apply，触发 K8s 滚动回退，生成新 revision。<br>
+        2. 如果用了 <code>--atomic</code>：Helm 在检测到失败（超时或 Hooks 失败）时自动执行 rollback，无需手动干预。<br>
+        3. 如果 Hook 失败导致 stuck：先手动删除失败的 Hook Job，再 <code>helm rollback</code>。<br><br>
+        注意：<code>--cleanup-on-fail</code> 只删除本次 upgrade 新创建的资源，不执行完整 rollback。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">如何在 Helm 中管理 Secret？安全最佳实践是什么？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">直接把密码写进 values.yaml 或 values-prod.yaml 并提交 Git 是危险的。常见解决方案：<br><br>
+        1. <strong>helm-secrets 插件</strong>：集成 SOPS，values.yaml 中密文存储，运行时用 KMS/GPG 解密后注入。<br>
+        2. <strong>外部 Secret 管理</strong>：K8s Secret 不通过 Helm 管理，而是由 External Secrets Operator 从 AWS Secrets Manager / HashiCorp Vault 同步。Chart 的 template 中直接 valueFrom.secretKeyRef 引用已存在的 Secret。<br>
+        3. <strong>CI 环境变量 + --set</strong>：密码通过 CI 的 masked 变量传入 <code>--set db.password=$SECRET</code>，不落盘。<br><br>
+        生产推荐：External Secrets + Vault，最小化 K8s etcd 中的明文数据。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">Helm 和 Kustomize 怎么选？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">两者解决不同问题，也可以组合使用（Kustomize 管理 Helm 渲染输出）：<br><br>
+        <strong>选 Helm 当：</strong> 需要打包分发 Chart（给外部用户用）；应用结构复杂，需要条件渲染（if/range）；需要 Release 生命周期管理（install/upgrade/rollback/history）；依赖其他 Chart。<br><br>
+        <strong>选 Kustomize 当：</strong> 只管自己团队的应用；以 overlay 方式管理多环境差异，不需要复杂模板逻辑；Manifest 已经存在且不想引入模板复杂度；已被 kubectl 原生支持（kubectl apply -k）。<br><br>
+        <strong>组合：</strong> ArgoCD / Flux 支持 "Helm + Kustomize"，先用 helm template 渲染，再用 Kustomize patch 做环境差异化调整。</div>
+      </div>
+
+      <div class="qa-card" onclick="toggleQA(this)">
+        <div class="qa-q">Release 历史存在 Secret 中有大小限制吗？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">有。K8s Secret 单条数据的大小限制是 <strong>1 MiB</strong>（etcd 的 value 限制）。每个 Release 的每个 revision 都对应一个 Secret（base64 + gzip 压缩存储）。<br><br>
+        触发问题的场景：Chart templates 非常多、渲染出的 Manifest 很大（如包含大量 CRD 或大型 ConfigMap inline 数据）。<br><br>
+        解决方案：<br>
+        1. 不在 values 中 inline 大文件（用 ConfigMap 的 .Files.Get 代替）<br>
+        2. 控制 release history 数量：<code>--history-max 10</code>（默认 10，可在 helm upgrade 时指定）<br>
+        3. 大型静态配置数据用 K8s ConfigMap 存储，不走 Helm template 渲染<br>
+        4. 考虑把大 Chart 拆分为多个子 Chart</div>
+      </div>
+    </div>
+
+    <!-- ========== 常见误区 ========== -->
+    <div class="section" id="pitfalls">
+      <div class="section-title"><div class="title-bar"></div><h2>常见误区</h2></div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 修改了 values.yaml 但没 upgrade，以为会自动生效</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm"># 错误认知：</span>
+<span class="cm"># 改了 values.yaml 里的 replicaCount</span>
+<span class="cm"># 以为 K8s 会自动感知并调整</span>
+
+<span class="cm"># 实际情况：</span>
+<span class="cm"># Helm 不是 operator，不持续监控</span>
+<span class="cm"># values.yaml 只是模板参数文件</span>
+<span class="cm"># 不运行 helm upgrade，</span>
+<span class="cm"># 集群中什么都不会变化</span>
+
+<span class="cm"># 这与 K8s ConfigMap 热更新不同！</span>
+<span class="cm"># ConfigMap 挂载为 volume 时，</span>
+<span class="cm"># K8s 会自动 watch 并更新文件</span>
+<span class="cm"># 但 Helm values 是一次性渲染参数</span></pre>
+            <p>Helm 是命令式工具，values 改动必须显式执行 upgrade 才能同步到集群。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm"># 正确做法：</span>
+<span class="cm"># 修改 values 后必须执行 upgrade</span>
+
+helm upgrade myapp ./mychart \
+  -f values.yaml \
+  -f values-prod.yaml \
+  --reuse-values   <span class="cm"># 复用上次的 values，</span>
+                   <span class="cm"># 只覆盖显式指定的部分</span>
+
+<span class="cm"># 确认变更已生效</span>
+helm get values myapp    <span class="cm"># 查看当前 Release 的 values</span>
+helm get manifest myapp  <span class="cm"># 查看当前 Release 的 Manifest</span>
+kubectl get deploy myapp -o yaml | grep replicas</pre>
+            <p>通过 <code>helm get values</code> 和 <code>helm get manifest</code> 验证变更是否已实际生效。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ 用 --set 传复杂数组/对象时语法错误</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm"># 错误：--set 的数组语法容易写错</span>
+
+<span class="cm"># 设置数组元素（错误写法）</span>
+helm install myapp ./mychart \
+  --set env=["KEY=VAL"]   <span class="cm"># ❌ 不支持</span>
+
+<span class="cm"># 深层嵌套对象（容易拼错）</span>
+helm install myapp ./mychart \
+  --set a.b.c.d=value     <span class="cm"># 超深路径极易出错</span>
+
+<span class="cm"># 含特殊字符（逗号、花括号）</span>
+helm install myapp ./mychart \
+  --set hosts={a.com,b.com}  <span class="cm"># Shell 可能展开</span></pre>
+            <p>--set 的数组和特殊字符语法很反直觉，复杂结构应改用 -f 文件。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm"># 正确：复杂结构用 -f 临时文件</span>
+
+<span class="cm"># 数组正确语法</span>
+helm install myapp ./mychart \
+  --set "hosts[0]=a.com,hosts[1]=b.com"
+
+<span class="cm"># 更好：复杂覆盖写临时 values 文件</span>
+<span class="id">cat</span> > /tmp/override.yaml <span class="op">&lt;&lt;</span><span class="st">EOF</span>
+hosts:
+  - a.com
+  - b.com
+env:
+  - name: KEY
+    value: VAL
+<span class="st">EOF</span>
+
+helm upgrade --install myapp ./mychart \
+  -f values.yaml \
+  -f /tmp/override.yaml   <span class="cm"># 结构清晰，不易出错</span></pre>
+            <p>复杂结构始终通过 -f yaml 文件传入，可审查、可版本控制。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ helm template 本地渲染成功，但 helm install 集群失败</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm"># helm template 不连集群，不验证：</span>
+<span class="cm"># - K8s API 版本兼容性</span>
+<span class="cm"># - CRD 是否存在</span>
+<span class="cm"># - RBAC 权限是否足够</span>
+<span class="cm"># - 资源名称是否冲突</span>
+<span class="cm"># - imagePullSecret 是否存在</span>
+
+<span class="cm"># 常见场景：</span>
+<span class="cm"># Chart 用 networking.k8s.io/v1 Ingress</span>
+<span class="cm"># 老集群只有 extensions/v1beta1</span>
+<span class="cm"># helm template 渲染正常</span>
+<span class="cm"># 但 helm install 时 K8s 拒绝</span></pre>
+            <p>helm template 是纯本地 Go template 渲染，不能替代真实集群验证。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm"># 增加 CI 校验层次</span>
+
+<span class="cm"># 1. helm template + kubeval 检查 schema</span>
+helm template myapp ./mychart | \
+  kubeval --strict --kubernetes-version 1.28.0
+
+<span class="cm"># 2. helm install --dry-run 连接集群做服务端验证</span>
+helm install myapp ./mychart --dry-run \
+  --namespace prod
+
+<span class="cm"># 3. 使用 .Capabilities 做版本条件渲染</span>
+<span class="fn">{{- if .Capabilities.APIVersions.Has "networking.k8s.io/v1/Ingress" }}</span>
+<span class="id">apiVersion</span><span class="op">:</span> <span class="st">networking.k8s.io/v1</span>
+<span class="fn">{{- else }}</span>
+<span class="id">apiVersion</span><span class="op">:</span> <span class="st">extensions/v1beta1</span>
+<span class="fn">{{- end }}</span></pre>
+            <p>用 <code>--dry-run</code> 连接真实集群做服务端验证；用 <code>.Capabilities</code> 处理多集群版本差异。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pitfall">
+        <div class="pitfall-hd bad">❌ kubectl 手动修改资源后，helm upgrade 覆盖丢失</div>
+        <div class="pitfall-body">
+          <div class="pitfall-col">
+            <pre><span class="cm"># 场景：线上紧急扩容</span>
+kubectl scale deploy myapp --replicas=10
+
+<span class="cm"># 此时 CI 触发 helm upgrade</span>
+<span class="cm"># 三路合并中：</span>
+<span class="cm"># previous.replicas = 2 (helm 记录的)</span>
+<span class="cm"># current.replicas  = 10 (kubectl 改的)</span>
+<span class="cm"># desired.replicas  = 2 (values.yaml 的)</span>
+<span class="cm">#</span>
+<span class="cm"># desired 明确指定了 replicas</span>
+<span class="cm"># desired 优先 → 强制回到 2 ！</span>
+<span class="cm"># 手动扩容被悄悄覆盖</span></pre>
+            <p>三路合并中 desired（Helm values）会覆盖 current（kubectl 修改），紧急变更会丢失。</p>
+          </div>
+          <div class="pitfall-col">
+            <pre><span class="cm"># 解决方案 1：弹性伸缩由 HPA 管理</span>
+<span class="cm"># values.yaml 中不写固定 replicaCount</span>
+<span class="cm"># 由 HPA 动态控制副本数</span>
+<span class="id">autoscaling</span><span class="op">:</span>
+  <span class="id">enabled</span><span class="op">:</span> <span class="kw">true</span>
+  <span class="id">minReplicas</span><span class="op">:</span> <span class="num">2</span>
+  <span class="id">maxReplicas</span><span class="op">:</span> <span class="num">20</span>
+
+<span class="cm"># 解决方案 2：紧急扩容后立即同步 values</span>
+<span class="cm"># 修改 values-prod.yaml → commit → helm upgrade</span>
+<span class="cm"># 走正规 GitOps 流程</span>
+
+<span class="cm"># 解决方案 3：--reuse-values</span>
+<span class="cm"># 复用上次 helm 记录的 values</span>
+<span class="cm"># 但这不能保留 kubectl 的修改</span>
+helm upgrade myapp ./mychart --reuse-values</pre>
+            <p>黄金法则：Helm 管理的资源不要用 kubectl 直接修改；弹性伸缩交给 HPA。</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+<script>
+function toggleQA(el){el.classList.toggle('open');}
+document.addEventListener('DOMContentLoaded',()=>{
+  if(typeof NavTracker!=='undefined') NavTracker.track('Helm 包管理','cloud-native/helm.html','⎈','云原生');
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="日志体系 ELK/Loki — ELK 提供全文检索，Loki 以标签索引为核心，Filebeat/Promtail 采集分散日志汇聚到中央存储，支持全文检索与告警。">
+<link rel="canonical" href="https://melodycoder12345.github.io/observability/logging.html">
+<meta property="og:title" content="日志体系：ELK / Loki — 码海拾贝">
+<meta property="og:description" content="日志体系 ELK/Loki — ELK 提供全文检索，Loki 以标签索引为核心，Filebeat/Promtail 采集分散日志汇聚到中央存储，支持全文检索与告警。">
+<meta property="og:url" content="https://melodycoder12345.github.io/observability/logging.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="日志体系：ELK / Loki — 码海拾贝">
+<meta name="twitter:description" content="日志体系 ELK/Loki — ELK 提供全文检索，Loki 以标签索引为核心，Filebeat/Promtail 采集分散日志汇聚到中央存储，支持全文检索与告警。">
+<title>日志体系：ELK / Loki - 可观测性</title>
+<script src="../nav.js"></script>
+<style>
+:root{
+  --bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;
+  --accent:#f472b6;--ok:#4ade80;--warn:#fbbf24;--err:#f87171;
+  --blue:#38bdf8;--purple:#a78bfa;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  min-height:100vh;
+  background:radial-gradient(circle at 20% 0%,rgba(244,114,182,.12),transparent 40%),var(--bg);
+  color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif
+}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1300px;margin:0 auto;padding:40px 32px 80px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--dim2);margin-bottom:24px}
+.breadcrumb a{color:var(--dim2)}.breadcrumb a:hover{color:var(--text)}
+.page-title{
+  font-size:clamp(1.6rem,3.5vw,2.8rem);letter-spacing:-.04em;margin-bottom:6px;
+  background:linear-gradient(135deg,#f8fafc,var(--accent));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text
+}
+.subtitle{color:var(--dim);font-size:.95rem;margin-bottom:28px;max-width:720px;line-height:1.75}
+.layout{display:grid;grid-template-columns:284px 1fr;gap:20px}
+
+/* ── Left panel ── */
+.left-panel{
+  border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);
+  border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:10px
+}
+.panel-label{font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em}
+.tab-nav{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.tab-btn{
+  border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);
+  color:var(--dim2);padding:7px 6px;border-radius:8px;cursor:pointer;
+  font-size:.72rem;text-align:center;transition:.15s;line-height:1.35
+}
+.tab-btn:hover{border-color:rgba(244,114,182,.3);color:var(--text)}
+.tab-btn.active{background:rgba(244,114,182,.1);border-color:rgba(244,114,182,.4);color:var(--text)}
+.step-list{flex:1;overflow-y:auto;min-height:0}
+.step-btn{
+  width:100%;text-align:left;border:1px solid transparent;background:none;
+  color:var(--dim);padding:8px 10px;border-radius:10px;cursor:pointer;
+  font-size:.79rem;line-height:1.45;transition:.15s;margin-bottom:3px;display:flex;align-items:flex-start;gap:0
+}
+.step-btn:hover{border-color:rgba(244,114,182,.3);color:var(--text)}
+.step-btn.active{background:rgba(244,114,182,.1);border-color:rgba(244,114,182,.4);color:var(--text)}
+.step-idx{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:18px;height:18px;border-radius:50%;
+  background:rgba(244,114,182,.15);color:var(--accent);
+  font-size:.66rem;font-weight:700;margin-right:7px;margin-top:1px;flex-shrink:0
+}
+.ctrl{display:flex;gap:6px;flex-wrap:wrap}
+.ctrl button{
+  flex:1;min-width:0;border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.04);color:var(--dim);
+  border-radius:10px;padding:7px 4px;cursor:pointer;font-size:.74rem;transition:.15s
+}
+.ctrl button:hover{border-color:var(--accent);color:var(--text)}
+
+/* ── Center panel ── */
+.center-panel{
+  border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);
+  border-radius:18px;padding:24px;min-height:580px;
+  display:flex;flex-direction:column;gap:16px
+}
+.step-msg{
+  border-left:3px solid var(--accent);background:rgba(244,114,182,.06);
+  border-radius:0 10px 10px 0;padding:10px 14px;
+  font-size:.86rem;color:var(--text);line-height:1.75;flex-shrink:0
+}
+.scene{display:none;flex-direction:column;gap:14px;flex:1}
+.scene.active{display:flex}
+
+/* ── Components ── */
+.section-label{font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px}
+.comp-box{
+  border:1px solid rgba(255,255,255,.1);border-radius:10px;
+  padding:10px 12px;background:rgba(30,41,59,.5);
+  font-size:.78rem;text-align:center;min-width:86px;
+  transition:border-color .3s,background .3s,box-shadow .3s
+}
+.comp-box .cname{font-weight:600;font-size:.8rem;margin-bottom:2px}
+.comp-box .csub{font-size:.65rem;color:var(--dim2)}
+.comp-box.hi{border-color:var(--accent);background:rgba(244,114,182,.08);box-shadow:0 0 14px rgba(244,114,182,.15)}
+.comp-box.ok{border-color:var(--ok);background:rgba(74,222,128,.06)}
+.comp-box.err{border-color:var(--err);background:rgba(248,113,113,.06)}
+.comp-box.warn{border-color:var(--warn);background:rgba(251,191,36,.06)}
+.comp-box.dim-out{opacity:.38}
+
+@keyframes pulse{0%,100%{box-shadow:0 0 0 rgba(244,114,182,0)}50%{box-shadow:0 0 18px rgba(244,114,182,.35)}}
+@keyframes pulseErr{0%,100%{box-shadow:0 0 0 rgba(248,113,113,0)}50%{box-shadow:0 0 16px rgba(248,113,113,.35)}}
+@keyframes pulseWarn{0%,100%{box-shadow:0 0 0 rgba(251,191,36,0)}50%{box-shadow:0 0 14px rgba(251,191,36,.3)}}
+.comp-box.hi.pulse{animation:pulse 1s ease-in-out infinite}
+.comp-box.err.pulse{animation:pulseErr 1s ease-in-out infinite}
+.comp-box.warn.pulse{animation:pulseWarn 1s ease-in-out infinite}
+
+.flow-arrow{
+  font-size:1rem;color:var(--dim2);margin:0 3px;
+  transition:color .3s;white-space:nowrap;flex-shrink:0;align-self:center
+}
+@keyframes flowPulse{0%,100%{opacity:.35;transform:scaleX(.9)}50%{opacity:1;transform:scaleX(1)}}
+.flow-arrow.active{color:var(--accent)}
+.flow-arrow.flowing{color:var(--accent);animation:flowPulse .75s ease-in-out infinite}
+
+/* ── Pipeline ── */
+.pipeline{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;row-gap:8px}
+
+/* ── Log / code preview ── */
+.log-pre{
+  font-family:'Fira Code','Cascadia Code',monospace;font-size:.72rem;
+  color:var(--dim);line-height:1.9;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);
+  border-radius:8px;padding:10px 13px;overflow-x:auto;white-space:pre
+}
+.lp-hl{color:var(--accent)}
+.lp-ok{color:var(--ok)}
+.lp-err{color:var(--err)}
+.lp-warn{color:var(--warn)}
+.lp-dim{color:var(--dim2)}
+.lp-purple{color:var(--purple)}
+
+/* ── Inverted index ── */
+.inv-grid{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;align-items:center}
+.inv-term{
+  color:var(--accent);background:rgba(244,114,182,.08);
+  border:1px solid rgba(244,114,182,.25);border-radius:5px;
+  padding:3px 9px;font-family:monospace;font-size:.71rem;white-space:nowrap
+}
+.inv-posting{display:flex;gap:4px;flex-wrap:wrap}
+.inv-doc{
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+  border-radius:4px;padding:2px 7px;font-size:.66rem;font-family:monospace;
+  color:var(--dim);transition:.2s
+}
+.inv-doc.match{border-color:var(--accent);color:var(--accent);background:rgba(244,114,182,.12)}
+
+/* ── Result entries ── */
+.result-entry{
+  font-family:monospace;font-size:.71rem;line-height:1.75;
+  padding:6px 10px;border-radius:6px;
+  background:rgba(255,255,255,.03);border-left:2px solid var(--accent)
+}
+.result-entry .match{background:rgba(244,114,182,.25);border-radius:2px;padding:0 2px;color:var(--text)}
+.query-box{
+  font-family:monospace;font-size:.78rem;color:var(--ok);
+  background:rgba(74,222,128,.05);border:1px solid rgba(74,222,128,.2);
+  border-radius:8px;padding:9px 13px
+}
+
+/* ── Loki label chips ── */
+.chip{display:inline-block;border-radius:5px;padding:3px 8px;font-family:monospace;font-size:.67rem;font-weight:600;margin:2px}
+.chip-ns{background:rgba(244,114,182,.12);border:1px solid rgba(244,114,182,.3);color:#f9a8d4}
+.chip-pod{background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.3);color:#7dd3fc}
+.chip-svc{background:rgba(74,222,128,.12);border:1px solid rgba(74,222,128,.3);color:#86efac}
+.chip-lvl-err{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);color:#fca5a5}
+.chip-lvl-info{background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);color:#93c5fd}
+
+/* ── Chunk visualization ── */
+.chunk-row{display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end}
+.chunk{
+  border-radius:7px;padding:8px 10px;font-size:.67rem;
+  font-family:monospace;min-width:76px;text-align:center;transition:all .4s
+}
+.chunk.mem{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.3);color:#bae6fd}
+.chunk.comp{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.25);color:#86efac}
+@keyframes chunkIn{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
+.chunk.new{animation:chunkIn .35s}
+
+/* ── Position file ── */
+.pos-file{
+  font-family:monospace;font-size:.71rem;
+  background:rgba(167,139,250,.05);border:1px solid rgba(167,139,250,.2);
+  border-radius:8px;padding:9px 12px;color:var(--dim);line-height:1.85
+}
+.pos-hl{color:#c4b5fd}
+
+/* ── Queue bar ── */
+.q-bar{
+  height:14px;border-radius:7px;background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.1);overflow:hidden
+}
+.q-fill{height:100%;border-radius:7px;transition:width .5s ease,background .3s}
+
+/* ── Two-column grid ── */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* ── Info rows ── */
+.info-row{display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--dim);margin-bottom:6px}
+.info-lbl{color:var(--dim2);font-size:.72rem;min-width:72px}
+
+/* ── Loki dual-path ── */
+.loki-path-lbl{font-size:.68rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:5px}
+.loki-paths{display:flex;flex-direction:column;gap:10px}
+
+/* ── Badge row ── */
+.badge-row{display:flex;gap:8px;flex-wrap:wrap}
+
+/* ── Event log (flood) ── */
+.evt-log{display:flex;flex-direction:column;gap:4px}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="breadcrumb">
+    <a href="../index.html">首页</a><span>/</span>
+    <a href="index.html">可观测性</a><span>/</span>
+    日志体系 ELK / Loki
+  </div>
+  <h1 class="page-title">日志体系：ELK / Loki</h1>
+  <p class="subtitle">日志是可观测性三大支柱之一。ELK（Elasticsearch + Logstash + Kibana）提供全文搜索能力，Loki 以标签索引为核心，更轻量且与 Prometheus 生态集成。两者均通过采集 Agent（Fluentd / Fluent Bit / Promtail）将分散在各 Pod 的日志汇聚到中央存储，支持全文检索和告警。</p>
+
+  <div class="layout">
+    <!-- ── Left panel ── -->
+    <div class="left-panel">
+      <div class="panel-label">场景</div>
+      <div class="tab-nav">
+        <button class="tab-btn active" onclick="switchTab(0)">① ELK 写入<br>&amp; 检索</button>
+        <button class="tab-btn"        onclick="switchTab(1)">② Loki<br>架构流程</button>
+        <button class="tab-btn"        onclick="switchTab(2)">③ Agent<br>崩溃恢复</button>
+        <button class="tab-btn"        onclick="switchTab(3)">④ 日志<br>洪峰</button>
+      </div>
+      <div class="panel-label">步骤</div>
+      <div class="step-list" id="stepList"></div>
+      <div class="ctrl">
+        <button onclick="prev()">← 上一步</button>
+        <button onclick="next()">下一步 →</button>
+        <button onclick="reset()">重置</button>
+        <button id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      </div>
+    </div>
+
+    <!-- ── Center panel ── -->
+    <div class="center-panel">
+      <div class="step-msg" id="stepMsg">选择场景，点击「下一步」观察日志系统的完整流程。</div>
+
+      <!-- ═══════════════════════════════════════════
+           Scene 0 : ELK 正常写入与检索
+      ═══════════════════════════════════════════ -->
+      <div class="scene active" id="scene0">
+
+        <div>
+          <div class="section-label">ELK 管道架构</div>
+          <div class="pipeline" id="elkPipe">
+            <div class="comp-box" id="e-app">
+              <div class="cname">App Service</div>
+              <div class="csub">payment-svc</div>
+            </div>
+            <div class="flow-arrow" id="ea1">──▶</div>
+            <div class="comp-box" id="e-beat">
+              <div class="cname">Filebeat</div>
+              <div class="csub">采集 Agent</div>
+            </div>
+            <div class="flow-arrow" id="ea2">──▶</div>
+            <div class="comp-box" id="e-ls">
+              <div class="cname">Logstash</div>
+              <div class="csub">过滤/转换</div>
+            </div>
+            <div class="flow-arrow" id="ea3">──▶</div>
+            <div class="comp-box" id="e-es">
+              <div class="cname">Elasticsearch</div>
+              <div class="csub">全文索引</div>
+            </div>
+            <div class="flow-arrow" id="ea4">──▶</div>
+            <div class="comp-box" id="e-ki">
+              <div class="cname">Kibana</div>
+              <div class="csub">可视化查询</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="e-logarea">
+          <div class="section-label">结构化 JSON 日志（stdout）</div>
+          <div class="log-pre" id="e-log"><span class="lp-dim">// 服务输出日志...</span></div>
+        </div>
+
+        <div id="e-idxarea" style="display:none">
+          <div class="section-label">Elasticsearch 倒排索引（简化示意）</div>
+          <div style="border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:12px;background:rgba(30,41,59,.4)">
+            <div class="inv-grid" id="e-idx"></div>
+          </div>
+        </div>
+
+        <div id="e-qarea" style="display:none">
+          <div class="section-label">Kibana 查询 &amp; 结果</div>
+          <div class="query-box" id="e-qbox">level:error AND service:payment-service</div>
+          <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px" id="e-results"></div>
+        </div>
+
+      </div><!-- /scene0 -->
+
+      <!-- ═══════════════════════════════════════════
+           Scene 1 : Loki 架构流程
+      ═══════════════════════════════════════════ -->
+      <div class="scene" id="scene1">
+
+        <div class="loki-paths">
+          <div>
+            <div class="loki-path-lbl">写入路径</div>
+            <div class="pipeline" id="lokiWPipe">
+              <div class="comp-box" id="l-pod">
+                <div class="cname">Pod</div>
+                <div class="csub">stdout 日志</div>
+              </div>
+              <div class="flow-arrow" id="la1">──▶</div>
+              <div class="comp-box" id="l-pt">
+                <div class="cname">Promtail</div>
+                <div class="csub">标签提取</div>
+              </div>
+              <div class="flow-arrow" id="la2">──▶</div>
+              <div class="comp-box" id="l-dist">
+                <div class="cname">Distributor</div>
+                <div class="csub">一致性哈希</div>
+              </div>
+              <div class="flow-arrow" id="la3">──▶</div>
+              <div class="comp-box" id="l-ing">
+                <div class="cname">Ingester</div>
+                <div class="csub">WAL + Chunk</div>
+              </div>
+              <div class="flow-arrow" id="la4">──▶</div>
+              <div class="comp-box" id="l-obj">
+                <div class="cname">Object Storage</div>
+                <div class="csub">S3 / GCS</div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="loki-path-lbl">查询路径</div>
+            <div class="pipeline" id="lokiQPipe">
+              <div class="comp-box" id="l-gf">
+                <div class="cname">Grafana</div>
+                <div class="csub">LogQL 查询</div>
+              </div>
+              <div class="flow-arrow" id="la5">──▶</div>
+              <div class="comp-box" id="l-qr">
+                <div class="cname">Querier</div>
+                <div class="csub">标签路由</div>
+              </div>
+              <div class="flow-arrow" id="la6">──▶</div>
+              <div class="comp-box dim-out" id="l-obj2">
+                <div class="cname">Object Storage</div>
+                <div class="csub">读取 Chunk</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-label">日志 Stream 标签（不同颜色代表不同 Stream）</div>
+          <div id="l-labels" style="display:flex;gap:14px;flex-wrap:wrap;min-height:30px">
+            <span style="font-size:.75rem;color:var(--dim2)">Promtail 提取标签后显示…</span>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-label">Ingester 内存 Chunk（按 Stream + 时间组织）</div>
+          <div class="chunk-row" id="l-chunks">
+            <span style="font-size:.75rem;color:var(--dim2)">Ingester 接收日志后显示…</span>
+          </div>
+        </div>
+
+        <div id="l-qbox-area" style="display:none">
+          <div class="section-label">LogQL 查询</div>
+          <div class="query-box">{namespace="prod", level="error"} |= "payment"</div>
+          <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px" id="l-qresults"></div>
+        </div>
+
+      </div><!-- /scene1 -->
+
+      <!-- ═══════════════════════════════════════════
+           Scene 2 : Agent 崩溃恢复
+      ═══════════════════════════════════════════ -->
+      <div class="scene" id="scene2">
+
+        <div>
+          <div class="section-label">Fluentd Agent 管道状态</div>
+          <div class="pipeline" id="crPipe">
+            <div class="comp-box ok" id="cr-file">
+              <div class="cname">Pod stdout</div>
+              <div class="csub">日志文件</div>
+            </div>
+            <div class="flow-arrow" id="cra1">──▶</div>
+            <div class="comp-box" id="cr-agent">
+              <div class="cname">Fluentd</div>
+              <div class="csub" id="cr-agent-sub">Agent 运行中</div>
+            </div>
+            <div class="flow-arrow" id="cra2">──▶</div>
+            <div class="comp-box" id="cr-es">
+              <div class="cname">Elasticsearch</div>
+              <div class="csub" id="cr-es-sub">接收日志</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div>
+            <div class="section-label">Position File（读取 Checkpoint）</div>
+            <div class="pos-file" id="cr-pos"><span class="lp-dim">// checkpoint 未初始化</span></div>
+          </div>
+          <div>
+            <div class="section-label">文件缓冲区积压</div>
+            <div class="info-row">
+              <span class="info-lbl">积压日志：</span>
+              <span id="cr-buf-n" style="font-weight:600;color:var(--ok)">0 条</span>
+            </div>
+            <div class="q-bar">
+              <div class="q-fill" id="cr-buf-bar" style="width:0%;background:var(--ok)"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="cr-dedup-area" style="display:none">
+          <div class="section-label">Elasticsearch 幂等写入（文档 ID 去重）</div>
+          <div class="log-pre" id="cr-dedup"></div>
+        </div>
+
+        <div id="cr-result-area" style="display:none">
+          <div class="section-label">恢复语义总结</div>
+          <div class="badge-row" id="cr-badges"></div>
+        </div>
+
+      </div><!-- /scene2 -->
+
+      <!-- ═══════════════════════════════════════════
+           Scene 3 : 日志量洪峰
+      ═══════════════════════════════════════════ -->
+      <div class="scene" id="scene3">
+
+        <div>
+          <div class="section-label">日志采集管道</div>
+          <div class="pipeline" id="flPipe">
+            <div class="comp-box ok" id="fl-svc">
+              <div class="cname">微服务集群</div>
+              <div class="csub" id="fl-svc-sub">1万条/s</div>
+            </div>
+            <div class="flow-arrow" id="fla1">──▶</div>
+            <div class="comp-box ok" id="fl-agent">
+              <div class="cname">Fluentd Agent</div>
+              <div class="csub" id="fl-agent-sub">正常发送</div>
+            </div>
+            <div class="flow-arrow" id="fla2">──▶</div>
+            <div class="comp-box ok" id="fl-ls">
+              <div class="cname">Logstash</div>
+              <div class="csub" id="fl-ls-sub">处理正常</div>
+            </div>
+            <div class="flow-arrow" id="fla3">──▶</div>
+            <div class="comp-box ok" id="fl-es">
+              <div class="cname">Elasticsearch</div>
+              <div class="csub" id="fl-es-sub">写入正常</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div>
+            <div class="section-label">日志速率（条/s）</div>
+            <div class="info-row">
+              <span class="info-lbl">当前速率：</span>
+              <span id="fl-rate" style="font-size:1.1rem;font-weight:700;color:var(--ok)">10,000</span>
+            </div>
+            <div class="q-bar">
+              <div class="q-fill" id="fl-rate-bar" style="width:1%;background:var(--ok)"></div>
+            </div>
+          </div>
+          <div>
+            <div class="section-label">Logstash 队列积压</div>
+            <div class="info-row">
+              <span class="info-lbl">积压量：</span>
+              <span id="fl-queue" style="font-weight:700;color:var(--ok)">0 条</span>
+            </div>
+            <div class="q-bar">
+              <div class="q-fill" id="fl-queue-bar" style="width:0%;background:var(--ok)"></div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="section-label">日志级别过滤策略</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <div class="comp-box ok" id="fl-debug" style="min-width:82px">
+              <div class="cname" style="font-size:.73rem">DEBUG</div>
+              <div class="csub" id="fl-debug-sub">正常采集</div>
+            </div>
+            <div class="comp-box ok" id="fl-info" style="min-width:82px">
+              <div class="cname" style="font-size:.73rem">INFO</div>
+              <div class="csub" id="fl-info-sub">正常采集</div>
+            </div>
+            <div class="comp-box ok" id="fl-warn" style="min-width:82px;border-color:rgba(251,191,36,.3)">
+              <div class="cname" style="font-size:.73rem;color:var(--warn)">WARN</div>
+              <div class="csub" id="fl-warn-sub">正常采集</div>
+            </div>
+            <div class="comp-box ok" id="fl-err" style="min-width:82px;border-color:rgba(248,113,113,.3)">
+              <div class="cname" style="font-size:.73rem;color:var(--err)">ERROR</div>
+              <div class="csub" id="fl-err-sub">正常采集</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="fl-evt-area" style="display:none">
+          <div class="section-label">系统事件日志</div>
+          <div class="evt-log" id="fl-evts"></div>
+        </div>
+
+      </div><!-- /scene3 -->
+
+    </div><!-- /center-panel -->
+  </div><!-- /layout -->
+</main>
+<script>
+/* ──────────────────────────────────────────────
+   Data
+────────────────────────────────────────────── */
+const TABS = [
+  { name:'ELK 写入 & 检索', steps:[
+    '初始状态','服务输出 JSON 日志','Filebeat 采集 stdout','Logstash 解析/Enrichment',
+    'ES 建立倒排索引','Kibana 输入查询','倒排索引命中返回'
+  ]},
+  { name:'Loki 架构', steps:[
+    '初始状态','Pod 输出日志','Promtail 提取标签','推送到 Distributor',
+    'Ingester WAL+Chunk','Chunk 压缩持久化','Grafana LogQL 查询','Querier 过滤返回'
+  ]},
+  { name:'Agent 崩溃恢复', steps:[
+    'Agent 正常运行','Agent OOM 崩溃','日志积压文件系统','Agent 重启',
+    'Checkpoint 恢复读取','ES 幂等写入去重'
+  ]},
+  { name:'日志量洪峰', steps:[
+    '正常运行状态','异常激增 100万/s','管道开始积压','背压控制降速',
+    'DEBUG 日志丢弃','洪峰消退系统恢复'
+  ]}
+];
+
+const MSGS = [
+  /* Tab 0 — ELK */
+  [
+    '初始状态：ELK 栈已部署。Filebeat 以 DaemonSet 形式运行于每个节点，持续监听容器 stdout 路径（/var/log/containers/*.log）。Logstash 已配置 filter 管道，Elasticsearch 根据 index template 已准备好接收写入。',
+    '① App Service（payment-svc）将结构化 JSON 日志输出到 stdout。容器运行时（Docker / containerd）将 stdout 写入节点上的 /var/log/containers/payment-svc-xxx.log。JSON 包含 timestamp、level、service、traceId、message 等字段，便于后续解析。',
+    '② Filebeat Agent 监听到日志文件追加，读取新增行后按批次（bulk）推送到 Logstash。Filebeat 在本地维护 registry 文件记录每个文件的读取 offset，保证崩溃重启后 at-least-once 语义，不跳过日志行。',
+    '③ Logstash 通过 filter 插件链处理日志：grok 插件解析非结构化字段、mutate 做类型转换、geoip 根据客户端 IP 附加地理信息（如 geo_ip.country = "CN"）、date 插件将 timestamp 字段解析为 ES 时间类型。',
+    '④ Logstash 调用 Elasticsearch _bulk API 批量写入文档。ES 根据 mapping 对 message 字段进行分词（standard analyzer），为每个 token 建立 倒排索引（Posting List）。写入先进 translog（WAL），保证持久性。',
+    '⑤ Kibana 用户在 Discover 页面输入查询：level:error AND service:payment-service。Kibana 将其转换为 ES Query DSL（bool must：term + term）发往 ES 搜索接口，等待倒排索引命中。',
+    '⑥ ES 扫描倒排索引：在 level 字段的 "error" posting list 中找到候选文档，在 service 字段的 "payment-service" posting list 中找到另一组，两者做 AND 交集，命中 doc#2、doc#4。ES 返回高亮结果（关键词加粗），Kibana 渲染展示。',
+  ],
+  /* Tab 1 — Loki */
+  [
+    '初始状态：Loki 栈已部署。Promtail 以 DaemonSet 运行，通过 pipeline_stages 提取 Pod 日志中的标签。Loki 核心组件包括 Distributor（路由）、Ingester（写入）、Querier（查询），Object Storage（S3/GCS）用于持久化 chunk。',
+    '① Pod 将日志写入 stdout，kubelet 将其落盘到 /var/log/pods/<namespace>/<pod>/<container>/ 路径。Loki 的关键差异：它 不对日志内容建立索引，只索引 标签（Labels），大幅降低存储成本和索引压力。',
+    '② Promtail 读取日志文件，通过 pipeline_stages 从文件路径与日志内容中提取标签：namespace=prod、pod=payment-svc-abc、level=error 等。每条日志形成三元组：{labels, nanosecond_timestamp, line}，构成一个 Log Stream。',
+    '③ Promtail 将同一标签集（Stream）的日志批量推送到 Loki Distributor。Distributor 对标签集做哈希，通过 一致性哈希环（consistent hash ring）将该 Stream 路由到特定的 Ingester 节点，保证同 Stream 的日志有序写入。',
+    '④ Ingester 接收日志后先写 WAL（Write-Ahead Log），然后在内存中按 {stream_labels + 时间} 组织 chunk。单个 chunk 最大 256KB 或经过 1h，之后触发持久化。WAL 保证 Ingester 崩溃后可以从最后检查点恢复。',
+    '⑤ Chunk 达到大小阈值（256KB）或超时（1h），Ingester 使用 Snappy 或 gzip 压缩后上传到 Object Storage。Chunk 文件名编码了 Stream hash + 时间范围，元数据（哪些标签对应哪些 chunk）写入 Index Store（BoltDB / DynamoDB）。',
+    '⑥ Grafana 用户输入 LogQL：{namespace="prod", level="error"} |= "payment"。Loki Querier 解析标签选择器，查询 Index Store 定位所有匹配标签的 chunk 文件列表（可能跨多个时间段）。',
+    '⑦ Querier 从 Object Storage 下载对应 chunk，解压后逐行扫描，用 |= "payment" 过滤器筛选包含关键词的日志行，按时间排序后流式返回给 Grafana。注意：Loki 只有标签索引，内容过滤必须全量扫描 chunk，这是 Loki 的核心取舍。',
+  ],
+  /* Tab 2 — Crash Recovery */
+  [
+    '初始状态：Fluentd Agent（DaemonSet）正常运行。它持续从 Pod stdout 日志文件读取数据，通过 in_tail 插件跟踪文件偏移量，解析后转发到 Elasticsearch。position file 实时记录已处理的文件偏移量（checkpoint）。',
+    '② Fluentd Agent Pod 因内存使用超过 limit，被 Linux OOM Killer 强制杀死（SIGKILL）。进程瞬间消失，正在内存中缓冲但尚未 flush 的日志批次丢失。但 Pod 的日志文件仍在文件系统持续增长。',
+    '③ Agent 崩溃后，应用程序日志继续写入文件系统。由于没有读取进程，日志只是静默地在 /var/log/containers/*.log 中累积。Kubernetes 不会丢失这些文件（只要 Pod 本身未被驱逐），日志仍可被恢复读取。',
+    '④ Kubernetes Pod 重启策略（restartPolicy: Always）触发，Fluentd Agent Pod 重新创建并启动。容器初始化时，Fluentd 加载配置，从持久化存储（PVC 或 HostPath）读取 position file，定位上次的 checkpoint。',
+    '⑤ Fluentd 从 position file 中恢复上次成功提交的偏移量（offset: 87040），从该位置继续读取，跳过 offset 之前已处理的日志。崩溃前内存中未 ACK 的最后一批日志可能被重发——这正是 at-least-once 语义。',
+    '⑥ Elasticsearch 端：Fluentd 为每条日志生成确定性文档 ID（由 log_path + offset + timestamp 哈希而来）。即使 Fluentd 重发了少量重复日志，ES 的 index 操作检测到相同 _id 时执行 UPDATE 覆盖，不产生重复文档——实现幂等写入。',
+  ],
+  /* Tab 3 — Log Flood */
+  [
+    '初始状态：系统运行正常。日志速率约 1 万条/秒，各级别混合（~60% DEBUG、30% INFO、8% WARN、2% ERROR）。Logstash 处理队列空，所有日志正常采集转发，Elasticsearch 写入无延迟。',
+    '② 系统发生级联故障（数据库连接池耗尽 + 上游超时雪崩），各微服务开始大量打印错误重试日志，同时 DEBUG/INFO 也激增，日志速率瞬间飙升至 100 万条/秒（是正常量的 100 倍）。',
+    '③ Logstash 处理能力上限约 20 万条/秒（受 Grok 正则解析 CPU 开销限制）。入口速率远超处理速率，Persistent Queue 迅速填满。Elasticsearch 写入也因 segment merge 压力变慢，整个管道形成背压（Backpressure）。',
+    '④ 背压通过 TCP 流控传递给 Fluentd Agent：Logstash 返回 429 或拒绝连接，Fluentd 检测到发送失败，按指数退避（exponential backoff）减慢发送速率，将数据暂时缓存到本地 file buffer（磁盘），避免内存 OOM。',
+    '⑤ 在 Logstash filter 中通过 rate 检测到洪峰状态后，动态启用丢弃规则：DEBUG 级别日志 全部丢弃（节省约 60% 流量），INFO 日志按 10% 随机采样，WARN 和 ERROR 日志无条件保全。有效处理量降至 30 万条/秒以内。',
+    '⑥ 故障根因（连接池）修复后，日志速率回落到 1 万条/秒。Logstash 队列积压在 ~5 分钟内消化完毕，过滤规则自动恢复全量采集。复盘：必须按 level 过滤 + 采样，防止日志洪峰拖垮整个可观测性基础设施。',
+  ]
+];
+
+/* ──────────────────────────────────────────────
+   State
+────────────────────────────────────────────── */
+let activeTab = 0, cur = -1, timer = null;
+
+/* ──────────────────────────────────────────────
+   Helpers
+────────────────────────────────────────────── */
+function $ (id) { return document.getElementById(id); }
+function cls(id, ...c) { const el=$(id); if(el) el.className = c.join(' '); }
+function setCls(id, ...c){ const el=$(id); if(el){ el.className=c.join(' '); } }
+function setHi(id){ setCls(id,'comp-box hi'); }
+function setOk(id){ setCls(id,'comp-box ok'); }
+function setErr(id,pulse){ setCls(id,'comp-box err'+(pulse?' pulse':'')); }
+function setWarn(id,pulse){ setCls(id,'comp-box warn'+(pulse?' pulse':'')); }
+function setDim(id){ setCls(id,'comp-box dim-out'); }
+function setFlow(id){ setCls(id,'flow-arrow flowing'); }
+function setArrow(id){ setCls(id,'flow-arrow'); }
+function setArrowOff(id){ setCls(id,'flow-arrow'); const el=$(id); if(el) el.style.color=''; }
+
+function resetELK(){
+  ['e-app','e-beat','e-ls','e-es','e-ki'].forEach(id=>setCls(id,'comp-box'));
+  ['ea1','ea2','ea3','ea4'].forEach(id=>setArrow(id));
+}
+function resetLoki(){
+  ['l-pod','l-pt','l-dist','l-ing','l-obj','l-gf','l-qr'].forEach(id=>setCls(id,'comp-box'));
+  setCls('l-obj2','comp-box dim-out');
+  ['la1','la2','la3','la4','la5','la6'].forEach(id=>setArrow(id));
+}
+function resetCrash(){
+  setOk('cr-file');
+  setCls('cr-agent','comp-box');
+  setCls('cr-es','comp-box');
+  ['cra1','cra2'].forEach(id=>setArrow(id));
+}
+function resetFlood(){
+  ['fl-svc','fl-agent','fl-ls','fl-es'].forEach(id=>setOk(id));
+  ['fla1','fla2','fla3'].forEach(id=>setArrow(id));
+}
+
+/* ──────────────────────────────────────────────
+   Tab 0 — ELK render
+────────────────────────────────────────────── */
+function renderELK(s){
+  // s = cur+1 : 0=init, 1..7=steps
+  resetELK();
+
+  if(s>=1) setHi('e-app');
+  if(s>=2){ setOk('e-app'); setHi('e-beat'); setFlow('ea1'); }
+  if(s>=3){ setOk('e-beat'); setHi('e-ls'); setFlow('ea2'); }
+  if(s>=4){ setOk('e-ls'); setHi('e-es'); setFlow('ea3'); }
+  if(s>=5){ setOk('e-es'); setHi('e-ki'); setFlow('ea4'); }
+  if(s>=6){ setOk('e-ki'); }
+  if(s>=7){ setOk('e-ki'); }
+
+  // Log area
+  const eLog = $('e-log');
+  if(s===0){
+    eLog.innerHTML='<span class="lp-dim">// 服务输出日志...</span>';
+  } else {
+    const enriched = s>=3
+      ? ',\n  <span class="lp-purple">"geo_ip.country"</span>: <span class="lp-ok">"CN"</span>  <span class="lp-dim">// Logstash geoip enrichment</span>'
+      : '';
+    eLog.innerHTML =
+`<span class="lp-dim">{</span>
+  <span class="lp-hl">"timestamp"</span>: <span class="lp-ok">"2024-01-15T10:23:45.123Z"</span>,
+  <span class="lp-hl">"level"</span>:     <span class="lp-err">"ERROR"</span>,
+  <span class="lp-hl">"service"</span>:   <span class="lp-ok">"payment-service"</span>,
+  <span class="lp-hl">"traceId"</span>:   <span class="lp-ok">"abc123def456"</span>,
+  <span class="lp-hl">"message"</span>:   <span class="lp-ok">"Payment failed: timeout connecting to bank-api"</span>,
+  <span class="lp-hl">"host"</span>:      <span class="lp-ok">"pod-abc123"</span>${enriched}
+<span class="lp-dim">}</span>`;
+  }
+
+  // Inverted index
+  const idxArea = $('e-idxarea');
+  idxArea.style.display = s>=4 ? '' : 'none';
+  if(s>=4){
+    const m = s>=7;
+    $('e-idx').innerHTML=`
+      <span class="inv-term">error</span>
+      <div class="inv-posting">
+        <span class="inv-doc ${m?'match':''}">doc#1</span>
+        <span class="inv-doc ${m?'match':''}">doc#2</span>
+        <span class="inv-doc">doc#3</span>
+        <span class="inv-doc ${m?'match':''}">doc#4</span>
+        <span class="inv-doc">doc#5</span>
+      </div>
+      <span class="inv-term">payment-service</span>
+      <div class="inv-posting">
+        <span class="inv-doc">doc#1</span>
+        <span class="inv-doc ${m?'match':''}">doc#2</span>
+        <span class="inv-doc">doc#3</span>
+        <span class="inv-doc ${m?'match':''}">doc#4</span>
+        <span class="inv-doc">doc#6</span>
+      </div>
+      <span class="inv-term">timeout</span>
+      <div class="inv-posting">
+        <span class="inv-doc ${m?'match':''}">doc#2</span>
+        <span class="inv-doc">doc#7</span>
+      </div>`;
+  }
+
+  // Query area
+  const qa = $('e-qarea');
+  qa.style.display = s>=5 ? '' : 'none';
+  const res = $('e-results');
+  if(s>=7){
+    res.innerHTML=`
+<div class="result-entry">2024-01-15T10:23:45Z │ <span class="match">ERROR</span> │ <span class="match">payment-service</span> │ Payment failed: <span class="match">timeout</span> connecting to bank-api</div>
+<div class="result-entry">2024-01-15T10:23:47Z │ <span class="match">ERROR</span> │ <span class="match">payment-service</span> │ Retry #1 failed: connection refused to bank-api</div>`;
+  } else if(s===6){
+    res.innerHTML='<span style="font-size:.75rem;color:var(--dim2)">Kibana 正在向 ES 发送 Query DSL…</span>';
+  } else {
+    res.innerHTML='';
+  }
+}
+
+/* ──────────────────────────────────────────────
+   Tab 1 — Loki render
+────────────────────────────────────────────── */
+function renderLoki(s){
+  resetLoki();
+
+  if(s>=1) setHi('l-pod');
+  if(s>=2){ setOk('l-pod'); setHi('l-pt'); setFlow('la1'); }
+  if(s>=3){ setOk('l-pt'); setHi('l-dist'); setFlow('la2'); }
+  if(s>=4){ setOk('l-dist'); setHi('l-ing'); setFlow('la3'); }
+  if(s>=5){ setOk('l-ing'); setHi('l-obj'); setFlow('la4'); }
+  if(s>=6){ setOk('l-obj'); setHi('l-gf'); setHi('l-qr'); setFlow('la5'); setCls('l-obj2','comp-box'); }
+  if(s>=7){ setOk('l-qr'); setFlow('la6'); setOk('l-obj2'); }
+
+  // Labels
+  const labelsEl = $('l-labels');
+  if(s>=2){
+    labelsEl.innerHTML=`
+<div style="display:flex;flex-direction:column;gap:3px">
+  <span style="font-size:.65rem;color:var(--dim2);margin-bottom:1px">Stream A</span>
+  <div>
+    <span class="chip chip-ns">namespace=prod</span>
+    <span class="chip chip-pod">pod=payment-svc-abc</span>
+    <span class="chip chip-lvl-err">level=error</span>
+  </div>
+</div>
+<div style="display:flex;flex-direction:column;gap:3px">
+  <span style="font-size:.65rem;color:var(--dim2);margin-bottom:1px">Stream B</span>
+  <div>
+    <span class="chip chip-ns">namespace=prod</span>
+    <span class="chip chip-pod">pod=order-svc-def</span>
+    <span class="chip chip-svc">level=info</span>
+  </div>
+</div>`;
+  } else {
+    labelsEl.innerHTML='<span style="font-size:.75rem;color:var(--dim2)">Promtail 提取标签后显示…</span>';
+  }
+
+  // Chunks
+  const chunksEl = $('l-chunks');
+  if(s>=4){
+    chunksEl.innerHTML='';
+    if(s>=5) _addChunk(chunksEl,'Stream A<br>压缩 ✓','comp');
+    _addChunk(chunksEl,'Stream A<br>mem-chunk','mem');
+    _addChunk(chunksEl,'Stream B<br>mem-chunk','mem');
+  } else {
+    chunksEl.innerHTML='<span style="font-size:.75rem;color:var(--dim2)">Ingester 接收日志后显示…</span>';
+  }
+
+  function _addChunk(parent, html, type){
+    const d=document.createElement('div');
+    d.className='chunk '+type+' new';
+    d.innerHTML=html;
+    parent.appendChild(d);
+  }
+
+  // Query box
+  const qba = $('l-qbox-area');
+  qba.style.display = s>=6 ? '' : 'none';
+  const qr = $('l-qresults');
+  if(s>=7){
+    qr.innerHTML=`
+<div class="result-entry">2024-01-15T10:23:45Z │ ERROR │ ns=prod pod=payment-svc-abc │ <span class="match">Payment</span> failed: timeout connecting to bank-api</div>
+<div class="result-entry">2024-01-15T10:23:47Z │ ERROR │ ns=prod pod=payment-svc-abc │ <span class="match">Payment</span> retry #1 failed: connection refused</div>`;
+  } else if(s===6){
+    qr.innerHTML='<span style="font-size:.75rem;color:var(--dim2)">Querier 正在从 Object Storage 读取并解压 chunk…</span>';
+  } else {
+    qr.innerHTML='';
+  }
+}
+
+/* ──────────────────────────────────────────────
+   Tab 2 — Crash Recovery render
+────────────────────────────────────────────── */
+function renderCrash(s){
+  // s = cur+1 : 0=init, 1..6=steps
+  resetCrash();
+  const agentSub = $('cr-agent-sub');
+  const esSub    = $('cr-es-sub');
+  const pos      = $('cr-pos');
+  const bufBar   = $('cr-buf-bar');
+  const bufN     = $('cr-buf-n');
+  const dedupA   = $('cr-dedup-area');
+  const resultA  = $('cr-result-area');
+  dedupA.style.display='none';
+  resultA.style.display='none';
+
+  if(s===0){
+    // init — show nothing highlighted
+    agentSub.textContent='Agent 未启动';
+    esSub.textContent='等待写入';
+    pos.innerHTML='<span class="lp-dim">// position file 未初始化</span>';
+    bufBar.style.width='0%'; bufBar.style.background='var(--ok)';
+    bufN.textContent='0 条'; bufN.style.color='var(--ok)';
+  } else if(s===1){
+    setOk('cr-agent'); setOk('cr-es'); setFlow('cra1'); setFlow('cra2');
+    agentSub.textContent='Agent 运行中 ✓';
+    esSub.textContent='接收日志 ✓';
+    pos.innerHTML='<span class="pos-hl">/var/log/containers/app.log</span>  offset=<span class="pos-hl">87040</span>';
+    bufBar.style.width='4%'; bufBar.style.background='var(--ok)';
+    bufN.textContent='0 条'; bufN.style.color='var(--ok)';
+  } else if(s===2){
+    setErr('cr-agent',true);
+    agentSub.textContent='⚠ OOM Killed';
+    esSub.textContent='已中断';
+    pos.innerHTML='<span class="pos-hl">/var/log/containers/app.log</span>  offset=<span class="pos-hl">87040</span>  <span style="color:var(--warn)">(最后已提交)</span>';
+    bufBar.style.width='10%'; bufBar.style.background='var(--warn)';
+    bufN.textContent='持续增加…'; bufN.style.color='var(--warn)';
+  } else if(s===3){
+    setErr('cr-agent',false);
+    agentSub.textContent='✗ 已停止';
+    esSub.textContent='等待写入';
+    pos.innerHTML='<span class="pos-hl">/var/log/containers/app.log</span>  offset=<span class="pos-hl">87040</span>';
+    bufBar.style.width='78%'; bufBar.style.background='var(--err)';
+    bufN.textContent='~1.3 万条'; bufN.style.color='var(--err)';
+  } else if(s===4){
+    setWarn('cr-agent',true);
+    agentSub.textContent='重启中…';
+    esSub.textContent='等待写入';
+    pos.innerHTML='<span class="pos-hl">/var/log/containers/app.log</span>  offset=<span class="pos-hl">87040</span>  <span style="color:var(--ok)">(加载中)</span>';
+    bufBar.style.width='78%'; bufBar.style.background='var(--warn)';
+    bufN.textContent='~1.3 万条'; bufN.style.color='var(--warn)';
+  } else if(s===5){
+    setOk('cr-agent'); setFlow('cra1'); setFlow('cra2');
+    agentSub.textContent='恢复运行 ✓';
+    esSub.textContent='接收日志';
+    pos.innerHTML='<span class="pos-hl">/var/log/containers/app.log</span>  offset=<span class="pos-hl">87040</span> → <span class="pos-hl">恢复读取</span>';
+    bufBar.style.width='32%'; bufBar.style.background='var(--warn)';
+    bufN.textContent='~4 千条（消化中）'; bufN.style.color='var(--warn)';
+  } else if(s===6){
+    setOk('cr-agent'); setOk('cr-es'); setFlow('cra1'); setFlow('cra2');
+    agentSub.textContent='正常运行 ✓';
+    esSub.textContent='幂等写入 ✓';
+    pos.innerHTML='<span class="pos-hl">/var/log/containers/app.log</span>  offset=<span class="pos-hl">204800</span>';
+    bufBar.style.width='4%'; bufBar.style.background='var(--ok)';
+    bufN.textContent='0 条'; bufN.style.color='var(--ok)';
+    dedupA.style.display='';
+    $('cr-dedup').innerHTML=
+`<span class="lp-dim">// Fluentd 重发了崩溃前未 ACK 的最后一批（可能重复）</span>
+POST /_bulk
+{ "index": { "_index": "app-logs", <span class="lp-hl">"_id": "sha256(path+87040+ts)"</span> } }
+{ "level": "error", "message": "Payment failed", ... }
+
+<span class="lp-ok">// ES 检测到相同 _id → UPDATE（覆盖）而非 INSERT</span>
+<span class="lp-ok">// 结果：无重复文档 ✓  (幂等写入)</span>`;
+    resultA.style.display='';
+    $('cr-badges').innerHTML=`
+<div class="comp-box ok" style="min-width:110px"><div class="cname">✓ 不丢数据</div><div class="csub">at-least-once</div></div>
+<div class="comp-box warn" style="min-width:110px"><div class="cname" style="color:var(--warn)">△ 可能重发</div><div class="csub">崩溃前未 ACK 批次</div></div>
+<div class="comp-box ok" style="min-width:110px"><div class="cname">✓ ES 幂等</div><div class="csub">_id 覆盖去重</div></div>`;
+  }
+}
+
+/* ──────────────────────────────────────────────
+   Tab 3 — Log Flood render
+────────────────────────────────────────────── */
+function renderFlood(s){
+  // s = cur+1
+  resetFlood();
+  const svcSub   = $('fl-svc-sub');
+  const agentSub = $('fl-agent-sub');
+  const lsSub    = $('fl-ls-sub');
+  const esSub    = $('fl-es-sub');
+  const rate     = $('fl-rate');
+  const rateBar  = $('fl-rate-bar');
+  const queue    = $('fl-queue');
+  const queueBar = $('fl-queue-bar');
+  const evtArea  = $('fl-evt-area');
+  const evts     = $('fl-evts');
+
+  evtArea.style.display='none';
+
+  function lvlBox(id, cls2, txt){
+    const el=$(id); if(!el) return;
+    el.className='comp-box '+cls2+' '+id; // keep id as extra class
+    const sub=el.querySelector('.csub');
+    if(sub) sub.textContent=txt;
+  }
+
+  if(s<=1){
+    // normal
+    svcSub.textContent='1万条/s';
+    agentSub.textContent='正常发送';
+    lsSub.textContent='处理正常';
+    esSub.textContent='写入正常';
+    rate.textContent='10,000'; rate.style.color='var(--ok)';
+    rateBar.style.width='1%'; rateBar.style.background='var(--ok)';
+    queue.textContent='0 条'; queue.style.color='var(--ok)';
+    queueBar.style.width='0%'; queueBar.style.background='var(--ok)';
+    // filter boxes: all ok
+    ['fl-debug','fl-info','fl-warn','fl-err'].forEach(id=>{
+      const el=$(id); if(el){ el.className='comp-box ok'; el.querySelector('.csub').textContent='正常采集'; }
+    });
+    if(s<=0) return;
+    ['fla1','fla2','fla3'].forEach(id=>setFlow(id));
+  }
+
+  if(s===2){
+    setErr('fl-svc',true);
+    setWarn('fl-agent',false); setWarn('fl-ls',false); setWarn('fl-es',false);
+    svcSub.textContent='100万条/s 🔥';
+    agentSub.textContent='缓冲积压';
+    lsSub.textContent='处理过载';
+    esSub.textContent='写入变慢';
+    rate.textContent='1,000,000'; rate.style.color='var(--err)';
+    rateBar.style.width='100%'; rateBar.style.background='var(--err)';
+    queue.textContent='~50万条'; queue.style.color='var(--warn)';
+    queueBar.style.width='50%'; queueBar.style.background='var(--warn)';
+    ['fla1','fla2','fla3'].forEach(id=>setFlow(id));
+    ['fl-debug','fl-info','fl-warn','fl-err'].forEach(id=>{
+      const el=$(id); if(el){ el.className='comp-box ok'; el.querySelector('.csub').textContent='正常采集'; }
+    });
+  } else if(s===3){
+    setErr('fl-svc',false);
+    setErr('fl-ls',true);
+    setWarn('fl-agent',false); setWarn('fl-es',false);
+    svcSub.textContent='100万条/s 🔥';
+    agentSub.textContent='缓冲积压';
+    lsSub.textContent='队列已满 ⚠';
+    esSub.textContent='写入变慢';
+    rate.textContent='1,000,000'; rate.style.color='var(--err)';
+    rateBar.style.width='100%'; rateBar.style.background='var(--err)';
+    queue.textContent='~200万条'; queue.style.color='var(--err)';
+    queueBar.style.width='100%'; queueBar.style.background='var(--err)';
+    ['fla1','fla2','fla3'].forEach(id=>setFlow(id));
+    evtArea.style.display='';
+    evts.innerHTML=`<div class="log-pre"><span class="lp-err">ERROR</span>  Logstash Persistent Queue full (2GB). Rejecting new events.</div>`;
+    ['fl-debug','fl-info','fl-warn','fl-err'].forEach(id=>{
+      const el=$(id); if(el){ el.className='comp-box ok'; el.querySelector('.csub').textContent='正常采集'; }
+    });
+  } else if(s===4){
+    setErr('fl-svc',false);
+    setWarn('fl-agent',true); setWarn('fl-ls',false); setWarn('fl-es',false);
+    svcSub.textContent='100万条/s 🔥';
+    agentSub.textContent='背压 → 降速';
+    lsSub.textContent='有限接受';
+    esSub.textContent='写入稳定';
+    rate.textContent='1,000,000'; rate.style.color='var(--err)';
+    rateBar.style.width='100%'; rateBar.style.background='var(--err)';
+    queue.textContent='~200万条'; queue.style.color='var(--warn)';
+    queueBar.style.width='100%'; queueBar.style.background='var(--warn)';
+    ['fla1','fla2','fla3'].forEach(id=>setFlow(id));
+    evtArea.style.display='';
+    evts.innerHTML=`
+<div class="log-pre"><span class="lp-warn">WARN</span>  Fluentd backpressure activated. Send rate limited: 20k/s.</div>
+<div class="log-pre"><span class="lp-warn">WARN</span>  Buffer growing: 1.4 GB used / 2 GB limit.</div>`;
+    ['fl-debug','fl-info','fl-warn','fl-err'].forEach(id=>{
+      const el=$(id); if(el){ el.className='comp-box ok'; el.querySelector('.csub').textContent='正常采集'; }
+    });
+  } else if(s===5){
+    setErr('fl-svc',false);
+    setWarn('fl-agent',false); setWarn('fl-ls',false); setOk('fl-es');
+    svcSub.textContent='100万/s（过滤后）';
+    agentSub.textContent='过滤后发送';
+    lsSub.textContent='过滤 DEBUG/INFO';
+    esSub.textContent='写入稳定';
+    rate.textContent='1,000,000 → 30万'; rate.style.color='var(--warn)';
+    rateBar.style.width='30%'; rateBar.style.background='var(--warn)';
+    queue.textContent='~100万（消化中）'; queue.style.color='var(--warn)';
+    queueBar.style.width='60%'; queueBar.style.background='var(--warn)';
+    ['fla1','fla2','fla3'].forEach(id=>setFlow(id));
+    evtArea.style.display='';
+    evts.innerHTML=`
+<div class="log-pre"><span class="lp-warn">WARN</span>  Flood rule active: dropping ALL DEBUG logs (≈60% of volume).</div>
+<div class="log-pre"><span class="lp-warn">WARN</span>  Sampling INFO logs at 10% rate.</div>
+<div class="log-pre"><span class="lp-ok">INFO</span>   WARN/ERROR logs: 100% preserved.</div>`;
+    // level boxes
+    let dbg=$('fl-debug'); dbg.className='comp-box err'; dbg.querySelector('.csub').textContent='🗑 全部丢弃';
+    let inf=$('fl-info');  inf.className='comp-box warn'; inf.querySelector('.csub').textContent='10% 采样';
+    let wrn=$('fl-warn');  wrn.className='comp-box ok';   wrn.querySelector('.csub').textContent='保全 ✓';
+    let err=$('fl-err');   err.className='comp-box ok';   err.querySelector('.csub').textContent='优先保全 ✓';
+  } else if(s===6){
+    ['fl-svc','fl-agent','fl-ls','fl-es'].forEach(id=>setOk(id));
+    svcSub.textContent='1万条/s（恢复）';
+    agentSub.textContent='正常发送';
+    lsSub.textContent='处理正常';
+    esSub.textContent='写入正常';
+    rate.textContent='10,000'; rate.style.color='var(--ok)';
+    rateBar.style.width='1%'; rateBar.style.background='var(--ok)';
+    queue.textContent='0 条'; queue.style.color='var(--ok)';
+    queueBar.style.width='0%';
+    ['fla1','fla2','fla3'].forEach(id=>setFlow(id));
+    evtArea.style.display='';
+    evts.innerHTML=`
+<div class="log-pre"><span class="lp-ok">INFO</span>  Log flood subsided. Queue drained. Full collection resumed.</div>
+<div class="log-pre"><span class="lp-ok">INFO</span>  Takeaway: level-based filtering + sampling must be pre-configured.</div>`;
+    ['fl-debug','fl-info','fl-warn','fl-err'].forEach(id=>{
+      const el=$(id); if(el){ el.className='comp-box ok'; el.querySelector('.csub').textContent='正常采集'; }
+    });
+  }
+}
+
+/* ──────────────────────────────────────────────
+   Master render
+────────────────────────────────────────────── */
+function render(){
+  const s = cur + 1; // 0 = initial
+  const msgs = MSGS[activeTab];
+  $('stepMsg').innerHTML = cur >= 0 ? msgs[cur] : '选择场景，点击「下一步」观察日志系统的完整流程。';
+
+  // Show active scene
+  for(let i=0;i<4;i++){
+    $('scene'+i).className='scene'+(i===activeTab?' active':'');
+  }
+
+  if(activeTab===0) renderELK(s);
+  else if(activeTab===1) renderLoki(s);
+  else if(activeTab===2) renderCrash(s);
+  else                   renderFlood(s);
+
+  buildStepList();
+}
+
+function buildStepList(){
+  const list = $('stepList');
+  list.innerHTML='';
+  TABS[activeTab].steps.forEach((label,i)=>{
+    const btn=document.createElement('button');
+    btn.className='step-btn'+(i===cur?' active':'');
+    btn.innerHTML=`<span class="step-idx">${i+1}</span>${label}`;
+    btn.onclick=()=>{ cur=i; render(); };
+    list.appendChild(btn);
+  });
+}
+
+/* ──────────────────────────────────────────────
+   Navigation
+────────────────────────────────────────────── */
+function switchTab(i){
+  activeTab=i; cur=-1; stopPlay();
+  document.querySelectorAll('.tab-btn').forEach((b,idx)=>{
+    b.className='tab-btn'+(idx===i?' active':'');
+  });
+  render();
+}
+function next(){ if(cur<TABS[activeTab].steps.length-1){cur++;render();} }
+function prev(){ if(cur>=-1&&cur>-1){cur--;render();} }
+function reset(){ cur=-1; stopPlay(); render(); }
+function togglePlay(){ if(timer) stopPlay(); else startPlay(); }
+function startPlay(){
+  $('playBtn').textContent='⏸ 暂停';
+  timer=setInterval(()=>{
+    if(cur<TABS[activeTab].steps.length-1){cur++;render();}else stopPlay();
+  },2200);
+}
+function stopPlay(){
+  if(timer){clearInterval(timer);timer=null;}
+  $('playBtn').textContent='▶ 播放';
+}
+
+render();
+</script>
+</body>
+</html>

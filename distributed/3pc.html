@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="在2PC基础上增加 CanCommit 预备阶段，引入超时机制，协调者故障后参与者可通过超时自行决策，消除阻塞但无法解决网络分区。">
+<link rel="canonical" href="https://melodycoder12345.github.io/distributed/3pc.html">
+<meta property="og:title" content="三阶段提交（3PC）— 码海拾贝">
+<meta property="og:description" content="在2PC基础上增加 CanCommit 预备阶段，引入超时机制，协调者故障后参与者可通过超时自行决策，消除阻塞但无法解决网络分区。">
+<meta property="og:url" content="https://melodycoder12345.github.io/distributed/3pc.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="三阶段提交（3PC）— 码海拾贝">
+<meta name="twitter:description" content="在2PC基础上增加 CanCommit 预备阶段，引入超时机制，协调者故障后参与者可通过超时自行决策，消除阻塞但无法解决网络分区。">
+<title>三阶段提交（3PC）- 分布式</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#c084fc;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 18%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+/* Scenario tabs */
+.stabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.stab{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:12px;padding:9px 16px;cursor:pointer;font-family:inherit;font-size:.82rem;transition:all .16s}
+.stab:hover{color:var(--text);border-color:rgba(255,255,255,.2)}
+.stab.active{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--text)}
+.lab{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:440px;display:flex;flex-direction:column;padding:18px}
+.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:radial-gradient(circle at 50% 20%,rgba(255,255,255,.05),transparent 50%),rgba(15,23,42,.64);overflow:hidden;display:flex;align-items:center;justify-content:center;}
+.pc-svg{width:100%;max-width:500px;height:auto;}
+.rnode{transition:all .3s;}
+.rnode rect{fill:rgba(255,255,255,.055);stroke:rgba(255,255,255,.12);stroke-width:1.5;transition:all .3s;}
+.rnode text{fill:#94a3b8;transition:fill .3s;}
+.rnode.active rect{fill:color-mix(in srgb,var(--accent) 16%,transparent);stroke:var(--accent);stroke-width:2;}
+.rnode.active text{fill:#f8fafc;}
+.rnode.fail rect{fill:rgba(248,113,113,.1);stroke:#f87171;stroke-width:2;}
+.rnode.fail text{fill:#f87171;}
+.rnode.recover rect{fill:rgba(74,222,128,.1);stroke:#4ade80;stroke-width:2;}
+.rnode.recover text{fill:#4ade80;}
+.rnode.coord-hi rect{fill:color-mix(in srgb,var(--accent) 22%,transparent);stroke:var(--accent);stroke-width:2.5;}
+.rnode.coord-hi text{fill:#f8fafc;}
+@keyframes coord-glow{0%,100%{filter:drop-shadow(0 0 4px color-mix(in srgb,var(--accent) 50%,transparent));}50%{filter:drop-shadow(0 0 10px color-mix(in srgb,var(--accent) 80%,transparent));}}
+.rnode.coord-hi rect{animation:coord-glow 2s infinite;}
+.redge{stroke:rgba(255,255,255,.15);stroke-width:1.5;fill:none;transition:all .3s;}
+.redge.active{stroke:var(--accent);stroke-width:2.5;filter:drop-shadow(0 0 4px color-mix(in srgb,var(--accent) 60%,transparent));}
+.redge.fail{stroke:#f87171;stroke-width:2;}
+.redge.ok{stroke:#4ade80;stroke-width:2;}
+.redge.peer-active{stroke:#fbbf24;stroke-width:2;stroke-dasharray:5 4;filter:drop-shadow(0 0 3px rgba(251,191,36,.5));}
+.phase-pill{fill:rgba(255,255,255,.04);stroke:rgba(255,255,255,.1);stroke-width:1.2;transition:all .3s;}
+.phase-pill.ph-active{fill:color-mix(in srgb,var(--accent) 22%,transparent);stroke:var(--accent);stroke-width:2;}
+.phase-txt{fill:#64748b;font-size:8.5px;transition:fill .3s;}
+.phase-txt.ph-active{fill:#f8fafc;}
+.timeout-icon{fill:#fbbf24;font-size:10px;opacity:0;transition:opacity .3s;}
+.timeout-icon.show{opacity:1;}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}
+.status p{color:var(--dim);font-size:.9rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.failure{border-color:var(--bad);color:var(--bad)}
+.badge.recovery{border-color:var(--ok);color:var(--ok)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+/* Comparison view */
+#compareView{width:100%;padding:14px;display:none;flex-direction:column;gap:12px;overflow-y:auto;max-height:380px;}
+.cmp-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cmp-col h3{font-size:.78rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;padding:0 2px}
+.cmp-phase{border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:8px 10px;margin-bottom:5px;font-size:.79rem;color:var(--dim);transition:all .25s;line-height:1.5}
+.cmp-phase.hl{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text)}
+.cmp-phase.hl-ok{border-color:var(--ok);background:rgba(74,222,128,.08);color:var(--ok)}
+.cmp-phase.hl-bad{border-color:var(--bad);background:rgba(248,113,113,.07);color:var(--bad)}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.78rem}
+th{background:color-mix(in srgb,var(--accent) 8%,transparent);color:var(--accent);padding:7px 10px;text-align:left;border:1px solid rgba(255,255,255,.08);font-size:.74rem}
+td{padding:7px 10px;border:1px solid rgba(255,255,255,.07);color:var(--dim)}
+tr:hover td{background:rgba(255,255,255,.02)}
+td.good{color:var(--ok)}
+td.bad{color:var(--bad)}
+td.mid{color:var(--warn)}
+.cmp-tbl-row.hl td{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}.cmp-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">分布式 / 3PC / C 类型</div>
+      <h1>三阶段提交<br>（3PC）</h1>
+      <p class="summary">3PC 在 2PC 的 Prepare/Commit 两阶段之前插入 CanCommit 探测阶段，并为每个阶段引入超时机制，使协调者故障后参与者能通过 Termination Protocol 自行决策，消除了无限阻塞问题——但仍无法处理网络分区。</p>
+      <div class="tags"><span>CanCommit</span><span>PreCommit</span><span>DoCommit</span><span>超时自决策</span><span>Termination Protocol</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>CanCommit（预备探测）</strong><span>轻量级询问阶段，只检查资源是否可用，不加锁不写日志。CanCommit 失败代价极低，可零成本 Abort。</span></li>
+        <li><strong>PRE_COMMITTED 状态</strong><span>参与者收到 PreCommit 后的状态：已锁定资源并写入预提交日志，「打算提交」。这是 Termination Protocol 的决策依据。</span></li>
+        <li><strong>Termination Protocol</strong><span>协调者故障后参与者间的协商协议：全部 PRE_COMMITTED → 提交；有 UNCERTAIN → 查询；有 ABORTED → 全部回滚。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="stabs" id="stabs">
+    <button class="stab active" data-s="0">场景一：正常提交路径</button>
+    <button class="stab" data-s="1">场景二：协调者 PreCommit 后故障</button>
+    <button class="stab" data-s="2">场景三：参与者超时处理</button>
+    <button class="stab" data-s="3">场景四：与 2PC 对比</button>
+  </div>
+
+  <section class="lab">
+    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <!-- Main animation SVG (scenarios 1-3) -->
+        <svg class="pc-svg" viewBox="0 0 480 355" id="pcSvg">
+          <defs>
+            <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="rgba(255,255,255,.25)"/></marker>
+            <marker id="arrA" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#c084fc"/></marker>
+            <marker id="arrF" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#f87171"/></marker>
+            <marker id="arrOk" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#4ade80"/></marker>
+            <marker id="arrP" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z" fill="#fbbf24"/></marker>
+          </defs>
+
+          <!-- Phase indicator row (below coordinator, y=104-124) -->
+          <rect id="ph1" class="phase-pill" x="82" y="104" width="84" height="20" rx="6"/>
+          <text id="ph1txt" class="phase-txt" x="124" y="118" text-anchor="middle">CanCommit</text>
+          <text x="170" y="118" text-anchor="middle" font-size="10" fill="#334155">→</text>
+          <rect id="ph2" class="phase-pill" x="176" y="104" width="84" height="20" rx="6"/>
+          <text id="ph2txt" class="phase-txt" x="218" y="118" text-anchor="middle">PreCommit</text>
+          <text x="264" y="118" text-anchor="middle" font-size="10" fill="#334155">→</text>
+          <rect id="ph3" class="phase-pill" x="270" y="104" width="84" height="20" rx="6"/>
+          <text id="ph3txt" class="phase-txt" x="312" y="118" text-anchor="middle">DoCommit</text>
+
+          <!-- Standard Coord→Participant edges -->
+          <line id="e1" class="redge" x1="212" y1="96" x2="110" y2="262" marker-end="url(#arr)"/>
+          <line id="e2" class="redge" x1="238" y1="96" x2="238" y2="262" marker-end="url(#arr)"/>
+          <line id="e3" class="redge" x1="268" y1="96" x2="368" y2="262" marker-end="url(#arr)"/>
+          <!-- Reply edges (hidden by default) -->
+          <line id="e4" class="redge" x1="126" y1="262" x2="222" y2="96" marker-end="url(#arr)" style="opacity:0"/>
+          <line id="e5" class="redge" x1="254" y1="262" x2="254" y2="96" marker-end="url(#arr)" style="opacity:0"/>
+          <line id="e6" class="redge" x1="382" y1="262" x2="278" y2="96" marker-end="url(#arr)" style="opacity:0"/>
+          <!-- Coord→Log edge -->
+          <line id="e7" class="redge" x1="332" y1="66" x2="358" y2="56" marker-end="url(#arr)" style="opacity:0"/>
+          <!-- Peer consultation edges (3PC-specific, shown during Termination Protocol) -->
+          <line id="e8" class="redge" x1="136" y1="288" x2="186" y2="288" marker-end="url(#arrP)" style="opacity:0;stroke-dasharray:5 4"/>
+          <line id="e9" class="redge" x1="294" y1="288" x2="344" y2="288" marker-end="url(#arrP)" style="opacity:0;stroke-dasharray:5 4"/>
+          <path id="e10" class="redge" d="M 94 264 Q 240 236 386 264" marker-end="url(#arrP)" style="opacity:0;stroke-dasharray:5 4"/>
+
+          <!-- Phase center label -->
+          <text id="phaseLabel" x="240" y="200" text-anchor="middle" font-size="11" fill="#64748b">——</text>
+
+          <!-- Node: Coordinator -->
+          <g id="n_coord" class="rnode">
+            <rect x="148" y="44" width="184" height="52" rx="10"/>
+            <text x="240" y="63" text-anchor="middle" font-size="12" font-weight="700">Coordinator</text>
+            <text x="240" y="79" text-anchor="middle" font-size="9.5" id="n_coord_sub">协调者</text>
+          </g>
+
+          <!-- Node: Log -->
+          <g id="n_log" class="rnode">
+            <rect x="358" y="10" width="116" height="84" rx="10"/>
+            <text x="416" y="34" text-anchor="middle" font-size="10" font-weight="700">协调者日志</text>
+            <text x="416" y="54" text-anchor="middle" font-size="9" fill="#64748b" id="logState">——</text>
+            <text x="416" y="72" text-anchor="middle" font-size="11" font-weight="700" id="logDecision" fill="#64748b">——</text>
+          </g>
+
+          <!-- Timeout icons -->
+          <text id="to_p1" class="timeout-icon" x="82" y="257" text-anchor="middle">⏰</text>
+          <text id="to_p2" class="timeout-icon" x="240" y="257" text-anchor="middle">⏰</text>
+          <text id="to_p3" class="timeout-icon" x="398" y="257" text-anchor="middle">⏰</text>
+
+          <!-- Node: P1 -->
+          <g id="n_p1" class="rnode">
+            <rect x="28" y="262" width="108" height="52" rx="10"/>
+            <text x="82" y="281" text-anchor="middle" font-size="12" font-weight="700">P1</text>
+            <text x="82" y="298" text-anchor="middle" font-size="9.5" id="n_p1_sub">参与者</text>
+          </g>
+          <!-- Node: P2 -->
+          <g id="n_p2" class="rnode">
+            <rect x="186" y="262" width="108" height="52" rx="10"/>
+            <text x="240" y="281" text-anchor="middle" font-size="12" font-weight="700">P2</text>
+            <text x="240" y="298" text-anchor="middle" font-size="9.5" id="n_p2_sub">参与者</text>
+          </g>
+          <!-- Node: P3 -->
+          <g id="n_p3" class="rnode">
+            <rect x="344" y="262" width="108" height="52" rx="10"/>
+            <text x="398" y="281" text-anchor="middle" font-size="12" font-weight="700">P3</text>
+            <text x="398" y="298" text-anchor="middle" font-size="9.5" id="n_p3_sub">参与者</text>
+          </g>
+        </svg>
+
+        <!-- Comparison view for scenario 4 -->
+        <div id="compareView">
+          <div class="cmp-row">
+            <div class="cmp-col">
+              <h3>2PC — 两阶段提交</h3>
+              <div class="cmp-phase" id="c2_p1"><strong>Phase 1: Prepare</strong><br>Coord → Participants: Prepare?<br>Participants → Coord: Vote YES/NO</div>
+              <div class="cmp-phase" id="c2_p2"><strong>Phase 2: Commit / Rollback</strong><br>Coord → Participants: Commit/Rollback<br>Participants → Coord: ACK</div>
+              <div class="cmp-phase" id="c2_fault"><strong>协调者故障（Phase 2 前）</strong><br>参与者持锁无限等待 → <span style="color:var(--bad)">永久阻塞</span><br>无法自行决策，只能等协调者恢复</div>
+              <div class="cmp-phase" id="c2_partition"><strong>网络分区</strong><br>分区两侧可能收到不同决定 → <span style="color:var(--bad)">数据不一致</span></div>
+            </div>
+            <div class="cmp-col">
+              <h3>3PC — 三阶段提交</h3>
+              <div class="cmp-phase" id="c3_p1"><strong>Phase 1: CanCommit</strong><br>Coord → Participants: canCommit?<br>Participants → Coord: YES/NO（不加锁）</div>
+              <div class="cmp-phase" id="c3_p2"><strong>Phase 2: PreCommit</strong><br>Coord → Participants: preCommit<br>Participants → Coord: ACK（加锁+写日志）</div>
+              <div class="cmp-phase" id="c3_p3"><strong>Phase 3: DoCommit</strong><br>Coord → Participants: doCommit<br>Participants → Coord: HaveCommitted</div>
+              <div class="cmp-phase" id="c3_fault"><strong>协调者故障（Phase 3 前）</strong><br>参与者超时 → 发起 Termination Protocol<br>PRE_COMMITTED 状态 → <span style="color:var(--ok)">自行提交</span></div>
+              <div class="cmp-phase" id="c3_partition"><strong>网络分区</strong><br>分区两侧分别执行 Termination Protocol<br>→ <span style="color:var(--bad)">脑裂风险，仍可能不一致</span></div>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <tr>
+                <th>维度</th>
+                <th>2PC</th>
+                <th>3PC</th>
+              </tr>
+              <tr class="cmp-tbl-row" id="tr_msg"><td>消息轮次</td><td class="good">4 轮（2×2）</td><td class="mid">6 轮（3×2）</td></tr>
+              <tr class="cmp-tbl-row" id="tr_block"><td>协调者故障后</td><td class="bad">无限阻塞</td><td class="good">超时自决策（非阻塞）</td></tr>
+              <tr class="cmp-tbl-row" id="tr_partition"><td>网络分区安全</td><td class="bad">不安全</td><td class="bad">不安全（脑裂风险）</td></tr>
+              <tr class="cmp-tbl-row" id="tr_complex"><td>协议复杂度</td><td class="good">较简单</td><td class="bad">较复杂</td></tr>
+              <tr class="cmp-tbl-row" id="tr_usage"><td>工业使用</td><td class="mid">少量（MySQL XA）</td><td class="bad">极少（Paxos/Raft 替代）</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnReset">重置</button>
+        <button class="ctrl" id="btnPrev">上一步</button>
+        <button class="ctrl primary" id="btnPlay">播放</button>
+        <button class="ctrl" id="btnNext">下一步</button>
+      </div>
+    </section>
+    <aside class="panel">
+      <div class="panel-hd">当前状态</div>
+      <div class="status">
+        <span class="badge" id="stateBadge">normal</span>
+        <h2 id="stepTitle"></h2>
+        <p id="stepDesc"></p>
+        <p id="stepDetail" style="margin-top:8px;font-size:.82rem;"></p>
+      </div>
+    </aside>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>机制解析</h2>
+      <p>3PC 通过三个阶段解决 2PC 的阻塞问题：<strong>CanCommit</strong>（轻量探测，不加锁）→ <strong>PreCommit</strong>（加锁写日志，进入 PRE_COMMITTED）→ <strong>DoCommit</strong>（最终提交）。关键在于 PRE_COMMITTED 状态——协调者故障后，参与者通过 Termination Protocol 查询彼此状态：若全员 PRE_COMMITTED 则提交，若有人 UNCERTAIN（未收到 PreCommit）则中止。</p>
+    </section>
+    <section>
+      <h2>超时处理策略</h2>
+      <ul>
+        <li><strong>CanCommit 阶段超时</strong>：直接 Abort。参与者未加锁，代价为零，安全且高效。</li>
+        <li><strong>等待 PreCommit 超时</strong>：发起 Termination Protocol，查询其他参与者。</li>
+        <li><strong>等待 DoCommit 超时</strong>：同上，若全员 PRE_COMMITTED 则自行提交。</li>
+        <li><strong>等待 CanCommit 响应超时</strong>：协调者直接 Abort，不等待超时的参与者。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>3PC 的局限</h2>
+      <ul>
+        <li>网络分区时：分区两侧各自执行 Termination Protocol 可能做出不同决策（脑裂）——这是 3PC 无法解决的根本问题。</li>
+        <li>消息轮次增加 50%（6 vs 4 轮），延迟更高，吞吐量更低。</li>
+        <li>协议实现复杂，状态机更难维护，工业界几乎不直接使用。</li>
+        <li>Paxos / Raft 等共识算法在多副本场景下更优，Saga / TCC 在微服务场景下更实用。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>工程实践参考</h2>
+      <p>3PC 在学术上有重要意义，但工业界极少直接使用。现代分布式系统的替代方案：① Google Spanner 使用 Paxos 分组 + TrueTime 实现全球一致性；② TiDB / CockroachDB 使用 Raft + 类 2PC 的跨分片事务；③ 微服务场景下 Saga 模式（补偿事务）或 TCC（Try-Confirm-Cancel）避免全局锁；④ 事件溯源 + 最终一致性完全绕过分布式事务。了解 3PC 的价值在于理解「非阻塞共识」的设计思路。</p>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="../distributed/index.html">← 分布式系统</a>
+    <a class="btn" href="../distributed/2pc.html">← 两阶段提交（2PC）</a>
+  </div>
+</main>
+
+<script>
+/* =====================================================================
+   Scenario data
+   Node indices: 0=n_coord, 1=n_p1, 2=n_p2, 3=n_p3, 4=n_log
+   Edge indices: 0=e1(C→P1), 1=e2(C→P2), 2=e3(C→P3),
+                 3=e4(P1→C), 4=e5(P2→C), 5=e6(P3→C),
+                 6=e7(C→Log), 7=e8(P1↔P2 peer), 8=e9(P2↔P3 peer), 9=e10(P1↔P3 peer)
+   phaseStep: -1=none, 0=CanCommit, 1=PreCommit, 2=DoCommit
+   ===================================================================== */
+
+const STEPS_S1 = [
+  {
+    title: "初始状态",
+    desc: "协调者和三个参与者就绪，等待事务启动。",
+    kind: "normal",
+    detail: "3PC 比 2PC 多出 CanCommit 预备探测阶段，使协调者故障后参与者能通过超时机制自行决策。",
+    phase: "等待事务", phaseStep: -1,
+    coordSub: "就绪", logState: "空", logDecision: "——",
+    subs: ["IDLE", "IDLE", "IDLE"],
+    active: [], fail: [], recover: [], edges: [], failEdges: [], okEdges: [], peerEdges: [], timeouts: []
+  },
+  {
+    title: "Phase 1：广播 canCommit?",
+    desc: "协调者广播 canCommit? 查询，询问各参与者资源是否可用。这是轻量探测，不加锁不写日志。",
+    kind: "normal",
+    detail: "CanCommit 是 3PC 新增的第一阶段。与 2PC 的 Prepare 不同，这里参与者只做可行性检查，零副作用，因此失败时可以立即 Abort 而无需任何回滚操作。",
+    phase: "Phase 1: CanCommit", phaseStep: 0,
+    coordSub: "广播 canCommit?", logState: "等待探测", logDecision: "——",
+    subs: ["收到 canCommit?", "收到 canCommit?", "收到 canCommit?"],
+    active: [0], fail: [], recover: [], edges: [0,1,2], failEdges: [], okEdges: [], peerEdges: [], timeouts: []
+  },
+  {
+    title: "P1/P2/P3 全票回复 YES",
+    desc: "三个参与者检查本地资源可用性，均回复 YES，进入 UNCERTAIN 状态。此时资源未锁定。",
+    kind: "normal",
+    detail: "UNCERTAIN 状态：参与者确认自己可以提交，但尚未执行任何准备动作（无锁、无日志）。若超时收不到 PreCommit，将直接 Abort。",
+    phase: "Phase 1: 全票 YES", phaseStep: 0,
+    coordSub: "收到全票 YES", logState: "全票 YES", logDecision: "→PreCommit",
+    subs: ["YES ✓", "YES ✓", "YES ✓"],
+    active: [0,1,2,3], fail: [], recover: [], edges: [3,4,5], failEdges: [], okEdges: [3,4,5], peerEdges: [], timeouts: []
+  },
+  {
+    title: "Phase 2：广播 preCommit",
+    desc: "协调者进入第二阶段，广播 preCommit：参与者现在开始锁定资源并写入预提交日志。",
+    kind: "normal",
+    detail: "PreCommit 对应 2PC 的 Prepare 阶段：参与者写入 undo log、锁定资源、进入 PRE_COMMITTED 状态，然后返回 ACK。PRE_COMMITTED 是 Termination Protocol 的决策依据。",
+    phase: "Phase 2: PreCommit", phaseStep: 1,
+    coordSub: "广播 preCommit", logState: "发 preCommit", logDecision: "PreCommit",
+    subs: ["收到 preCommit", "收到 preCommit", "收到 preCommit"],
+    active: [0], fail: [], recover: [], edges: [0,1,2], failEdges: [], okEdges: [], peerEdges: [], timeouts: []
+  },
+  {
+    title: "P1/P2/P3 进入 PRE_COMMITTED，返回 ACK",
+    desc: "三个参与者锁定资源、写入预提交日志，进入 PRE_COMMITTED 状态，回复 ACK。",
+    kind: "normal",
+    detail: "PRE_COMMITTED 状态的关键意义：参与者已「打算提交」。超时收不到 doCommit 时，可查询其他参与者——若全员 PRE_COMMITTED 则安全提交，无需协调者介入。",
+    phase: "Phase 2: ACK", phaseStep: 1,
+    coordSub: "等待 ACK", logState: "收集 ACK", logDecision: "PreCommit",
+    subs: ["PRE_COMMITTED", "PRE_COMMITTED", "PRE_COMMITTED"],
+    active: [0,1,2,3], fail: [], recover: [], edges: [3,4,5], failEdges: [], okEdges: [3,4,5], peerEdges: [], timeouts: []
+  },
+  {
+    title: "Phase 3：广播 doCommit",
+    desc: "协调者收到所有 ACK，广播最终 doCommit 命令：提交事务，释放锁。",
+    kind: "normal",
+    detail: "DoCommit 是最终提交命令，类似 2PC 的 Commit 阶段。参与者提交本地事务、释放锁、删除 undo log，返回 HaveCommitted。",
+    phase: "Phase 3: DoCommit", phaseStep: 2,
+    coordSub: "广播 doCommit", logState: "发 doCommit", logDecision: "COMMIT",
+    subs: ["收到 doCommit", "收到 doCommit", "收到 doCommit"],
+    active: [0], fail: [], recover: [], edges: [0,1,2], failEdges: [], okEdges: [], peerEdges: [], timeouts: []
+  },
+  {
+    title: "所有参与者提交完成 — 事务全局完成",
+    desc: "P1/P2/P3 提交本地事务，释放锁，返回 HaveCommitted。事务全局成功完成。",
+    kind: "normal",
+    detail: "3PC 正常路径完成：共 3 阶段 6 轮消息，相比 2PC 的 4 轮多 50%。额外的 CanCommit 轮次换来了协调者故障时的非阻塞恢复能力。",
+    phase: "✓ 事务完成", phaseStep: 2,
+    coordSub: "事务完成", logState: "COMMIT 落盘", logDecision: "COMMIT ✓",
+    subs: ["已提交 ✓", "已提交 ✓", "已提交 ✓"],
+    active: [], fail: [], recover: [0,1,2,3,4], edges: [3,4,5], failEdges: [], okEdges: [3,4,5], peerEdges: [], timeouts: []
+  }
+];
+
+const STEPS_S2 = [
+  {
+    title: "前置状态：PreCommit 阶段已完成",
+    desc: "协调者已发送 preCommit，P1/P2/P3 均已进入 PRE_COMMITTED 状态并回复 ACK。",
+    kind: "normal",
+    detail: "此时协调者正准备进入第三阶段，发送 doCommit。参与者已锁定资源并写入预提交日志，等待最终命令。",
+    phase: "Phase 2 已完成", phaseStep: 1,
+    coordSub: "准备发 doCommit", logState: "收到全部 ACK", logDecision: "→DoCommit",
+    subs: ["PRE_COMMITTED", "PRE_COMMITTED", "PRE_COMMITTED"],
+    active: [0,1,2,3], fail: [], recover: [], edges: [], failEdges: [], okEdges: [], peerEdges: [], timeouts: []
+  },
+  {
+    title: "⚡ 协调者在发送 doCommit 前崩溃",
+    desc: "协调者在广播 doCommit 之前宕机。P1/P2/P3 等待 doCommit 命令，但协调者已无响应。",
+    kind: "failure",
+    detail: "这正是 3PC 解决阻塞问题的核心场景！参与者处于 PRE_COMMITTED 状态——不是 UNCERTAIN——这一状态差异决定了后续可以自行提交。",
+    phase: "⚠ 协调者宕机", phaseStep: 2,
+    coordSub: "已崩溃", logState: "无响应", logDecision: "?",
+    subs: ["等待 doCommit…", "等待 doCommit…", "等待 doCommit…"],
+    active: [1,2,3], fail: [0], recover: [], edges: [], failEdges: [], okEdges: [], peerEdges: [], timeouts: []
+  },
+  {
+    title: "P1/P2/P3 等待超时 — 启动 Termination Protocol",
+    desc: "等待 doCommit 超时后，参与者不再无限等待，主动发起参与者间协商（Termination Protocol）。",
+    kind: "failure",
+    detail: "3PC 非阻塞的核心：参与者超时不会永远持锁等待（2PC 的悲剧），而是主动查询其他参与者状态，利用 PRE_COMMITTED 信息自行做出决策。",
+    phase: "⚠ 超时触发协商", phaseStep: 2,
+    coordSub: "已崩溃", logState: "无响应", logDecision: "?",
+    subs: ["超时！启动协商", "超时！启动协商", "超时！启动协商"],
+    active: [1,2,3], fail: [0], recover: [], edges: [], failEdges: [], okEdges: [], peerEdges: [], timeouts: [1,2,3]
+  },
+  {
+    title: "P1 发起状态查询：联系 P2 和 P3",
+    desc: "P1 通过 Termination Protocol 联系 P2 和 P3，查询各自当前状态。",
+    kind: "recovery",
+    detail: "Termination Protocol 决策规则：① 发现有人 COMMITTED → 全部提交；② 发现有人 ABORTED → 全部回滚；③ 有人处于 UNCERTAIN（未收到 preCommit）→ 全部中止；④ 全员 PRE_COMMITTED → 可以提交。",
+    phase: "Termination Protocol", phaseStep: 2,
+    coordSub: "已崩溃", logState: "无响应", logDecision: "?",
+    subs: ["发起状态查询", "收到查询请求", "收到查询请求"],
+    active: [1,2,3], fail: [0], recover: [], edges: [], failEdges: [], okEdges: [], peerEdges: [7,8,9], timeouts: []
+  },
+  {
+    title: "P2/P3 报告：均处于 PRE_COMMITTED 状态",
+    desc: "P2 和 P3 向 P1 汇报：各自都收到了 preCommit，均处于 PRE_COMMITTED 状态，已写入预提交日志。",
+    kind: "recovery",
+    detail: "关键推论：所有参与者都收到了 preCommit，说明协调者在崩溃前已成功完成第二阶段。根据 Termination Protocol，全员 PRE_COMMITTED → 可以安全提交！",
+    phase: "协商结果：可以提交", phaseStep: 2,
+    coordSub: "已崩溃", logState: "无响应", logDecision: "→提交",
+    subs: ["收到回报：可提交", "PRE_COMMITTED ✓", "PRE_COMMITTED ✓"],
+    active: [1,2,3], fail: [0], recover: [], edges: [], failEdges: [], okEdges: [], peerEdges: [7,8,9], timeouts: []
+  },
+  {
+    title: "P1/P2/P3 自行提交事务 — 无需等待协调者恢复",
+    desc: "三个参与者达成共识，自行完成事务提交，释放锁，系统继续正常运行。",
+    kind: "recovery",
+    detail: "3PC vs 2PC 核心差异：相同场景下 2PC 会永久阻塞持锁，3PC 通过 Termination Protocol 自行完成，系统不需要人工介入或等待协调者恢复。代价是 CanCommit 额外一轮消息。",
+    phase: "✓ 自行提交完成", phaseStep: 2,
+    coordSub: "已崩溃（事务已完成）", logState: "参与者自决", logDecision: "COMMIT ✓",
+    subs: ["自行提交 ✓", "自行提交 ✓", "自行提交 ✓"],
+    active: [], fail: [0], recover: [1,2,3], edges: [], failEdges: [], okEdges: [], peerEdges: [], timeouts: []
+  }
+];
+
+const STEPS_S3 = [
+  {
+    title: "子场景 A：CanCommit 阶段 P3 超时",
+    desc: "CanCommit 广播后，P1/P2 回复 YES，但 P3 因网络问题未响应，协调者等待超时。",
+    kind: "failure",
+    detail: "CanCommit 阶段超时策略：此时所有参与者均未加锁、未写日志，因此直接 Abort 代价为零。这是 3PC CanCommit 阶段的设计亮点——探测失败无副作用。",
+    phase: "Phase 1: P3 超时", phaseStep: 0,
+    coordSub: "等待 P3 超时", logState: "等待中", logDecision: "→Abort",
+    subs: ["YES ✓", "YES ✓", "⏰ 无响应"],
+    active: [0,1,2], fail: [3], recover: [], edges: [3,4], failEdges: [], okEdges: [3,4], peerEdges: [], timeouts: [3]
+  },
+  {
+    title: "协调者广播 Abort（CanCommit 超时 → 零成本中止）",
+    desc: "协调者超时后决定中止事务，向 P1/P2 发送 Abort，P3 后续恢复时也会收到 Abort。",
+    kind: "failure",
+    detail: "CanCommit 超时的好处完全体现：P1/P2 无需执行任何回滚操作（未加锁、无日志），直接释放等待状态即可。这是与 2PC（Prepare 失败需回滚）的重要区别。",
+    phase: "Abort（零成本）", phaseStep: 0,
+    coordSub: "广播 Abort", logState: "ABORT", logDecision: "ABORT ✗",
+    subs: ["释放等待状态", "释放等待状态", "⏰ 超时中…"],
+    active: [0], fail: [3], recover: [], edges: [0,1], failEdges: [2], okEdges: [], peerEdges: [], timeouts: []
+  },
+  {
+    title: "子场景 B：PreCommit 阶段 P3 等待 doCommit 超时",
+    desc: "三阶段均顺利推进，P1/P2/P3 都已进入 PRE_COMMITTED 状态。但 P3 等待 doCommit 超时（非协调者故障）。",
+    kind: "normal",
+    detail: "PreCommit 阶段超时策略截然不同：不能直接 Abort！因为其他参与者可能已经 COMMITTED 或 PRE_COMMITTED，直接 Abort 会破坏一致性。必须先查询。",
+    phase: "Phase 3: P3 等待超时", phaseStep: 1,
+    coordSub: "发送延迟", logState: "正常（延迟）", logDecision: "PreCommit",
+    subs: ["PRE_COMMITTED", "PRE_COMMITTED", "⏰ doCommit 超时"],
+    active: [0,1,2], fail: [], recover: [], edges: [], failEdges: [], okEdges: [], peerEdges: [], timeouts: [3]
+  },
+  {
+    title: "P3 启动 Termination Protocol，查询 P1/P2",
+    desc: "P3 不能直接 Abort，通过 Termination Protocol 查询 P1/P2 的当前状态。",
+    kind: "recovery",
+    detail: "PreCommit 超时与 CanCommit 超时的策略对比：CanCommit 超时 → 直接 Abort（无副作用）；PreCommit 超时 → 必须先查询（可能有人已 COMMITTED）。状态决定策略。",
+    phase: "Termination Protocol", phaseStep: 1,
+    coordSub: "发送延迟", logState: "正常", logDecision: "PreCommit",
+    subs: ["收到查询", "收到查询", "查询 P1/P2 状态…"],
+    active: [1,2,3], fail: [], recover: [], edges: [], failEdges: [], okEdges: [], peerEdges: [7,8,9], timeouts: []
+  },
+  {
+    title: "P1/P2 报告 PRE_COMMITTED，P3 决定自行提交",
+    desc: "P1/P2 均报告 PRE_COMMITTED 状态，P3 根据 Termination Protocol 决策：全员 PRE_COMMITTED → 可以提交。",
+    kind: "recovery",
+    detail: "P3 自行提交。协调者随后发出 doCommit，P1/P2 也正常完成提交。整个事务在无需人工介入的情况下自行收敛，这正是 3PC 设计的目标。",
+    phase: "✓ 超时自决策成功", phaseStep: 2,
+    coordSub: "发出 doCommit（延迟）", logState: "COMMIT", logDecision: "COMMIT ✓",
+    subs: ["已提交 ✓", "已提交 ✓", "自行提交 ✓"],
+    active: [], fail: [], recover: [0,1,2,3], edges: [], failEdges: [], okEdges: [], peerEdges: [], timeouts: []
+  }
+];
+
+/* Scenario 4: comparison step data */
+const STEPS_S4 = [
+  {
+    title: "2PC vs 3PC 综合对比概览",
+    desc: "3PC 在 2PC 基础上增加 CanCommit 阶段，以更多消息轮次换取协调者故障后的非阻塞恢复能力。",
+    kind: "normal",
+    detail: "核心权衡：2PC 简单高效但存在阻塞问题；3PC 复杂但非阻塞。工业界因网络分区问题仍无法解决，通常选择 Paxos/Raft 等更完善的方案。",
+    hl2pc: [], hl3pc: [], hlRows: []
+  },
+  {
+    title: "消息轮次对比：2PC 4 轮 vs 3PC 6 轮",
+    desc: "2PC 需要 4 轮消息（Prepare→Vote→Commit→ACK），3PC 需要 6 轮（增加 CanCommit→YES 一轮）。网络开销增加 50%。",
+    kind: "normal",
+    detail: "对于高频短事务，额外的 50% 消息轮次会显著增加延迟和吞吐压力。这是 3PC 在延迟敏感场景难以落地的重要原因。",
+    hl2pc: ["c2_p1","c2_p2"], hl3pc: ["c3_p1","c3_p2","c3_p3"], hlRows: ["tr_msg"]
+  },
+  {
+    title: "协调者故障处理：阻塞 vs 非阻塞",
+    desc: "协调者在第二阶段前崩溃时：2PC 参与者永久阻塞持锁；3PC 参与者超时后通过 Termination Protocol 自行决策完成事务。",
+    kind: "failure",
+    detail: "这是 3PC 最核心的改进。2PC 协调者故障后系统必须等待协调者恢复（可能很长时间），期间所有相关资源持锁不可用；3PC 通过有限等待 + 协商自决解除了这个阻塞。",
+    hl2pc: ["c2_fault"], hl3pc: ["c3_fault"], hlRows: ["tr_block"]
+  },
+  {
+    title: "网络分区：两者都无法安全处理",
+    desc: "网络分区时，2PC 直接阻塞；3PC 的 Termination Protocol 在分区两侧独立运行，可能做出不同决策——脑裂风险，数据不一致。",
+    kind: "failure",
+    detail: "这是 3PC 仍未解决的根本问题。分区两侧参与者各自执行 Termination Protocol，若两侧的 PRE_COMMITTED 状态不同，将产生矛盾决策。这也是 Paxos/Raft 等共识算法被工业界更广泛采用的原因。",
+    hl2pc: ["c2_partition"], hl3pc: ["c3_partition"], hlRows: ["tr_partition"]
+  },
+  {
+    title: "工业选择：为什么 3PC 很少被直接使用",
+    desc: "消息复杂度高（+50%）+ 仍无法解决网络分区 → 工业界更倾向于 Paxos/Raft（共识）、Saga（补偿事务）或 TCC（Try-Confirm-Cancel）。",
+    kind: "normal",
+    detail: "学习 3PC 的价值在于理解「非阻塞共识」的思路和 Termination Protocol 的设计。在实际工程中，Spanner 的 TrueTime + Paxos、TiDB 的 Raft + 2PC 等方案才是主流选择。",
+    hl2pc: [], hl3pc: [], hlRows: ["tr_complex", "tr_usage"]
+  }
+];
+
+const ALL_SCENARIOS = [STEPS_S1, STEPS_S2, STEPS_S3, STEPS_S4];
+let scenarioIdx = 0, stepIdx = 0, timer = null;
+
+const NODE_IDS = ['n_coord','n_p1','n_p2','n_p3','n_log'];
+const EDGE_IDS = ['e1','e2','e3','e4','e5','e6','e7','e8','e9','e10'];
+const REPLY_EDGES = [3,4,5]; // e4, e5, e6 (0-indexed)
+const PEER_EDGES  = [7,8,9]; // e8, e9, e10 (0-indexed)
+const LOG_IDX = 4; // n_log in NODE_IDS
+
+const $ = id => document.getElementById(id);
+
+function getSteps() { return ALL_SCENARIOS[scenarioIdx]; }
+
+/* --- SVG render --- */
+function renderSVG(s) {
+  // Phase indicator
+  const phIds = ['ph1','ph2','ph3'];
+  const phTxtIds = ['ph1txt','ph2txt','ph3txt'];
+  phIds.forEach((id, i) => {
+    $('ph' + (i+1)).classList.toggle('ph-active', s.phaseStep === i);
+    $('ph' + (i+1) + 'txt').classList.toggle('ph-active', s.phaseStep === i);
+  });
+
+  // Phase center label
+  $('phaseLabel').textContent = s.phase;
+
+  // Coordinator sub
+  $('n_coord_sub').textContent = s.coordSub;
+
+  // Log
+  $('logState').textContent    = s.logState;
+  $('logDecision').textContent = s.logDecision;
+  const ld = $('logDecision');
+  ld.setAttribute('fill', s.logDecision.includes('✓') ? '#4ade80' : s.logDecision.includes('✗') ? '#f87171' : '#64748b');
+
+  // Participant subs
+  ['n_p1_sub','n_p2_sub','n_p3_sub'].forEach((id,i) => { $(id).textContent = s.subs[i]; });
+
+  // Node states (indices: 0=coord, 1=p1, 2=p2, 3=p3, 4=log)
+  NODE_IDS.forEach((id, i) => {
+    const el = $(id);
+    el.classList.remove('active','fail','recover','coord-hi');
+    if (s.fail.includes(i))    { el.classList.add('fail');    return; }
+    if (s.recover.includes(i)) { el.classList.add('recover'); return; }
+    if (s.active.includes(i))  { el.classList.add(i === 0 ? 'coord-hi' : 'active'); }
+  });
+
+  // Edge states
+  EDGE_IDS.forEach((id, i) => {
+    const el = $(id);
+    if (!el) return;
+    el.classList.remove('active','fail','ok','peer-active');
+    const isReply = REPLY_EDGES.includes(i);
+    const isPeer  = PEER_EDGES.includes(i);
+    if (s.peerEdges && s.peerEdges.includes(i)) {
+      el.classList.add('peer-active'); el.style.opacity = '1';
+    } else if (s.failEdges && s.failEdges.includes(i)) {
+      el.classList.add('fail'); el.style.opacity='1'; el.setAttribute('marker-end','url(#arrF)');
+    } else if (s.okEdges && s.okEdges.includes(i)) {
+      el.classList.add('ok'); el.style.opacity='1'; el.setAttribute('marker-end','url(#arrOk)');
+    } else if (s.edges && s.edges.includes(i)) {
+      el.classList.add('active'); el.style.opacity='1'; el.setAttribute('marker-end','url(#arrA)');
+    } else {
+      el.removeAttribute('marker-end'); el.setAttribute('marker-end','url(#arr)');
+      el.style.opacity = (isReply || isPeer) ? '0' : '1';
+    }
+  });
+
+  // Timeout icons
+  ['to_p1','to_p2','to_p3'].forEach((id, i) => {
+    $(id).classList.toggle('show', s.timeouts && s.timeouts.includes(i+1));
+  });
+}
+
+/* --- Comparison render --- */
+function renderCompare(s) {
+  const allC2 = ['c2_p1','c2_p2','c2_fault','c2_partition'];
+  const allC3 = ['c3_p1','c3_p2','c3_p3','c3_fault','c3_partition'];
+  const allRows = ['tr_msg','tr_block','tr_partition','tr_complex','tr_usage'];
+
+  allC2.forEach(id => { const el=$(id); if(el){el.classList.remove('hl','hl-ok','hl-bad'); if(s.hl2pc&&s.hl2pc.includes(id)) el.classList.add('hl-bad');} });
+  allC3.forEach(id => { const el=$(id); if(el){el.classList.remove('hl','hl-ok','hl-bad'); if(s.hl3pc&&s.hl3pc.includes(id)) el.classList.add('hl-ok');} });
+  allRows.forEach(id => { const el=$(id); if(el){el.classList.remove('hl'); if(s.hlRows&&s.hlRows.includes(id)) el.classList.add('hl');} });
+}
+
+/* --- Main render --- */
+function render() {
+  const steps = getSteps();
+  const s     = steps[stepIdx];
+
+  $('stepTitle').textContent  = s.title;
+  $('stepDesc').textContent   = s.desc;
+  $('stepDetail').textContent = s.detail;
+  $('stateBadge').textContent = s.kind;
+  $('stateBadge').className   = 'badge ' + s.kind;
+
+  // Highlight step list
+  document.querySelectorAll('.step-btn').forEach((b,i) => b.classList.toggle('active', i === stepIdx));
+
+  const isCmp = scenarioIdx === 3;
+  $('pcSvg').style.display      = isCmp ? 'none' : '';
+  $('compareView').style.display = isCmp ? 'flex' : 'none';
+
+  if (isCmp) { renderCompare(s); }
+  else        { renderSVG(s);    }
+
+  $('btnPrev').disabled = stepIdx === 0;
+  $('btnNext').disabled = stepIdx === steps.length - 1;
+}
+
+/* --- Step list --- */
+function drawList() {
+  const steps = getSteps();
+  $('stepList').innerHTML = steps.map((s,i) =>
+    `<button class="step-btn" data-i="${i}"><b>Step ${i+1}</b>${s.title}</button>`
+  ).join('');
+  $('stepList').querySelectorAll('button').forEach(b => b.onclick = () => { stepIdx = +b.dataset.i; pause(); render(); });
+}
+
+/* --- Scenario switching --- */
+function switchScenario(idx) {
+  scenarioIdx = idx;
+  stepIdx     = 0;
+  pause();
+  document.querySelectorAll('.stab').forEach((b,i) => b.classList.toggle('active', i === idx));
+  drawList();
+  render();
+}
+
+/* --- Playback --- */
+function next()   { stepIdx = Math.min(getSteps().length-1, stepIdx+1); render(); if(stepIdx===getSteps().length-1) pause(); }
+function prev()   { stepIdx = Math.max(0, stepIdx-1); render(); }
+function reset()  { stepIdx = 0; pause(); render(); }
+function pause()  { if(timer) clearInterval(timer); timer=null; $('btnPlay').textContent='播放'; }
+function toggle() { if(timer){pause();return;} $('btnPlay').textContent='暂停'; timer=setInterval(next,2000); }
+
+$('btnNext').onclick  = next;
+$('btnPrev').onclick  = prev;
+$('btnReset').onclick = reset;
+$('btnPlay').onclick  = toggle;
+
+document.querySelectorAll('.stab').forEach(b => b.onclick = () => switchScenario(+b.dataset.s));
+
+drawList();
+render();
+</script>
+<script>if (window.NavTracker) NavTracker.track('三阶段提交（3PC）', window.location.href, '🔄', '分布式');</script>
+<script src="../footer.js"></script>
+</body>
+</html>
