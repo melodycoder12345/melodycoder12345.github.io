@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Service 网络包路径 - 云原生</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#34d399;--ok:#4ade80;--warn:#fbbf24;--err:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:radial-gradient(circle at 30% 0%,rgba(52,211,153,.1),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1260px;margin:0 auto;padding:40px 32px 80px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--dim2);margin-bottom:24px}
+.breadcrumb a{color:var(--dim2)}.breadcrumb a:hover{color:var(--text)}
+.page-title{font-size:clamp(1.6rem,3.5vw,2.8rem);letter-spacing:-.04em;margin-bottom:6px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{color:var(--dim);font-size:.95rem;margin-bottom:28px;max-width:640px;line-height:1.75}
+.layout{display:grid;grid-template-columns:260px 1fr;gap:20px}
+.left-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:18px}
+.left-panel h3{font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px}
+.step-btn{width:100%;text-align:left;border:1px solid transparent;background:none;color:var(--dim);padding:9px 12px;border-radius:10px;cursor:pointer;font-size:.82rem;line-height:1.5;transition:.15s;margin-bottom:4px;display:block}
+.step-btn:hover{border-color:rgba(52,211,153,.3);color:var(--text)}
+.step-btn.active{background:rgba(52,211,153,.1);border-color:rgba(52,211,153,.4);color:var(--text)}
+.step-index{display:inline-block;width:18px;height:18px;border-radius:50%;background:rgba(52,211,153,.15);color:var(--accent);font-size:.68rem;font-weight:700;text-align:center;line-height:18px;margin-right:7px}
+.ctrl{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.ctrl button{flex:1;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:10px;padding:8px 4px;cursor:pointer;font-size:.76rem;transition:.15s}
+.ctrl button:hover{border-color:var(--accent);color:var(--text)}
+.center-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:22px;min-height:540px}
+.step-msg{border-left:3px solid var(--accent);background:rgba(52,211,153,.06);border-radius:0 10px 10px 0;padding:10px 14px;font-size:.86rem;color:var(--text);line-height:1.7;margin-bottom:20px}
+.net-diagram{position:relative}
+.node-box{border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:16px;margin-bottom:14px;background:rgba(30,41,59,.5)}
+.node-box.src-node{border-color:rgba(52,211,153,.3)}
+.node-box.dst-node{border-color:rgba(129,140,248,.3)}
+.node-title{font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;font-weight:700}
+.pod-inline{display:inline-flex;align-items:center;gap:6px;background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);border-radius:8px;padding:5px 10px;font-size:.78rem;font-family:monospace;margin:4px}
+.pod-inline.dst{background:rgba(129,140,248,.08);border-color:rgba(129,140,248,.25)}
+.hop-list{display:flex;flex-direction:column;gap:6px;margin:12px 0}
+.hop{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.02);font-size:.82rem;transition:all .35s}
+.hop.active{border-color:var(--accent);background:rgba(52,211,153,.08);box-shadow:0 0 12px rgba(52,211,153,.12)}
+.hop.done{border-color:rgba(255,255,255,.08);background:rgba(255,255,255,.02);opacity:0.65}
+.hop-icon{font-size:1rem;width:24px;text-align:center;flex-shrink:0}
+.hop-name{font-weight:600;min-width:160px}
+.hop-detail{color:var(--dim);font-size:.76rem}
+.pkt{display:inline-flex;align-items:center;gap:5px;font-family:monospace;font-size:.72rem;padding:3px 8px;border-radius:5px;background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.2);margin-left:auto}
+.vip-note{display:inline-flex;align-items:center;gap:6px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.25);border-radius:8px;padding:6px 12px;font-size:.78rem;color:var(--warn);margin:10px 0}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">云原生</a><span>/</span>Service 网络包路径</div>
+  <h1 class="page-title">Service 网络包路径</h1>
+  <p class="subtitle">从 Pod-A 发出请求到 Service ClusterIP，包经过 veth pair → cbr0 → iptables DNAT → 目标 Pod-B（可能跨节点）。ClusterIP 是虚拟 IP，不对应任何真实网卡，转发完全依靠 iptables/IPVS 规则。</p>
+
+  <div class="layout">
+    <div class="left-panel">
+      <h3>步骤</h3>
+      <div id="stepList"></div>
+      <div class="ctrl">
+        <button onclick="prev()">← 上一步</button>
+        <button onclick="next()">下一步 →</button>
+        <button onclick="reset()">重置</button>
+        <button id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      </div>
+    </div>
+    <div class="center-panel">
+      <div class="step-msg" id="stepMsg">点击"下一步"观察网络包从 Pod-A 到 Service 的完整路径。</div>
+      <div class="net-diagram">
+        <div class="vip-note" id="vipNote">ℹ️ ClusterIP 10.96.0.1 是虚拟 IP（VIP），不存在于任何网卡，由 iptables 规则处理</div>
+        <div class="hop-list" id="hopList"></div>
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+const HOPS = [
+  {icon:'📦',name:'Pod-A 应用层',detail:'connect("10.96.0.1:80") → TCP SYN',pkt:'SRC=10.244.1.5:54321 DST=10.96.0.1:80'},
+  {icon:'🔗',name:'veth0（容器侧）',detail:'Pod 内的虚拟网卡，一端在容器 network namespace，一端在宿主机',pkt:'SRC=10.244.1.5:54321 DST=10.96.0.1:80'},
+  {icon:'🌉',name:'cbr0 / flannel.1（宿主机网桥）',detail:'宿主机侧 veth 接入网桥，包进入宿主机网络栈',pkt:'SRC=10.244.1.5:54321 DST=10.96.0.1:80'},
+  {icon:'⚙️',name:'iptables — PREROUTING DNAT',detail:'kube-proxy 写入的规则：匹配 DST=10.96.0.1:80，轮询选择 Endpoint（如 10.244.2.8:8080），做 DNAT 替换目的地址',pkt:'SRC=10.244.1.5:54321 DST=10.244.2.8:8080 [DNAT]'},
+  {icon:'🚦',name:'路由决策（ip route）',detail:'查路由表，10.244.2.x 在 node-2，包需通过 overlay 网络（flannel/VXLAN）发出',pkt:'SRC=10.244.1.5:54321 DST=10.244.2.8:8080'},
+  {icon:'🌐',name:'VXLAN/flannel 封装（跨节点）',detail:'外层 UDP 封装：SRC=192.168.1.1（node-1 IP）DST=192.168.1.2（node-2 IP），内层保留原始包，通过物理网络发送',pkt:'[UDP VXLAN] outer: 1.1→1.2'},
+  {icon:'📡',name:'node-2 物理网卡接收',detail:'VXLAN 解封装，还原内层包，交给 node-2 的网络栈',pkt:'SRC=10.244.1.5:54321 DST=10.244.2.8:8080'},
+  {icon:'🔗',name:'veth-pod-b（node-2 侧）',detail:'通过网桥转发到 Pod-B 的 veth pair',pkt:'SRC=10.244.1.5:54321 DST=10.244.2.8:8080'},
+  {icon:'📦',name:'Pod-B 接收',detail:'Pod-B 的应用监听 8080 端口，收到连接请求。回包经 conntrack 自动做 SNAT（10.244.2.8→10.96.0.1），客户端看到的仍是 ClusterIP',pkt:'🎉 连接建立！'},
+];
+
+const STEPS = [
+  {activeIdx:-1,msg:'场景：Pod-A（10.244.1.5）访问 Service（ClusterIP 10.96.0.1:80），该 Service 的 Endpoint 是 Pod-B（10.244.2.8:8080，在 node-2）。kube-proxy 已在每个节点写入 iptables 规则。'},
+  {activeIdx:0,msg:'Step 1：Pod-A 应用调用 connect("10.96.0.1:80")，发出 TCP SYN，此时目的地址是 Service 的虚拟 IP（ClusterIP）。'},
+  {activeIdx:1,msg:'Step 2：包从容器网络命名空间的 eth0（实际是 veth 一端）出去，进入宿主机 node-1 的网络栈。'},
+  {activeIdx:2,msg:'Step 3：包进入 cbr0 网桥（Linux Bridge），准备被路由。'},
+  {activeIdx:3,msg:'Step 4：关键！iptables PREROUTING 链中，kube-proxy 写入的规则匹配到 DST=10.96.0.1:80，执行 DNAT：目的地址从 ClusterIP 改为真实 Pod-B 的 IP:Port（10.244.2.8:8080）。ClusterIP 只在这里发挥作用。'},
+  {activeIdx:4,msg:'Step 5：路由表查询：10.244.2.x 网段在 node-2，需要通过 overlay 网络发送。'},
+  {activeIdx:5,msg:'Step 6：flannel（或 Calico/Cilium）将包封装在 VXLAN UDP 包中，外层地址是两台宿主机的真实 IP。通过物理网络发送到 node-2。'},
+  {activeIdx:6,msg:'Step 7：node-2 收到 VXLAN 包，解封装还原内层包。'},
+  {activeIdx:7,msg:'Step 8：通过 node-2 上的 cbr0 网桥和 veth pair，包到达 Pod-B 的 eth0。'},
+  {activeIdx:8,msg:'Step 9：Pod-B 接收到连接。回包通过 netfilter conntrack 自动将源地址改回 ClusterIP，客户端 Pod-A 感知不到真实 Pod IP，实现了负载均衡的透明性。'},
+];
+
+let cur = -1, timer = null;
+
+function renderHops(step){
+  const list = document.getElementById('hopList');
+  list.innerHTML = '';
+  HOPS.forEach((h, i) => {
+    const div = document.createElement('div');
+    let cls = 'hop';
+    if(step && step.activeIdx === i) cls += ' active';
+    else if(step && i < step.activeIdx) cls += ' done';
+    div.className = cls;
+    div.innerHTML = `<span class="hop-icon">${h.icon}</span><span class="hop-name">${h.name}</span><span class="hop-detail">${h.detail}</span><span class="pkt">${h.pkt}</span>`;
+    list.appendChild(div);
+  });
+}
+
+function buildStepList(){
+  const list = document.getElementById('stepList');
+  list.innerHTML = '';
+  STEPS.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-btn' + (i === cur ? ' active' : '');
+    const hop = s.activeIdx >= 0 ? HOPS[s.activeIdx] : null;
+    btn.innerHTML = `<span class="step-index">${i+1}</span>${hop ? hop.name.slice(0,18) : '开始'}`;
+    btn.onclick = () => { cur = i; render(); };
+    list.appendChild(btn);
+  });
+}
+
+function render(){
+  const step = cur >= 0 ? STEPS[cur] : null;
+  renderHops(step);
+  document.getElementById('stepMsg').textContent = step ? step.msg : '点击"下一步"观察网络包从 Pod-A 到 Service 的完整路径。';
+  buildStepList();
+}
+
+function next(){ if(cur < STEPS.length-1){ cur++; render(); } }
+function prev(){ if(cur > -1){ cur--; render(); } }
+function reset(){ cur = -1; stopPlay(); render(); }
+function togglePlay(){ if(timer) stopPlay(); else startPlay(); }
+function startPlay(){
+  document.getElementById('playBtn').textContent = '⏸ 暂停';
+  timer = setInterval(() => {
+    if(cur < STEPS.length-1){ cur++; render(); } else stopPlay();
+  }, 2200);
+}
+function stopPlay(){
+  if(timer){ clearInterval(timer); timer = null; }
+  document.getElementById('playBtn').textContent = '▶ 播放';
+}
+
+render();
+</script>
+</body>
+</html>

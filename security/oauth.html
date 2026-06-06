@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OAuth 2.0 - 安全</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#38bdf8;--ok:#4ade80;--warn:#fbbf24;--err:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:radial-gradient(circle at 20% 0%,rgba(56,189,248,.1),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1260px;margin:0 auto;padding:40px 32px 80px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--dim2);margin-bottom:24px}
+.breadcrumb a{color:var(--dim2)}.breadcrumb a:hover{color:var(--text)}
+.page-title{font-size:clamp(1.6rem,3.5vw,2.8rem);letter-spacing:-.04em;margin-bottom:6px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{color:var(--dim);font-size:.95rem;margin-bottom:28px;max-width:640px;line-height:1.75}
+.layout{display:grid;grid-template-columns:240px 1fr;gap:20px}
+.left-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:18px}
+.left-panel h3{font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px}
+.step-btn{width:100%;text-align:left;border:1px solid transparent;background:none;color:var(--dim);padding:9px 12px;border-radius:10px;cursor:pointer;font-size:.82rem;line-height:1.5;transition:.15s;margin-bottom:4px;display:block}
+.step-btn:hover{border-color:rgba(56,189,248,.3);color:var(--text)}
+.step-btn.active{background:rgba(56,189,248,.1);border-color:rgba(56,189,248,.4);color:var(--text)}
+.step-index{display:inline-block;width:18px;height:18px;border-radius:50%;background:rgba(56,189,248,.15);color:var(--accent);font-size:.68rem;font-weight:700;text-align:center;line-height:18px;margin-right:7px}
+.ctrl{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.ctrl button{flex:1;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:10px;padding:8px 4px;cursor:pointer;font-size:.76rem;transition:.15s}
+.ctrl button:hover{border-color:var(--accent);color:var(--text)}
+.center-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:22px;min-height:540px;display:flex;flex-direction:column;gap:14px}
+.step-msg{border-left:3px solid var(--accent);background:rgba(56,189,248,.06);border-radius:0 10px 10px 0;padding:10px 14px;font-size:.86rem;color:var(--text);line-height:1.7}
+/* Swimlane */
+.swimlane-wrap{overflow-x:auto}
+.swimlane{display:grid;grid-template-columns:repeat(4,1fr);gap:0;min-width:600px}
+.lane-header{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:8px 10px;background:rgba(255,255,255,.04);border-bottom:1px solid rgba(255,255,255,.07);text-align:center;color:var(--dim)}
+.lane-col{border-right:1px dashed rgba(255,255,255,.06);padding:8px 4px;min-height:40px;position:relative;display:flex;align-items:center;justify-content:center}
+.lane-col:last-child{border-right:none}
+.msg-arrow{display:flex;align-items:center;font-size:.72rem;font-family:monospace;padding:5px 8px;border-radius:6px;white-space:nowrap;opacity:0;transition:opacity .35s;width:100%}
+.msg-arrow.show{opacity:1}
+.msg-arrow.fwd{background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.2);color:#bae6fd;justify-content:center}
+.msg-arrow.used{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);color:var(--dim2);text-decoration:line-through}
+.msg-arrow.token{background:rgba(74,222,128,.06);border:1px solid rgba(74,222,128,.2);color:#86efac;justify-content:center}
+.actor{border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 12px;text-align:center;font-size:.78rem;background:rgba(30,41,59,.6);font-weight:600}
+.token-box{border:1px solid rgba(74,222,128,.3);background:rgba(74,222,128,.06);border-radius:8px;padding:8px 12px;font-family:monospace;font-size:.74rem;color:var(--ok);margin-top:6px}
+.token-box.expired{border-color:rgba(248,113,113,.3);background:rgba(248,113,113,.06);color:var(--err);text-decoration:line-through}
+.code-box{border:1px solid rgba(56,189,248,.3);background:rgba(56,189,248,.06);border-radius:8px;padding:8px 12px;font-family:monospace;font-size:.74rem;color:var(--accent)}
+.code-box.used{opacity:0.4;text-decoration:line-through;border-color:rgba(255,255,255,.1)}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">安全</a><span>/</span>OAuth 2.0</div>
+  <h1 class="page-title">OAuth 2.0 授权码流程</h1>
+  <p class="subtitle">OAuth 2.0 的核心是"授权码换 Token"：浏览器通过前端渠道获取一次性授权码（Code），Client 后端通过后端渠道（携带 client_secret）将 Code 换成 Access Token。Code 只能用一次，Token 有过期时间。</p>
+
+  <div class="layout">
+    <div class="left-panel">
+      <h3>步骤</h3>
+      <div id="stepList"></div>
+      <div class="ctrl">
+        <button onclick="prev()">← 上一步</button>
+        <button onclick="next()">下一步 →</button>
+        <button onclick="reset()">重置</button>
+        <button id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      </div>
+    </div>
+    <div class="center-panel">
+      <div class="step-msg" id="stepMsg">点击"下一步"观察 OAuth 2.0 授权码流程。</div>
+
+      <div class="swimlane-wrap">
+        <div class="swimlane">
+          <div class="lane-header">User/Browser</div>
+          <div class="lane-header">Client App</div>
+          <div class="lane-header">Auth Server</div>
+          <div class="lane-header">Resource Server</div>
+        </div>
+        <div id="swimRows"></div>
+      </div>
+
+      <div id="stateArea" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:4px"></div>
+    </div>
+  </div>
+</main>
+<script>
+const STEPS = [
+  {
+    rows:[],state:{},
+    msg:'场景：用户要用 GitHub 账号登录第三方应用（Client App）。OAuth 2.0 的四个角色：User（用户）/ Client App（第三方应用）/ Auth Server（GitHub）/ Resource Server（GitHub API）。'
+  },
+  {
+    rows:[{lane:0,text:'点击"用 GitHub 登录"',cls:'fwd'},{lane:1,text:'',cls:''},{lane:2,text:'',cls:''},{lane:3,text:'',cls:''}],
+    state:{},
+    msg:'Step 1：用户点击"用 GitHub 登录"按钮，浏览器重定向到 GitHub Auth Server：\nhttps://github.com/login/oauth/authorize?client_id=xxx&redirect_uri=...&state=abc&scope=read:user'
+  },
+  {
+    rows:[
+      {lane:0,text:'→ 重定向到 GitHub',cls:'fwd'},{lane:1,text:'',cls:''},{lane:2,text:'',cls:''},{lane:3,text:'',cls:''},
+      {lane:0,text:'',cls:''},{lane:1,text:'',cls:''},{lane:2,text:'显示授权页面',cls:'fwd'},{lane:3,text:'',cls:''},
+    ],
+    state:{},
+    msg:'Step 2：GitHub 显示授权页面，告知用户"Client App 想要访问你的 public profile"。用户点击"授权"。'
+  },
+  {
+    rows:[
+      {lane:0,text:'→ 重定向到 GitHub',cls:'fwd'},{lane:1,text:'',cls:''},{lane:2,text:'',cls:''},{lane:3,text:'',cls:''},
+      {lane:0,text:'',cls:''},{lane:1,text:'',cls:''},{lane:2,text:'显示授权页面',cls:'fwd'},{lane:3,text:'',cls:''},
+      {lane:0,text:'用户点击授权 ✓',cls:'fwd'},{lane:1,text:'',cls:''},{lane:2,text:'',cls:''},{lane:3,text:'',cls:''},
+      {lane:0,text:'',cls:''},{lane:1,text:'',cls:''},{lane:2,text:'→ 回调 code=xyz123',cls:'fwd'},{lane:3,text:'',cls:''},
+    ],
+    state:{code:'xyz123（一次性，30s 有效）'},
+    msg:'Step 3：用户授权后，Auth Server 将浏览器重定向到 redirect_uri，携带一次性授权码（Code）：\nhttps://myapp.com/callback?code=xyz123&state=abc\n注意：Code 通过前端浏览器传递，安全性较低，所以不直接是 Token。'
+  },
+  {
+    rows:[
+      {lane:0,text:'→ 重定向到 GitHub',cls:'fwd'},{lane:1,text:'',cls:''},{lane:2,text:'',cls:''},{lane:3,text:'',cls:''},
+      {lane:0,text:'',cls:''},{lane:1,text:'',cls:''},{lane:2,text:'显示授权页面',cls:'fwd'},{lane:3,text:'',cls:''},
+      {lane:0,text:'用户点击授权 ✓',cls:'fwd'},{lane:1,text:'',cls:''},{lane:2,text:'',cls:''},{lane:3,text:'',cls:''},
+      {lane:0,text:'',cls:''},{lane:1,text:'',cls:''},{lane:2,text:'→ 回调 code=xyz123',cls:'fwd'},{lane:3,text:'',cls:''},
+      {lane:0,text:'',cls:''},{lane:1,text:'后端：POST code+secret',cls:'fwd'},{lane:2,text:'',cls:''},{lane:3,text:'',cls:''},
+      {lane:0,text:'',cls:''},{lane:1,text:'',cls:''},{lane:2,text:'← access_token',cls:'token'},{lane:3,text:'',cls:''},
+    ],
+    state:{code:'xyz123（已使用，失效）',token:'gho_xxxxxxxxxxxxxxx（expires_in: 3600s）'},
+    msg:'Step 4：关键！Client App 后端（不通过浏览器）向 Auth Server 发起服务器到服务器请求，携带 code + client_secret，换取 access_token。后端渠道传输，更安全。Code 使用后立即失效。'
+  },
+  {
+    rows:[
+      {lane:0,text:'',cls:''},{lane:1,text:'',cls:''},{lane:2,text:'',cls:''},{lane:3,text:'',cls:''},
+      {lane:0,text:'',cls:''},{lane:1,text:'',cls:''},{lane:2,text:'',cls:''},{lane:3,text:'',cls:''},
+      {lane:0,text:'',cls:''},{lane:1,text:'',cls:''},{lane:2,text:'',cls:''},{lane:3,text:'',cls:''},
+      {lane:0,text:'',cls:''},{lane:1,text:'',cls:''},{lane:2,text:'',cls:''},{lane:3,text:'',cls:''},
+      {lane:0,text:'',cls:''},{lane:1,text:'GET /user (Authorization: Bearer token)',cls:'fwd'},{lane:2,text:'',cls:''},{lane:3,text:''},
+      {lane:0,text:'',cls:''},{lane:1,text:'',cls:''},{lane:2,text:'',cls:''},{lane:3,text:'← user profile',cls:'token'},
+    ],
+    state:{code:'xyz123（已使用，失效）',token:'gho_xxxxxxxxxxxxxxx（expires_in: 3600s）',resource:'✓ 成功获取用户信息'},
+    msg:'Step 5：Client App 用 access_token 调用 Resource Server（GitHub API），获取用户信息。Token 在 Authorization: Bearer 头中传递。Token 有过期时间（通常 1 小时），过期后需要 refresh_token 刷新。'
+  },
+];
+
+let cur = -1, timer = null;
+
+function renderRows(step){
+  const container = document.getElementById('swimRows');
+  container.innerHTML = '';
+  if(!step || !step.rows.length) return;
+  const rowCount = step.rows.length / 4;
+  for(let r = 0; r < rowCount; r++){
+    const row = document.createElement('div');
+    row.className = 'swimlane';
+    row.style.borderBottom = '1px solid rgba(255,255,255,.04)';
+    for(let c = 0; c < 4; c++){
+      const cell = document.createElement('div');
+      cell.className = 'lane-col';
+      const msg = step.rows[r*4+c];
+      if(msg && msg.text){
+        const div = document.createElement('div');
+        div.className = 'msg-arrow show ' + (msg.cls||'fwd');
+        div.textContent = msg.text;
+        cell.appendChild(div);
+      }
+      row.appendChild(cell);
+    }
+    container.appendChild(row);
+  }
+  // State
+  const state = document.getElementById('stateArea');
+  state.innerHTML = '';
+  if(step.state){
+    if(step.state.code){
+      const d = document.createElement('div');
+      d.innerHTML = `<div style="font-size:.68rem;color:var(--dim2);margin-bottom:3px">Authorization Code</div><div class="code-box${step.state.code.includes('已使用')?'  used':''}">${step.state.code}</div>`;
+      state.appendChild(d);
+    }
+    if(step.state.token){
+      const d = document.createElement('div');
+      d.innerHTML = `<div style="font-size:.68rem;color:var(--dim2);margin-bottom:3px">Access Token</div><div class="token-box">${step.state.token}</div>`;
+      state.appendChild(d);
+    }
+    if(step.state.resource){
+      const d = document.createElement('div');
+      d.innerHTML = `<div style="font-size:.68rem;color:var(--ok);margin-bottom:3px">${step.state.resource}</div>`;
+      state.appendChild(d);
+    }
+  }
+}
+
+function buildStepList(){
+  const list = document.getElementById('stepList');
+  list.innerHTML = '';
+  const labels = ['角色介绍','授权请求','显示授权页','授权码返回','换取 Token','访问资源'];
+  STEPS.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-btn' + (i === cur ? ' active' : '');
+    btn.innerHTML = `<span class="step-index">${i+1}</span>${labels[i]}`;
+    btn.onclick = () => { cur = i; renderStep(); };
+    list.appendChild(btn);
+  });
+}
+
+function renderStep(){
+  const step = cur >= 0 ? STEPS[cur] : null;
+  document.getElementById('stepMsg').textContent = step ? step.msg : '点击"下一步"观察 OAuth 2.0 授权码流程。';
+  renderRows(step);
+  buildStepList();
+}
+
+function next(){ if(cur < STEPS.length-1){ cur++; renderStep(); } }
+function prev(){ if(cur > -1){ cur--; renderStep(); } }
+function reset(){ cur = -1; stopPlay(); renderStep(); }
+function togglePlay(){ if(timer) stopPlay(); else startPlay(); }
+function startPlay(){
+  document.getElementById('playBtn').textContent = '⏸ 暂停';
+  timer = setInterval(() => {
+    if(cur < STEPS.length-1){ cur++; renderStep(); } else stopPlay();
+  }, 2200);
+}
+function stopPlay(){
+  if(timer){ clearInterval(timer); timer = null; }
+  document.getElementById('playBtn').textContent = '▶ 播放';
+}
+
+renderStep();
+</script>
+</body>
+</html>

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>长上下文 LLM - AI 系统</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#38bdf8;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 40% 0%,color-mix(in srgb,var(--accent) 8%,transparent),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+.content{max-width:1100px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px;margin-bottom:28px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,3.4rem);line-height:1.05;letter-spacing:-.05em;margin-bottom:14px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:999px;padding:5px 9px;font-size:.75rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);border-radius:14px;padding:12px 14px}
+.concept-list strong{display:block;font-size:.86rem;margin-bottom:3px}
+.concept-list span{display:block;color:var(--dim);font-size:.8rem;line-height:1.6}
+.body{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.section{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.6);border-radius:18px;padding:22px}
+.section h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px}
+.section p,.section li{color:var(--dim);font-size:.9rem;line-height:1.85}
+.section ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.section code{background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;font-size:.82rem}
+.callout{border-left:3px solid var(--warn);background:rgba(251,191,36,.07);border-radius:0 10px 10px 0;padding:12px 16px;margin:14px 0;font-size:.88rem;color:var(--dim);line-height:1.75}
+.code-block{background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:16px;font-family:monospace;font-size:.82rem;color:#94a3b8;line-height:1.7;margin-top:12px;overflow-x:auto}
+.code-block .kw{color:#c084fc}.code-block .str{color:#86efac}.code-block .cm{color:#475569}.code-block .fn{color:#38bdf8}.code-block .num{color:#fb923c}
+.complexity-table{width:100%;border-collapse:collapse;margin-top:12px;font-size:.82rem}
+.complexity-table th{color:var(--accent);text-align:left;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.08)}
+.complexity-table td{color:var(--dim);padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.04)}
+.complexity-table tr:hover td{background:rgba(255,255,255,.02)}
+.back-row{margin-top:22px;display:flex;gap:12px}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text)}
+@media(max-width:900px){.hero,.body{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"RoPE（旋转位置编码）","body":"Rotary Position Embedding，通过在注意力计算中对 Q/K 向量的各维度旋转，将位置信息编码进相对角度而非绝对值。优点：允许在推理时外推到训练时未见过的长度，比 ALiBi 更通用。LLaMA、Mistral、Qwen 都使用 RoPE。通过调整旋转基础频率 θ（YaRN/LongRoPE）可支持更长序列。","tag":"term"},
+  {"title":"KV Cache","body":"注意力机制缓存已生成 token 的 Key/Value 矩阵，避免每步 decode 时重算。缺点：显存随序列长度线性增长——128K token 的 KV Cache 对 70B 模型可达数十 GB。压缩方案：MultiQuery Attention（所有 head 共享一组 KV）、Grouped Query Attention（GQA，分组共享）、KV Cache 量化。","tag":"term"},
+  {"title":"Lost in the Middle","body":"2023 斯坦福论文发现：LLM 的注意力对序列开头和结尾的信息更敏感，中间部分的信息容易被忽视。即使上下文窗口足够长，将关键信息放在中间也会导致性能下降。实际应用中的缓解方法：Reranking 把最相关段落放在首/尾，RAPTOR 层次化摘要压缩中间部分。","tag":"trap"},
+  {"title":"Chunked / Ring Attention","body":"Ring Attention 将 Q、K、V 分块分布到多 GPU，每块只计算自己负责的注意力区域，块间通过 ring allreduce 通信。使注意力计算和显存可以横向扩展。Stripe Attention 是其改进版，通过跨步分配 token 提高 GPU 利用率。是实现百万 token 上下文的关键工程技术。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="B">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">AI 系统 / 长上下文 / B 类型</div>
+      <h1>长上下文 LLM</h1>
+      <p class="summary">从 GPT-3 的 4K token 到 Gemini 1.5 的 1M token，长上下文能力是近两年大模型的核心竞争维度。但实现长上下文不是简单"放大"——需要解决三个独立的挑战：位置编码的外推（RoPE/ALiBi）、KV Cache 的显存爆炸（GQA/量化）和注意力的信息提取质量（Lost in the Middle）。这三个问题的解法相互独立但又相互制约，理解它们是读懂 LLaMA 3.1、Qwen2.5 等长文本架构的关键。</p>
+      <div class="tags"><span>RoPE</span><span>YaRN</span><span>KV Cache</span><span>GQA</span><span>Lost in the Middle</span><span>Ring Attention</span><span>Sliding Window</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>RoPE 位置编码</strong><span>旋转编码相对位置，通过调整 θ 基频可外推到更长序列。</span></li>
+        <li><strong>KV Cache</strong><span>缓存 K/V 矩阵避免重算，显存随序列长度线性增长。</span></li>
+        <li><strong>Lost in the Middle</strong><span>模型对中间内容注意力弱，关键信息应放首/尾。</span></li>
+        <li><strong>Ring Attention</strong><span>分块分布式注意力，显存和计算横向扩展到多 GPU。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="body">
+    <section class="section">
+      <h2>RoPE 与位置编码外推</h2>
+      <ul>
+        <li><strong>绝对位置编码（APE）的局限：</strong>训练时只见过 0~L 的位置，推理时遇到 L+1 就 OOD（分布外），性能断崖式下降</li>
+        <li><strong>RoPE 的旋转机制：</strong>对 Q 和 K 向量的第 2i、2i+1 维度按位置 m 旋转 mθᵢ 角，只要两个 token 的相对位置 m-n 相同，点积结果就相同——实现了相对位置的编码</li>
+        <li><strong>Position Interpolation（线性内插）：</strong>将位置 m 除以比例因子 s=L'/L，把超出训练长度的位置映射回训练范围内，需要少量微调</li>
+        <li><strong>YaRN（Yet Another RoPE ext.）：</strong>对不同频率维度使用不同缩放策略（高频插值+低频外推），无需微调就能支持 2-4x 训练长度的外推</li>
+        <li><strong>LongRoPE：</strong>通过搜索每个 RoPE 维度的最优缩放因子（256维各不同），将 Phi-3 的上下文从 4K 扩展到 128K</li>
+      </ul>
+      <div class="code-block"><span class="cm"># RoPE 旋转矩阵（简化）</span>
+<span class="kw">def</span> <span class="fn">rotate_half</span>(x):
+    x1, x2 = x[..., :x.shape[-<span class="num">1</span>]//<span class="num">2</span>], x[..., x.shape[-<span class="num">1</span>]//<span class="num">2</span>:]
+    <span class="kw">return</span> <span class="fn">cat</span>([-x2, x1], dim=-<span class="num">1</span>)
+
+<span class="kw">def</span> <span class="fn">apply_rope</span>(q, k, cos, sin):
+    q_rot = q * cos + <span class="fn">rotate_half</span>(q) * sin
+    k_rot = k * cos + <span class="fn">rotate_half</span>(k) * sin
+    <span class="kw">return</span> q_rot, k_rot  <span class="cm"># 点积结果仅依赖相对位置</span></div>
+    </section>
+    <section class="section">
+      <h2>KV Cache 的显存挑战</h2>
+      <ul>
+        <li><strong>KV Cache 大小公式：</strong>每层 = 2 × batch_size × seq_len × num_heads × head_dim × 2字节（fp16），128K context、32层 LLaMA-7B ≈ 128K × 32层 × 32头 × 128维 × 2 × 2B ≈ 67GB</li>
+        <li><strong>Multi-Query Attention（MQA）：</strong>所有注意力头共享一组 K 和 V，KV Cache 减少 num_heads 倍，但精度略降（Falcon 使用）</li>
+        <li><strong>Grouped Query Attention（GQA）：</strong>将 num_heads 个 Q 分成 G 组，每组共享一对 K/V，平衡质量和 Cache 大小（LLaMA 2/3、Mistral 使用，G=8 时 KV Cache 减少 4x）</li>
+        <li><strong>KV Cache 量化：</strong>将 K/V 从 fp16 量化为 int8 或 int4，显存减半至 4 倍，但极低精度时有注意力精度损失</li>
+        <li><strong>KV Cache 逐出（Eviction）：</strong>Streaming LLM 等方法保留最近 K 个 token 的 Cache，丢弃中间 token，适合无限流式生成但牺牲中间上下文</li>
+      </ul>
+      <table class="complexity-table">
+        <tr><th>方案</th><th>KV Cache</th><th>精度</th></tr>
+        <tr><td>MHA（标准）</td><td>× 1</td><td>最高</td></tr>
+        <tr><td>GQA（G=8）</td><td>÷ 4</td><td>接近 MHA</td></tr>
+        <tr><td>MQA</td><td>÷ num_heads</td><td>略降</td></tr>
+        <tr><td>int8 量化</td><td>÷ 2</td><td>轻微损失</td></tr>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>注意力机制的效率优化</h2>
+      <ul>
+        <li><strong>标准注意力的问题：</strong>O(n²) 时间和显存复杂度，128K token 的注意力矩阵 = 128K × 128K × 2B = 32GB 显存（仅矩阵本身）</li>
+        <li><strong>FlashAttention（1/2/3）：</strong>不将完整 QKᵀ 矩阵写入 HBM 显存，分块计算并用在线 softmax 增量更新，将注意力的 HBM 访问量从 O(n²) 降到 O(n²/M)（M 为 SRAM 大小）</li>
+        <li><strong>Sliding Window Attention（SWA）：</strong>每个 token 只关注前 W 个 token（如 W=4096），复杂度降为 O(n·W)，Mistral/Mixtral 使用，多层叠加后感受野仍可覆盖全序列</li>
+        <li><strong>Ring Attention：</strong>将序列分块到 N 个 GPU，每个 GPU 处理自己的 Q 块，通过环形 all-to-all 轮换 K/V 块完成全序列注意力，线性扩展显存</li>
+        <li><strong>稀疏注意力：</strong>BigBird 结合全局 token + 局部窗口 + 随机 sparse，近似 O(n) 复杂度，适合文档级长文本</li>
+      </ul>
+      <div class="callout">FlashAttention 是 2022 年以来影响最大的 LLM 推理优化：速度提升 2-4x，显存节省 10-20x，几乎所有主流框架（vLLM、TGI、DeepSpeed）都默认开启。</div>
+    </section>
+    <section class="section">
+      <h2>Lost in the Middle 与工程实践</h2>
+      <ul>
+        <li><strong>现象：</strong>Liu et al. 2023 论文"Lost in the Middle"发现：将关键段落放在 20K token 上下文的开头或结尾，比放在中间的准确率高 10-20%</li>
+        <li><strong>原因分析：</strong>注意力分数的 softmax 倾向于极化（recent bias + primacy bias），中间位置的 attention 被稀释</li>
+        <li><strong>RAG 中的应对策略：</strong>检索后 Reranking 将最相关段落放在 prompt 首/尾；使用 LostInTheMiddle-aware 的 prompt 模板</li>
+        <li><strong>RAPTOR（递归摘要）：</strong>将长文档递归压缩为多层摘要树，避免让 LLM 直接处理超长原文</li>
+        <li><strong>LLMLingua 压缩：</strong>用小模型对 prompt 中的 token 打重要性分数，删去低分 token，将上下文压缩 5-20x 同时保留关键信息</li>
+        <li><strong>实测上下文利用率：</strong>NIAH（Needle In A Haystack）测试将关键句藏在不同位置的长文中，用于测试模型是否真正"利用"了长上下文</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>长上下文的真实价值与误区</h2>
+      <ul>
+        <li><strong>适合场景：</strong>完整代码库分析（无需 RAG 分块）、长文档问答（书籍/合同）、多轮对话历史保留、大型 repo 的 bug 定位</li>
+        <li><strong>误区 1：</strong>上下文越长越好——注意力质量随长度下降，100K token 中的关键信息可能不如 4K 精选段落</li>
+        <li><strong>误区 2：</strong>长上下文可以替代微调——长上下文做的是 in-context learning，模型无法从中"学习"持久知识</li>
+        <li><strong>推理成本：</strong>128K context 的 prefill 成本是 4K 的 32 倍（注意力 O(n²)），即使 FlashAttention 也只优化显存不优化时间复杂度</li>
+      </ul>
+      <div class="callout">NIAH（Needle in a Haystack）测试已成为评估长上下文质量的标准 benchmark：在 128K token 的随机文本中藏入一个"魔法数字"，要求模型找到它。GPT-4 在 ~64K 中间位置仍有明显准确率下降。</div>
+    </section>
+    <section class="section">
+      <h2>主流模型的长上下文能力</h2>
+      <table class="complexity-table">
+        <tr><th>模型</th><th>上下文</th><th>位置编码</th><th>注意力</th></tr>
+        <tr><td>LLaMA 3.1</td><td>128K</td><td>RoPE + 线性内插</td><td>GQA</td></tr>
+        <tr><td>Mistral 7B</td><td>32K</td><td>RoPE</td><td>SWA + GQA</td></tr>
+        <tr><td>Qwen2.5</td><td>128K</td><td>RoPE + YaRN</td><td>GQA</td></tr>
+        <tr><td>Gemini 1.5</td><td>1M</td><td>未公开</td><td>Ring-like</td></tr>
+        <tr><td>Claude 3.5</td><td>200K</td><td>未公开</td><td>未公开</td></tr>
+      </table>
+      <p style="margin-top:12px">上下文长度≠有效利用长度。Gemini 1.5 1M token 能力主要来自 Ring Attention + 大量长文本训练数据，而非单一技术突破。</p>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="../ai/index.html">← AI 系统</a>
+    <a class="btn" href="../graph.html?q=context-length">星图</a>
+  </div>
+</main>
+<script src="../footer.js"></script>
+</body>
+</html>

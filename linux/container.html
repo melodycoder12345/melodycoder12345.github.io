@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>容器原理 - Linux</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#22d3ee;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 40% 0%,color-mix(in srgb,var(--accent) 10%,transparent),transparent 36%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,3.8rem);line-height:1.04;letter-spacing:-.05em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:200px minmax(0,1fr);gap:16px;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:12px;display:flex;flex-direction:column;gap:8px}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:10px;padding:9px 11px;cursor:pointer;font-family:inherit;transition:all .16s;font-size:.82rem}
+.step-btn:hover{color:var(--text)}.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.step-btn b{display:block;font-size:.7rem;color:var(--accent);margin-bottom:2px}
+.viz{padding:16px;display:flex;flex-direction:column;gap:12px}
+.stage{border:1px solid rgba(255,255,255,.06);border-radius:14px;background:rgba(15,23,42,.64);padding:14px}
+.status{border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:13px;background:rgba(255,255,255,.035)}
+.status h2{font-size:.95rem;margin-bottom:5px;color:var(--text)}
+.status p{color:var(--dim);font-size:.86rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:6px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.controls{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:7px 11px;cursor:pointer;font-family:inherit;font-size:.83rem}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.deep code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.82rem;color:var(--text)}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:900px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+
+/* Container layer stack */
+.host-box{border:2px solid rgba(255,255,255,.12);border-radius:14px;padding:12px;position:relative;overflow:hidden;}
+.host-label{font-size:.65rem;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;}
+.layer-stack{display:flex;flex-direction:column;gap:6px;}
+.layer{border:1.5px solid;border-radius:9px;padding:9px 12px;transition:all .4s;position:relative;}
+.layer-title{font-size:.75rem;font-weight:700;margin-bottom:4px;}
+.layer-desc{font-size:.68rem;color:rgba(255,255,255,.55);line-height:1.5;}
+.layer.ns-pid{border-color:rgba(34,211,238,.4);background:rgba(34,211,238,.08);}
+.layer.ns-net{border-color:rgba(56,189,248,.4);background:rgba(56,189,248,.08);}
+.layer.overlay{border-color:rgba(167,139,250,.4);background:rgba(167,139,250,.08);}
+.layer.overlay .write-layer{border:1px dashed rgba(167,139,250,.5);border-radius:5px;padding:4px 7px;font-size:.65rem;color:#c4b5fd;margin-top:5px;}
+.layer.cgroup{border-color:rgba(74,222,128,.4);background:rgba(74,222,128,.08);}
+.layer.inactive{border-color:rgba(255,255,255,.08);background:rgba(255,255,255,.02);opacity:.45;}
+
+/* Cgroup meters */
+.cgroup-meter{display:flex;align-items:center;gap:8px;margin-top:4px;font-size:.68rem;}
+.meter-bar{flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.06);overflow:hidden;}
+.meter-fill{height:100%;border-radius:3px;transition:width .4s;}
+.meter-label{width:100px;color:rgba(255,255,255,.5);}
+.meter-val{width:40px;text-align:right;font-family:monospace;color:rgba(255,255,255,.7);}
+
+/* Process list */
+.proc-list{display:flex;flex-direction:column;gap:3px;font-family:monospace;font-size:.7rem;}
+.proc-row{padding:3px 6px;border-radius:4px;display:flex;gap:8px;}
+.proc-row.container{background:rgba(34,211,238,.08);color:#67e8f9;}
+.proc-row.host{color:var(--dim2);}
+.pid-col{width:50px;flex-shrink:0;}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Linux Namespace","body":"将全局资源（PID、网络、文件系统、用户、主机名等）虚拟化为独立的命名空间。容器内的进程只能看到自己命名空间内的资源。PID Namespace：容器内 PID=1，宿主机上看到不同 PID。Net Namespace：独立网络栈、IP 地址、路由表。","tag":"term"},
+  {"title":"Linux Cgroup（控制组）","body":"限制进程组可使用的资源量：CPU（时间片比例/配额）、内存（上限+OOM killer）、磁盘 I/O（带宽限制）、网络带宽。Cgroup 不提供隔离，只提供资源限制和记账。Namespace + Cgroup 共同构成容器的核心机制。","tag":"term"},
+  {"title":"OverlayFS","body":"联合文件系统，将多个层叠加为一个视图。容器文件系统 = 多个只读镜像层 + 一个可写层（容器层）。读：从上往下找，找到即返回。写：Copy-on-Write，写到可写层。删除：在可写层创建 whiteout 文件遮蔽下层文件。","tag":"term"},
+  {"title":"容器 vs 虚拟机","body":"VM：完整硬件虚拟化，每个 VM 有独立内核，隔离强，启动慢（秒级）。容器：共享宿主机内核，用 Namespace/Cgroup 隔离，启动快（毫秒级）、资源开销小，但隔离弱（共享内核漏洞可能影响宿主机）。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">Linux / 容器 / C 类型</div>
+      <h1>容器原理</h1>
+      <p class="summary">容器不是虚拟机，而是 Linux Namespace + Cgroup + OverlayFS 的组合。Namespace 提供进程/网络/文件系统的隔离视图，Cgroup 限制 CPU/内存资源上限，OverlayFS 实现只读镜像层加可写容器层的联合文件系统。动画展示容器启动时三层机制依次激活，以及 kill 容器后可写层消失、只读镜像层不变的过程。</p>
+      <div class="tags"><span>Namespace</span><span>Cgroup</span><span>OverlayFS</span><span>PID隔离</span><span>网络隔离</span><span>Copy-on-Write</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>Linux Namespace</strong><span>将 PID/网络/文件系统虚拟化为独立命名空间，进程只见自己的世界。</span></li>
+        <li><strong>Cgroup</strong><span>限制进程组的 CPU/内存/IO 资源上限，不提供隔离。</span></li>
+        <li><strong>OverlayFS</strong><span>只读镜像层 + 可写容器层，写时 CoW，删除用 whiteout。</span></li>
+        <li><strong>容器 vs VM</strong><span>共享宿主内核（轻量快速）vs 独立内核（强隔离）。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">步骤</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+
+    <section class="panel viz">
+      <div class="stage">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <!-- Container Layer Stack -->
+          <div class="host-box">
+            <div class="host-label">宿主机剖面（一个容器）</div>
+            <div class="layer-stack" id="layerStack">
+              <!-- layers built by JS -->
+            </div>
+          </div>
+          <!-- Process view -->
+          <div>
+            <div style="font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">PID Namespace 视图对比</div>
+            <div style="margin-bottom:10px;">
+              <div style="font-size:.68rem;color:var(--accent);margin-bottom:4px;">容器内 ps (PID Namespace)</div>
+              <div class="proc-list" id="containerProcs"></div>
+            </div>
+            <div>
+              <div style="font-size:.68rem;color:var(--dim2);margin-bottom:4px;">宿主机 ps (真实 PID)</div>
+              <div class="proc-list" id="hostProcs"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="status">
+        <div id="stepBadge" class="badge">初始</div>
+        <h2 id="statusTitle">宿主机初始状态</h2>
+        <p id="statusDesc">点击播放，观察容器启动时三个隔离机制依次激活。</p>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnPrev" onclick="goPrev()" disabled>◀ 上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+        <button class="ctrl" id="btnNext" onclick="goNext()">下一步 ▶</button>
+        <button class="ctrl" onclick="reset()" style="margin-left:auto">↺ 重置</button>
+      </div>
+    </section>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>Namespace 类型</h2>
+      <ul>
+        <li><strong>PID Namespace：</strong>容器内 PID=1 是 init，宿主机看到另一个 PID（如 8420）</li>
+        <li><strong>Network Namespace：</strong>独立 eth0、IP 地址、路由表、iptables；通过 veth pair 连接宿主机</li>
+        <li><strong>Mount Namespace：</strong>独立挂载点视图，容器看不到宿主机的挂载</li>
+        <li><strong>UTS Namespace：</strong>独立主机名和域名，容器可有独立 hostname</li>
+        <li><strong>User Namespace：</strong>容器内 root（UID=0）映射到宿主机的普通用户，提升安全性</li>
+        <li><strong>IPC Namespace：</strong>独立 System V IPC 和 POSIX 消息队列</li>
+      </ul>
+    </section>
+    <section>
+      <h2>OverlayFS 写时复制</h2>
+      <ul>
+        <li>镜像层（lower dir）：只读，由多个 FROM/RUN/COPY 层叠加，多容器共享</li>
+        <li>容器层（upper dir）：可写，每个容器独立，仅存储修改</li>
+        <li>合并视图（merged）：容器进程看到的完整文件系统</li>
+        <li><strong>读：</strong>从 upper 到 lower 逐层查找，找到即返回</li>
+        <li><strong>写：</strong>将 lower 中的文件复制到 upper 后修改（Copy-on-Write）</li>
+        <li><strong>删除：</strong>在 upper 创建 .wh.filename（whiteout 文件）遮蔽 lower 中的文件</li>
+        <li><strong>停止容器：</strong>upper dir 删除，镜像层不变；docker commit 将 upper 固化为新镜像层</li>
+      </ul>
+    </section>
+    <section>
+      <h2>Cgroup v2 资源控制</h2>
+      <ul>
+        <li><strong>CPU：</strong><code>cpu.max = "100000 200000"</code>（每 200ms 最多用 100ms = 50%）</li>
+        <li><strong>内存：</strong><code>memory.max</code> 硬限制，超出触发 OOM killer 杀死进程</li>
+        <li><strong>IO：</strong><code>io.max</code> 限制设备读写带宽和 IOPS</li>
+        <li><strong>Cgroup 树：</strong>层级结构，子 cgroup 继承父 cgroup 限制，不能超出父级</li>
+        <li><strong>统计功能：</strong>记录进程组的资源使用量，用于计费和监控</li>
+      </ul>
+    </section>
+    <section>
+      <h2>容器运行时架构</h2>
+      <ul>
+        <li><strong>Docker：</strong>CLI + dockerd（高层运行时）+ containerd（中层）+ runc（低层 OCI 运行时）</li>
+        <li><strong>runc：</strong>调用 Linux 内核创建 Namespace、设置 Cgroup、挂载 OverlayFS，执行容器进程</li>
+        <li><strong>OCI 标准：</strong>容器镜像格式（Image Spec）和运行时接口（Runtime Spec），保证可移植性</li>
+        <li><strong>Kubernetes：</strong>通过 CRI 接口调用 containerd/CRI-O，管理 Pod 生命周期</li>
+        <li><strong>gVisor/Kata：</strong>增强隔离的沙盒运行时，牺牲性能换取更强隔离</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← Linux 首页</a>
+  </div>
+</main>
+<script>
+const STEPS=[
+  {
+    label:'宿主机初始状态',
+    title:'宿主机初始状态，无容器',
+    badge:'初始',
+    desc:'宿主机正常运行，共享所有全局资源（PID 树、网络、文件系统）。没有 Namespace 隔离，所有进程在同一视图中可见。',
+    layers:[
+      {cls:'inactive',title:'PID Namespace（未创建）',desc:'容器进程尚未与宿主机 PID 隔离'},
+      {cls:'inactive',title:'Network Namespace（未创建）',desc:'容器网络栈尚未建立'},
+      {cls:'inactive',title:'OverlayFS（未挂载）',desc:'镜像层尚未挂载'},
+      {cls:'inactive',title:'Cgroup（未设置）',desc:'无资源限制'},
+    ],
+    cProcs:[],
+    hProcs:[{pid:1,name:'systemd'},{pid:234,name:'sshd'},{pid:512,name:'bash'}]
+  },
+  {
+    label:'拉取镜像，挂载 OverlayFS',
+    title:'OverlayFS：只读镜像层 + 可写层挂载',
+    badge:'OverlayFS',
+    desc:'docker 拉取镜像，解压各层到磁盘。OverlayFS 将多个只读层（ubuntu 基础层 + app 层）叠加，加一个空的可写容器层挂载为统一视图。镜像层多容器共享，节省磁盘空间。',
+    layers:[
+      {cls:'inactive',title:'PID Namespace（未创建）',desc:'下一步建立'},
+      {cls:'inactive',title:'Network Namespace（未创建）',desc:'下一步建立'},
+      {cls:'overlay',title:'OverlayFS ✓',desc:'lower: ubuntu:22.04 + app 只读层 | upper: 可写容器层（空）',writeLayer:true},
+      {cls:'inactive',title:'Cgroup（未设置）',desc:'下一步设置'},
+    ],
+    cProcs:[],
+    hProcs:[{pid:1,name:'systemd'},{pid:234,name:'sshd'},{pid:512,name:'bash'}]
+  },
+  {
+    label:'建立 Namespace 隔离',
+    title:'PID + Network Namespace 建立，进程隔离',
+    badge:'Namespace',
+    desc:'runc 调用 clone(CLONE_NEWPID|CLONE_NEWNET) 创建新命名空间，启动容器进程。容器内看到 PID=1（自己是 init），而宿主机看到 PID=8420。容器有独立 eth0（10.0.0.2），通过 veth pair 连接宿主 docker0 网桥。',
+    layers:[
+      {cls:'ns-pid',title:'PID Namespace ✓',desc:'容器 PID=1(app) | 宿主机 PID=8420(app)'},
+      {cls:'ns-net',title:'Network Namespace ✓',desc:'容器 eth0: 10.0.0.2/16 | veth pair → docker0'},
+      {cls:'overlay',title:'OverlayFS ✓',desc:'lower: 只读层 | upper: 可写层',writeLayer:true},
+      {cls:'inactive',title:'Cgroup（未设置）',desc:'下一步设置'},
+    ],
+    cProcs:[{pid:1,name:'app'},{pid:2,name:'bash'}],
+    hProcs:[{pid:1,name:'systemd'},{pid:234,name:'sshd'},{pid:8420,name:'app(容器)',isContainer:true},{pid:8421,name:'bash(容器)',isContainer:true}]
+  },
+  {
+    label:'设置 Cgroup 资源限制',
+    title:'Cgroup 限制 CPU 50%、内存 512MB',
+    badge:'Cgroup',
+    desc:'在 /sys/fs/cgroup/docker/<id>/ 写入配置：cpu.max="100000 200000"（50% CPU），memory.max="536870912"（512MB）。容器进程被分配到该 cgroup，超出内存限制时 OOM kill 容器内进程，不影响宿主机其他进程。',
+    layers:[
+      {cls:'ns-pid',title:'PID Namespace ✓',desc:'容器 PID=1(app) | 宿主机 PID=8420'},
+      {cls:'ns-net',title:'Network Namespace ✓',desc:'eth0: 10.0.0.2/16'},
+      {cls:'overlay',title:'OverlayFS ✓',desc:'lower: 只读层 | upper: 可写层（有修改）',writeLayer:true,writeContent:'已写入: /app/config.json'},
+      {cls:'cgroup',title:'Cgroup ✓',desc:'cpu.max: 50% | memory.max: 512MB',meters:[{label:'CPU',pct:35,color:'#4ade80'},{label:'内存',pct:62,color:'#38bdf8'}]},
+    ],
+    cProcs:[{pid:1,name:'app'},{pid:2,name:'bash'}],
+    hProcs:[{pid:1,name:'systemd'},{pid:234,name:'sshd'},{pid:8420,name:'app(容器)',isContainer:true},{pid:8421,name:'bash(容器)',isContainer:true}]
+  },
+  {
+    label:'stop 容器：写层消失',
+    title:'docker stop：容器层（写层）删除，镜像层不变',
+    badge:'停止',
+    desc:'docker stop 发送 SIGTERM 到 PID=1（app），进程退出。Namespace 随之销毁，OverlayFS 的可写层（upper dir）被删除——在容器里写的所有文件都消失。只读镜像层完好，下次 docker run 仍从干净状态启动。',
+    layers:[
+      {cls:'inactive',title:'PID Namespace（已销毁）',desc:'进程 8420/8421 退出'},
+      {cls:'inactive',title:'Network Namespace（已销毁）',desc:'veth pair 删除'},
+      {cls:'overlay inactive',title:'OverlayFS：可写层已删除',desc:'lower(只读镜像层) ✓ 完整保留 | upper(容器层) ✗ 已删除'},
+      {cls:'inactive',title:'Cgroup（已清除）',desc:'资源限制解除'},
+    ],
+    cProcs:[],
+    hProcs:[{pid:1,name:'systemd'},{pid:234,name:'sshd'},{pid:512,name:'bash'}]
+  }
+];
+
+let currentStep=0,playing=false,playTimer=null;
+
+function renderStep(idx){
+  const s=STEPS[idx];
+  document.querySelectorAll('.step-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  document.getElementById('stepBadge').textContent=s.badge;
+  document.getElementById('statusTitle').textContent=s.title;
+  document.getElementById('statusDesc').textContent=s.desc;
+
+  // Layer stack
+  const stack=document.getElementById('layerStack');
+  stack.innerHTML='';
+  s.layers.forEach(l=>{
+    const div=document.createElement('div');
+    div.className='layer '+(l.cls||'inactive');
+    let html=`<div class="layer-title">${l.title}</div><div class="layer-desc">${l.desc}</div>`;
+    if(l.writeLayer){
+      html+=`<div class="write-layer">✎ 可写层（容器层）${l.writeContent?'<br>'+l.writeContent:''}</div>`;
+    }
+    if(l.meters){
+      l.meters.forEach(m=>{
+        html+=`<div class="cgroup-meter"><span class="meter-label">${m.label}: ${m.pct}%</span><div class="meter-bar"><div class="meter-fill" style="width:${m.pct}%;background:${m.color};"></div></div></div>`;
+      });
+    }
+    div.innerHTML=html;
+    stack.appendChild(div);
+  });
+
+  // Procs
+  const cp=document.getElementById('containerProcs');
+  cp.innerHTML='';
+  if(s.cProcs.length===0){cp.innerHTML='<div style="color:var(--dim2);padding:4px 6px;">(无进程)</div>';}
+  s.cProcs.forEach(p=>{
+    const div=document.createElement('div');
+    div.className='proc-row container';
+    div.innerHTML=`<span class="pid-col">PID=${p.pid}</span><span>${p.name}</span>`;
+    cp.appendChild(div);
+  });
+
+  const hp=document.getElementById('hostProcs');
+  hp.innerHTML='';
+  s.hProcs.forEach(p=>{
+    const div=document.createElement('div');
+    div.className='proc-row '+(p.isContainer?'container':'host');
+    div.innerHTML=`<span class="pid-col">${p.pid}</span><span>${p.name}</span>`;
+    hp.appendChild(div);
+  });
+
+  document.getElementById('btnPrev').disabled=idx===0;
+  document.getElementById('btnNext').disabled=idx===STEPS.length-1;
+}
+
+function buildStepList(){
+  const list=document.getElementById('stepList');
+  STEPS.forEach((s,i)=>{
+    const btn=document.createElement('button');
+    btn.className='step-btn'+(i===0?' active':'');
+    btn.innerHTML=`<b>Step ${i+1}</b>${s.label}`;
+    btn.onclick=()=>{currentStep=i;renderStep(i);stopPlay();};
+    list.appendChild(btn);
+  });
+}
+function goNext(){if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();}
+function goPrev(){if(currentStep>0){currentStep--;renderStep(currentStep);}}
+function reset(){stopPlay();currentStep=0;renderStep(0);}
+function togglePlay(){
+  if(playing){stopPlay();return;}
+  playing=true;document.getElementById('btnPlay').textContent='⏸ 暂停';
+  playTimer=setInterval(()=>{if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();},2200);
+}
+function stopPlay(){playing=false;clearInterval(playTimer);document.getElementById('btnPlay').textContent='▶ 播放';}
+buildStepList();renderStep(0);
+</script>
+</body>
+</html>

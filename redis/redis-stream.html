@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Redis Stream - 消息流与消费者组</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#dc382c;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 20% 0%,color-mix(in srgb,var(--accent) 14%,transparent),transparent 36%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:440px;display:flex;flex-direction:column;padding:18px}
+.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:rgba(15,23,42,.64);overflow:hidden;padding:20px 16px;}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}
+.status p{color:var(--dim);font-size:.9rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.ok{border-color:var(--ok);color:var(--ok)}
+.badge.warn{border-color:var(--warn);color:var(--warn)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit;font-size:.85rem}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.deep code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.82rem;color:var(--text)}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+
+/* Stream 专用样式 */
+.stream-wrap{width:100%;overflow:hidden;}
+.stream-label{font-size:.7rem;font-family:monospace;color:var(--dim2);margin-bottom:6px;letter-spacing:.05em;text-transform:uppercase;}
+.stream-lane{display:flex;align-items:stretch;gap:0;margin-bottom:14px;position:relative;}
+.stream-entry{min-width:88px;border:1.5px solid rgba(255,255,255,.12);border-radius:8px;padding:7px 9px;margin-right:6px;background:rgba(255,255,255,.04);transition:all .35s;flex-shrink:0;}
+.stream-entry .entry-id{font-size:.68rem;font-family:monospace;color:var(--dim2);margin-bottom:4px;}
+.stream-entry .entry-fields{font-size:.72rem;font-family:monospace;color:#94a3b8;}
+.stream-entry.new-entry{border-color:rgba(220,56,44,.6);background:rgba(220,56,44,.12);animation:entryPop .4s ease-out;}
+.stream-entry.delivered{border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.07);}
+.stream-entry.acked{border-color:rgba(74,222,128,.4);background:rgba(74,222,128,.07);opacity:.65;}
+@keyframes entryPop{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* 游标箭头 */
+.cursor-row{position:relative;height:22px;margin-bottom:2px;}
+.cursor-arrow{position:absolute;display:flex;flex-direction:column;align-items:center;transition:left .4s cubic-bezier(.4,0,.2,1);}
+.cursor-arrow .arrow-tri{width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:9px solid;}
+.cursor-arrow .arrow-label{font-size:.65rem;font-family:monospace;white-space:nowrap;margin-top:2px;}
+#cursorDelivered .arrow-tri{border-top-color:var(--warn);}
+#cursorDelivered .arrow-label{color:var(--warn);}
+
+/* PEL 区域 */
+.pel-row{display:flex;gap:6px;flex-wrap:wrap;min-height:34px;}
+.pel-entry{border:1px solid rgba(251,191,36,.5);background:rgba(251,191,36,.08);border-radius:6px;padding:4px 8px;font-size:.7rem;font-family:monospace;color:var(--warn);transition:all .35s;}
+.pel-entry.acking{animation:pelAck .5s forwards;}
+@keyframes pelAck{50%{opacity:1;transform:scale(1.1);}100%{opacity:0;transform:scale(.7);width:0;padding:0;margin:0;border-width:0;}}
+
+/* Consumer 状态卡 */
+.consumer-cards{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;}
+.consumer-card{flex:1;min-width:120px;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 12px;background:rgba(255,255,255,.025);}
+.consumer-card .cn{font-size:.76rem;font-weight:700;color:var(--text);margin-bottom:4px;}
+.consumer-card .cs{font-size:.72rem;color:var(--dim);font-family:monospace;}
+.consumer-card.active-c{border-color:var(--accent);background:rgba(220,56,44,.06);}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Entry ID","body":"每条 Stream 消息的 ID 格式为 毫秒时间戳-序号（如 1700000000000-0）。ID 天然有序，读取时可用 > 表示「上次已读之后的新消息」。","tag":"term"},
+  {"title":"Consumer Group","body":"消费者组维护一个 last-delivered-id，组内每个消费者领取不重叠的消息分片。一条消息只会被组内一个消费者处理。","tag":"term"},
+  {"title":"PEL（Pending Entries List）","body":"消费者领取消息后，消息进入该消费者的 PEL（待确认列表），直到执行 XACK 后才从 PEL 中移除。服务重启后可用 XPENDING 查出未确认消息。","tag":"term"},
+  {"title":"XACK","body":"消费者处理完消息后执行 XACK streamKey group msgId，将消息从 PEL 中移除，标记为已处理。未 ACK 的消息可通过 XCLAIM 转移给其他消费者重新处理。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">Redis / Stream / C 类型</div>
+      <h1>Redis Stream</h1>
+      <p class="summary">Redis Stream 是一种只追加的日志式数据结构，每条消息有唯一的时间戳序号 ID。
+      消费者组（Consumer Group）维护 <code style="color:var(--warn);background:rgba(251,191,36,.1);padding:1px 5px;border-radius:3px">last-delivered-id</code> 游标，
+      追踪已投递位置；PEL（待确认列表）记录已投递但未 ACK 的消息，保证 At-Least-Once 语义。</p>
+      <div class="tags"><span>XADD</span><span>XREAD</span><span>XREADGROUP</span><span>XACK</span><span>XPENDING</span><span>Consumer Group</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>Entry ID（消息 ID）</strong><span>毫秒时间戳-序号，天然有序。<code style="background:rgba(255,255,255,.08);padding:0 4px;border-radius:3px;font-size:.8rem">1700000000000-0</code></span></li>
+        <li><strong>last-delivered-id</strong><span>Consumer Group 已投递到的 ID 游标，<code style="background:rgba(255,255,255,.08);padding:0 4px;border-radius:3px;font-size:.8rem">></code> 读取其后的新消息。</span></li>
+        <li><strong>PEL</strong><span>已投递未 ACK 的消息集合，进程崩溃后可重新消费。</span></li>
+        <li><strong>XACK</strong><span>显式确认，从 PEL 移除消息，才算真正处理完毕。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">Step Timeline</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <!-- Stream 动画区域 -->
+        <div class="stream-wrap" id="streamWrap">
+          <!-- Stream 日志带 -->
+          <div class="stream-label">▶ stream: events</div>
+          <div class="stream-lane" id="streamLane">
+            <!-- entries 动态插入 -->
+          </div>
+
+          <!-- last-delivered-id 游标 -->
+          <div class="cursor-row" id="cursorRow" style="display:none">
+            <div class="cursor-arrow" id="cursorDelivered" style="left:0">
+              <div class="arrow-tri"></div>
+              <div class="arrow-label">last-delivered-id</div>
+            </div>
+          </div>
+
+          <!-- PEL 区域 -->
+          <div class="stream-label" style="margin-top:16px">📋 PEL（Consumer-1 待确认）</div>
+          <div class="pel-row" id="pelRow"></div>
+
+          <!-- Consumer Group 状态 -->
+          <div class="stream-label" style="margin-top:16px">👤 消费者组：orders-group</div>
+          <div class="consumer-cards" id="consumerCards"></div>
+        </div>
+      </div>
+      <div class="status">
+        <div id="stepBadge" class="badge">Step 0</div>
+        <h2 id="statusTitle">等待开始</h2>
+        <p id="statusDesc">点击步骤或播放按钮查看 Redis Stream 的消费流程。</p>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnPrev" onclick="goPrev()" disabled>◀ 上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+        <button class="ctrl" id="btnNext" onclick="goNext()">下一步 ▶</button>
+        <button class="ctrl" onclick="reset()" style="margin-left:auto">↺ 重置</button>
+      </div>
+    </section>
+
+    <div class="panel" style="display:flex;flex-direction:column;">
+      <div class="panel-hd">Redis 命令</div>
+      <div style="padding:14px;flex:1;overflow:auto;font-family:monospace;font-size:.78rem;line-height:1.9;color:#94a3b8;">
+        <div id="cmdHighlight" style="white-space:pre-wrap;"></div>
+      </div>
+      <div style="padding:12px;border-top:1px solid rgba(255,255,255,.07);">
+        <div style="font-size:.72rem;color:var(--dim2);margin-bottom:6px;">📌 Stream vs Kafka</div>
+        <div style="font-size:.78rem;color:var(--dim);line-height:1.7;">
+          Stream 是单节点结构，<br>
+          offset 嵌入 ID 而非独立维护，<br>
+          PEL 替代 Kafka 的 __consumer_offsets，<br>
+          消费失败后可 XCLAIM 转移。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>Stream 与 Kafka 对比</h2>
+      <ul>
+        <li>Redis Stream 是单节点内存结构，Kafka 是分布式磁盘日志</li>
+        <li>Stream 的 Entry ID 即为 offset，包含时间戳，可按时间范围查询</li>
+        <li>PEL 对应 Kafka 消费者的未提交 offset，但粒度是单条消息</li>
+        <li>XCLAIM 允许将超时未 ACK 的消息转移给其他消费者，Kafka 无此机制</li>
+        <li>Stream 适合单机低延迟场景，Kafka 适合高吞吐分布式场景</li>
+      </ul>
+    </section>
+    <section>
+      <h2>常见工程场景</h2>
+      <ul>
+        <li>替代简单队列：XADD 写入，XREADGROUP 消费，XACK 确认</li>
+        <li>事件溯源：Stream 不删除历史，可从任意 ID 重放</li>
+        <li>多消费者分工：不同 Consumer Group 独立消费同一 Stream</li>
+        <li>延迟检测：XPENDING 查出长时间未 ACK 的消息并重试</li>
+        <li><code>XADD events * action login user_id 42</code> — 写入一条事件</li>
+        <li><code>XREADGROUP GROUP g1 c1 COUNT 10 STREAMS events ></code> — 读新消息</li>
+      </ul>
+    </section>
+    <section>
+      <h2>At-Least-Once 保证机制</h2>
+      <p>消息被 XREADGROUP 读取后立即进入 PEL，不论消费者是否处理完毕。进程崩溃后，下次启动可通过 XPENDING 获取 PEL 中的消息重新处理。XACK 后消息从 PEL 永久移除，确保不会重复计费或重复操作。结合消费端幂等设计，可实现 Exactly-Once 语义。</p>
+    </section>
+    <section>
+      <h2>内存与消息保留</h2>
+      <p>XADD 时通过 <code>MAXLEN ~ N</code> 参数限制 Stream 长度（~ 表示近似裁剪，性能更好）。Stream 不会因消费者消费而删除条目，不同消费者组各自维护游标，互不干扰。消息只有在显式调用 XDEL 或触发 MAXLEN 裁剪时才被移除。</p>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← Redis 模块首页</a>
+    <a class="btn" href="data-types.html">Redis 数据类型</a>
+    <a class="btn" href="persistence.html">Redis 持久化</a>
+    <a class="btn" href="distributed-lock.html">分布式锁</a>
+  </div>
+</main>
+
+<script>
+// ── 步骤数据 ──────────────────────────────────────────────
+const ENTRIES_INIT = [
+  {id:'1700000001000-0', fields:'action=login\nuser=42',  state:'acked'},
+  {id:'1700000002000-0', fields:'action=buy\nitem=99',    state:'acked'},
+  {id:'1700000003000-0', fields:'action=login\nuser=77',  state:'acked'},
+];
+
+const STEPS = [
+  {
+    label:'初始状态',
+    title:'Stream 初始状态：3 条历史消息',
+    desc:'Stream 只追加，不修改。每条消息有唯一 Entry ID（时间戳-序号），已有 3 条消息被消费者组完成处理（XACK）。',
+    badge:'XADD',
+    entries:[...ENTRIES_INIT],
+    cursorIdx:2,
+    pel:[],
+    consumers:[{name:'Consumer-1',pending:0},{name:'Consumer-2',pending:0}],
+    activeConsumer:-1,
+    cmd:`-- 查看 Stream 基本信息
+XLEN events
+-- 返回: 3
+
+XRANGE events - +
+-- 返回所有消息
+-- 1700000001000-0: {action:login, user:42}
+-- 1700000002000-0: {action:buy,   item:99}
+-- 1700000003000-0: {action:login, user:77}`
+  },
+  {
+    label:'XADD 写入新消息',
+    title:'XADD：生产者写入新消息',
+    desc:'生产者执行 XADD，消息以追加方式写入 Stream。ID 由 Redis 自动生成（当前毫秒时间戳 + 序号），严格递增。新消息还未被任何消费者组读取。',
+    badge:'XADD',
+    entries:[...ENTRIES_INIT,
+      {id:'1700000010000-0', fields:'action=checkout\namount=199', state:'new-entry'}
+    ],
+    cursorIdx:2,
+    pel:[],
+    consumers:[{name:'Consumer-1',pending:0},{name:'Consumer-2',pending:0}],
+    activeConsumer:-1,
+    cmd:`-- 生产者写入新消息
+XADD events * action checkout amount 199
+-- 返回自动生成的 ID:
+-- "1700000010000-0"
+
+-- * 表示由 Redis 自动生成 ID
+-- 也可以手动指定: XADD events 1700000010000-0 ...`
+  },
+  {
+    label:'XREADGROUP 读取',
+    title:'XREADGROUP：Consumer-1 领取消息',
+    desc:'Consumer-1 使用 > 符号读取消费者组 last-delivered-id 之后的新消息。消息立即进入 Consumer-1 的 PEL（待确认列表），游标 last-delivered-id 向右推进。',
+    badge:'XREADGROUP',
+    entries:[...ENTRIES_INIT,
+      {id:'1700000010000-0', fields:'action=checkout\namount=199', state:'delivered'}
+    ],
+    cursorIdx:3,
+    pel:['1700000010000-0'],
+    consumers:[{name:'Consumer-1',pending:1},{name:'Consumer-2',pending:0}],
+    activeConsumer:0,
+    cmd:`-- Consumer-1 读取新消息（> 表示上次之后的新消息）
+XREADGROUP GROUP orders-group Consumer-1
+  COUNT 1 STREAMS events >
+
+-- 返回:
+-- 1700000010000-0: {action:checkout, amount:199}
+
+-- 此时消息进入 PEL，last-delivered-id 更新
+-- 即使 Consumer-1 崩溃，消息不会丢失`
+  },
+  {
+    label:'再写入更多消息',
+    title:'XADD：继续写入，Consumer-2 也读取',
+    desc:'生产者继续写入第 2 条新消息。Consumer-2 用 XREADGROUP 读取，该消息进入 Consumer-2 的 PEL。两个消费者并行处理不同的消息分片，互不干扰。',
+    badge:'XREADGROUP',
+    entries:[...ENTRIES_INIT,
+      {id:'1700000010000-0', fields:'action=checkout\namount=199', state:'delivered'},
+      {id:'1700000011000-0', fields:'action=refund\nitem=99',      state:'delivered'}
+    ],
+    cursorIdx:4,
+    pel:['1700000010000-0'],
+    consumers:[{name:'Consumer-1',pending:1},{name:'Consumer-2',pending:1}],
+    activeConsumer:1,
+    cmd:`-- 新消息写入
+XADD events * action refund item 99
+-- "1700000011000-0"
+
+-- Consumer-2 读取
+XREADGROUP GROUP orders-group Consumer-2
+  COUNT 1 STREAMS events >
+-- 1700000011000-0: {action:refund, item:99}
+
+-- 注意：Consumer-1 持有 -0 消息，
+-- Consumer-2 持有 -1 消息，两者互不重叠`
+  },
+  {
+    label:'Consumer-1 XACK',
+    title:'XACK：Consumer-1 处理完毕，从 PEL 移除',
+    desc:'Consumer-1 处理完 checkout 消息后执行 XACK，该消息从 PEL 中移除。Stream 里的原始条目仍然存在（只追加，不删除），其他消费者组可以独立消费同一条消息。',
+    badge:'XACK',
+    entries:[...ENTRIES_INIT,
+      {id:'1700000010000-0', fields:'action=checkout\namount=199', state:'acked'},
+      {id:'1700000011000-0', fields:'action=refund\nitem=99',      state:'delivered'}
+    ],
+    cursorIdx:4,
+    pel:[],
+    consumers:[{name:'Consumer-1',pending:0},{name:'Consumer-2',pending:1}],
+    activeConsumer:0,
+    cmd:`-- Consumer-1 确认消息处理完成
+XACK events orders-group 1700000010000-0
+-- 返回: 1 (成功确认 1 条)
+
+-- 从 PEL 中移除，但 Stream 原始消息保留
+-- XPENDING 查看剩余未确认
+XPENDING events orders-group - + 10
+-- Consumer-2: 1700000011000-0 (pending 时长 ≈ xs)`
+  },
+  {
+    label:'消费者崩溃场景',
+    title:'边界：Consumer-2 崩溃，消息仍在 PEL',
+    desc:'Consumer-2 崩溃后，1700000011000-0 消息仍留在 PEL 中。使用 XPENDING 可发现超时未确认的消息，通过 XCLAIM 转移给 Consumer-1 重新处理，保证 At-Least-Once 语义。',
+    badge:'XCLAIM',
+    entries:[...ENTRIES_INIT,
+      {id:'1700000010000-0', fields:'action=checkout\namount=199', state:'acked'},
+      {id:'1700000011000-0', fields:'action=refund\nitem=99',      state:'new-entry'}
+    ],
+    cursorIdx:4,
+    pel:['1700000011000-0 (超时 30s)'],
+    consumers:[{name:'Consumer-1',pending:0},{name:'Consumer-2 ✕',pending:1}],
+    activeConsumer:1,
+    cmd:`-- 检测超时未确认的消息（pending > 30000ms）
+XPENDING events orders-group IDLE 30000 - + 10
+-- 1700000011000-0: Consumer-2, idle 31420ms
+
+-- 将消息转移给 Consumer-1
+XCLAIM events orders-group Consumer-1 30000
+  1700000011000-0
+-- 返回消息，Consumer-1 重新处理
+
+-- Consumer-1 处理完成后
+XACK events orders-group 1700000011000-0`
+  },
+  {
+    label:'最终状态',
+    title:'所有消息均已确认，PEL 清空',
+    desc:'Consumer-1 处理完被转移的消息并 XACK 后，PEL 完全清空。Stream 中的原始消息条目仍然保留，其他消费者组或历史回放随时可用。整个流程体现了 Redis Stream 的 At-Least-Once 保证。',
+    badge:'完成',
+    entries:[...ENTRIES_INIT,
+      {id:'1700000010000-0', fields:'action=checkout\namount=199', state:'acked'},
+      {id:'1700000011000-0', fields:'action=refund\nitem=99',      state:'acked'}
+    ],
+    cursorIdx:4,
+    pel:[],
+    consumers:[{name:'Consumer-1',pending:0},{name:'Consumer-2',pending:0}],
+    activeConsumer:-1,
+    cmd:`-- 查看消费者组状态
+XINFO GROUPS events
+-- name: orders-group
+-- consumers: 2
+-- pending: 0        ← PEL 已清空
+-- last-delivered-id: 1700000011000-0
+
+-- Stream 原始消息仍然保留
+XLEN events
+-- 返回: 5
+
+-- 可以从头重放（XRANGE）或创建新消费者组`
+  }
+];
+
+// ── 渲染逻辑 ──────────────────────────────────────────────
+let currentStep = 0;
+let playing = false;
+let playTimer = null;
+
+function getEntryLeft(idx) {
+  return idx * 94; // 每个 entry 宽度 88 + 6 margin
+}
+
+function renderStep(idx) {
+  const s = STEPS[idx];
+  // 步骤按钮高亮
+  document.querySelectorAll('.step-btn').forEach((b,i) => b.classList.toggle('active', i===idx));
+  // 状态区
+  document.getElementById('stepBadge').textContent = s.badge || ('Step '+(idx+1));
+  document.getElementById('statusTitle').textContent = s.title;
+  document.getElementById('statusDesc').textContent = s.desc;
+  // 命令高亮
+  document.getElementById('cmdHighlight').textContent = s.cmd;
+
+  // Stream 日志带
+  const lane = document.getElementById('streamLane');
+  lane.innerHTML = '';
+  s.entries.forEach((e,i) => {
+    const div = document.createElement('div');
+    div.className = 'stream-entry ' + (e.state||'');
+    div.innerHTML = `<div class="entry-id">${e.id}</div><div class="entry-fields">${e.fields.replace(/\n/g,'<br>')}</div>`;
+    lane.appendChild(div);
+  });
+
+  // 游标
+  const cursorRow = document.getElementById('cursorRow');
+  const cursorEl = document.getElementById('cursorDelivered');
+  if (s.cursorIdx >= 0 && s.entries.length > 0) {
+    cursorRow.style.display = 'block';
+    const leftPx = getEntryLeft(Math.min(s.cursorIdx, s.entries.length-1)) + 38;
+    cursorEl.style.left = leftPx + 'px';
+  } else {
+    cursorRow.style.display = 'none';
+  }
+
+  // PEL
+  const pelRow = document.getElementById('pelRow');
+  pelRow.innerHTML = '';
+  if (s.pel && s.pel.length > 0) {
+    s.pel.forEach(id => {
+      const span = document.createElement('span');
+      span.className = 'pel-entry';
+      span.textContent = id;
+      pelRow.appendChild(span);
+    });
+  } else {
+    const empty = document.createElement('span');
+    empty.style.cssText = 'font-size:.75rem;color:var(--dim2);font-family:monospace;padding:6px 0;';
+    empty.textContent = '（空）';
+    pelRow.appendChild(empty);
+  }
+
+  // 消费者卡片
+  const cards = document.getElementById('consumerCards');
+  cards.innerHTML = '';
+  s.consumers.forEach((c,i) => {
+    const div = document.createElement('div');
+    div.className = 'consumer-card' + (i === s.activeConsumer ? ' active-c' : '');
+    div.innerHTML = `<div class="cn">${c.name}</div><div class="cs">pending: ${c.pending}</div>`;
+    cards.appendChild(div);
+  });
+
+  // 按钮状态
+  document.getElementById('btnPrev').disabled = idx === 0;
+  document.getElementById('btnNext').disabled = idx === STEPS.length - 1;
+}
+
+function buildStepList() {
+  const list = document.getElementById('stepList');
+  STEPS.forEach((s,i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-btn' + (i===0?' active':'');
+    btn.innerHTML = `<b>Step ${i+1}</b>${s.label}`;
+    btn.onclick = () => { currentStep = i; renderStep(i); stopPlay(); };
+    list.appendChild(btn);
+  });
+}
+
+function goNext() {
+  if (currentStep < STEPS.length-1) { currentStep++; renderStep(currentStep); }
+  else stopPlay();
+}
+function goPrev() {
+  if (currentStep > 0) { currentStep--; renderStep(currentStep); }
+}
+function reset() {
+  stopPlay();
+  currentStep = 0;
+  renderStep(0);
+}
+function togglePlay() {
+  if (playing) { stopPlay(); return; }
+  playing = true;
+  document.getElementById('btnPlay').textContent = '⏸ 暂停';
+  playTimer = setInterval(() => {
+    if (currentStep < STEPS.length-1) { currentStep++; renderStep(currentStep); }
+    else stopPlay();
+  }, 1800);
+}
+function stopPlay() {
+  playing = false;
+  clearInterval(playTimer);
+  document.getElementById('btnPlay').textContent = '▶ 播放';
+}
+
+buildStepList();
+renderStep(0);
+</script>
+</body>
+</html>

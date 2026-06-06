@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Docker 镜像分层 - 云原生</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#38bdf8;--ok:#4ade80;--warn:#fbbf24;--err:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:radial-gradient(circle at 20% 0%,rgba(56,189,248,.12),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1260px;margin:0 auto;padding:40px 32px 80px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--dim2);margin-bottom:24px}
+.breadcrumb a{color:var(--dim2)}.breadcrumb a:hover{color:var(--text)}
+.page-title{font-size:clamp(1.6rem,3.5vw,2.8rem);letter-spacing:-.04em;margin-bottom:6px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{color:var(--dim);font-size:.95rem;margin-bottom:28px;max-width:640px;line-height:1.75}
+.layout{display:grid;grid-template-columns:300px 1fr 260px;gap:20px;align-items:start}
+/* LEFT */
+.left-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:18px}
+.left-panel h3{font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px}
+.step-btn{width:100%;text-align:left;border:none;background:none;color:var(--dim);padding:10px 12px;border-radius:10px;cursor:pointer;font-size:.84rem;line-height:1.6;border:1px solid transparent;transition:.15s}
+.step-btn:hover{border-color:rgba(56,189,248,.3);color:var(--text)}
+.step-btn.active{background:rgba(56,189,248,.1);border-color:rgba(56,189,248,.4);color:var(--text)}
+.step-index{display:inline-block;width:20px;height:20px;border-radius:50%;background:rgba(56,189,248,.15);color:var(--accent);font-size:.7rem;font-weight:700;text-align:center;line-height:20px;margin-right:8px}
+.ctrl{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.ctrl button{flex:1;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:10px;padding:8px 4px;cursor:pointer;font-size:.78rem;transition:.15s}
+.ctrl button:hover{border-color:var(--accent);color:var(--text)}
+/* CENTER */
+.center-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:22px;min-height:520px;display:flex;flex-direction:column}
+.step-msg{border-left:3px solid var(--accent);background:rgba(56,189,248,.06);border-radius:0 10px 10px 0;padding:10px 14px;font-size:.86rem;color:var(--text);line-height:1.7;margin-bottom:18px}
+.viz-area{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;position:relative}
+.layer-stack{display:flex;flex-direction:column;gap:0;width:380px}
+.layer{width:100%;border-radius:8px;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;border:2px solid rgba(255,255,255,.05);background:rgba(30,41,59,.6);font-size:.83rem;transition:all .4s;opacity:0;transform:translateY(-12px)}
+.layer.show{opacity:1;transform:translateY(0)}
+.layer.highlight{border-color:var(--accent);background:rgba(56,189,248,.1);box-shadow:0 0 18px rgba(56,189,248,.2)}
+.layer.writable{border-color:var(--ok);background:rgba(74,222,128,.07);border-style:dashed}
+.layer.committed{border-color:var(--warn);background:rgba(251,191,36,.07);border-style:solid}
+.layer-label{font-weight:600}
+.layer-meta{font-size:.72rem;color:var(--dim2);font-family:monospace}
+.layer-size{font-size:.75rem;color:var(--dim);font-family:monospace;padding:3px 8px;background:rgba(255,255,255,.05);border-radius:5px}
+.arrow-down{text-align:center;color:var(--dim2);font-size:1.2rem;line-height:1.5}
+.cow-box{border:1px solid rgba(251,191,36,.3);background:rgba(251,191,36,.06);border-radius:10px;padding:12px;font-size:.8rem;color:var(--warn);margin-top:14px;text-align:center;max-width:380px;opacity:0;transition:opacity .4s}
+.cow-box.show{opacity:1}
+/* RIGHT */
+.right-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:18px}
+.right-panel h3{font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px}
+.info-row{display:flex;flex-direction:column;gap:4px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.06)}
+.info-row:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.info-label{font-size:.72rem;color:var(--dim2)}
+.info-value{font-size:.84rem;color:var(--text);font-family:monospace}
+@media(max-width:1000px){.layout{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">云原生</a><span>/</span>Docker 镜像分层</div>
+  <h1 class="page-title">Docker 镜像分层</h1>
+  <p class="subtitle">Docker 镜像由多个只读层堆叠组成，每条 Dockerfile 指令生成一层。容器运行时在最顶层加可写层，写操作触发 Copy-on-Write，确保底层只读层不变。</p>
+
+  <div class="layout">
+    <div class="left-panel">
+      <h3>步骤</h3>
+      <div id="stepList"></div>
+      <div class="ctrl">
+        <button onclick="prev()">← 上一步</button>
+        <button onclick="next()">下一步 →</button>
+        <button onclick="reset()">重置</button>
+        <button id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      </div>
+    </div>
+    <div class="center-panel">
+      <div class="step-msg" id="stepMsg">点击"下一步"开始动画</div>
+      <div class="viz-area">
+        <div class="layer-stack" id="layerStack"></div>
+        <div class="cow-box" id="cowBox">⚡ Copy-on-Write：/app/config.json 从镜像层复制到容器可写层，修改不影响原始镜像</div>
+      </div>
+    </div>
+    <div class="right-panel">
+      <h3>状态信息</h3>
+      <div class="info-row"><div class="info-label">当前指令</div><div class="info-value" id="infoCmd">-</div></div>
+      <div class="info-row"><div class="info-label">层数</div><div class="info-value" id="infoLayerCount">0</div></div>
+      <div class="info-row"><div class="info-label">镜像总大小</div><div class="info-value" id="infoSize">0 MB</div></div>
+      <div class="info-row"><div class="info-label">层类型</div><div class="info-value" id="infoType">-</div></div>
+      <div class="info-row"><div class="info-label">SHA256 前缀</div><div class="info-value" id="infoSha">-</div></div>
+    </div>
+  </div>
+</main>
+<script>
+const LAYERS = [
+  {id:'scratch',label:'scratch（基础）',meta:'FROM scratch',size:'0 MB',sha:'000000',type:'只读基础层',color:'rgba(148,163,184,.2)',msg:'FROM scratch：从空白开始，这是所有 Docker 镜像的起点。Linux 静态二进制可以从这里开始。'},
+  {id:'debian',label:'debian:bookworm-slim',meta:'FROM debian:bookworm-slim',size:'74 MB',sha:'a04e59',type:'只读层（基础镜像）',color:'rgba(56,189,248,.12)',msg:'拉取 debian:bookworm-slim 基础镜像。该层包含完整的 Debian 文件系统，约 74MB，由 Debian 官方构建，可以被多个镜像共享。'},
+  {id:'apt',label:'apt-get install python3',meta:'RUN apt-get install -y python3',size:'+ 38 MB',sha:'b17f2a',type:'只读层（RUN 指令）',color:'rgba(167,139,250,.12)',msg:'RUN apt-get install -y python3：在新的临时容器中执行，结果被 snapshot 为一个新层。所有安装的文件记录在这一层，层大小 38MB。'},
+  {id:'copy',label:'COPY ./app /app',meta:'COPY ./app /app',size:'+ 12 MB',sha:'c3d891',type:'只读层（COPY 指令）',color:'rgba(74,222,128,.12)',msg:'COPY ./app /app：将构建上下文中的文件复制到镜像中，生成新层。注意：如果文件内容不变，Docker 缓存会复用这一层，加快构建速度。'},
+  {id:'env',label:'ENV PORT=8080',meta:'ENV PORT=8080',size:'+ 0 MB',sha:'d5e4c2',type:'只读层（元数据）',color:'rgba(56,189,248,.08)',msg:'ENV PORT=8080：只修改镜像元数据（环境变量），不添加文件，层大小接近 0。元数据层不影响镜像磁盘占用。'},
+  {id:'cmd',label:'CMD ["python3","app.py"]',meta:'CMD ["python3", "app.py"]',size:'+ 0 MB',sha:'e6f5d3',type:'只读层（元数据）',color:'rgba(56,189,248,.08)',msg:'CMD ["python3", "app.py"]：设置容器默认启动命令，同样是纯元数据层。至此，镜像构建完成，共 5 层，总大小约 124MB。'},
+  {id:'rw',label:'Container 可写层（writable）',meta:'docker run',size:'0 MB（初始）',sha:'-------',type:'可写层（仅在运行时存在）',color:'rgba(74,222,128,.12)',isWritable:true,msg:'docker run 启动容器：在所有只读层之上叠加一个可写层（UpperDir）。容器的所有写操作都发生在这一层，不会修改下方只读镜像层。'},
+  {id:'cow',label:'Container 可写层（after write）',meta:'修改 /app/config.json',size:'+ 0.1 MB',sha:'-------',type:'写层（CoW 触发后）',color:'rgba(251,191,36,.12)',isWritable:true,cow:true,msg:'写入 /app/config.json：OverlayFS 触发 Copy-on-Write，将文件从只读层复制到可写层（UpperDir），在副本上修改。原始只读层不变，停止容器后可写层被丢弃。'},
+  {id:'commit',label:'新镜像层（docker commit）',meta:'docker commit',size:'+ 0.1 MB',sha:'f7a912',type:'只读层（提交后固化）',isCommitted:true,msg:'docker commit：将可写层固化为新的只读层，创建新镜像。此后该层可被其他镜像复用（layer sharing），是 Docker 的核心优势之一。'},
+];
+
+let cur = -1, timer = null;
+
+function render(){
+  const stack = document.getElementById('layerStack');
+  stack.innerHTML = '';
+  let totalSize = 0;
+  LAYERS.slice(0, cur+1).forEach((l, i) => {
+    const div = document.createElement('div');
+    div.className = 'layer show' + (i === cur ? ' highlight' : '') + (l.isWritable ? ' writable' : '') + (l.isCommitted ? ' committed' : '');
+    div.style.background = l.color;
+    div.innerHTML = `<div><div class="layer-label">${l.label}</div><div class="layer-meta">${l.meta}</div></div><div class="layer-size">${l.size}</div>`;
+    if(i < cur) {
+      div.style.opacity = '0.7';
+      div.style.borderColor = 'rgba(255,255,255,.08)';
+    }
+    stack.prepend(div);
+    if(i > 0 && i < cur) {
+      const arrow = document.createElement('div');
+      arrow.className = 'arrow-down';
+      arrow.textContent = '▲';
+      stack.prepend(arrow);
+    }
+  });
+  const cowBox = document.getElementById('cowBox');
+  cowBox.className = 'cow-box' + (cur >= 7 ? ' show' : '');
+}
+
+function updateInfo(){
+  if(cur < 0) {
+    document.getElementById('infoCmd').textContent = '-';
+    document.getElementById('infoLayerCount').textContent = '0';
+    document.getElementById('infoSize').textContent = '0 MB';
+    document.getElementById('infoType').textContent = '-';
+    document.getElementById('infoSha').textContent = '-';
+    document.getElementById('stepMsg').textContent = '点击"下一步"开始动画';
+    return;
+  }
+  const l = LAYERS[cur];
+  document.getElementById('infoCmd').textContent = l.meta;
+  document.getElementById('infoLayerCount').textContent = cur + 1;
+  document.getElementById('infoSize').textContent = ['0','74 MB','112 MB','124 MB','124 MB','124 MB','124 MB','124.1 MB','124.2 MB'][cur] || '-';
+  document.getElementById('infoType').textContent = l.type;
+  document.getElementById('infoSha').textContent = l.sha + '...';
+  document.getElementById('stepMsg').textContent = l.msg;
+}
+
+function buildStepList(){
+  const list = document.getElementById('stepList');
+  LAYERS.forEach((l, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-btn';
+    btn.innerHTML = `<span class="step-index">${i+1}</span>${l.label.slice(0,20)}${l.label.length>20?'…':''}`;
+    btn.onclick = () => { cur = i; render(); updateInfo(); buildStepList(); };
+    if(i === cur) btn.classList.add('active');
+    list.appendChild(btn);
+  });
+}
+
+function next(){
+  if(cur < LAYERS.length - 1){ cur++; render(); updateInfo(); buildStepList(); }
+}
+function prev(){
+  if(cur > -1){ cur--; render(); updateInfo(); buildStepList(); }
+}
+function reset(){
+  cur = -1; stopPlay(); render(); updateInfo(); buildStepList();
+}
+function togglePlay(){
+  if(timer){ stopPlay(); } else { startPlay(); }
+}
+function startPlay(){
+  document.getElementById('playBtn').textContent = '⏸ 暂停';
+  timer = setInterval(() => {
+    if(cur < LAYERS.length - 1){ cur++; render(); updateInfo(); buildStepList(); }
+    else stopPlay();
+  }, 1800);
+}
+function stopPlay(){
+  if(timer){ clearInterval(timer); timer = null; }
+  document.getElementById('playBtn').textContent = '▶ 播放';
+}
+
+buildStepList();
+render();
+updateInfo();
+</script>
+</body>
+</html>

@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>监控系统 - 系统设计</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#10b981;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;--blue:#38bdf8;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 80% 10%,color-mix(in srgb,var(--accent) 12%,transparent),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:220px minmax(0,1fr);gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.step-btn b{display:block;font-size:.74rem;color:var(--accent);margin-bottom:3px}
+.viz{padding:16px;display:flex;flex-direction:column;gap:14px}
+.stage{border:1px solid rgba(255,255,255,.06);border-radius:16px;background:rgba(15,23,42,.64);padding:14px;}
+.status{border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status h2{font-size:1rem;margin-bottom:6px;color:var(--text)}
+.status p{color:var(--dim);font-size:.88rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.warn{border-color:var(--warn);color:var(--warn)}
+.badge.alert{border-color:var(--bad);color:var(--bad)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit;font-size:.85rem}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.deep code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.82rem;color:var(--text)}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:900px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+
+/* canvas-based charts */
+canvas{display:block;border-radius:8px;}
+
+/* TSDB blocks */
+.tsdb-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;margin-top:8px;}
+.tsdb-cell{height:28px;border-radius:4px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);transition:all .4s;display:flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--dim2);font-family:monospace;}
+.tsdb-cell.filled{background:rgba(16,185,129,.14);border-color:rgba(16,185,129,.35);color:var(--accent);}
+.tsdb-cell.compressed{background:rgba(56,189,248,.14);border-color:rgba(56,189,248,.35);color:var(--blue);}
+.tsdb-cell.active{background:rgba(16,185,129,.3);border-color:var(--accent);box-shadow:0 0 8px rgba(16,185,129,.3);}
+
+/* Alert list */
+.alert-list{display:flex;flex-direction:column;gap:6px;}
+.alert-item{border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:8px 10px;font-size:.75rem;display:flex;align-items:center;gap:8px;transition:all .3s;}
+.alert-item.firing{border-color:rgba(248,113,113,.45);background:rgba(248,113,113,.08);color:var(--bad);}
+.alert-item.resolved{border-color:rgba(74,222,128,.25);background:rgba(74,222,128,.05);color:var(--ok);}
+.alert-item.merged{border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.06);color:var(--warn);}
+.alert-dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex-shrink:0;}
+
+/* Metric lines */
+.metric-legend{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px;}
+.metric-legend span{font-size:.72rem;display:flex;align-items:center;gap:5px;}
+.metric-legend span::before{content:'';width:16px;height:3px;border-radius:2px;display:inline-block;}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"时序数据库（TSDB）","body":"专为时序数据设计的存储引擎。按时间追加写入，不修改已有数据；按时间范围扫描，索引只需要时间戳；数据会按块压缩（Delta 编码 + XOR 压缩）。Prometheus TSDB、InfluxDB、VictoriaMetrics 都是代表。","tag":"term"},
+  {"title":"Pull vs Push 采集","body":"Prometheus 是 Pull 模式：主动定时向 Target 的 /metrics 接口抓取指标，Target 无需知道监控系统地址，适合服务发现动态环境。Push 模式（Graphite/StatsD）由应用主动推送，适合短生命周期任务（如 batch job）。","tag":"term"},
+  {"title":"告警聚合与抑制","body":"Alertmanager 对多个相关告警进行分组（同一服务的多个实例）、抑制（高优告警触发时静默低优同类告警）和静默（计划维护窗口）。避免告警风暴淹没真正的问题。","tag":"term"},
+  {"title":"Recording Rules","body":"预计算复杂 PromQL 表达式并将结果存为新的 metric，提高查询性能。例如把 5 分钟内 HTTP 请求成功率预先计算好，dashboard 直接查询结果 metric 而非实时计算。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">系统设计 / 监控系统 / C 类型</div>
+      <h1>监控系统</h1>
+      <p class="summary">监控系统的核心是：Agent 实时采集指标 → 时序数据库（TSDB）按时间追加存储 → Alertmanager 持续评估规则 → 告警聚合减少噪声。动画展示 CPU/内存/QPS 三条实时折线、TSDB 时间块的追加与压缩、告警触发与合并过程，体现 TSDB 与普通 DB 的本质差异。</p>
+      <div class="tags"><span>Prometheus</span><span>TSDB</span><span>Alertmanager</span><span>PromQL</span><span>Recording Rules</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>TSDB（时序数据库）</strong><span>数据按时间追加，按时间范围扫描，块级压缩。</span></li>
+        <li><strong>Pull 模式采集</strong><span>Prometheus 主动抓取 /metrics，而非 Agent 推送。</span></li>
+        <li><strong>告警聚合</strong><span>同一服务多实例告警合并为一条，避免告警风暴。</span></li>
+        <li><strong>Recording Rules</strong><span>预计算复杂指标，提升 dashboard 查询性能。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">步骤</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+
+    <section class="panel viz">
+      <!-- 三条指标折线 -->
+      <div class="stage">
+        <div class="metric-legend">
+          <span style="color:#4ade80"><span style="background:#4ade80"></span>CPU %</span>
+          <span style="color:#38bdf8"><span style="background:#38bdf8"></span>内存 %</span>
+          <span style="color:#f59e0b"><span style="background:#f59e0b"></span>QPS (×10)</span>
+          <span style="color:rgba(248,113,113,.7);font-size:.69rem"><span style="background:#f87171;height:1px;margin-top:4px;border-top:2px dashed #f87171;border-radius:0;"></span>CPU 阈值 80%</span>
+        </div>
+        <canvas id="metricChart" width="700" height="120" style="width:100%;height:120px;"></canvas>
+      </div>
+
+      <!-- TSDB 块 -->
+      <div class="stage">
+        <div style="font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;display:flex;align-items:center;gap:8px;">
+          TSDB 时间块（每格 = 15min 采集窗口）
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:rgba(16,185,129,.3);display:inline-block;"></span><span style="font-size:.65rem;color:var(--dim2)">内存块</span></span>
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:10px;border-radius:2px;background:rgba(56,189,248,.2);display:inline-block;"></span><span style="font-size:.65rem;color:var(--dim2)">已压缩磁盘块</span></span>
+        </div>
+        <div class="tsdb-grid" id="tsdbGrid">
+          <!-- filled by js -->
+        </div>
+      </div>
+
+      <!-- 告警 -->
+      <div class="stage">
+        <div style="font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">Alertmanager 告警列表</div>
+        <div class="alert-list" id="alertList">
+          <div style="color:var(--dim2);font-size:.8rem;text-align:center;padding:12px;">暂无告警</div>
+        </div>
+      </div>
+
+      <div class="status">
+        <div id="stepBadge" class="badge">采集中</div>
+        <h2 id="statusTitle">指标采集与存储</h2>
+        <p id="statusDesc">点击播放，观察三条指标折线的实时变化、TSDB 时间块的追加与压缩、告警触发与聚合。</p>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnPrev" onclick="goPrev()" disabled>◀ 上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+        <button class="ctrl" id="btnNext" onclick="goNext()">下一步 ▶</button>
+        <button class="ctrl" onclick="reset()" style="margin-left:auto">↺ 重置</button>
+      </div>
+    </section>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>TSDB vs 普通 DB</h2>
+      <ul>
+        <li><strong>写入模式：</strong>TSDB 总是追加写入（append-only），普通 DB 支持随机更新</li>
+        <li><strong>查询模式：</strong>TSDB 查询主要是时间范围扫描，普通 DB 需要全索引</li>
+        <li><strong>压缩：</strong>时序数据相邻值相近，Delta 编码 + XOR 压缩效率极高</li>
+        <li><strong>内存块：</strong>最近 2h 数据在内存 WAL 中，定期 flush 为磁盘块</li>
+        <li><strong>保留策略：</strong>按时间范围自动删除旧数据，不需要手动维护</li>
+        <li><strong>Chunk 格式：</strong>每个 series 的数据按 chunk 存储，同一指标数据聚合</li>
+      </ul>
+    </section>
+    <section>
+      <h2>Prometheus 采集架构</h2>
+      <ul>
+        <li><strong>Pull 模式：</strong>每 15s 向 Target 的 <code>/metrics</code> 接口发 HTTP GET</li>
+        <li><strong>服务发现：</strong>Kubernetes SD/Consul SD 动态发现 Target，无需手动维护列表</li>
+        <li><strong>Relabeling：</strong>采集前/后对 label 进行过滤、重命名、合并</li>
+        <li><strong>Remote Write：</strong>可将数据写入外部长期存储（Thanos/Cortex/Mimir）</li>
+        <li><strong>Federation：</strong>Prometheus 聚合多个下游 Prometheus，用于跨数据中心</li>
+        <li><strong>Pushgateway：</strong>批量任务主动推送短生命周期指标的临时中转</li>
+      </ul>
+    </section>
+    <section>
+      <h2>告警设计</h2>
+      <ul>
+        <li><strong>Alerting Rule：</strong>PromQL 表达式 + for 持续时间（防止毛刺告警）</li>
+        <li><strong>Alertmanager 分组：</strong>同一服务多实例的告警合并为一条</li>
+        <li><strong>抑制（Inhibit）：</strong>主机挂机时，该主机上的业务告警自动静默</li>
+        <li><strong>路由树：</strong>不同告警路由到不同接收人（PagerDuty/Slack/Webhook）</li>
+        <li><strong>静默（Silence）：</strong>计划维护窗口内，匹配规则的告警自动静默</li>
+        <li><strong>告警疲劳：</strong>合理设置 for 和 severity，避免低优先级告警淹没高优</li>
+      </ul>
+    </section>
+    <section>
+      <h2>可观测性三大支柱</h2>
+      <ul>
+        <li><strong>Metrics（指标）：</strong>聚合数值，适合监控和告警，存储成本低</li>
+        <li><strong>Logs（日志）：</strong>结构化或非结构化事件记录，适合排查具体错误</li>
+        <li><strong>Traces（追踪）：</strong>单次请求全链路耗时，适合定位瓶颈和依赖分析</li>
+        <li>三者互补：告警触发（Metrics）→ 查日志定位（Logs）→ 追踪分析（Traces）</li>
+        <li><strong>OpenTelemetry：</strong>统一三者的 SDK 和协议，避免厂商锁定</li>
+        <li><strong>SLO / Error Budget：</strong>基于 Metrics 定义可靠性目标和消耗速率</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← 系统设计首页</a>
+  </div>
+</main>
+<script>
+const STEPS = [
+  {
+    label:'正常采集与写入',
+    title:'Agent 持续采集，TSDB 时间块追加',
+    badge:'正常',
+    desc:'三条折线（CPU 约 45%，内存约 60%，QPS 约 30）在正常范围内波动。Prometheus 每 15s pull 一次指标，数据点追加写入内存中的 TSDB 时间块（绿色格）。所有指标低于告警阈值。',
+    cpuSpike:false, memHigh:false, alertMode:null,
+    tsdbFilled:4, tsdbCompressed:0
+  },
+  {
+    label:'内存块压缩入磁盘',
+    title:'2h 后内存块压缩为磁盘块',
+    badge:'TSDB',
+    desc:'内存中的时间块（绿色）在 2h 窗口结束后，执行 Delta+XOR 压缩，写入磁盘（蓝色块）。压缩后磁盘占用约为原始数据的 1/10。内存块清空，新采集数据继续写入新内存块。',
+    cpuSpike:false, memHigh:false, alertMode:null,
+    tsdbFilled:6, tsdbCompressed:4
+  },
+  {
+    label:'CPU 飙升触发告警',
+    title:'CPU 超过阈值 80%，告警 FIRING',
+    badge:'FIRING',
+    desc:'服务负载突然上升，CPU 使用率飙升到 85%+。Prometheus Alerting Rule 检测到 CPU 持续 2min 超过 80% 阈值（for: 2m），告警状态变为 FIRING，发送到 Alertmanager。',
+    cpuSpike:true, memHigh:false, alertMode:'single',
+    tsdbFilled:8, tsdbCompressed:4
+  },
+  {
+    label:'多实例告警聚合',
+    title:'3 个实例同时告警，Alertmanager 合并为 1 条',
+    badge:'聚合',
+    desc:'同一个服务（api-server）的 3 个实例都触发了 HighCPU 告警。Alertmanager 的 group_by: [alertname, service] 规则将这 3 条合并为一条，通知内容变为"api-server: 3 instances CPU > 80%"，避免告警轰炸。',
+    cpuSpike:true, memHigh:false, alertMode:'merged',
+    tsdbFilled:9, tsdbCompressed:4
+  },
+  {
+    label:'内存也超阈值',
+    title:'内存同时触发告警，高优抑制低优',
+    badge:'抑制',
+    desc:'内存使用率也突破 90%，新增 HighMemory 告警。由于 HighCPU 的 severity=critical 已在发送，Alertmanager 的 inhibit_rule 暂时抑制同一服务的 severity=warning 级别内存告警，避免同时接收两条不同级别的相关告警。',
+    cpuSpike:true, memHigh:true, alertMode:'inhibit',
+    tsdbFilled:10, tsdbCompressed:4
+  },
+  {
+    label:'指标恢复，告警 Resolved',
+    title:'CPU 下降，告警自动 Resolved',
+    badge:'Resolved',
+    desc:'负载下降，CPU 回到正常范围。Prometheus 检测到告警条件不再满足，自动发送 Resolved 通知给 Alertmanager，Alertmanager 转发 resolved 通知到 Slack/PagerDuty，并清除告警状态。',
+    cpuSpike:false, memHigh:false, alertMode:'resolved',
+    tsdbFilled:11, tsdbCompressed:6
+  }
+];
+
+let currentStep=0,playing=false,playTimer=null;
+const POINTS=60;
+let cpuData=[], memData=[], qpsData=[];
+
+function genData(spike,memHigh){
+  cpuData=[]; memData=[]; qpsData=[];
+  for(let i=0;i<POINTS;i++){
+    const t=i/POINTS;
+    let cpu=40+Math.sin(i*.3)*8+Math.random()*5;
+    if(spike&&i>40) cpu=78+Math.random()*12;
+    let mem=58+Math.sin(i*.2)*6+Math.random()*4;
+    if(memHigh&&i>35) mem=85+Math.random()*8;
+    let qps=28+Math.sin(i*.4)*5+Math.random()*4;
+    if(spike&&i>40) qps=48+Math.random()*10;
+    cpuData.push(Math.min(100,Math.max(0,cpu)));
+    memData.push(Math.min(100,Math.max(0,mem)));
+    qpsData.push(Math.min(100,Math.max(0,qps)));
+  }
+}
+
+function drawChart(){
+  const canvas=document.getElementById('metricChart');
+  const ctx=canvas.getContext('2d');
+  const W=canvas.parentElement.offsetWidth-28;
+  canvas.width=W*2; canvas.height=240;
+  canvas.style.width=W+'px'; canvas.style.height='120px';
+  ctx.scale(2,2);
+  const w=W,h=120;
+  ctx.clearRect(0,0,w,h);
+  // background
+  ctx.fillStyle='rgba(15,23,42,0.6)';
+  ctx.roundRect(0,0,w,h,8);
+  ctx.fill();
+  // threshold line at 80
+  const th=h-(80/100)*(h-12)-6;
+  ctx.strokeStyle='rgba(248,113,113,.45)';
+  ctx.setLineDash([4,4]);
+  ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(8,th);ctx.lineTo(w-8,th);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='rgba(248,113,113,.5)';
+  ctx.font='9px monospace';
+  ctx.fillText('80%',w-26,th-2);
+
+  function drawLine(data,color,thick){
+    ctx.strokeStyle=color;
+    ctx.lineWidth=thick||1.5;
+    ctx.lineJoin='round';
+    ctx.beginPath();
+    data.forEach((v,i)=>{
+      const x=8+(i/(POINTS-1))*(w-16);
+      const y=h-6-(v/100)*(h-12);
+      i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+  }
+  drawLine(cpuData,'#4ade80',2);
+  drawLine(memData,'#38bdf8',2);
+  drawLine(qpsData,'#f59e0b',1.5);
+}
+
+function renderTSDB(filled,compressed){
+  const grid=document.getElementById('tsdbGrid');
+  grid.innerHTML='';
+  for(let i=0;i<12;i++){
+    const cell=document.createElement('div');
+    cell.className='tsdb-cell';
+    if(i<compressed){cell.className='tsdb-cell compressed';cell.textContent='T-'+(12-i);}
+    else if(i<filled){cell.className+=' filled'+(i===filled-1?' active':'');cell.textContent='T-'+(12-i);}
+    grid.appendChild(cell);
+  }
+}
+
+function renderAlerts(mode){
+  const list=document.getElementById('alertList');
+  if(!mode){list.innerHTML='<div style="color:var(--dim2);font-size:.8rem;text-align:center;padding:12px;">暂无告警</div>';return;}
+  let html='';
+  if(mode==='single') html=`<div class="alert-item firing"><div class="alert-dot"></div>HighCPU api-server:inst-1 (CPU=87%) [FIRING 2m]</div>`;
+  if(mode==='merged') html=`<div class="alert-item merged"><div class="alert-dot"></div>⬡ HighCPU api-server × 3 instances (已聚合) [GROUP]</div>`;
+  if(mode==='inhibit') html=`
+    <div class="alert-item merged"><div class="alert-dot"></div>⬡ HighCPU api-server × 3 [FIRING — critical]</div>
+    <div class="alert-item" style="opacity:.45;border-color:rgba(255,255,255,.1);"><div class="alert-dot" style="color:var(--dim2)"></div>HighMemory api-server (mem=91%) [INHIBITED]</div>`;
+  if(mode==='resolved') html=`
+    <div class="alert-item resolved"><div class="alert-dot"></div>✓ HighCPU api-server [RESOLVED]</div>`;
+  list.innerHTML=html;
+}
+
+function renderStep(idx){
+  const s=STEPS[idx];
+  document.querySelectorAll('.step-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  const bd=document.getElementById('stepBadge');
+  bd.textContent=s.badge;
+  bd.className='badge'+(s.alertMode==='firing'||s.alertMode==='single'?' alert':s.alertMode==='merged'||s.alertMode==='inhibit'?' warn':'');
+  document.getElementById('statusTitle').textContent=s.title;
+  document.getElementById('statusDesc').textContent=s.desc;
+  genData(s.cpuSpike,s.memHigh);
+  drawChart();
+  renderTSDB(s.tsdbFilled,s.tsdbCompressed);
+  renderAlerts(s.alertMode);
+  document.getElementById('btnPrev').disabled=idx===0;
+  document.getElementById('btnNext').disabled=idx===STEPS.length-1;
+}
+
+function buildStepList(){
+  const list=document.getElementById('stepList');
+  STEPS.forEach((s,i)=>{
+    const btn=document.createElement('button');
+    btn.className='step-btn'+(i===0?' active':'');
+    btn.innerHTML=`<b>Step ${i+1}</b>${s.label}`;
+    btn.onclick=()=>{currentStep=i;renderStep(i);stopPlay();};
+    list.appendChild(btn);
+  });
+}
+function goNext(){if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();}
+function goPrev(){if(currentStep>0){currentStep--;renderStep(currentStep);}}
+function reset(){stopPlay();currentStep=0;renderStep(0);}
+function togglePlay(){
+  if(playing){stopPlay();return;}
+  playing=true;document.getElementById('btnPlay').textContent='⏸ 暂停';
+  playTimer=setInterval(()=>{if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();},2200);
+}
+function stopPlay(){playing=false;clearInterval(playTimer);document.getElementById('btnPlay').textContent='▶ 播放';}
+buildStepList();renderStep(0);
+window.addEventListener('resize',drawChart);
+</script>
+</body>
+</html>

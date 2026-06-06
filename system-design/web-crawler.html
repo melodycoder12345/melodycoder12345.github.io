@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>网络爬虫 - 系统设计</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#f59e0b;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 20% 0%,color-mix(in srgb,var(--accent) 14%,transparent),transparent 36%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:240px minmax(0,1fr) 260px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:460px;display:flex;flex-direction:column;padding:18px}
+.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:rgba(15,23,42,.64);overflow:hidden;padding:16px;}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}
+.status p{color:var(--dim);font-size:.9rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit;font-size:.85rem}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.deep code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.82rem;color:var(--text)}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+
+/* 爬虫 BFS URL 图 */
+.crawler-layout{display:grid;grid-template-columns:minmax(0,1fr) 180px;gap:16px;width:100%;}
+.url-graph{position:relative;min-height:280px;}
+.url-node{position:absolute;border-radius:10px;padding:6px 10px;font-size:.7rem;font-family:monospace;transition:all .4s;border:1.5px solid;text-align:center;max-width:110px;}
+.url-node.seed{border-color:var(--accent);background:rgba(245,158,11,.1);color:var(--accent);}
+.url-node.frontier{border-color:rgba(56,189,248,.5);background:rgba(56,189,248,.08);color:#38bdf8;}
+.url-node.visited{border-color:rgba(100,116,139,.4);background:rgba(100,116,139,.06);color:#64748b;}
+.url-node.blocked{border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.06);color:#f87171;text-decoration:line-through;}
+.url-node.new{animation:nodeAppear .4s ease-out;}
+@keyframes nodeAppear{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* Bloom Filter 位数组 */
+.bloom-wrap{border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px;background:rgba(255,255,255,.02);}
+.bloom-title{font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;font-family:monospace;}
+.bloom-bits{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:8px;}
+.bloom-bit{width:14px;height:14px;border-radius:3px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);transition:all .3s;display:flex;align-items:center;justify-content:center;font-size:.6rem;color:transparent;}
+.bloom-bit.set{background:rgba(245,158,11,.35);border-color:rgba(245,158,11,.6);color:var(--accent);}
+.bloom-bit.flash{animation:bitFlash .4s ease-out;}
+@keyframes bitFlash{0%,100%{transform:scale(1)}50%{transform:scale(1.4);background:rgba(245,158,11,.8);}}
+
+.bloom-stat{font-size:.72rem;color:var(--dim);font-family:monospace;line-height:1.8;}
+
+/* URL 队列 */
+.url-queue{border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:10px;margin-top:10px;background:rgba(255,255,255,.02);}
+.queue-title{font-size:.68rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;}
+.queue-item{font-size:.68rem;font-family:monospace;color:var(--dim);padding:2px 0;border-bottom:1px solid rgba(255,255,255,.04);}
+.queue-item:last-child{border-bottom:none;}
+.queue-item.active{color:var(--accent);}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"BFS（广度优先）爬取","body":"从种子 URL 开始，每轮爬取当前 Frontier 中所有 URL，提取新链接后加入下轮 Frontier。BFS 保证同一层级的页面被优先爬取，适合全站爬取场景。","tag":"term"},
+  {"title":"Bloom Filter 去重","body":"用 Bloom Filter 记录已爬过的 URL。查询时，若对应位均为 1 则可能已见过（有误判），若有 0 则肯定未见过。内存极小（亿级 URL 约 1GB），允许极低误判率（~1%）。","tag":"term"},
+  {"title":"robots.txt","body":"网站根目录的 /robots.txt 文件声明爬虫协议：Disallow 禁止爬取的路径，Crawl-delay 建议访问间隔。合规爬虫必须解析并遵守，否则可能被封 IP 或引发法律风险。","tag":"term"},
+  {"title":"礼貌爬取（Politeness）","body":"对同一域名的请求需限速（如每 5s 最多 1 次），避免给对方服务器造成 DDoS。使用 Crawl-delay 和域名级别的限速队列实现。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">系统设计 / 网络爬虫 / C 类型</div>
+      <h1>网络爬虫</h1>
+      <p class="summary">爬虫以种子 URL 为圆心，BFS 向外扩展。每次访问新页面，提取其中的链接，检查 Bloom Filter（已爬过的 URL 对应位全为 1 则跳过），通过 robots.txt 过滤被禁止的路径，剩余链接进入下一轮 Frontier。</p>
+      <div class="tags"><span>BFS</span><span>Bloom Filter</span><span>robots.txt</span><span>礼貌爬取</span><span>URL 规范化</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>Frontier</strong><span>待爬取的 URL 队列，BFS 每轮从中取出处理，新发现的 URL 加入下一轮。</span></li>
+        <li><strong>Bloom Filter</strong><span>位数组去重，哈希命中则跳过。亿级 URL 只需 ~1GB 内存，有极低误判率。</span></li>
+        <li><strong>robots.txt</strong><span>网站声明的爬虫协议，Disallow 路径不可爬取，合规爬虫必须遵守。</span></li>
+        <li><strong>礼貌策略</strong><span>对同一域名限制访问频率，避免被对方服务器封禁。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">BFS 步骤</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+
+    <section class="panel viz">
+      <div class="stage">
+        <div class="crawler-layout">
+          <div>
+            <div style="font-size:.68rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">URL 扩展图（BFS 层级）</div>
+            <svg id="graphSvg" viewBox="0 0 380 260" style="width:100%;height:auto;">
+              <defs>
+                <marker id="arrowC" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                  <path d="M0,0 L0,6 L6,3 z" fill="rgba(245,158,11,.5)"/>
+                </marker>
+              </defs>
+              <!-- 边（动态） -->
+              <g id="edges"></g>
+              <!-- 节点（动态） -->
+              <g id="nodes"></g>
+            </svg>
+            <!-- URL 队列 -->
+            <div class="url-queue">
+              <div class="queue-title">Frontier 队列</div>
+              <div id="frontierList"></div>
+            </div>
+          </div>
+          <!-- 右：Bloom Filter + 统计 -->
+          <div>
+            <div class="bloom-wrap">
+              <div class="bloom-title">Bloom Filter（32 位示意）</div>
+              <div class="bloom-bits" id="bloomBits"></div>
+              <div class="bloom-stat" id="bloomStat">已见: 0 URLs<br>误判率: ~0%</div>
+            </div>
+            <div style="margin-top:10px;font-size:.75rem;color:var(--dim);line-height:1.7;">
+              <div style="color:var(--accent);font-size:.68rem;text-transform:uppercase;margin-bottom:4px;">图例</div>
+              <div><span style="color:var(--accent)">●</span> 种子 URL</div>
+              <div><span style="color:#38bdf8">●</span> 待爬（Frontier）</div>
+              <div><span style="color:#64748b">●</span> 已爬（Visited）</div>
+              <div><span style="color:#f87171">●</span> 被 robots.txt 禁止</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="status">
+        <div id="stepBadge" class="badge">BFS 0</div>
+        <h2 id="statusTitle">种子 URL 入队</h2>
+        <p id="statusDesc">爬虫从种子 URL 开始，BFS 向外扩展发现新页面。</p>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnPrev" onclick="goPrev()" disabled>◀ 上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+        <button class="ctrl" id="btnNext" onclick="goNext()">下一步 ▶</button>
+        <button class="ctrl" onclick="reset()" style="margin-left:auto">↺ 重置</button>
+      </div>
+    </section>
+
+    <div class="panel" style="display:flex;flex-direction:column;">
+      <div class="panel-hd">系统组件</div>
+      <div style="padding:14px;flex:1;overflow:auto;font-size:.8rem;color:var(--dim);line-height:1.8;">
+        <div style="margin-bottom:8px;padding:8px;background:rgba(255,255,255,.03);border-radius:7px;">
+          <span style="color:var(--text)">URL Frontier：</span>优先级 + 礼貌调度（按域名分桶，限速）
+        </div>
+        <div style="margin-bottom:8px;padding:8px;background:rgba(255,255,255,.03);border-radius:7px;">
+          <span style="color:var(--text)">Fetcher：</span>并发下载 HTML，处理重定向、robots.txt
+        </div>
+        <div style="margin-bottom:8px;padding:8px;background:rgba(255,255,255,.03);border-radius:7px;">
+          <span style="color:var(--text)">Parser：</span>提取 href/src 链接，URL 规范化（去参数、统一协议）
+        </div>
+        <div style="margin-bottom:8px;padding:8px;background:rgba(255,255,255,.03);border-radius:7px;">
+          <span style="color:var(--text)">Dedup：</span>Bloom Filter 快速判断 + 精确 URL 数据库校验
+        </div>
+        <div style="padding:8px;background:rgba(255,255,255,.03);border-radius:7px;">
+          <span style="color:var(--text)">Storage：</span>内容存 HDFS/S3，索引写搜索引擎
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>Bloom Filter 的工程权衡</h2>
+      <ul>
+        <li>10 亿 URL，误判率 0.1%：需要约 1.8GB 内存（位数组）</li>
+        <li>误判（false positive）：已爬 URL 偶尔被当成新 URL 重爬，代价可接受</li>
+        <li>漏判（false negative）：<strong>不存在</strong>，Bloom Filter 不会漏掉新 URL</li>
+        <li>不可删除：标准 Bloom Filter 不支持删除（可用 Counting Bloom Filter）</li>
+        <li>实践中：Bloom Filter 做快速初筛，精确 Set（Redis SET / HBase）做最终确认</li>
+      </ul>
+    </section>
+    <section>
+      <h2>URL 规范化</h2>
+      <ul>
+        <li>统一大小写：<code>HTTP://Example.com</code> → <code>http://example.com</code></li>
+        <li>移除 fragment：<code>#section1</code> 不影响服务端内容</li>
+        <li>移除无关参数：<code>?utm_source=...</code> 通常不影响内容</li>
+        <li>处理相对路径：<code>../about</code> 相对当前页面解析为绝对 URL</li>
+        <li>规范化后计算哈希，避免相同内容不同 URL 被重复爬取</li>
+      </ul>
+    </section>
+    <section>
+      <h2>分布式爬虫架构</h2>
+      <ul>
+        <li>URL 按域名哈希分配到不同爬虫节点，保证同一域名由同一节点处理（便于礼貌限速）</li>
+        <li>Consistent Hashing 支持节点增减时最小化 URL 重新分配</li>
+        <li>中央 Coordinator 管理全局去重（或用分布式 Bloom Filter）</li>
+        <li>深度和宽度限制：防止陷入无限循环（如分页参数 ?page=1&page=2&...）</li>
+        <li>爬取深度通常 &lt; 5 层，超出则优先级降低</li>
+      </ul>
+    </section>
+    <section>
+      <h2>爬虫陷阱</h2>
+      <ul>
+        <li><strong>Spider Trap：</strong>无限生成 URL（如 /calendar/2024/01/01, /2024/01/02, ...），设置最大爬取深度和 URL 长度限制</li>
+        <li><strong>重复内容：</strong>不同 URL 相同内容（镜像站），用内容哈希（SimHash）检测近似重复</li>
+        <li><strong>动态内容：</strong>JavaScript 渲染的页面需要 Headless Browser（Puppeteer）才能爬取</li>
+        <li><strong>反爬机制：</strong>IP 封禁、CAPTCHA、User-Agent 检测——合规爬虫应遵守 robots.txt 并控制频率</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← 系统设计首页</a>
+    <a class="btn" href="../algo/bloom.html">Bloom Filter</a>
+    <a class="btn" href="../algo/bfs.html">BFS 算法</a>
+  </div>
+</main>
+<script>
+// BFS URL 图的布局数据
+const BFS_STATES = [
+  {
+    label:'种子 URL',
+    title:'BFS 第 0 层：种子 URL 入队',
+    badge:'BFS 0',
+    desc:'从种子 URL（example.com）开始。Bloom Filter 记录该 URL（哈希到对应位），加入 Frontier 队列，等待爬取。',
+    nodes:[
+      {id:'n0', x:190, y:30, label:'example.com', state:'seed'}
+    ],
+    edges:[],
+    frontier:['example.com'],
+    bloomSet:[3,7,15,21],
+    bloomHit:[3,7,15,21],
+    bloomCount:1
+  },
+  {
+    label:'爬取种子，发现 3 个链接',
+    title:'BFS 第 1 层：爬取种子页面，提取 3 个链接',
+    badge:'BFS 1',
+    desc:'下载 example.com，解析 HTML，发现 3 个链接。逐一查询 Bloom Filter，全部未命中（新 URL），设置对应位，加入 Frontier。',
+    nodes:[
+      {id:'n0', x:190, y:30, label:'example.com', state:'visited'},
+      {id:'n1', x:60,  y:120, label:'/about', state:'frontier'},
+      {id:'n2', x:190, y:120, label:'/products', state:'frontier'},
+      {id:'n3', x:320, y:120, label:'/blog', state:'frontier'},
+    ],
+    edges:[['n0','n1'],['n0','n2'],['n0','n3']],
+    frontier:['/about', '/products', '/blog'],
+    bloomSet:[3,7,9,15,18,21,24,27],
+    bloomHit:[9,18,24,27],
+    bloomCount:4
+  },
+  {
+    label:'爬取 /about，发现已爬 URL',
+    title:'BFS：/about 中发现已爬 URL，Bloom Filter 命中',
+    badge:'BFS 2',
+    desc:'/about 页面包含一个 example.com 的链接（已爬过）和一个新链接 /contact。Bloom Filter 对 example.com 返回"已见过"（命中）——不加入队列。/contact 未见过，加入 Frontier。',
+    nodes:[
+      {id:'n0', x:190, y:30, label:'example.com', state:'visited'},
+      {id:'n1', x:60,  y:120, label:'/about', state:'visited'},
+      {id:'n2', x:190, y:120, label:'/products', state:'frontier'},
+      {id:'n3', x:320, y:120, label:'/blog', state:'frontier'},
+      {id:'n4', x:40,  y:200, label:'/contact', state:'frontier'},
+    ],
+    edges:[['n0','n1'],['n0','n2'],['n0','n3'],['n1','n4']],
+    frontier:['/products', '/blog', '/contact'],
+    bloomSet:[3,7,9,15,18,21,24,27,29],
+    bloomHit:[3,7,15,21],
+    bloomCount:5
+  },
+  {
+    label:'robots.txt 过滤',
+    title:'/products 发现的链接被 robots.txt 禁止',
+    badge:'robots.txt',
+    desc:'爬取 /products 发现了链接 /admin/dashboard。先检查 robots.txt：Disallow: /admin/，直接丢弃该 URL，不加入 Frontier，也不查询 Bloom Filter。合规爬虫必须遵守此协议。',
+    nodes:[
+      {id:'n0', x:190, y:30, label:'example.com', state:'visited'},
+      {id:'n1', x:60,  y:120, label:'/about', state:'visited'},
+      {id:'n2', x:190, y:120, label:'/products', state:'visited'},
+      {id:'n3', x:320, y:120, label:'/blog', state:'frontier'},
+      {id:'n4', x:40,  y:200, label:'/contact', state:'frontier'},
+      {id:'n5', x:190, y:200, label:'/admin ×', state:'blocked'},
+      {id:'n6', x:290, y:200, label:'/products/p1', state:'frontier'},
+    ],
+    edges:[['n0','n1'],['n0','n2'],['n0','n3'],['n1','n4'],['n2','n5'],['n2','n6']],
+    frontier:['/blog', '/contact', '/products/p1'],
+    bloomSet:[3,7,9,12,15,18,21,24,27,29],
+    bloomHit:[12],
+    bloomCount:6
+  },
+  {
+    label:'BFS 完成多层扩展',
+    title:'继续 BFS：已爬 5 页，Frontier 持续扩展',
+    badge:'BFS 进行中',
+    desc:'BFS 持续扩展，每爬一个页面就将其标为 Visited（灰色），提取的新链接加入 Frontier（蓝色）。Bloom Filter 位数组逐渐密集，内存使用平稳（亿级 URL ~1GB）。',
+    nodes:[
+      {id:'n0', x:190, y:20, label:'example.com', state:'visited'},
+      {id:'n1', x:60,  y:90, label:'/about', state:'visited'},
+      {id:'n2', x:190, y:90, label:'/products', state:'visited'},
+      {id:'n3', x:320, y:90, label:'/blog', state:'visited'},
+      {id:'n4', x:30,  y:170, label:'/contact', state:'visited'},
+      {id:'n5', x:190, y:170, label:'/admin ×', state:'blocked'},
+      {id:'n6', x:280, y:170, label:'/products/p1', state:'visited'},
+      {id:'n7', x:130, y:170, label:'/blog/post1', state:'frontier'},
+      {id:'n8', x:360, y:170, label:'/blog/post2', state:'frontier'},
+      {id:'n9', x:100, y:240, label:'/contact/us', state:'frontier'},
+    ],
+    edges:[['n0','n1'],['n0','n2'],['n0','n3'],['n1','n4'],['n2','n5'],['n2','n6'],['n3','n7'],['n3','n8'],['n4','n9']],
+    frontier:['/blog/post1', '/blog/post2', '/contact/us'],
+    bloomSet:[0,3,5,7,9,11,12,15,17,18,19,21,24,25,27,29,30],
+    bloomHit:[5,11,17,19,25,30],
+    bloomCount:9
+  }
+];
+
+let currentStep=0,playing=false,playTimer=null;
+
+function renderStep(idx){
+  const s=BFS_STATES[idx];
+  document.querySelectorAll('.step-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  document.getElementById('stepBadge').textContent=s.badge;
+  document.getElementById('statusTitle').textContent=s.title;
+  document.getElementById('statusDesc').textContent=s.desc;
+
+  // 渲染图
+  const edgesG=document.getElementById('edges');
+  edgesG.innerHTML='';
+  const nodeMap={};
+  s.nodes.forEach(n=>nodeMap[n.id]=n);
+  s.edges.forEach(([from,to])=>{
+    const f=nodeMap[from],t=nodeMap[to];
+    if(f&&t){
+      const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1',f.x); line.setAttribute('y1',f.y+14);
+      line.setAttribute('x2',t.x); line.setAttribute('y2',t.y-2);
+      line.setAttribute('stroke','rgba(245,158,11,.25)');
+      line.setAttribute('stroke-width','1.5');
+      line.setAttribute('marker-end','url(#arrowC)');
+      edgesG.appendChild(line);
+    }
+  });
+
+  const nodesG=document.getElementById('nodes');
+  nodesG.innerHTML='';
+  const stateColors={seed:'#f59e0b',frontier:'#38bdf8',visited:'#64748b',blocked:'#f87171'};
+  s.nodes.forEach(n=>{
+    const c=stateColors[n.state]||'#64748b';
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    const tw=Math.min(n.label.length*6+16, 90);
+    rect.setAttribute('x',n.x-tw/2); rect.setAttribute('y',n.y-12);
+    rect.setAttribute('width',tw); rect.setAttribute('height',24);
+    rect.setAttribute('rx','6');
+    rect.setAttribute('fill',`${c}18`);
+    rect.setAttribute('stroke',c); rect.setAttribute('stroke-width','1.5');
+    const text=document.createElementNS('http://www.w3.org/2000/svg','text');
+    text.setAttribute('x',n.x); text.setAttribute('y',n.y+4);
+    text.setAttribute('text-anchor','middle');
+    text.setAttribute('fill',c);
+    text.setAttribute('font-size','9');
+    text.setAttribute('font-family','monospace');
+    text.textContent=n.label;
+    g.appendChild(rect); g.appendChild(text);
+    nodesG.appendChild(g);
+  });
+
+  // Frontier 列表
+  const fl=document.getElementById('frontierList');
+  fl.innerHTML='';
+  if(s.frontier.length===0){fl.innerHTML='<div style="color:var(--dim2);font-size:.7rem;font-family:monospace;">（空，爬取完成）</div>';}
+  else s.frontier.forEach((url,i)=>{
+    const d=document.createElement('div');
+    d.className='queue-item'+(i===0?' active':'');
+    d.textContent=url;
+    fl.appendChild(d);
+  });
+
+  // Bloom Filter
+  const bits=document.getElementById('bloomBits');
+  bits.innerHTML='';
+  for(let i=0;i<32;i++){
+    const b=document.createElement('div');
+    const isSet=s.bloomSet.includes(i);
+    const isHit=s.bloomHit&&s.bloomHit.includes(i);
+    b.className='bloom-bit'+(isSet?' set':'')+(isHit?' flash':'');
+    bits.appendChild(b);
+  }
+  document.getElementById('bloomStat').innerHTML=`已见: ${s.bloomCount} URLs<br>位数组: ${s.bloomSet.length}/32 位已置 1`;
+
+  document.getElementById('btnPrev').disabled=idx===0;
+  document.getElementById('btnNext').disabled=idx===BFS_STATES.length-1;
+}
+
+function buildStepList(){
+  const list=document.getElementById('stepList');
+  BFS_STATES.forEach((s,i)=>{
+    const btn=document.createElement('button');
+    btn.className='step-btn'+(i===0?' active':'');
+    btn.innerHTML=`<b>Step ${i+1}</b>${s.label}`;
+    btn.onclick=()=>{currentStep=i;renderStep(i);stopPlay();};
+    list.appendChild(btn);
+  });
+}
+function goNext(){if(currentStep<BFS_STATES.length-1){currentStep++;renderStep(currentStep);}else stopPlay();}
+function goPrev(){if(currentStep>0){currentStep--;renderStep(currentStep);}}
+function reset(){stopPlay();currentStep=0;renderStep(0);}
+function togglePlay(){
+  if(playing){stopPlay();return;}
+  playing=true;document.getElementById('btnPlay').textContent='⏸ 暂停';
+  playTimer=setInterval(()=>{if(currentStep<BFS_STATES.length-1){currentStep++;renderStep(currentStep);}else stopPlay();},2000);
+}
+function stopPlay(){playing=false;clearInterval(playTimer);document.getElementById('btnPlay').textContent='▶ 播放';}
+buildStepList();renderStep(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>双指针 - 算法</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#34d399;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 50% 0%,color-mix(in srgb,var(--accent) 10%,transparent),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+.content{max-width:1100px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px;margin-bottom:28px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,3.4rem);line-height:1.05;letter-spacing:-.05em;margin-bottom:14px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:999px;padding:5px 9px;font-size:.75rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);border-radius:14px;padding:12px 14px}
+.concept-list strong{display:block;font-size:.86rem;margin-bottom:3px}
+.concept-list span{display:block;color:var(--dim);font-size:.8rem;line-height:1.6}
+.body{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.section{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.6);border-radius:18px;padding:22px}
+.section h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px}
+.section p,.section li{color:var(--dim);font-size:.9rem;line-height:1.85}
+.section ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.section code{background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;font-size:.82rem}
+.code-block{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px;font-family:monospace;font-size:.78rem;color:var(--dim);overflow-x:auto;margin-top:10px;line-height:1.7}
+.back-row{margin-top:22px;display:flex;gap:12px}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text)}
+@media(max-width:900px){.hero,.body{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"对撞指针","body":"left 和 right 分别从数组两端向中间移动，典型场景：有序数组 Two Sum、接雨水、盛最多水的容器。利用数组有序性，通过比较 a[l]+a[r] 与目标值决定移动方向。","tag":"term"},
+  {"title":"快慢指针","body":"slow 走一步，fast 走两步。用于检测链表环（Floyd 算法）、找链表中点、找链表倒数第 k 个节点。若链表有环，fast 和 slow 必然在环内相遇。","tag":"term"},
+  {"title":"滑动窗口","body":"维护一个左右指针定义的窗口，right 扩张窗口，当窗口满足/不满足条件时 left 收缩。常用于最长/最短子串问题。窗口大小可变，关键是理解何时收缩 left。","tag":"term"},
+  {"title":"归并双指针","body":"两个已排序数组/链表各用一个指针，每次取较小值推进。归并排序、有序链表合并、寻找两排序数组中位数（O(log n) 需二分）。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="B">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">算法 / 双指针 / B 类型</div>
+      <h1>双指针</h1>
+      <p class="summary">双指针技巧通过维护两个索引（指针）避免暴力 O(n²) 嵌套循环，将问题降至 O(n) 或 O(n log n)。四种模式：对撞指针（两端向中间，有序数组对和/三数之和）、快慢指针（链表环/中点检测）、滑动窗口（最长/最短子串）、归并双指针（有序序列合并/交集）。核心思路是利用数据的有序性或单调性减少无效比较。</p>
+      <div class="tags"><span>对撞指针</span><span>快慢指针</span><span>滑动窗口</span><span>归并</span><span>Two Sum</span><span>Floyd</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>对撞指针</strong><span>两端向中间，利用有序性，O(n) 解有序 Two Sum。</span></li>
+        <li><strong>快慢指针</strong><span>slow 步1，fast 步2，检测环和中点。</span></li>
+        <li><strong>滑动窗口</strong><span>right 扩张，left 收缩，维护窗口不变量。</span></li>
+        <li><strong>归并双指针</strong><span>两有序序列各一指针，取小者推进。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="body">
+    <section class="section">
+      <h2>对撞指针</h2>
+      <ul>
+        <li>前提：数组有序（或排序后处理），利用单调性</li>
+        <li>若 <code>a[l]+a[r] &lt; target</code>：l++ 增大和</li>
+        <li>若 <code>a[l]+a[r] &gt; target</code>：r-- 减小和</li>
+        <li>正确性：单调性保证不会漏解</li>
+      </ul>
+      <div class="code-block">
+// Two Sum II（有序数组）O(n)
+func twoSum(nums []int, target int) []int {
+    l, r := 0, len(nums)-1
+    for l < r {
+        sum := nums[l] + nums[r]
+        if sum == target { return []int{l+1, r+1} }
+        if sum < target { l++ } else { r-- }
+    }
+    return nil
+}
+
+// 三数之和 O(n^2)
+func threeSum(nums []int) [][]int {
+    sort.Ints(nums)
+    var res [][]int
+    for i := 0; i < len(nums)-2; i++ {
+        if i > 0 && nums[i] == nums[i-1] { continue }
+        l, r := i+1, len(nums)-1
+        for l < r {
+            s := nums[i]+nums[l]+nums[r]
+            if s == 0 {
+                res = append(res, []int{nums[i],nums[l],nums[r]})
+                for l < r && nums[l] == nums[l+1] { l++ }
+                for l < r && nums[r] == nums[r-1] { r-- }
+                l++; r--
+            } else if s < 0 { l++ } else { r-- }
+        }
+    }
+    return res
+}</div>
+    </section>
+    <section class="section">
+      <h2>快慢指针</h2>
+      <div class="code-block">
+// Floyd 判环算法
+// 若有环：fast 追上 slow；相遇点距环入口的距离 = 头到环入口距离
+func detectCycle(head *ListNode) *ListNode {
+    slow, fast := head, head
+    for fast != nil && fast.Next != nil {
+        slow = slow.Next
+        fast = fast.Next.Next
+        if slow == fast {
+            // 找入口：一个指针从头，一个从相遇点，同步走
+            ptr := head
+            for ptr != slow {
+                ptr = ptr.Next
+                slow = slow.Next
+            }
+            return ptr
+        }
+    }
+    return nil
+}
+
+// 找链表中点（偶数长度取前半段末尾）
+func midNode(head *ListNode) *ListNode {
+    slow, fast := head, head
+    for fast.Next != nil && fast.Next.Next != nil {
+        slow = slow.Next
+        fast = fast.Next.Next
+    }
+    return slow
+}</div>
+    </section>
+    <section class="section">
+      <h2>滑动窗口</h2>
+      <ul>
+        <li>right 扩张：将 <code>s[right]</code> 加入窗口，更新窗口状态</li>
+        <li>当窗口"不合法"或"可以收缩"时，left++，更新状态</li>
+        <li>每次更新答案（或只在合法时更新）</li>
+        <li>关键：准确定义"窗口满足条件"的不变量</li>
+      </ul>
+      <div class="code-block">
+// 最长无重复字符子串 O(n)
+func lengthOfLongestSubstring(s string) int {
+    freq := map[byte]int{}
+    left, res := 0, 0
+    for right := 0; right < len(s); right++ {
+        freq[s[right]]++
+        for freq[s[right]] > 1 {  // 有重复，收缩左边
+            freq[s[left]]--
+            left++
+        }
+        res = max(res, right-left+1)
+    }
+    return res
+}
+
+// 最小覆盖子串（包含所有 t 中字符）
+// 核心：need 记录还需要多少个字符满足要求
+// valid 记录已满足要求的字符种数
+func minWindow(s string, t string) string {
+    need, window := map[byte]int{}, map[byte]int{}
+    for i := 0; i < len(t); i++ { need[t[i]]++ }
+    left, right, valid := 0, 0, 0
+    start, minLen := 0, math.MaxInt
+    for right < len(s) {
+        c := s[right]; right++
+        if need[c] > 0 {
+            window[c]++
+            if window[c] == need[c] { valid++ }
+        }
+        for valid == len(need) {
+            if right-left < minLen { start=left; minLen=right-left }
+            d := s[left]; left++
+            if need[d] > 0 {
+                if window[d] == need[d] { valid-- }
+                window[d]--
+            }
+        }
+    }
+    if minLen == math.MaxInt { return "" }
+    return s[start:start+minLen]
+}</div>
+    </section>
+    <section class="section">
+      <h2>归并双指针</h2>
+      <div class="code-block">
+// 合并两有序数组 O(m+n)
+func merge(nums1 []int, m int, nums2 []int, n int) {
+    // 从后往前，避免覆盖
+    i, j, k := m-1, n-1, m+n-1
+    for i >= 0 && j >= 0 {
+        if nums1[i] > nums2[j] {
+            nums1[k] = nums1[i]; i--
+        } else {
+            nums1[k] = nums2[j]; j--
+        }
+        k--
+    }
+    for j >= 0 { nums1[k] = nums2[j]; k--; j-- }
+}
+
+// 两排序数组交集
+func intersect(a, b []int) []int {
+    sort.Ints(a); sort.Ints(b)
+    var res []int
+    i, j := 0, 0
+    for i < len(a) && j < len(b) {
+        if a[i] == b[j] {
+            res = append(res, a[i]); i++; j++
+        } else if a[i] < b[j] { i++ } else { j++ }
+    }
+    return res
+}</div>
+    </section>
+    <section class="section">
+      <h2>接雨水（经典对撞指针）</h2>
+      <ul>
+        <li>暴力：O(n²)，每个位置向左右扫描找最大高度</li>
+        <li>对撞指针：O(n)，用 leftMax/rightMax 追踪已扫描到的最大值</li>
+        <li>关键洞察：<code>water[i] = min(leftMax, rightMax) - height[i]</code>，某一侧的 max 已确定就可以算该位置的水量</li>
+      </ul>
+      <div class="code-block">
+func trap(height []int) int {
+    l, r := 0, len(height)-1
+    leftMax, rightMax := 0, 0
+    res := 0
+    for l < r {
+        if height[l] < height[r] {
+            if height[l] >= leftMax {
+                leftMax = height[l]
+            } else {
+                res += leftMax - height[l]
+            }
+            l++
+        } else {
+            if height[r] >= rightMax {
+                rightMax = height[r]
+            } else {
+                res += rightMax - height[r]
+            }
+            r--
+        }
+    }
+    return res
+}</div>
+    </section>
+    <section class="section">
+      <h2>适用场景与选择</h2>
+      <ul>
+        <li><strong>对撞指针：</strong>有序数组/字符串，找两个满足条件的元素（和/差/乘积），判断回文</li>
+        <li><strong>快慢指针：</strong>链表环检测、中点、倒数第 k 个、寻找重复数（数组版 Floyd）</li>
+        <li><strong>滑动窗口：</strong>字符串/子数组最长/最短满足条件的连续段，窗口内元素有单调性约束</li>
+        <li><strong>归并指针：</strong>两个有序序列的合并/交集/差集，合并 k 个有序链表（+ 堆）</li>
+        <li><strong>注意：</strong>无序数组用对撞指针前要先排序（O(n log n)），可能影响时间复杂度</li>
+        <li><strong>滑动窗口 vs 前缀和：</strong>窗口大小可变用滑动窗口；固定大小或非连续用前缀和</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← 算法首页</a>
+    <a class="btn" href="divide-conquer.html">分治</a>
+  </div>
+</main>
+</body>
+</html>

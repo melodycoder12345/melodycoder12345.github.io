@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BPE 分词 - AI</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#a78bfa;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 30% 0%,color-mix(in srgb,var(--accent) 12%,transparent),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:200px minmax(0,1fr) 220px;gap:16px;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:12px;display:flex;flex-direction:column;gap:8px;max-height:500px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:10px;padding:9px 11px;cursor:pointer;font-family:inherit;transition:all .16s;font-size:.82rem}
+.step-btn:hover{color:var(--text)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.step-btn b{display:block;font-size:.7rem;color:var(--accent);margin-bottom:2px}
+.viz{padding:16px;display:flex;flex-direction:column;gap:12px}
+.stage{border:1px solid rgba(255,255,255,.06);border-radius:14px;background:rgba(15,23,42,.64);padding:14px;}
+.status{border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:13px;background:rgba(255,255,255,.035)}
+.status h2{font-size:.95rem;margin-bottom:5px;color:var(--text)}
+.status p{color:var(--dim);font-size:.86rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:6px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.controls{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:7px 11px;cursor:pointer;font-family:inherit;font-size:.83rem}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.deep code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.82rem;color:var(--text)}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+
+/* Token chars display */
+.token-row{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;min-height:40px;align-items:center;}
+.token{display:inline-flex;align-items:center;justify-content:center;border:1.5px solid rgba(255,255,255,.15);border-radius:6px;padding:5px 8px;font-family:monospace;font-size:.82rem;background:rgba(255,255,255,.04);transition:all .35s;white-space:nowrap;}
+.token.merged{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent);}
+.token.highlight{border-color:var(--warn);background:rgba(251,191,36,.1);color:var(--warn);}
+.token.prev-merge{border-color:rgba(167,139,250,.35);background:rgba(167,139,250,.07);color:#c4b5fd;}
+
+/* Pair frequency */
+.freq-table{display:flex;flex-direction:column;gap:5px;max-height:180px;overflow:auto;}
+.freq-row{display:flex;align-items:center;gap:8px;font-family:monospace;font-size:.73rem;padding:4px 6px;border-radius:6px;transition:all .3s;}
+.freq-row.top{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);color:var(--warn);}
+.freq-row.normal{color:var(--dim2);}
+.freq-count{margin-left:auto;color:var(--dim);}
+
+/* Vocab */
+.vocab{display:flex;flex-direction:column;gap:4px;max-height:220px;overflow:auto;}
+.vocab-entry{font-family:monospace;font-size:.7rem;padding:4px 7px;border-radius:5px;display:flex;gap:6px;align-items:center;}
+.vocab-entry.new{background:rgba(167,139,250,.12);color:#c4b5fd;animation:fadeIn .4s;}
+.vocab-entry.old{color:var(--dim2);}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"BPE（字节对编码）","body":"Byte-Pair Encoding。从最小单元（单字符/字节）开始，反复统计语料中相邻符号对的出现频次，将最高频的对合并为新符号，重复直到词表大小达到目标。最终词表由字符、常见子词和完整词组成。","tag":"term"},
+  {"title":"子词（Subword）","body":"介于字符和整词之间的单元。BPE 的结果是子词词表，既能处理常见词（整词 token），又能处理罕见词（拆成子词），在词表大小和覆盖率之间取得平衡。","tag":"term"},
+  {"title":"词表大小与 OOV","body":"传统词表（按词）大、OOV（Out-of-Vocabulary）问题严重。字符级词表小但序列很长。BPE 在 3万–10万词表下，绝大多数词都能表示，OOV 退化为单字符序列。","tag":"term"},
+  {"title":"编码 vs 解码","body":"编码：将输入字符串按合并规则拆成 token ID 序列。解码：将 token ID 序列还原为字符串。特殊 token（<pad>/<eos>/<bos>）在词表里预留固定位置。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">AI / 分词 / C 类型</div>
+      <h1>BPE 分词</h1>
+      <p class="summary">BPE（Byte-Pair Encoding）是 GPT 系列使用的分词算法。它从单字符开始，每轮统计语料中相邻符号对的频次，合并最高频的一对为新 token，反复迭代直到词表达到目标大小。动画逐步展示字符格的合并过程、频次统计气泡、词表的增长，以及同一个词在不同上下文中被切分成不同 token 的现象。</p>
+      <div class="tags"><span>BPE</span><span>Subword</span><span>Tokenizer</span><span>GPT</span><span>词表</span><span>Vocab</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>BPE（字节对编码）</strong><span>反复合并最高频相邻符号对，构建子词词表。</span></li>
+        <li><strong>子词（Subword）</strong><span>介于字符和完整词之间，平衡覆盖率和序列长度。</span></li>
+        <li><strong>词表（Vocab）</strong><span>从初始字符集出发，每次合并新增一条规则。</span></li>
+        <li><strong>OOV 消除</strong><span>BPE 可将任意词拆成已知子词，几乎不存在未登录词。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">迭代步骤</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+
+    <section class="panel viz">
+      <!-- token row -->
+      <div class="stage">
+        <div style="font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">当前词元序列（语料示例）</div>
+        <div class="token-row" id="tokenRow"></div>
+        <div style="font-size:.7rem;color:var(--dim2);margin-top:8px;">序列长度: <span id="seqLen" style="color:var(--text);font-family:monospace;"></span></div>
+      </div>
+      <!-- pair freq -->
+      <div class="stage">
+        <div style="font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">相邻对频次统计（Top 合并候选高亮）</div>
+        <div class="freq-table" id="freqTable"></div>
+      </div>
+      <div class="status">
+        <div id="stepBadge" class="badge">初始化</div>
+        <h2 id="statusTitle">字符级初始化</h2>
+        <p id="statusDesc">语料被拆成最小单元（字符），每个字符是一个独立 token。</p>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnPrev" onclick="goPrev()" disabled>◀ 上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+        <button class="ctrl" id="btnNext" onclick="goNext()">下一步 ▶</button>
+        <button class="ctrl" onclick="reset()" style="margin-left:auto">↺ 重置</button>
+      </div>
+    </section>
+
+    <aside class="panel" style="display:flex;flex-direction:column;">
+      <div class="panel-hd">词表（Vocab）</div>
+      <div style="padding:10px;flex:1;overflow:auto;">
+        <div class="vocab" id="vocabList"></div>
+      </div>
+    </aside>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>BPE 算法流程</h2>
+      <ul>
+        <li><strong>初始化：</strong>将语料中每个词拆成字符序列，添加词尾标记（如 <code>&lt;/w&gt;</code>）</li>
+        <li><strong>统计频次：</strong>遍历所有相邻符号对，统计在全语料中出现的次数</li>
+        <li><strong>合并最高频：</strong>找到频次最高的对 (a, b)，将所有出现的 a b 替换为 ab</li>
+        <li><strong>更新词表：</strong>将合并规则 a+b→ab 添加到合并规则列表</li>
+        <li><strong>重复：</strong>重复上述过程直到词表大小达到目标（如 50257 for GPT-2）</li>
+        <li><strong>推理编码：</strong>按学到的合并规则顺序对新文本进行贪心编码</li>
+      </ul>
+    </section>
+    <section>
+      <h2>不同 Tokenizer 对比</h2>
+      <ul>
+        <li><strong>BPE（GPT 系列）：</strong>字节级 BPE，语言无关，词表约 50k–100k</li>
+        <li><strong>WordPiece（BERT）：</strong>类似 BPE，但合并选择基于似然而非频次，用 ## 前缀标记子词</li>
+        <li><strong>SentencePiece（T5/Llama）：</strong>不依赖空格分词，对中文/日文友好，使用 Unigram 模型</li>
+        <li><strong>字符级：</strong>无 OOV，但序列长、注意力计算昂贵</li>
+        <li><strong>词级：</strong>序列短，但词表大、OOV 严重、形态变化无法共享</li>
+      </ul>
+    </section>
+    <section>
+      <h2>Token 与模型训练</h2>
+      <ul>
+        <li>模型输入是 token ID，不是字符；词嵌入表（Embedding）大小 = 词表大小</li>
+        <li><strong>Token 边界效应：</strong>"unhappiness" 可能切成 "un", "happiness" 或 "un", "hap", "pi", "ness"</li>
+        <li>中文通常每个汉字 1–2 token，英文常用词 1 token，罕见词多 token</li>
+        <li>上下文窗口（如 8192）是 token 数而非字符数</li>
+        <li>Tiktoken（OpenAI）：BPE 的 Rust 高性能实现，GPT-4 使用 cl100k_base 词表</li>
+        <li>特殊 token：<code>&lt;|endoftext|&gt;</code>、<code>&lt;|im_start|&gt;</code> 等标记对话格式</li>
+      </ul>
+    </section>
+    <section>
+      <h2>同词异分词现象</h2>
+      <ul>
+        <li>"lower" → ["low","er"] 或 ["lower"]，取决于语料频次和合并顺序</li>
+        <li>大小写影响：" Hello" 和 "Hello" 是不同 token（前者有空格前缀）</li>
+        <li>数字：每个数字字符通常单独 token，"1000" = ["1","0","0","0"]</li>
+        <li>多语言：非英文字符在词表较少，中文字符平均消耗 token 更多</li>
+        <li><strong>工程意义：</strong>Prompt 长度 = token 数 ≠ 字符数，计费和上下文限制都基于 token</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← AI 首页</a>
+    <a class="btn" href="llm-serving.html">LLM 推理服务</a>
+  </div>
+</main>
+<script>
+// BPE animation data
+const STEPS = [
+  {
+    label:'初始字符拆分',
+    title:'字符级初始化',
+    badge:'初始化',
+    desc:'语料词"lower lower newer wider"被拆成字符级 token。每个字符是独立 token，词尾加 </w> 标记。当前序列较长（共 30 token），需要合并减少长度。',
+    tokens:['l','o','w','e','r</w>','_','l','o','w','e','r</w>','_','n','e','w','e','r</w>','_','w','i','d','e','r</w>'],
+    merges:[],
+    highlighted:[],
+    pairs:[['e r</w>',8],['l o',4],['o w',4],['n e',2],['w i',1],['i d',1]]
+  },
+  {
+    label:'合并 "e r</w>"（频8）',
+    title:'合并最高频对：e + r</w> → er</w>',
+    badge:'迭代1',
+    desc:'统计发现 "e r</w>" 出现 8 次（最高）。将所有相邻 e r</w> 合并为新 token "er</w>"。词表新增规则 e+r</w>→er</w>。序列长度从 23 减少到 15。',
+    tokens:['l','o','w','er</w>','_','l','o','w','er</w>','_','n','e','w','er</w>','_','w','i','d','er</w>'],
+    merges:[['e','r</w>','er</w>','#4ade80']],
+    highlighted:['er</w>'],
+    pairs:[['l o',4],['o w',4],['w er</w>',3],['n e',2],['e w',2],['w i',1]]
+  },
+  {
+    label:'合并 "l o"（频4）',
+    title:'合并：l + o → lo',
+    badge:'迭代2',
+    desc:'统计发现 "l o" 出现 4 次（与 "o w" 并列最高，取字典序更早的）。合并所有 l o 为 "lo"，词表新增规则。',
+    tokens:['lo','w','er</w>','_','lo','w','er</w>','_','n','e','w','er</w>','_','w','i','d','er</w>'],
+    merges:[['e','r</w>','er</w>','#a78bfa'],['l','o','lo','#4ade80']],
+    highlighted:['lo'],
+    pairs:[['lo w',4],['w er</w>',3],['n e',2],['e w',2],['w i',1]]
+  },
+  {
+    label:'合并 "lo w"（频4）',
+    title:'合并：lo + w → low',
+    badge:'迭代3',
+    desc:'"lo w" 仍是最高频（4 次），合并为 "low"。此时 "lower" 这个词被切成了 ["low","er</w>"]。词表接近能表示完整词。',
+    tokens:['low','er</w>','_','low','er</w>','_','n','e','w','er</w>','_','w','i','d','er</w>'],
+    merges:[['e','r</w>','er</w>','#a78bfa'],['l','o','lo','#a78bfa'],['lo','w','low','#4ade80']],
+    highlighted:['low'],
+    pairs:[['low er</w>',4],['n e',2],['e w',2],['w i',1],['i d',1]]
+  },
+  {
+    label:'合并 "low er</w>"（频4）',
+    title:'合并：low + er</w> → lower</w>',
+    badge:'迭代4',
+    desc:'"low er</w>" 出现 4 次，合并为完整词 "lower</w>"。"newer" 和 "wider" 没有足够频次合并，仍保持子词形式。同一后缀 "er</w>" 被不同词共享，这正是子词的优势。',
+    tokens:['lower</w>','_','lower</w>','_','n','e','w','er</w>','_','w','i','d','er</w>'],
+    merges:[['e','r</w>','er</w>','#a78bfa'],['l','o','lo','#a78bfa'],['lo','w','low','#a78bfa'],['low','er</w>','lower</w>','#4ade80']],
+    highlighted:['lower</w>'],
+    pairs:[['n e',2],['e w',2],['w i',1],['i d',1]]
+  },
+  {
+    label:'同词异分词对比',
+    title:'同一后缀被不同词共享，新词拆成子词',
+    badge:'结论',
+    desc:'"lower" = 1 token（整词），"newer" = ["n","ew","er</w>"]，"wider" = ["w","id","er</w>"]。未见过的词"fastest"会被分成已知子词，不会出现 OOV。子词共享让模型理解形态变化关系。',
+    tokens:['lower</w>','_','lower</w>','_','n','ew','er</w>','_','w','id','er</w>'],
+    merges:[['e','r</w>','er</w>','#a78bfa'],['l','o','lo','#a78bfa'],['lo','w','low','#a78bfa'],['low','er</w>','lower</w>','#a78bfa'],['e','w','ew','#c4b5fd'],['i','d','id','#c4b5fd']],
+    highlighted:['ew','id'],
+    pairs:[]
+  }
+];
+
+let currentStep=0,playing=false,playTimer=null;
+
+const COLORS=['#a78bfa','#38bdf8','#4ade80','#fbbf24','#f87171','#34d399'];
+const TOKEN_COLORS={};
+
+function renderStep(idx){
+  const s=STEPS[idx];
+  document.querySelectorAll('.step-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  document.getElementById('stepBadge').textContent=s.badge;
+  document.getElementById('statusTitle').textContent=s.title;
+  document.getElementById('statusDesc').textContent=s.desc;
+
+  // Token row
+  const row=document.getElementById('tokenRow');
+  row.innerHTML='';
+  s.tokens.forEach(t=>{
+    const div=document.createElement('div');
+    let cls='token';
+    if(s.highlighted.includes(t)) cls+=' merged';
+    else if(s.merges.find(m=>m[2]===t&&m[3]==='#a78bfa')) cls+=' prev-merge';
+    div.className=cls;
+    div.textContent=t;
+    row.appendChild(div);
+  });
+  document.getElementById('seqLen').textContent=s.tokens.filter(t=>t!=='_').length+' tokens';
+
+  // Pair freq
+  const ft=document.getElementById('freqTable');
+  ft.innerHTML='';
+  if(s.pairs.length===0){ft.innerHTML='<div style="color:var(--dim2);font-size:.78rem;padding:6px;">词表已稳定，无更多高频合并候选</div>';return;}
+  s.pairs.forEach((p,i)=>{
+    const div=document.createElement('div');
+    div.className='freq-row '+(i===0?'top':'normal');
+    div.innerHTML=`<span style="font-family:monospace;">"${p[0]}"</span>${i===0?'<span style="color:var(--warn);font-size:.68rem;">← 本轮合并</span>':''}<span class="freq-count">×${p[1]}</span>`;
+    ft.appendChild(div);
+  });
+
+  // Vocab
+  const vl=document.getElementById('vocabList');
+  vl.innerHTML='';
+  // base chars
+  ['l','o','w','e','r','n','i','d','_'].forEach(c=>{
+    const div=document.createElement('div');
+    div.className='vocab-entry old';
+    div.innerHTML=`<span style="color:var(--dim2)">char</span><span>"${c}"</span>`;
+    vl.appendChild(div);
+  });
+  s.merges.forEach(m=>{
+    const div=document.createElement('div');
+    div.className='vocab-entry new';
+    div.innerHTML=`<span style="color:${m[3]}">merge</span><span>"${m[0]}"+"${m[1]}"→<b>"${m[2]}"</b></span>`;
+    vl.appendChild(div);
+  });
+
+  document.getElementById('btnPrev').disabled=idx===0;
+  document.getElementById('btnNext').disabled=idx===STEPS.length-1;
+}
+
+function buildStepList(){
+  const list=document.getElementById('stepList');
+  STEPS.forEach((s,i)=>{
+    const btn=document.createElement('button');
+    btn.className='step-btn'+(i===0?' active':'');
+    btn.innerHTML=`<b>Step ${i+1}</b>${s.label}`;
+    btn.onclick=()=>{currentStep=i;renderStep(i);stopPlay();};
+    list.appendChild(btn);
+  });
+}
+function goNext(){if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();}
+function goPrev(){if(currentStep>0){currentStep--;renderStep(currentStep);}}
+function reset(){stopPlay();currentStep=0;renderStep(0);}
+function togglePlay(){
+  if(playing){stopPlay();return;}
+  playing=true;document.getElementById('btnPlay').textContent='⏸ 暂停';
+  playTimer=setInterval(()=>{if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();},2000);
+}
+function stopPlay(){playing=false;clearInterval(playTimer);document.getElementById('btnPlay').textContent='▶ 播放';}
+buildStepList();renderStep(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>性能工具 - Linux</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#22d3ee;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 50% 0%,color-mix(in srgb,var(--accent) 10%,transparent),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+.content{max-width:1100px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px;margin-bottom:28px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,3.4rem);line-height:1.05;letter-spacing:-.05em;margin-bottom:14px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:999px;padding:5px 9px;font-size:.75rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);border-radius:14px;padding:12px 14px}
+.concept-list strong{display:block;font-size:.86rem;margin-bottom:3px}
+.concept-list span{display:block;color:var(--dim);font-size:.8rem;line-height:1.6}
+.body{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.section{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.6);border-radius:18px;padding:22px}
+.section h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px}
+.section p,.section li{color:var(--dim);font-size:.9rem;line-height:1.85}
+.section ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.section code{background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;font-size:.82rem}
+.code-block{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px;font-family:monospace;font-size:.78rem;color:var(--dim);overflow-x:auto;margin-top:10px;line-height:1.7}
+.tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.tool-card{border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:10px 12px;background:rgba(255,255,255,.02)}
+.tool-name{font-family:monospace;font-size:.82rem;color:var(--text);margin-bottom:4px;font-weight:600}
+.tool-desc{font-size:.76rem;color:var(--dim2);line-height:1.5}
+.back-row{margin-top:22px;display:flex;gap:12px}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text)}
+@media(max-width:900px){.hero,.body{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"USE 方法论","body":"Utilization（利用率）、Saturation（饱和度）、Errors（错误数）。对每个资源（CPU、内存、磁盘、网络）分别检查这三个指标，快速定位瓶颈类型。由 Brendan Gregg 提出。","tag":"term"},
+  {"title":"eBPF（扩展 Berkeley Packet Filter）","body":"Linux 内核中的安全沙盒虚拟机，允许在不修改内核代码的情况下运行自定义程序。可以 hook 各种内核事件（系统调用、网络包、块 IO、内存分配），实现零侵入的性能追踪和网络过滤。","tag":"term"},
+  {"title":"火焰图（Flame Graph）","body":"Brendan Gregg 发明的 CPU profiling 可视化。x 轴是采样比例（不是时间），y 轴是调用栈深度，宽度代表在该函数及其子函数上花费的时间比例。最宽的平台是热点函数。","tag":"term"},
+  {"title":"系统调用跟踪（strace）","body":"拦截并记录进程的每个系统调用（open/read/write/mmap 等）及其参数和返回值。对于诊断应用卡顿、文件访问问题、权限错误非常有用，但开销很大不适合生产。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="B">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">Linux / 性能工具 / B 类型</div>
+      <h1>性能工具</h1>
+      <p class="summary">Linux 性能分析遵循 USE 方法论（利用率/饱和度/错误），工具链覆盖 CPU（perf/top）、内存（vmstat/smem）、IO（iostat/iotop）、网络（ss/tcpdump）、系统调用（strace/ltrace）、全系统观测（eBPF/bpftrace）。火焰图是 CPU 热点可视化的标准工具。掌握这些工具可系统性地定位生产环境性能问题。</p>
+      <div class="tags"><span>perf</span><span>eBPF</span><span>bpftrace</span><span>火焰图</span><span>strace</span><span>tcpdump</span><span>USE</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>USE 方法论</strong><span>利用率/饱和度/错误，系统性检查每个资源。</span></li>
+        <li><strong>eBPF</strong><span>内核沙盒，零侵入 hook 任意内核事件。</span></li>
+        <li><strong>火焰图</strong><span>CPU profiling 可视化，宽度=时间占比，找热点。</span></li>
+        <li><strong>perf stat</strong><span>硬件计数器（cache miss/分支误判/IPC）。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="body">
+    <section class="section">
+      <h2>CPU 性能工具</h2>
+      <div class="tool-grid">
+        <div class="tool-card"><div class="tool-name">top / htop</div><div class="tool-desc">进程 CPU/内存占用，%us/%sy/%wa 看用户/内核/等待IO占比</div></div>
+        <div class="tool-card"><div class="tool-name">perf stat</div><div class="tool-desc">硬件事件计数：IPC、L1/LLC cache miss率、分支误判率</div></div>
+        <div class="tool-card"><div class="tool-name">perf record/report</div><div class="tool-desc">采样 CPU 时间，生成调用栈，输出热点函数</div></div>
+        <div class="tool-card"><div class="tool-name">flamegraph.pl</div><div class="tool-desc">将 perf/dtrace 输出转为 SVG 火焰图</div></div>
+      </div>
+      <div class="code-block">
+# 采集 30s CPU profile
+perf record -F 99 -ag -- sleep 30
+perf script | stackcollapse-perf.pl | flamegraph.pl > cpu.svg
+
+# 硬件计数器
+perf stat -e cache-misses,cache-references,cycles,instructions \
+  ./program</div>
+    </section>
+    <section class="section">
+      <h2>内存性能工具</h2>
+      <ul>
+        <li><strong>vmstat 1：</strong>每秒内存统计，关注 si/so（swap in/out）和 buff/cache 比例</li>
+        <li><strong>free -h：</strong>Mem/Swap 使用量，available 才是真正可用的</li>
+        <li><strong>smem：</strong>按 PSS（Proportional Set Size）计算共享内存，比 RSS 更准确</li>
+        <li><strong>pmap -x PID：</strong>进程内存映射详情，找出大内存段</li>
+        <li><strong>/proc/meminfo：</strong>内核内存详细统计（PageTables/Shmem/SReclaimable）</li>
+        <li><strong>valgrind/AddressSanitizer：</strong>检测内存泄漏和越界访问（有开销，不适合生产）</li>
+        <li><strong>bpftrace 内存泄漏检测：</strong>追踪 malloc/free 不匹配，生产环境可用</li>
+      </ul>
+    </section>
+    <section class="section">
+      <h2>磁盘 IO 工具</h2>
+      <ul>
+        <li><strong>iostat -xz 1：</strong>每秒磁盘统计，%util（利用率）接近 100% 说明 IO 饱和</li>
+        <li><strong>iotop：</strong>进程级 IO 速率，找出 IO 密集进程</li>
+        <li><strong>blktrace / biosnoop (eBPF)：</strong>块级 IO 追踪，延迟分布，区分读/写/同步</li>
+        <li><strong>fio：</strong>磁盘性能基准测试，测量顺序/随机读写 IOPS 和带宽</li>
+        <li>关键指标：await（平均等待时间）&gt; 10ms 说明 IO 延迟高；%util 反映忙碌程度</li>
+        <li><strong>ext4/xfs 日志：</strong>写密集场景关注 journal 锁竞争（dmesg 中的 ext4 警告）</li>
+      </ul>
+    </section>
+    <section class="section">
+      <h2>网络诊断工具</h2>
+      <ul>
+        <li><strong>ss -tnp：</strong>查看所有 TCP 连接状态，比 netstat 更快，支持过滤</li>
+        <li><strong>tcpdump / Wireshark：</strong>抓包分析，诊断 TCP 重传、连接失败、TLS 握手问题</li>
+        <li><strong>ip -s link：</strong>网卡统计，TX/RX 字节、包数、错误、丢包</li>
+        <li><strong>ping / traceroute / mtr：</strong>延迟和路径追踪，mtr 持续追踪丢包位置</li>
+        <li><strong>iperf3：</strong>测量两点间 TCP/UDP 吞吐量基准</li>
+        <li><strong>conntrack -L：</strong>查看 NAT 连接跟踪表，诊断 conntrack 满导致的丢包</li>
+      </ul>
+    </section>
+    <section class="section">
+      <h2>eBPF / bpftrace 工具链</h2>
+      <ul>
+        <li><strong>bpftrace：</strong>awk-like 脚本语言，一行命令 hook 内核事件</li>
+        <li><strong>BCC Tools：</strong>预置工具集，biolatency/tcpretrans/runqlat/offcputime</li>
+        <li><strong>runqlat：</strong>进程在 CPU 调度队列等待时间分布（诊断调度延迟）</li>
+        <li><strong>offcputime：</strong>进程在 OFF-CPU 的时间（I/O 等待、锁等待、sleep）</li>
+        <li><strong>tcpretrans：</strong>实时追踪 TCP 重传，显示源/目的 IP 和原因</li>
+        <li><strong>memleak：</strong>追踪内存分配未释放的调用栈</li>
+      </ul>
+      <div class="code-block">
+# 追踪系统调用延迟 > 10ms
+bpftrace -e 'tracepoint:raw_syscalls:sys_exit {
+  @[comm] = hist(nsecs - @start[tid]);
+  delete(@start[tid]);
+}'
+
+# 查看 read 系统调用延迟直方图
+biolatency -D  # 磁盘 IO 延迟直方图</div>
+    </section>
+    <section class="section">
+      <h2>系统调用与进程追踪</h2>
+      <ul>
+        <li><strong>strace -p PID：</strong>追踪进程系统调用，-c 统计各调用耗时</li>
+        <li><strong>ltrace：</strong>追踪库函数调用（如 malloc/pthread_mutex）</li>
+        <li><strong>gdb / rr：</strong>调试器，rr 支持时间旅行调试（record + replay）</li>
+        <li><strong>lsof -p PID：</strong>进程打开的文件/socket 列表</li>
+        <li><strong>/proc/PID/fd：</strong>进程文件描述符，诊断文件描述符泄漏</li>
+        <li><strong>perf sched：</strong>调度器分析，延迟唤醒、上下文切换开销</li>
+        <li>生产环境优先用 eBPF（零侵入），开发环境用 strace/gdb（有开销但信息更全）</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← Linux 首页</a>
+    <a class="btn" href="container.html">容器原理</a>
+  </div>
+</main>
+</body>
+</html>

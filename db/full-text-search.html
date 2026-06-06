@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>全文检索 - 数据库</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#6366f1;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 60% 0%,color-mix(in srgb,var(--accent) 10%,transparent),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,3.8rem);line-height:1.04;letter-spacing:-.05em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:200px minmax(0,1fr);gap:16px;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:12px;display:flex;flex-direction:column;gap:8px}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:10px;padding:9px 11px;cursor:pointer;font-family:inherit;transition:all .16s;font-size:.82rem}
+.step-btn:hover{color:var(--text)}.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.step-btn b{display:block;font-size:.7rem;color:var(--accent);margin-bottom:2px}
+.viz{padding:16px;display:flex;flex-direction:column;gap:12px}
+.stage{border:1px solid rgba(255,255,255,.06);border-radius:14px;background:rgba(15,23,42,.64);padding:14px}
+.status{border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:13px;background:rgba(255,255,255,.035)}
+.status h2{font-size:.95rem;margin-bottom:5px;color:var(--text)}
+.status p{color:var(--dim);font-size:.86rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:6px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.controls{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:7px 11px;cursor:pointer;font-family:inherit;font-size:.83rem}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.deep code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.82rem;color:var(--text)}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:900px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+
+/* Inverted index */
+.inv-table{display:flex;flex-direction:column;gap:4px;font-family:monospace;font-size:.73rem;}
+.inv-row{display:flex;align-items:flex-start;gap:8px;padding:5px 7px;border-radius:6px;border:1px solid rgba(255,255,255,.05);transition:all .3s;}
+.inv-row.highlight{border-color:rgba(99,102,241,.5);background:rgba(99,102,241,.08);}
+.inv-term{width:100px;flex-shrink:0;color:var(--text);font-weight:600;}
+.posting-list{display:flex;flex-wrap:wrap;gap:4px;flex:1;}
+.posting-item{border:1px solid rgba(255,255,255,.1);border-radius:3px;padding:2px 5px;color:var(--dim);transition:all .3s;}
+.posting-item.new{border-color:rgba(99,102,241,.5);background:rgba(99,102,241,.12);color:#a5b4fc;animation:fadeIn .3s;}
+.posting-item.active{border-color:var(--ok);background:rgba(74,222,128,.12);color:var(--ok);}
+.posting-item.merged{border-color:var(--accent);background:rgba(99,102,241,.12);color:#a5b4fc;}
+@keyframes fadeIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
+
+/* Merge pointers */
+.merge-viz{font-family:monospace;font-size:.75rem;}
+.merge-list{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;}
+.merge-tok{border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:3px 6px;transition:all .3s;}
+.merge-tok.ptr{border-color:var(--accent);color:var(--accent);background:rgba(99,102,241,.1);}
+.merge-tok.skip{opacity:.35;}
+.merge-tok.match{border-color:var(--ok);color:var(--ok);background:rgba(74,222,128,.1);}
+
+/* Score */
+.score-row{display:flex;align-items:center;gap:8px;font-size:.72rem;padding:5px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.05);margin-bottom:4px;}
+.score-bar{flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.06);}
+.score-fill{height:100%;border-radius:3px;background:rgba(99,102,241,.7);}
+.score-val{width:40px;text-align:right;font-family:monospace;color:var(--text);}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"倒排索引","body":"全文检索的核心数据结构：将 term（词项）映射到包含该词的文档列表（Posting List）。与正向索引（文档→词项）相反，倒排索引可以通过词项直接找到相关文档，无需全表扫描。","tag":"term"},
+  {"title":"Posting List","body":"每个词项对应的有序文档 ID 列表，通常还包含词在文档中的位置（用于短语查询）和词频（用于相关性打分）。Posting List 以压缩格式存储（Delta 编码 + VInt 压缩），相邻文档 ID 差值较小，压缩率高。","tag":"term"},
+  {"title":"BM25 相关性算法","body":"Best Match 25，Elasticsearch/Lucene 的默认打分算法。得分 = TF（词频）× IDF（逆文档频率）的变体。TF：词在文档中出现越多，得分越高（但有上限，防止堆砌）。IDF：在越少文档中出现的词，区分度越高，得分越高。","tag":"term"},
+  {"title":"AND 查询的归并交集","body":"多词 AND 查询：对各词项的 Posting List 做归并交集。使用双指针算法：比较两个列表的当前元素，相等则加入结果，较小的指针前进。时间复杂度 O(m+n)，远优于嵌套循环的 O(m×n)。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">数据库 / 全文检索 / C 类型</div>
+      <h1>全文检索</h1>
+      <p class="summary">全文检索的核心是倒排索引：将文档分词后，建立 term → posting list 的映射。写入时词项按字典序排列，posting list 追加新 doc_id。查询 "distributed AND system" 时，两条 posting list 用双指针归并取交集，BM25 对结果排名打分。核心是"不扫表，做集合运算"。</p>
+      <div class="tags"><span>倒排索引</span><span>Posting List</span><span>BM25</span><span>双指针归并</span><span>Lucene</span><span>Elasticsearch</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>倒排索引</strong><span>term → 文档列表，检索时直接查表而非扫全表。</span></li>
+        <li><strong>Posting List</strong><span>每个词项对应的有序 doc_id 列表，含词频和位置。</span></li>
+        <li><strong>BM25 打分</strong><span>综合 TF（词频）和 IDF（逆文档频率）的相关性算法。</span></li>
+        <li><strong>双指针归并交集</strong><span>AND 查询用双指针对两个有序列表取交集，O(m+n)。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">步骤</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+
+    <section class="panel viz">
+      <!-- Inverted index display -->
+      <div class="stage">
+        <div style="font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">倒排索引（字典序排列）</div>
+        <div class="inv-table" id="invTable"></div>
+      </div>
+      <!-- Query / merge viz -->
+      <div class="stage">
+        <div style="font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;" id="queryLabel">等待查询...</div>
+        <div id="mergeViz"></div>
+      </div>
+      <div class="status">
+        <div id="stepBadge" class="badge">写入</div>
+        <h2 id="statusTitle">写入文档，构建倒排索引</h2>
+        <p id="statusDesc">点击播放，观察倒排索引的构建过程和 AND 查询的双指针归并。</p>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnPrev" onclick="goPrev()" disabled>◀ 上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+        <button class="ctrl" id="btnNext" onclick="goNext()">下一步 ▶</button>
+        <button class="ctrl" onclick="reset()" style="margin-left:auto">↺ 重置</button>
+      </div>
+    </section>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>倒排索引构建</h2>
+      <ul>
+        <li><strong>分词（Tokenizer）：</strong>将文档文本拆分为 token，中文用分词器（jieba/HanLP），英文按空格+标点</li>
+        <li><strong>规范化：</strong>小写转换、去停用词（the/is/的/了）、词干提取（running→run）</li>
+        <li><strong>排序：</strong>词项在字典中按字典序排列，支持前缀搜索和范围查询</li>
+        <li><strong>Posting List 追加：</strong>新文档入库时，将 doc_id 追加到对应词项的 posting list 末尾</li>
+        <li><strong>段合并（Segment Merge）：</strong>多个小段定期合并为大段，减少检索时需要扫描的段数</li>
+      </ul>
+    </section>
+    <section>
+      <h2>多词查询处理</h2>
+      <ul>
+        <li><strong>AND 查询：</strong>双指针归并多个 posting list 取交集，总时间 O(∑n_i)，从最短列表开始</li>
+        <li><strong>OR 查询：</strong>归并合并（merge）多个 posting list，去重后排序</li>
+        <li><strong>短语查询：</strong>"distributed system" 需要位置信息，doc_id 相同且位置相邻</li>
+        <li><strong>跳表加速：</strong>Posting List 建立稀疏跳表，AND 查询时可以跳过大段不相交的区域</li>
+        <li><strong>NOT 查询：</strong>先 AND 再过滤，不能单独做 NOT（否则需要全部文档集合）</li>
+      </ul>
+    </section>
+    <section>
+      <h2>相关性打分（BM25）</h2>
+      <ul>
+        <li>BM25 = Σ IDF(t) × (TF × (k1+1)) / (TF + k1 × (1 - b + b × dl/avgdl))</li>
+        <li><strong>TF（词频）：</strong>词在文档中出现次数，越多越相关（有饱和上限 k1）</li>
+        <li><strong>IDF（逆文档频率）：</strong>log((N - df + 0.5) / (df + 0.5))，越罕见的词区分度越高</li>
+        <li><strong>文档长度归一化（b）：</strong>短文档中出现同等词频，相关性应更高</li>
+        <li><strong>k1=1.2, b=0.75：</strong>ES 默认参数，可调整到领域特点</li>
+      </ul>
+    </section>
+    <section>
+      <h2>Elasticsearch 架构</h2>
+      <ul>
+        <li>基于 Lucene：Lucene 提供 segment、倒排索引、BM25 等核心；ES 提供分布式、API、DSL</li>
+        <li><strong>分片（Primary Shard）：</strong>每个索引分为 N 个主分片，数据哈希路由到对应分片</li>
+        <li><strong>副本（Replica）：</strong>每个主分片有 M 个副本，读请求可分散到副本</li>
+        <li><strong>近实时（NRT）：</strong>写入后约 1s 可检索（segment refresh 间隔）</li>
+        <li><strong>向量检索：</strong>ES 8.x 支持 kNN 向量搜索（HNSW 索引），用于 AI 语义检索</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← 数据库首页</a>
+  </div>
+</main>
+<script>
+const STEPS=[
+  {
+    label:'写入 Doc1',
+    title:'写入文档 1，分词后追加到倒排索引',
+    badge:'写入',
+    desc:'文档 1："distributed systems are complex"。分词：distributed(doc1,pos:0), systems(doc1,pos:1), are(停用词跳过), complex(doc1,pos:2)。各词项追加 doc_id=1 到 posting list。',
+    index:[
+      {term:'complex',posts:[{id:'doc1',pos:'0',new:true}]},
+      {term:'distributed',posts:[{id:'doc1',pos:'0',new:true}]},
+      {term:'systems',posts:[{id:'doc1',pos:'1',new:true}]},
+    ],
+    queryLabel:'正在构建索引...',query:null
+  },
+  {
+    label:'写入 Doc2',
+    title:'写入文档 2，追加 doc2 到相关词项',
+    badge:'写入',
+    desc:'文档 2："system design for distributed databases"。分词后：design/distributed/system(doc2) 追加到索引，distributed 的 posting list 变为 [doc1, doc2]，体现 doc1 和 doc2 都包含 distributed。',
+    index:[
+      {term:'complex',posts:[{id:'doc1',pos:'0'}]},
+      {term:'databases',posts:[{id:'doc2',pos:'0',new:true}]},
+      {term:'design',posts:[{id:'doc2',pos:'0',new:true}]},
+      {term:'distributed',posts:[{id:'doc1',pos:'0'},{id:'doc2',pos:'2',new:true}],hl:true},
+      {term:'system',posts:[{id:'doc2',pos:'0',new:true}]},
+      {term:'systems',posts:[{id:'doc1',pos:'1'}]},
+    ],
+    queryLabel:'正在构建索引...',query:null
+  },
+  {
+    label:'写入 Doc3',
+    title:'写入文档 3，三个词项均有 doc3',
+    badge:'写入',
+    desc:'文档 3："system design patterns"。写入后 system 和 design 都扩展到 [doc2, doc3]，索引继续增长。',
+    index:[
+      {term:'complex',posts:[{id:'doc1',pos:'0'}]},
+      {term:'databases',posts:[{id:'doc2',pos:'0'}]},
+      {term:'design',posts:[{id:'doc2',pos:'0'},{id:'doc3',pos:'1',new:true}],hl:true},
+      {term:'distributed',posts:[{id:'doc1',pos:'0'},{id:'doc2',pos:'2'}]},
+      {term:'patterns',posts:[{id:'doc3',pos:'2',new:true}]},
+      {term:'system',posts:[{id:'doc2',pos:'0'},{id:'doc3',pos:'0',new:true}],hl:true},
+      {term:'systems',posts:[{id:'doc1',pos:'1'}]},
+    ],
+    queryLabel:'索引构建完成，准备查询...',query:null
+  },
+  {
+    label:'查询 "distributed AND system"',
+    title:'双指针归并取交集：distributed ∩ system',
+    badge:'AND 查询',
+    desc:'查询 "distributed AND system"。取出两个 posting list：distributed=[doc1,doc2]，system=[doc2,doc3]。双指针从头开始：doc1 < doc2，distributed 指针右移；doc2 = doc2，加入结果集，两指针右移；doc3 only in system，结束。结果：[doc2]。',
+    index:[
+      {term:'design',posts:[{id:'doc2'},{id:'doc3'}]},
+      {term:'distributed',posts:[{id:'doc1'},{id:'doc2',new:true}],hl:true},
+      {term:'system',posts:[{id:'doc2',new:true},{id:'doc3'}],hl:true},
+    ],
+    queryLabel:'双指针归并：distributed=[doc1,doc2] ∩ system=[doc2,doc3]',
+    query:{
+      list1:{label:'distributed',items:[{id:'doc1',state:'skip'},{id:'doc2',state:'match'}]},
+      list2:{label:'system',items:[{id:'doc2',state:'match'},{id:'doc3',state:'skip'}]},
+      result:'匹配结果: [doc2] ✓',
+      scores:[{doc:'doc2',score:2.84,label:'distributed(IDF=0.7)×TF(1) + system(IDF=0.5)×TF(1)'}]
+    }
+  },
+  {
+    label:'BM25 打分与排序',
+    title:'BM25 对结果文档打分排序',
+    badge:'BM25',
+    desc:'查询命中 doc2。BM25 计算各词的 TF×IDF 得分：distributed 在语料中出现 2 次（doc1/doc2），IDF 较高；system 出现 2 次（doc2/doc3），IDF 相当。doc2 包含两个查询词，得分最高。最终按得分降序返回结果。',
+    index:[
+      {term:'distributed',posts:[{id:'doc1'},{id:'doc2'}],hl:true},
+      {term:'system',posts:[{id:'doc2'},{id:'doc3'}],hl:true},
+    ],
+    queryLabel:'BM25 打分结果（query: "distributed system"）:',
+    query:{
+      list1:null,list2:null,result:null,
+      scores:[
+        {doc:'doc2',score:3.12,label:'distributed(tf=1,idf=0.7) + system(tf=1,idf=0.5) = 3.12'},
+        {doc:'doc1',score:0.0,label:'不含 system，不在结果集'},
+        {doc:'doc3',score:0.0,label:'不含 distributed，不在结果集'},
+      ]
+    }
+  }
+];
+
+let currentStep=0,playing=false,playTimer=null;
+
+function renderStep(idx){
+  const s=STEPS[idx];
+  document.querySelectorAll('.step-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  document.getElementById('stepBadge').textContent=s.badge;
+  document.getElementById('statusTitle').textContent=s.title;
+  document.getElementById('statusDesc').textContent=s.desc;
+
+  // Inverted index
+  const tbl=document.getElementById('invTable');
+  tbl.innerHTML='';
+  s.index.forEach(row=>{
+    const div=document.createElement('div');
+    div.className='inv-row'+(row.hl?' highlight':'');
+    const term=document.createElement('span');term.className='inv-term';term.textContent=row.term;
+    const pl=document.createElement('div');pl.className='posting-list';
+    row.posts.forEach(p=>{
+      const item=document.createElement('span');
+      item.className='posting-item'+(p.new?' new':row.hl?' active':'');
+      item.textContent=p.id+(p.pos?':'+p.pos:'');
+      pl.appendChild(item);
+    });
+    div.appendChild(term);div.appendChild(pl);
+    tbl.appendChild(div);
+  });
+
+  // Query viz
+  document.getElementById('queryLabel').textContent=s.queryLabel;
+  const mv=document.getElementById('mergeViz');
+  mv.innerHTML='';
+  if(s.query){
+    if(s.query.list1){
+      const q=s.query;
+      let html=`<div class="merge-viz">`;
+      if(q.list1){
+        html+=`<div style="margin-bottom:5px;color:var(--dim2);font-size:.7rem;">${q.list1.label} posting list:</div>`;
+        html+=`<div class="merge-list">`;
+        q.list1.items.forEach(i=>{html+=`<div class="merge-tok ${i.state}">${i.id}</div>`;});
+        html+=`</div>`;
+        html+=`<div style="margin-bottom:5px;color:var(--dim2);font-size:.7rem;">${q.list2.label} posting list:</div>`;
+        html+=`<div class="merge-list">`;
+        q.list2.items.forEach(i=>{html+=`<div class="merge-tok ${i.state}">${i.id}</div>`;});
+        html+=`</div>`;
+        if(q.result) html+=`<div style="color:var(--ok);font-family:monospace;font-size:.78rem;padding:6px;border:1px solid rgba(74,222,128,.2);border-radius:6px;margin-top:4px;">${q.result}</div>`;
+      }
+      if(q.scores){
+        html+=`<div style="margin-top:10px;font-size:.7rem;color:var(--dim2);">BM25 得分:</div>`;
+        q.scores.forEach(sc=>{
+          if(sc.score>0){
+            html+=`<div class="score-row"><span style="width:50px;font-family:monospace;">${sc.doc}</span><div class="score-bar"><div class="score-fill" style="width:${(sc.score/4)*100}%"></div></div><span class="score-val">${sc.score}</span></div>`;
+          }
+        });
+      }
+      html+=`</div>`;
+      mv.innerHTML=html;
+    } else if(s.query.scores){
+      let html=`<div class="merge-viz">`;
+      s.query.scores.forEach(sc=>{
+        html+=`<div class="score-row"><span style="width:50px;font-family:monospace;color:${sc.score>0?'var(--text)':'var(--dim2)'};">${sc.doc}</span><div class="score-bar"><div class="score-fill" style="width:${(sc.score/4)*100}%;background:${sc.score>0?'rgba(99,102,241,.7)':'rgba(255,255,255,.06)'}"></div></div><span class="score-val" style="color:${sc.score>0?'var(--text)':'var(--dim2)'};">${sc.score||'--'}</span></div>`;
+        html+=`<div style="font-size:.64rem;color:var(--dim2);padding:0 56px 4px;font-family:monospace;">${sc.label}</div>`;
+      });
+      html+=`</div>`;
+      mv.innerHTML=html;
+    }
+  } else {
+    mv.innerHTML=`<div style="color:var(--dim2);font-size:.78rem;padding:8px;">索引构建中...</div>`;
+  }
+
+  document.getElementById('btnPrev').disabled=idx===0;
+  document.getElementById('btnNext').disabled=idx===STEPS.length-1;
+}
+
+function buildStepList(){
+  const list=document.getElementById('stepList');
+  STEPS.forEach((s,i)=>{
+    const btn=document.createElement('button');
+    btn.className='step-btn'+(i===0?' active':'');
+    btn.innerHTML=`<b>Step ${i+1}</b>${s.label}`;
+    btn.onclick=()=>{currentStep=i;renderStep(i);stopPlay();};
+    list.appendChild(btn);
+  });
+}
+function goNext(){if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();}
+function goPrev(){if(currentStep>0){currentStep--;renderStep(currentStep);}}
+function reset(){stopPlay();currentStep=0;renderStep(0);}
+function togglePlay(){
+  if(playing){stopPlay();return;}
+  playing=true;document.getElementById('btnPlay').textContent='⏸ 暂停';
+  playTimer=setInterval(()=>{if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();},2200);
+}
+function stopPlay(){playing=false;clearInterval(playTimer);document.getElementById('btnPlay').textContent='▶ 播放';}
+buildStepList();renderStep(0);
+</script>
+</body>
+</html>

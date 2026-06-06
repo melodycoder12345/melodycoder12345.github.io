@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JWT - 安全</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#a78bfa;--ok:#4ade80;--warn:#fbbf24;--err:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:radial-gradient(circle at 20% 0%,rgba(167,139,250,.12),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1260px;margin:0 auto;padding:40px 32px 80px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--dim2);margin-bottom:24px}
+.breadcrumb a{color:var(--dim2)}.breadcrumb a:hover{color:var(--text)}
+.page-title{font-size:clamp(1.6rem,3.5vw,2.8rem);letter-spacing:-.04em;margin-bottom:6px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{color:var(--dim);font-size:.95rem;margin-bottom:28px;max-width:640px;line-height:1.75}
+.layout{display:grid;grid-template-columns:240px 1fr;gap:20px}
+.left-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:18px}
+.left-panel h3{font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px}
+.step-btn{width:100%;text-align:left;border:1px solid transparent;background:none;color:var(--dim);padding:9px 12px;border-radius:10px;cursor:pointer;font-size:.82rem;line-height:1.5;transition:.15s;margin-bottom:4px;display:block}
+.step-btn:hover{border-color:rgba(167,139,250,.3);color:var(--text)}
+.step-btn.active{background:rgba(167,139,250,.1);border-color:rgba(167,139,250,.4);color:var(--text)}
+.step-index{display:inline-block;width:18px;height:18px;border-radius:50%;background:rgba(167,139,250,.15);color:var(--accent);font-size:.68rem;font-weight:700;text-align:center;line-height:18px;margin-right:7px}
+.ctrl{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.ctrl button{flex:1;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:10px;padding:8px 4px;cursor:pointer;font-size:.76rem;transition:.15s}
+.ctrl button:hover{border-color:var(--accent);color:var(--text)}
+.center-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:22px;min-height:540px;display:flex;flex-direction:column;gap:14px}
+.step-msg{border-left:3px solid var(--accent);background:rgba(167,139,250,.06);border-radius:0 10px 10px 0;padding:10px 14px;font-size:.86rem;color:var(--text);line-height:1.7}
+/* JWT parts */
+.jwt-string{font-family:monospace;font-size:.75rem;word-break:break-all;line-height:2;padding:12px 14px;border-radius:10px;background:rgba(17,24,39,.8);border:1px solid rgba(255,255,255,.07)}
+.jwt-h{color:#60a5fa}
+.jwt-p{color:#34d399}
+.jwt-s{color:#f87171}
+.jwt-dot{color:var(--dim2)}
+.parts-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.part-box{border-radius:10px;padding:12px;font-size:.75rem}
+.part-box.h{border:1px solid rgba(96,165,250,.35);background:rgba(96,165,250,.06)}
+.part-box.p{border:1px solid rgba(52,211,153,.35);background:rgba(52,211,153,.06)}
+.part-box.s{border:1px solid rgba(248,113,113,.35);background:rgba(248,113,113,.06)}
+.part-title{font-weight:700;margin-bottom:8px;font-size:.78rem}
+.part-title.h{color:#60a5fa}
+.part-title.p{color:#34d399}
+.part-title.s{color:#f87171}
+.field-row{display:flex;justify-content:space-between;gap:6px;margin-bottom:4px;font-family:monospace;font-size:.71rem}
+.field-key{color:var(--dim2)}
+.field-val{color:var(--text)}
+.verify-flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 0}
+.v-box{border-radius:8px;padding:8px 12px;font-family:monospace;font-size:.72rem;text-align:center}
+.v-box.input{background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.2);color:#c4b5fd}
+.v-box.op{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:var(--dim);font-size:.7rem}
+.v-box.result{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.2);color:var(--ok)}
+.v-box.result.fail{background:rgba(248,113,113,.08);border-color:rgba(248,113,113,.2);color:var(--err)}
+.v-arrow{color:var(--dim2);font-size:1rem}
+.expire-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:9px;font-size:.8rem}
+.expire-row.ok{background:rgba(74,222,128,.06);border:1px solid rgba(74,222,128,.2)}
+.expire-row.expired{background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.2);color:var(--err)}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">安全</a><span>/</span>JWT</div>
+  <h1 class="page-title">JWT</h1>
+  <p class="subtitle">JWT（JSON Web Token）是无状态的身份令牌，由 Header.Payload.Signature 三部分组成，用 Base64URL 编码。服务端用密钥签名，验证时只需重新计算签名对比，不需要查数据库。理解结构和签名验证是安全使用 JWT 的基础。</p>
+
+  <div class="layout">
+    <div class="left-panel">
+      <h3>步骤</h3>
+      <div id="stepList"></div>
+      <div class="ctrl">
+        <button onclick="prev()">← 上一步</button>
+        <button onclick="next()">下一步 →</button>
+        <button onclick="reset()">重置</button>
+        <button id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      </div>
+    </div>
+    <div class="center-panel">
+      <div class="step-msg" id="stepMsg">点击"下一步"解析 JWT 结构和验证流程。</div>
+      <div id="vizArea"></div>
+    </div>
+  </div>
+</main>
+<script>
+const JWT_SAMPLE = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMyIsIm5hbWUiOiJBbGljZSIsImV4cCI6MTc1MDAwMDAwMCwiaWF0IjoxNzQ5OTk2NDAwfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+const PARTS = JWT_SAMPLE.split('.');
+
+const STEPS = [
+  {type:'overview',
+   msg:'JWT 是三段 Base64URL 编码的字符串，用英文点（.）分隔：Header.Payload.Signature。颜色区分：蓝色=Header，绿色=Payload，红色=Signature。'},
+  {type:'header',
+   msg:'Header（蓝色）：Base64URL 解码后是 JSON，包含 alg（签名算法，HS256=HMAC-SHA256）和 typ（类型，JWT）。注意：Header 不加密，任何人都能解码查看。'},
+  {type:'payload',
+   msg:'Payload（绿色）：包含 Claims（声明），sub=用户ID，name=姓名，exp=过期时间戳（Unix）。Payload 同样只是 Base64 编码，不加密，不要存敏感信息（如密码）。'},
+  {type:'signature',
+   msg:'Signature（红色）：HMAC_SHA256(Base64URL(Header) + "." + Base64URL(Payload), SECRET_KEY)。只有服务端知道 SECRET_KEY，任何篡改 Header 或 Payload 都会导致签名验证失败。'},
+  {type:'verify',
+   msg:'签名验证：服务端收到 JWT 后，取出 Header+Payload，用同一密钥重新计算签名，与 JWT 中的 Signature 对比。相同则验证通过，不同则拒绝（可能被篡改）。'},
+  {type:'expire',
+   msg:'过期验证：服务端还要检查 exp（过期时间戳）是否大于当前时间。过期的 JWT 即使签名有效也应被拒绝，返回 401。这是 JWT 无状态的代价：无法主动吊销，只能等待过期。'},
+  {type:'alg-none',
+   msg:'⚠ 安全漏洞：alg:none 攻击。某些早期实现允许 alg="none"（无签名），攻击者修改 alg 为 none 并删除签名，服务端跳过签名验证。防御：服务端必须强制指定允许的算法列表，拒绝 alg:none。'},
+];
+
+let cur = -1, timer = null;
+
+const TEMPLATES = {
+  'overview': `
+    <div class="jwt-string"><span class="jwt-h">${PARTS[0]}</span><span class="jwt-dot">.</span><span class="jwt-p">${PARTS[1]}</span><span class="jwt-dot">.</span><span class="jwt-s">${PARTS[2]}</span></div>
+    <div style="font-size:.74rem;color:var(--dim);margin-top:8px">▲ Header（蓝）&nbsp;&nbsp;▲ Payload（绿）&nbsp;&nbsp;▲ Signature（红）&nbsp;&nbsp;— 每部分均为 Base64URL 编码</div>`,
+  'header': `
+    <div class="jwt-string"><span class="jwt-h">${PARTS[0]}</span><span style="opacity:.3">.${PARTS[1]}.${PARTS[2]}</span></div>
+    <div style="margin-top:10px">
+      <div style="font-size:.72rem;color:var(--dim2);margin-bottom:6px">Base64URL 解码 →</div>
+      <div class="part-box h">
+        <div class="part-title h">Header</div>
+        <div class="field-row"><span class="field-key">"alg":</span><span class="field-val">"HS256"  // HMAC-SHA256</span></div>
+        <div class="field-row"><span class="field-key">"typ":</span><span class="field-val">"JWT"</span></div>
+      </div>
+    </div>`,
+  'payload': `
+    <div class="jwt-string"><span style="opacity:.3">${PARTS[0]}.</span><span class="jwt-p">${PARTS[1]}</span><span style="opacity:.3">.${PARTS[2]}</span></div>
+    <div style="margin-top:10px">
+      <div style="font-size:.72rem;color:var(--dim2);margin-bottom:6px">Base64URL 解码 →</div>
+      <div class="part-box p">
+        <div class="part-title p">Payload（Claims）</div>
+        <div class="field-row"><span class="field-key">"sub":</span><span class="field-val">"user_123"  // Subject</span></div>
+        <div class="field-row"><span class="field-key">"name":</span><span class="field-val">"Alice"</span></div>
+        <div class="field-row"><span class="field-key">"exp":</span><span class="field-val">1750000000  // 过期时间</span></div>
+        <div class="field-row"><span class="field-key">"iat":</span><span class="field-val">1749996400  // 签发时间</span></div>
+      </div>
+    </div>
+    <div style="font-size:.74rem;color:var(--warn);margin-top:8px">⚠ Payload 未加密，不要存密码等敏感信息</div>`,
+  'signature': `
+    <div class="jwt-string"><span style="opacity:.3">${PARTS[0]}.${PARTS[1]}.</span><span class="jwt-s">${PARTS[2]}</span></div>
+    <div style="margin-top:10px">
+      <div class="part-box s">
+        <div class="part-title s">Signature 生成</div>
+        <div style="font-family:monospace;font-size:.72rem;line-height:2;color:var(--dim)">
+          Signature = <span style="color:#f87171">HMAC_SHA256</span>(<br>
+          &nbsp;&nbsp;<span style="color:#60a5fa">${PARTS[0]}</span><br>
+          &nbsp;&nbsp;+ "." +<br>
+          &nbsp;&nbsp;<span style="color:#34d399">${PARTS[1].slice(0,28)}...</span>,<br>
+          &nbsp;&nbsp;<span style="color:var(--warn)">SECRET_KEY</span>  // 只有服务端知道<br>
+          )
+        </div>
+      </div>
+    </div>`,
+  'verify': `
+    <div style="font-size:.72rem;color:var(--dim2);margin-bottom:8px">签名验证流程</div>
+    <div class="verify-flow">
+      <div class="v-box input">收到 JWT</div>
+      <div class="v-arrow">→</div>
+      <div class="v-box op">提取<br>Header+Payload</div>
+      <div class="v-arrow">→</div>
+      <div class="v-box op">HMAC_SHA256<br>(H+P, SECRET)</div>
+      <div class="v-arrow">→</div>
+      <div class="v-box input">计算出的<br>Signature'</div>
+    </div>
+    <div class="verify-flow">
+      <div class="v-box input">JWT 中的<br>Signature</div>
+      <div class="v-arrow">→</div>
+      <div class="v-box op">Base64Decode</div>
+      <div class="v-arrow">→</div>
+      <div class="v-box input">原始<br>Signature</div>
+    </div>
+    <div style="font-size:.72rem;color:var(--dim2);margin:8px 0">对比结果：</div>
+    <div style="display:flex;gap:10px">
+      <div class="v-box result" style="flex:1">Signature == Signature' → <strong>验证通过 ✓</strong></div>
+      <div class="v-box result fail" style="flex:1">Signature != Signature' → <strong>拒绝 401 ✗</strong></div>
+    </div>`,
+  'expire': `
+    <div style="font-size:.72rem;color:var(--dim2);margin-bottom:8px">过期时间验证</div>
+    <div class="expire-row ok" style="margin-bottom:8px">
+      <span style="font-size:1.2rem">✅</span>
+      <div>exp = 1750000000（2025-06-15 08:00）<br>now = 1749996400（2025-06-15 07:00）<br>now &lt; exp → <strong style="color:var(--ok)">Token 有效，通过</strong></div>
+    </div>
+    <div class="expire-row expired">
+      <span style="font-size:1.2rem">⛔</span>
+      <div>exp = 1749996400（2025-06-15 07:00）<br>now = 1750010000（2025-06-15 11:00）<br>now &gt; exp → <strong>Token 已过期，返回 401</strong></div>
+    </div>
+    <div style="font-size:.74rem;color:var(--dim);margin-top:10px">JWT 无法主动吊销（无状态），只能等 exp 到期。需要立即吊销时：维护 token blacklist（失去无状态优势），或使用短过期时间（5min）+ refresh_token 机制。</div>`,
+  'alg-none': `
+    <div style="font-size:.72rem;color:var(--err);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;font-weight:700">⚠ 安全漏洞：alg:none 攻击</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div style="border:1px solid rgba(248,113,113,.3);background:rgba(248,113,113,.05);border-radius:10px;padding:12px;font-family:monospace;font-size:.72rem;line-height:1.9">
+        <div style="color:var(--err);margin-bottom:6px">攻击者构造的 JWT：</div>
+        <span style="color:#60a5fa">{"alg":"none","typ":"JWT"}</span><br>
+        .<br>
+        <span style="color:#34d399">{"sub":"admin","role":"superuser"}</span><br>
+        .<br>
+        <span style="color:var(--dim2">（删除 Signature）</span>
+      </div>
+      <div style="border:1px solid rgba(74,222,128,.3);background:rgba(74,222,128,.05);border-radius:10px;padding:12px;font-size:.78rem;line-height:1.9">
+        <div style="color:var(--ok);margin-bottom:6px;font-weight:600">正确防御：</div>
+        <div>服务端必须 allowlist 算法：</div>
+        <div style="font-family:monospace;font-size:.72rem;color:var(--ok)">jwt.Verify(token,<br>&nbsp; allowedAlgs: ["HS256"])</div>
+        <div style="margin-top:8px">✓ 拒绝 alg=none<br>✓ 拒绝 alg=RS256 用 HS256 密钥验证的攻击</div>
+      </div>
+    </div>`,
+};
+
+function buildStepList(){
+  const list = document.getElementById('stepList');
+  list.innerHTML = '';
+  const labels = ['JWT 概览','Header 解析','Payload 解析','Signature 生成','验证签名','验证过期','alg:none 漏洞'];
+  STEPS.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-btn' + (i === cur ? ' active' : '');
+    btn.innerHTML = `<span class="step-index">${i+1}</span>${labels[i]}`;
+    btn.onclick = () => { cur = i; renderStep(); };
+    list.appendChild(btn);
+  });
+}
+
+function renderStep(){
+  const step = cur >= 0 ? STEPS[cur] : null;
+  document.getElementById('stepMsg').textContent = step ? step.msg : '点击"下一步"解析 JWT 结构和验证流程。';
+  document.getElementById('vizArea').innerHTML = step ? (TEMPLATES[step.type]||'') : '';
+  buildStepList();
+}
+
+function next(){ if(cur < STEPS.length-1){ cur++; renderStep(); } }
+function prev(){ if(cur > -1){ cur--; renderStep(); } }
+function reset(){ cur = -1; stopPlay(); renderStep(); }
+function togglePlay(){ if(timer) stopPlay(); else startPlay(); }
+function startPlay(){
+  document.getElementById('playBtn').textContent = '⏸ 暂停';
+  timer = setInterval(() => {
+    if(cur < STEPS.length-1){ cur++; renderStep(); } else stopPlay();
+  }, 2200);
+}
+function stopPlay(){
+  if(timer){ clearInterval(timer); timer = null; }
+  document.getElementById('playBtn').textContent = '▶ 播放';
+}
+
+renderStep();
+</script>
+</body>
+</html>

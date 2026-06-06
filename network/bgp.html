@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BGP - 网络</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#8b5cf6;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 40% 0%,color-mix(in srgb,var(--accent) 10%,transparent),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+.content{max-width:1100px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px;margin-bottom:28px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,3.4rem);line-height:1.05;letter-spacing:-.05em;margin-bottom:14px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:999px;padding:5px 9px;font-size:.75rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);border-radius:14px;padding:12px 14px}
+.concept-list strong{display:block;font-size:.86rem;margin-bottom:3px}
+.concept-list span{display:block;color:var(--dim);font-size:.8rem;line-height:1.6}
+.body{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.section{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.6);border-radius:18px;padding:22px}
+.section h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px}
+.section p,.section li{color:var(--dim);font-size:.9rem;line-height:1.85}
+.section ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.section code{background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;font-size:.82rem}
+.callout{border-left:3px solid var(--warn);background:rgba(251,191,36,.07);border-radius:0 10px 10px 0;padding:12px 16px;margin:14px 0;font-size:.88rem;color:var(--dim);line-height:1.75}
+.back-row{margin-top:22px;display:flex;gap:12px}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text)}
+@media(max-width:900px){.hero,.body{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"AS（自治系统）","body":"Autonomous System，由单一组织管理的 IP 网络集合，拥有独立的路由策略。每个 AS 有唯一的 ASN（AS Number）。互联网由约 10 万个 AS 组成，通过 BGP 互联。AS 分类：Transit AS（提供穿越流量，ISP）/ Stub AS（只接收/发送自己的流量，企业/CDN）。","tag":"term"},
+  {"title":"BGP 路径选择","body":"BGP 使用多个属性按优先级决策最佳路径：LOCAL_PREF（本地偏好，越大越好）→ AS_PATH 长度（越短越好）→ ORIGIN → MED（越小越好）→ eBGP > iBGP → 其他。策略路由通过修改这些属性影响流量走向。","tag":"term"},
+  {"title":"BGP 路由泄漏与劫持","body":"路由泄漏：AS 错误地将路由通告给不应该接收的 peer，导致流量被错误转发。路由劫持：恶意 AS 宣告更精确的前缀（更长子网），将本应到达目标的流量吸引到自己。RPKI 验证路由起源防止劫持。","tag":"term"},
+  {"title":"BGP Convergence","body":"当网络拓扑变化（链路故障/新路由）时，BGP 需要时间传播变化并重新收敛。BGP 有意设置定时器（延迟更新）避免振荡，但这导致故障恢复可能需要几秒到几分钟。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="B">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">网络 / BGP / B 类型</div>
+      <h1>BGP</h1>
+      <p class="summary">BGP（Border Gateway Protocol）是互联网的路由协议，连接约 10 万个 AS（自治系统）。与 OSPF/RIP 这类 IGP 不同，BGP 是路径向量协议（Path-Vector），传播的是 AS 路径列表而非跳数，并支持丰富的路由策略（LOCAL_PREF/MED/Community）。BGP 的错误配置是互联网大规模故障（2008 年 YouTube 宕机、2021 年 Facebook 断网）的常见原因。</p>
+      <div class="tags"><span>AS</span><span>eBGP</span><span>iBGP</span><span>AS_PATH</span><span>RPKI</span><span>路由劫持</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>AS（自治系统）</strong><span>独立管理的 IP 网络，有唯一 ASN，通过 BGP 与其他 AS 互联。</span></li>
+        <li><strong>BGP 路径选择</strong><span>LOCAL_PREF→AS_PATH→MED 等属性决定最优路径。</span></li>
+        <li><strong>路由劫持</strong><span>宣告更精确前缀劫持流量，RPKI 防御。</span></li>
+        <li><strong>BGP 收敛</strong><span>拓扑变化后的路由同步，可能需要几秒到几分钟。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="body">
+    <section class="section">
+      <h2>BGP 基本概念</h2>
+      <ul>
+        <li><strong>外部 BGP（eBGP）：</strong>不同 AS 之间的 BGP session，通告自己的 IP 前缀和 AS 路径</li>
+        <li><strong>内部 BGP（iBGP）：</strong>同一 AS 内部路由器间同步外部路由，通常 full mesh 或使用 Route Reflector</li>
+        <li><strong>BGP Speaker：</strong>运行 BGP 的路由器，维护 BGP 表（所有学到的路由）和 RIB（选定的最优路由）</li>
+        <li><strong>NLRI（网络层可达信息）：</strong>BGP UPDATE 消息中包含的 IP 前缀（如 192.0.2.0/24）</li>
+        <li><strong>前缀聚合：</strong>将多个子网聚合为更大的 supernet，减少全球 BGP 表大小（约 100 万条前缀）</li>
+        <li><strong>AS_PATH：</strong>路由经过的 AS 列表（如 64496 64511 15169），可防路由环路</li>
+      </ul>
+    </section>
+    <section class="section">
+      <h2>BGP 路由属性与策略</h2>
+      <ul>
+        <li><strong>LOCAL_PREF（高优先）：</strong>iBGP 内影响出站路径，越大越优先，默认 100，影响本 AS 如何出去</li>
+        <li><strong>AS_PATH Prepend：</strong>故意增加 AS_PATH 长度使路由变"不优"，让其他 AS 选择其他路径（流量工程）</li>
+        <li><strong>MED（Multi-Exit Discriminator）：</strong>告诉邻居 AS "通过哪个接口进来更好"，越小越优先</li>
+        <li><strong>BGP Community：</strong>自定义 Tag（如 6939:666 = blackhole），用于与 ISP 协作控制路由行为</li>
+        <li><strong>Route Policy：</strong>import/export 策略过滤或修改路由，控制接收/发出哪些前缀</li>
+      </ul>
+    </section>
+    <section class="section">
+      <h2>BGP 安全问题</h2>
+      <div class="callout">⚠ 2008 年巴基斯坦电信错误将 YouTube 的 /24 前缀宣告为更精确路由，导致全球 YouTube 断网 2 小时。</div>
+      <ul>
+        <li><strong>路由劫持（Hijacking）：</strong>宣告更精确的前缀（/25 比 /24 更优），流量被吸引到攻击者</li>
+        <li><strong>路由泄漏（Leak）：</strong>客户 AS 将从 ISP 学到的路由重新宣告给另一个 ISP，成为免费中转（2019 年 Google 导致美国互联网大范围故障）</li>
+        <li><strong>RPKI（Resource PKI）：</strong>AS 用证书签名"我有权宣告这个前缀"（ROA），接收方验证，防止路由劫持</li>
+        <li><strong>MANRS：</strong>网络运营商安全规范，要求过滤入站路由（防泄漏）、RPKI 验证</li>
+        <li>BGP 本身无加密，session 可被 TCP RST 攻击，需要 MD5/TCP-AO 认证</li>
+      </ul>
+    </section>
+    <section class="section">
+      <h2>BGP 与互联网架构</h2>
+      <ul>
+        <li><strong>Tier 1 ISP：</strong>如 AT&T、CenturyLink，相互 peering 无需付费，覆盖全球，不需购买 transit</li>
+        <li><strong>Tier 2：</strong>区域 ISP，购买 Tier 1 的 transit，也和其他 Tier 2 peering</li>
+        <li><strong>IXP（互联网交换点）：</strong>多个 AS 在同一物理交换机上 peering，减少 transit 成本（LINX/SGIX/HKIX）</li>
+        <li><strong>Anycast：</strong>多个 AS 宣告同一 IP 前缀，用户连接到 BGP 选路后距离最近的节点（DNS 根服务器/CDN PoP 使用）</li>
+        <li>云厂商（AWS/Azure/GCP）有自己的 ASN（16509/8075/15169），通过 BGP 与多个 ISP peering</li>
+      </ul>
+    </section>
+    <section class="section">
+      <h2>BGP 收敛与故障恢复</h2>
+      <ul>
+        <li>BGP 有意使用定时器避免路由振荡：默认最快 1s 更新，MRAI（Minimum Route Advertisement Interval）控制</li>
+        <li><strong>BFD（双向转发检测）：</strong>毫秒级检测链路故障，比等待 BGP keepalive 超时（90s）快得多</li>
+        <li><strong>BGP PIC（Prefix Independent Convergence）：</strong>预计算备份路径，链路故障时快速切换</li>
+        <li><strong>ECMP：</strong>Equal-Cost Multi-Path，同 AS_PATH 长度的多条路径负载均衡</li>
+        <li>大型故障案例：2021 年 Facebook 内部 BGP 路由器配置错误，导致全球所有 FB 服务断网 6 小时</li>
+      </ul>
+    </section>
+    <section class="section">
+      <h2>企业与云中的 BGP</h2>
+      <ul>
+        <li><strong>AWS Direct Connect / Azure ExpressRoute：</strong>企业通过专线和云 BGP peer，而非公网，延迟低且可预测</li>
+        <li><strong>SD-WAN：</strong>Software-Defined WAN，将 BGP 策略抽象化，软件控制多条链路的路由策略</li>
+        <li><strong>BGPsec（RFC 8205）：</strong>为 BGP UPDATE 消息提供数字签名，防路径伪造，部署很少（性能开销大）</li>
+        <li>云厂商 CDN 使用 BGP Anycast：全球宣告同一 IP，用户就近连接（Cloudflare 1.1.1.1 覆盖 300+ PoP）</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← 网络首页</a>
+    <a class="btn" href="grpc.html">gRPC</a>
+  </div>
+</main>
+</body>
+</html>

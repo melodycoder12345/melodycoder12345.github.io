@@ -6,13 +6,13 @@
 
   function isDetailPage() {
     var path = window.location.pathname;
-    return /\/(algo|db|kafka|redis|linux|network|cs|golang|distributed|ai|system-design)\/(?!index\.html$)[^/]+\.html$/.test(path);
+    return /\/(algo|db|kafka|redis|linux|network|cs|golang|distributed|ai|system-design|cloud-native|observability|security)\/(?!index\.html$)[^/]+\.html$/.test(path);
   }
 
   if (isDetailPage()) return;
 
   function friendLinksHref() {
-    var inModule = /\/(algo|db|kafka|redis|linux|network|cs|golang|distributed|ai|system-design)\//.test(window.location.pathname);
+    var inModule = /\/(algo|db|kafka|redis|linux|network|cs|golang|distributed|ai|system-design|cloud-native|observability|security)\//.test(window.location.pathname);
     var onHome = !inModule && (window.location.hash === '#friend-links' || /\/index\.html$/.test(window.location.pathname) || window.location.pathname === '/' || /\/blog\/?$/.test(window.location.pathname));
     if (onHome) return '#friend-links';
     return (inModule ? '../' : '') + 'index.html#friend-links';

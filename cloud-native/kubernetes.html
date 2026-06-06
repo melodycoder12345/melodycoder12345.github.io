@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>K8s 控制面 - 云原生</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#818cf8;--ok:#4ade80;--warn:#fbbf24;--err:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:radial-gradient(circle at 20% 0%,rgba(129,140,248,.12),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1260px;margin:0 auto;padding:40px 32px 80px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--dim2);margin-bottom:24px}
+.breadcrumb a{color:var(--dim2)}.breadcrumb a:hover{color:var(--text)}
+.page-title{font-size:clamp(1.6rem,3.5vw,2.8rem);letter-spacing:-.04em;margin-bottom:6px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{color:var(--dim);font-size:.95rem;margin-bottom:28px;max-width:640px;line-height:1.75}
+.layout{display:grid;grid-template-columns:280px 1fr 240px;gap:20px;align-items:start}
+.left-panel,.right-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:18px}
+.left-panel h3,.right-panel h3{font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px}
+.step-btn{width:100%;text-align:left;border:1px solid transparent;background:none;color:var(--dim);padding:9px 12px;border-radius:10px;cursor:pointer;font-size:.82rem;line-height:1.5;transition:.15s;margin-bottom:4px;display:block}
+.step-btn:hover{border-color:rgba(129,140,248,.3);color:var(--text)}
+.step-btn.active{background:rgba(129,140,248,.1);border-color:rgba(129,140,248,.4);color:var(--text)}
+.step-index{display:inline-block;width:18px;height:18px;border-radius:50%;background:rgba(129,140,248,.15);color:var(--accent);font-size:.68rem;font-weight:700;text-align:center;line-height:18px;margin-right:7px}
+.ctrl{display:flex;gap:8px;margin-top:14px}
+.ctrl button{flex:1;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:10px;padding:8px 4px;cursor:pointer;font-size:.76rem;transition:.15s}
+.ctrl button:hover{border-color:var(--accent);color:var(--text)}
+.center-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:22px;min-height:520px;display:flex;flex-direction:column}
+.step-msg{border-left:3px solid var(--accent);background:rgba(129,140,248,.06);border-radius:0 10px 10px 0;padding:10px 14px;font-size:.86rem;color:var(--text);line-height:1.7;margin-bottom:20px}
+/* Pipeline viz */
+.pipeline{display:flex;flex-direction:column;gap:12px;padding:8px 0}
+.pipe-component{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.6);border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:12px;transition:all .4s;opacity:0.3}
+.pipe-component.active{opacity:1;border-color:var(--accent);background:rgba(129,140,248,.08);box-shadow:0 0 18px rgba(129,140,248,.15)}
+.pipe-component.done{opacity:0.75;border-color:rgba(74,222,128,.3);background:rgba(74,222,128,.05)}
+.pipe-component.error{opacity:1;border-color:var(--err);background:rgba(248,113,113,.08)}
+.comp-icon{font-size:1.6rem;flex-shrink:0;width:36px;text-align:center}
+.comp-body{flex:1}
+.comp-name{font-weight:600;font-size:.88rem;margin-bottom:4px}
+.comp-detail{font-size:.76rem;color:var(--dim);line-height:1.6}
+.comp-status{font-size:.72rem;padding:3px 8px;border-radius:5px;font-family:monospace;flex-shrink:0}
+.status-active{background:rgba(129,140,248,.15);color:#c7d2fe;border:1px solid rgba(129,140,248,.3)}
+.status-done{background:rgba(74,222,128,.1);color:#86efac;border:1px solid rgba(74,222,128,.25)}
+.status-wait{background:rgba(255,255,255,.04);color:var(--dim2);border:1px solid rgba(255,255,255,.08)}
+.status-err{background:rgba(248,113,113,.1);color:#fca5a5;border:1px solid rgba(248,113,113,.25)}
+.arrow-flow{text-align:center;color:var(--dim2);font-size:1rem;line-height:1.2}
+.info-row{display:flex;flex-direction:column;gap:4px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.06)}
+.info-row:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.info-label{font-size:.72rem;color:var(--dim2)}
+.info-value{font-size:.82rem;color:var(--text);font-family:monospace;word-break:break-all;line-height:1.5}
+@media(max-width:1000px){.layout{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">云原生</a><span>/</span>K8s 控制面</div>
+  <h1 class="page-title">K8s 控制面</h1>
+  <p class="subtitle">kubectl apply 后发生了什么？请求经过 API Server 认证鉴权、etcd 持久化、Controller 响应、Scheduler 调度，最终由 kubelet 拉起容器。所有组件通过 etcd Watch 解耦，没有任何组件直接调用另一个组件。</p>
+
+  <div class="layout">
+    <div class="left-panel">
+      <h3>步骤</h3>
+      <div id="stepList"></div>
+      <div class="ctrl">
+        <button onclick="prev()">← 上一步</button>
+        <button onclick="next()">下一步 →</button>
+        <button onclick="reset()">重置</button>
+        <button id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      </div>
+    </div>
+    <div class="center-panel">
+      <div class="step-msg" id="stepMsg">点击"下一步"开始，观察 kubectl apply 的完整路径。</div>
+      <div class="pipeline" id="pipeline"></div>
+    </div>
+    <div class="right-panel">
+      <h3>关键信息</h3>
+      <div class="info-row"><div class="info-label">当前组件</div><div class="info-value" id="infoComp">-</div></div>
+      <div class="info-row"><div class="info-label">协议</div><div class="info-value" id="infoProto">-</div></div>
+      <div class="info-row"><div class="info-label">输出事件</div><div class="info-value" id="infoEvent">-</div></div>
+      <div class="info-row"><div class="info-label">关键机制</div><div class="info-value" id="infoMech">-</div></div>
+    </div>
+  </div>
+</main>
+<script>
+const COMPS = [
+  {id:'kubectl',icon:'💻',name:'kubectl',detail:'用户执行 kubectl apply -f pod.yaml',statusDefault:'wait'},
+  {id:'authn',icon:'🔑',name:'API Server — Authentication',detail:'验证 Bearer Token / X.509 客户端证书 / ServiceAccount Token，确认调用方身份',statusDefault:'wait'},
+  {id:'authz',icon:'🛡',name:'API Server — Authorization',detail:'RBAC 检查：用户 → RoleBinding → Role → 资源权限（verbs: create/update/patch）',statusDefault:'wait'},
+  {id:'admission',icon:'🔍',name:'API Server — Admission',detail:'MutatingWebhook（注入 sidecar/修改字段） → ValidatingWebhook（拒绝不合规资源）',statusDefault:'wait'},
+  {id:'etcd',icon:'💾',name:'etcd',detail:'序列化为 protobuf，通过 Raft 共识写入多副本，返回版本号 resourceVersion',statusDefault:'wait'},
+  {id:'controller',icon:'🔄',name:'ReplicaSet Controller',detail:'Watch 到 Pod 资源事件（ADDED），计算期望副本数与实际差值，创建缺少的 Pod 对象写回 etcd',statusDefault:'wait'},
+  {id:'scheduler',icon:'📐',name:'Scheduler',detail:'Watch 到 unscheduled Pod（nodeName=""），Filter → Score → Bind，将 nodeName 写入 Pod Spec',statusDefault:'wait'},
+  {id:'kubelet',icon:'🤖',name:'kubelet',detail:'Watch 到本节点被调度的 Pod，调用 CRI（containerd）拉取镜像、创建容器、启动，更新 Pod Status',statusDefault:'wait'},
+];
+
+const STEPS = [
+  {active:'kubectl',done:[],msg:'用户执行 kubectl apply -f deployment.yaml。kubectl 将 YAML 转换为 JSON，向 API Server 发起 HTTP PATCH/POST 请求，携带 Bearer Token。',comp:'kubectl',proto:'HTTPS REST','event':'PUT /apis/apps/v1/deployments',mech:'kubectl 支持 dry-run、server-side apply（服务端合并语义）'},
+  {active:'authn',done:['kubectl'],msg:'API Server 认证（Authentication）：验证请求中的 Bearer Token（ServiceAccount JWT）或 X.509 证书。认证失败返回 401。成功后得到"我是谁"（用户名/组）。',comp:'API Server Auth',proto:'JWT / X.509',event:'UserInfo{Username, Groups}',mech:'kubeconfig 中的 cert 是 kube-controller-manager 签发的客户端证书'},
+  {active:'authz',done:['kubectl','authn'],msg:'API Server 鉴权（Authorization）：RBAC 查询 ClusterRoleBinding / RoleBinding，检查用户是否有对目标资源的 verbs（create/update）权限。无权限返回 403。',comp:'RBAC Authorization',proto:'内部',event:'ALLOW/DENY',mech:'node/ABAC/Webhook 等模式可并联，任一 allow 则通过'},
+  {active:'admission',done:['kubectl','authn','authz'],msg:'Admission Controller：先经过 MutatingWebhook（可修改资源，如注入 sidecar）再经过 ValidatingWebhook（只读校验，拒绝不合规）。ResourceQuota 在此检查命名空间配额。',comp:'Admission Webhook',proto:'HTTPS（向外部 Webhook 调用）',event:'Modified Object / ACCEPT',mech:'MutatingWebhook 可注入 Envoy sidecar（Istio 原理）'},
+  {active:'etcd',done:['kubectl','authn','authz','admission'],msg:'资源写入 etcd：API Server 将资源序列化为 protobuf，通过 Raft 协议在 etcd 集群（通常 3 或 5 节点）中形成多数派共识后持久化。返回分配的 resourceVersion（全局单调递增）。',comp:'etcd',proto:'gRPC（etcd client API）',event:'resourceVersion=1234 写入成功',mech:'etcd watch 机制：其他组件订阅 key 变更，实现事件驱动'},
+  {active:'controller',done:['kubectl','authn','authz','admission','etcd'],msg:'ReplicaSet Controller 通过 Informer（带本地缓存的 Watch）收到 Deployment 变更事件，计算期望 ReplicaSet 状态，若 Pod 数不足则创建新 Pod 对象（Status.Phase=Pending）写入 etcd。',comp:'ReplicaSet Controller',proto:'etcd Watch / gRPC',event:'Pod{phase:Pending, nodeName:""}',mech:'Informer 有本地缓存（Lister），减少 etcd 读压力'},
+  {active:'scheduler',done:['kubectl','authn','authz','admission','etcd','controller'],msg:'Scheduler Watch 到 nodeName="" 的 Pending Pod，执行 Filter（排除资源不足/Taint 不匹配的节点）和 Score（LeastRequested/NodeAffinity 等插件打分），将得分最高节点写入 Pod.spec.nodeName。',comp:'kube-scheduler',proto:'etcd Watch / Bind API',event:'Pod.spec.nodeName="node-3"',mech:'调度框架支持插件扩展，CSI/CNI 通过 scheduler extender 扩展'},
+  {active:'kubelet',done:['kubectl','authn','authz','admission','etcd','controller','scheduler'],msg:'目标节点的 kubelet Watch 到本节点 Pod 变化，调用 CRI（containerd）拉取镜像，通过 CNI 插件配置网络（创建 veth pair、分配 IP），启动容器，定期上报 Pod Status 到 API Server → etcd。',comp:'kubelet + CRI + CNI',proto:'CRI gRPC / CNI exec',event:'Pod{phase:Running}',mech:'kubelet 不直接运行容器，通过 CRI 接口解耦（可换 containerd/CRI-O）'},
+];
+
+let cur = -1, timer = null;
+
+function renderPipeline(step){
+  const pipe = document.getElementById('pipeline');
+  pipe.innerHTML = '';
+  COMPS.forEach((c, i) => {
+    if(i > 0){
+      const arr = document.createElement('div');
+      arr.className = 'arrow-flow';
+      arr.innerHTML = '▼';
+      pipe.appendChild(arr);
+    }
+    const div = document.createElement('div');
+    div.className = 'pipe-component';
+    let statusCls = 'status-wait';
+    let statusTxt = '等待';
+    if(step && step.active === c.id){
+      div.classList.add('active');
+      statusCls = 'status-active';
+      statusTxt = '处理中';
+    } else if(step && step.done.includes(c.id)){
+      div.classList.add('done');
+      statusCls = 'status-done';
+      statusTxt = '完成 ✓';
+    }
+    div.innerHTML = `<div class="comp-icon">${c.icon}</div><div class="comp-body"><div class="comp-name">${c.name}</div><div class="comp-detail">${c.detail}</div></div><div class="comp-status ${statusCls}">${statusTxt}</div>`;
+    pipe.appendChild(div);
+  });
+}
+
+function updateInfo(step){
+  if(!step){
+    document.getElementById('infoComp').textContent = '-';
+    document.getElementById('infoProto').textContent = '-';
+    document.getElementById('infoEvent').textContent = '-';
+    document.getElementById('infoMech').textContent = '-';
+    document.getElementById('stepMsg').textContent = '点击"下一步"开始，观察 kubectl apply 的完整路径。';
+    return;
+  }
+  document.getElementById('infoComp').textContent = step.comp;
+  document.getElementById('infoProto').textContent = step.proto;
+  document.getElementById('infoEvent').textContent = step.event;
+  document.getElementById('infoMech').textContent = step.mech;
+  document.getElementById('stepMsg').textContent = step.msg;
+}
+
+function buildStepList(){
+  const list = document.getElementById('stepList');
+  list.innerHTML = '';
+  STEPS.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-btn' + (i === cur ? ' active' : '');
+    const comp = COMPS.find(c => c.id === s.active);
+    btn.innerHTML = `<span class="step-index">${i+1}</span>${comp?comp.name.slice(0,18):''}`;
+    btn.onclick = () => { cur = i; render(); };
+    list.appendChild(btn);
+  });
+}
+
+function render(){
+  const step = cur >= 0 ? STEPS[cur] : null;
+  renderPipeline(step);
+  updateInfo(step);
+  buildStepList();
+}
+
+function next(){ if(cur < STEPS.length-1){ cur++; render(); } }
+function prev(){ if(cur > -1){ cur--; render(); } }
+function reset(){ cur = -1; stopPlay(); render(); }
+function togglePlay(){ if(timer) stopPlay(); else startPlay(); }
+function startPlay(){
+  document.getElementById('playBtn').textContent = '⏸ 暂停';
+  timer = setInterval(() => {
+    if(cur < STEPS.length-1){ cur++; render(); } else stopPlay();
+  }, 2200);
+}
+function stopPlay(){
+  if(timer){ clearInterval(timer); timer = null; }
+  document.getElementById('playBtn').textContent = '▶ 播放';
+}
+
+render();
+</script>
+</body>
+</html>

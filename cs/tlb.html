@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TLB - 计算机科学</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#06b6d4;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 70% 0%,color-mix(in srgb,var(--accent) 10%,transparent),transparent 36%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,3.6rem);line-height:1.04;letter-spacing:-.05em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:200px minmax(0,1fr);gap:16px;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:12px;display:flex;flex-direction:column;gap:8px}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:10px;padding:9px 11px;cursor:pointer;font-family:inherit;transition:all .16s;font-size:.82rem}
+.step-btn:hover{color:var(--text)}.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.step-btn b{display:block;font-size:.7rem;color:var(--accent);margin-bottom:2px}
+.viz{padding:16px;display:flex;flex-direction:column;gap:12px}
+.stage{border:1px solid rgba(255,255,255,.06);border-radius:14px;background:rgba(15,23,42,.64);padding:14px}
+.status{border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:13px;background:rgba(255,255,255,.035)}
+.status h2{font-size:.95rem;margin-bottom:5px;color:var(--text)}
+.status p{color:var(--dim);font-size:.86rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:6px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.ok{border-color:var(--ok);color:var(--ok)}.badge.miss{border-color:var(--warn);color:var(--warn)}
+.controls{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:7px 11px;cursor:pointer;font-family:inherit;font-size:.83rem}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.deep code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.82rem;color:var(--text)}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:900px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+
+/* VA breakdown */
+.va-breakdown{display:flex;gap:3px;align-items:stretch;margin-bottom:8px;font-family:monospace;}
+.va-seg{border:1.5px solid;border-radius:6px;padding:6px 10px;text-align:center;transition:all .3s;}
+.va-seg .seg-val{font-size:.9rem;font-weight:700;}
+.va-seg .seg-lbl{font-size:.6rem;color:var(--dim2);margin-top:2px;}
+.va-vpn{border-color:rgba(6,182,212,.5);background:rgba(6,182,212,.1);color:var(--accent);}
+.va-offset{border-color:rgba(167,139,250,.5);background:rgba(167,139,250,.1);color:#a78bfa;}
+
+/* TLB table */
+.tlb-table{font-family:monospace;font-size:.72rem;}
+.tlb-hdr,.tlb-row{display:grid;grid-template-columns:80px 80px 80px 1fr;gap:8px;padding:5px 7px;border-radius:4px;}
+.tlb-hdr{color:var(--dim2);font-size:.65rem;border-bottom:1px solid rgba(255,255,255,.07);margin-bottom:3px;}
+.tlb-row{border:1px solid rgba(255,255,255,.04);margin-bottom:2px;transition:all .3s;}
+.tlb-row.hit{border-color:rgba(74,222,128,.35);background:rgba(74,222,128,.07);color:var(--ok);}
+.tlb-row.new{border-color:rgba(6,182,212,.35);background:rgba(6,182,212,.07);color:var(--accent);animation:fadeIn .3s;}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+/* Page table walk */
+.ptw{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px;}
+.ptw-step{border:1px solid rgba(255,255,255,.08);border-radius:7px;padding:6px 10px;font-size:.7rem;font-family:monospace;transition:all .3s;}
+.ptw-step.active{border-color:var(--accent);background:rgba(6,182,212,.1);color:var(--accent);}
+.ptw-arrow{color:rgba(255,255,255,.2);font-size:.8rem;}
+
+/* Access counter */
+.access-count{display:flex;align-items:center;gap:10px;font-family:monospace;font-size:.78rem;}
+.count-box{border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:6px 10px;background:rgba(255,255,255,.03);}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"虚拟地址（VA）","body":"程序看到的地址空间。进程以为自己独占整个 64bit 地址空间，实际上 CPU+MMU 会将虚拟地址翻译成物理地址。虚拟地址 = VPN（虚拟页号）+ Offset（页内偏移）。","tag":"term"},
+  {"title":"TLB（Translation Lookaside Buffer）","body":"页表的硬件缓存。缓存最近使用的 VPN→PFN 映射，命中时直接输出物理地址，只需 1 个时钟周期。大小通常 32–1024 项（L1 TLB），全相联或组相联结构，是 CPU 内部的硬件表。","tag":"term"},
+  {"title":"页表遍历（Page Table Walk）","body":"TLB Miss 时，硬件 MMU 或 OS 软件遍历内存中的多级页表（x86-64 为 4 级：PGD→PUD→PMD→PTE），每级都是一次内存访问，最终获得 PFN（物理帧号），写入 TLB 后重新访问。","tag":"term"},
+  {"title":"TLB 射击（TLB Shootdown）","body":"多核 CPU 中，当某个 CPU 修改了页表项（如 munmap、COW），需要向其他 CPU 发送 IPI（处理器间中断），通知它们无效化 TLB 中的对应条目，确保各核看到的地址映射一致。开销较大。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">计算机科学 / 内存管理 / C 类型</div>
+      <h1>TLB</h1>
+      <p class="summary">TLB（Translation Lookaside Buffer）是页表的硬件缓存。虚拟地址拆成 VPN + Offset：VPN 先查 TLB（命中→直接拼 Offset 得物理地址，1 步完成）；未命中则展开 4 级页表（PGD→PUD→PMD→PTE，5 次内存访问），拿到 PFN 写回 TLB。动画对比两条路径的访存次数，直观体现 TLB Miss 的代价。</p>
+      <div class="tags"><span>虚拟地址</span><span>VPN</span><span>页表</span><span>TLB Hit</span><span>TLB Miss</span><span>MMU</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>TLB</strong><span>页表的 CPU 缓存，命中时 1 个周期完成地址翻译。</span></li>
+        <li><strong>VPN + Offset</strong><span>虚拟地址 = 虚拟页号 + 页内偏移，TLB 缓存 VPN→PFN。</span></li>
+        <li><strong>页表遍历</strong><span>TLB Miss 时 4 级页表 × 1 次访存 = 4 次额外内存访问。</span></li>
+        <li><strong>TLB Shootdown</strong><span>多核修改页表后需通知其他核无效化各自 TLB。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">步骤</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+
+    <section class="panel viz">
+      <!-- VA breakdown + TLB -->
+      <div class="stage">
+        <div style="font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">虚拟地址拆分</div>
+        <div class="va-breakdown" id="vaBreakdown">
+          <!-- built by JS -->
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px;">
+          <div>
+            <div style="font-size:.68rem;color:var(--dim2);margin-bottom:6px;">TLB（L1 Translation Cache）</div>
+            <div class="tlb-table">
+              <div class="tlb-hdr"><span>VPN</span><span>PFN</span><span>ASID</span><span>状态</span></div>
+              <div id="tlbEntries"></div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:.68rem;color:var(--dim2);margin-bottom:6px;">访存计数器</div>
+            <div class="access-count">
+              <div class="count-box">TLB Hit: <span id="hitCount" style="color:var(--ok);">0</span></div>
+              <div class="count-box">TLB Miss: <span id="missCount" style="color:var(--warn);">0</span></div>
+            </div>
+            <div style="font-size:.7rem;color:var(--dim2);margin-top:10px;">本次地址翻译内存访问次数:</div>
+            <div style="font-size:1.4rem;font-family:monospace;font-weight:800;margin-top:4px;" id="memAccCount">--</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Page table walk -->
+      <div class="stage">
+        <div style="font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">地址翻译路径</div>
+        <div id="translatePath"></div>
+        <div class="ptw" id="ptwSteps"></div>
+      </div>
+
+      <div class="status">
+        <div id="stepBadge" class="badge">初始</div>
+        <h2 id="statusTitle">TLB 初始状态（空）</h2>
+        <p id="statusDesc">点击播放，观察 TLB Hit 的单步翻译和 TLB Miss 时的页表遍历过程。</p>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnPrev" onclick="goPrev()" disabled>◀ 上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+        <button class="ctrl" id="btnNext" onclick="goNext()">下一步 ▶</button>
+        <button class="ctrl" onclick="reset()" style="margin-left:auto">↺ 重置</button>
+      </div>
+    </section>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>地址翻译详细过程</h2>
+      <ul>
+        <li>64bit 虚拟地址：x86-64 实际使用 48bit（低 48 位），4KB 页面则 Offset=12bit，VPN=36bit</li>
+        <li>4 级页表：VPN 分为 4 个 9-bit 段（PGD/PUD/PMD/PTE index），每级 512 项，一项 8 字节</li>
+        <li><strong>TLB 命中路径：</strong>用 VPN 查 TLB（哈希查找，1 时钟周期）→ 得到 PFN → 物理地址 = PFN × 4096 + Offset</li>
+        <li><strong>TLB 未命中路径：</strong>访问 CR3 寄存器指向的 PGD 页表（内存访问 1）→ PUD（访问 2）→ PMD（访问 3）→ PTE（访问 4）→ 得到 PFN，写入 TLB（访问 5 即真实数据访问）</li>
+      </ul>
+    </section>
+    <section>
+      <h2>TLB 性能优化</h2>
+      <ul>
+        <li><strong>大页（Huge Pages）：</strong>2MB/1GB 大页比 4KB 页更少的 TLB 条目就能覆盖同样内存，减少 TLB 压力</li>
+        <li><strong>ASID：</strong>Address Space ID，进程切换时不需要 flush 整个 TLB，只需换 ASID</li>
+        <li><strong>局部性：</strong>程序的时间/空间局部性使得少量 TLB 条目（64 项）就能覆盖大部分访问</li>
+        <li>mmap 大文件：连续虚拟地址，TLB 命中率高；频繁 mmap/munmap：TLB Flush 多</li>
+      </ul>
+    </section>
+    <section>
+      <h2>多级 TLB 结构</h2>
+      <ul>
+        <li><strong>L1 ITLB/DTLB：</strong>指令/数据各自独立 TLB，全相联，32–64 项，访问延迟 0–1 周期</li>
+        <li><strong>L2 STLB：</strong>统一 TLB，1024–2048 项，4 路组相联，延迟约 7 周期</li>
+        <li>L2 STLB Miss → 页表遍历（硬件 Page Table Walker，x86 上是 MMU 硬件执行）</li>
+        <li>Intel Skylake：L1 TLB 64 项（4KB）+32 项（2MB），L2 STLB 1536 项</li>
+      </ul>
+    </section>
+    <section>
+      <h2>上下文切换与 TLB</h2>
+      <ul>
+        <li>进程切换：切换 CR3（页表基址寄存器），如果不支持 ASID 则 flush 整个 TLB</li>
+        <li><strong>PCID（x86）：</strong>进程上下文 ID，配合 CR3 切换可保留 TLB 条目（只无效化需要的条目）</li>
+        <li>Meltdown 修复（KPTI）：用户态和内核态使用不同页表，切换时 TLB Flush，性能损失 5–30%</li>
+        <li>虚拟化：VMCS 切换 + EPT（扩展页表）需要 2 级地址翻译，TLB 压力更大</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← CS 首页</a>
+    <a class="btn" href="branch-prediction.html">分支预测</a>
+  </div>
+</main>
+<script>
+const STEPS=[
+  {
+    label:'TLB 空，首次访问（Miss）',
+    title:'首次访问 VA=0x7FFE2000：TLB Miss，走页表',
+    badge:'Miss',
+    desc:'程序访问虚拟地址 0x7FFE2000。拆分：VPN=0x7FFE2，Offset=0x000。查 TLB，空缺（冷启动）。MMU 开始 4 级页表遍历：CR3→PGD[index]→PUD[index]→PMD[index]→PTE[index]，共 4 次内存读取，得到 PFN=0x3A1C8。写入 TLB，返回物理地址。',
+    va:{full:'0x7FFE2000',vpn:'0x7FFE2',offset:'0x000'},
+    tlb:[{vpn:'0x7FFE2',pfn:'0x3A1C8',asid:'42',state:'新写入',cls:'new'}],
+    path:'miss',
+    ptw:[{lbl:'CR3',active:true},{lbl:'PGD',active:true},{lbl:'PUD',active:true},{lbl:'PMD',active:true},{lbl:'PTE\n→PFN',active:true}],
+    memAcc:'5（4次页表+1次数据）',hits:0,misses:1
+  },
+  {
+    label:'相同页面再次访问（Hit）',
+    title:'再次访问 0x7FFE2A40：TLB Hit，1 步完成',
+    badge:'Hit',
+    desc:'访问 0x7FFE2A40（同一个 4KB 页面内的不同偏移量）。VPN=0x7FFE2，Offset=0xA40。TLB 命中！直接返回 PFN=0x3A1C8，物理地址 = 0x3A1C8000 + 0xA40 = 0x3A1C8A40。只需 1 次内存访问（读取数据本身），无需页表遍历。',
+    va:{full:'0x7FFE2A40',vpn:'0x7FFE2',offset:'0xA40'},
+    tlb:[{vpn:'0x7FFE2',pfn:'0x3A1C8',asid:'42',state:'✓ Hit',cls:'hit'}],
+    path:'hit',
+    ptw:[],
+    memAcc:'1（TLB Hit，直接访问数据）',hits:1,misses:1
+  },
+  {
+    label:'新页面访问（Miss，写回 TLB）',
+    title:'访问新页面 0x4A3B1000：TLB Miss，再次走页表',
+    badge:'Miss',
+    desc:'访问新的虚拟地址 0x4A3B1000，VPN=0x4A3B1。TLB 中无对应条目，再次走 4 级页表（4 次内存读取），得到 PFN=0x2F091，写入 TLB。现在 TLB 有 2 个条目。',
+    va:{full:'0x4A3B1000',vpn:'0x4A3B1',offset:'0x000'},
+    tlb:[{vpn:'0x7FFE2',pfn:'0x3A1C8',asid:'42',state:'已缓存',cls:''},{vpn:'0x4A3B1',pfn:'0x2F091',asid:'42',state:'新写入',cls:'new'}],
+    path:'miss',
+    ptw:[{lbl:'CR3',active:true},{lbl:'PGD',active:true},{lbl:'PUD',active:true},{lbl:'PMD',active:true},{lbl:'PTE\n→PFN',active:true}],
+    memAcc:'5（4次页表+1次数据）',hits:1,misses:2
+  },
+  {
+    label:'进程切换，TLB Flush',
+    title:'进程切换：CR3 变更，TLB 全部无效化',
+    badge:'Flush',
+    desc:'OS 调度器切换到另一个进程，写入新的 CR3（不支持 PCID/ASID 时）。TLB 中所有条目无效化（Flush）。新进程首次访问任何地址都会 TLB Miss，需要重新填充。这就是进程切换的隐性开销之一。',
+    va:{full:'（进程切换）',vpn:'--',offset:'--'},
+    tlb:[],
+    path:'flush',
+    ptw:[],
+    memAcc:'--（所有映射无效，下次访问全部 Miss）',hits:1,misses:2
+  },
+  {
+    label:'大页优化（2MB）',
+    title:'使用 2MB 大页：1 个 TLB 条目覆盖 512 个 4KB 页',
+    badge:'大页',
+    desc:'使用 2MB 大页（Huge Page）时，Offset=21bit（2MB），VPN 更短，一个 TLB 条目覆盖 512 倍更多内存。访问 512 × 4KB = 2MB 内的任意地址都 TLB 命中，无需走页表。数据库/JVM 等内存密集应用显著受益。',
+    va:{full:'0x200000000',vpn:'0x1000',offset:'0x00000（21bit）'},
+    tlb:[{vpn:'0x1000',pfn:'0x100',asid:'43',state:'2MB大页',cls:'hit'}],
+    path:'hugepage',
+    ptw:[],
+    memAcc:'1（2MB 大页 TLB Hit，覆盖 512×4KB）',hits:2,misses:2
+  }
+];
+
+let currentStep=0,playing=false,playTimer=null;
+
+function renderStep(idx){
+  const s=STEPS[idx];
+  document.querySelectorAll('.step-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  const bd=document.getElementById('stepBadge');
+  bd.textContent=s.badge;
+  bd.className='badge'+(s.path==='hit'||s.path==='hugepage'?' ok':s.path==='miss'?' miss':'');
+  document.getElementById('statusTitle').textContent=s.title;
+  document.getElementById('statusDesc').textContent=s.desc;
+
+  // VA breakdown
+  const vab=document.getElementById('vaBreakdown');
+  vab.innerHTML=`<div class="va-seg va-vpn"><div class="seg-val">${s.va.vpn}</div><div class="seg-lbl">VPN（虚拟页号）</div></div><div style="align-self:center;color:rgba(255,255,255,.2);font-size:1.2rem;">+</div><div class="va-seg va-offset"><div class="seg-val">${s.va.offset}</div><div class="seg-lbl">Offset（页内偏移）</div></div>`;
+
+  // TLB entries
+  const te=document.getElementById('tlbEntries');
+  te.innerHTML='';
+  if(s.tlb.length===0){te.innerHTML='<div style="color:var(--dim2);font-size:.72rem;padding:4px 6px;">（TLB 已清空）</div>';}
+  s.tlb.forEach(e=>{
+    const div=document.createElement('div');
+    div.className='tlb-row '+(e.cls||'');
+    div.innerHTML=`<span>${e.vpn}</span><span>${e.pfn}</span><span>${e.asid}</span><span>${e.state}</span>`;
+    te.appendChild(div);
+  });
+
+  // Access counts
+  document.getElementById('hitCount').textContent=s.hits;
+  document.getElementById('missCount').textContent=s.misses;
+  document.getElementById('memAccCount').textContent=s.memAcc;
+  document.getElementById('memAccCount').style.color=s.path==='hit'||s.path==='hugepage'?'var(--ok)':s.path==='miss'?'var(--warn)':'var(--dim2)';
+
+  // Translate path
+  const tp=document.getElementById('translatePath');
+  if(s.path==='hit'||s.path==='hugepage'){
+    tp.innerHTML=`<div style="font-size:.78rem;font-family:monospace;color:var(--ok);">VPN → TLB 命中 → PFN=${s.tlb[0]?.pfn||'--'} → 物理地址拼接完成 ✓</div>`;
+  } else if(s.path==='miss'){
+    tp.innerHTML=`<div style="font-size:.78rem;font-family:monospace;color:var(--warn);">VPN → TLB Miss → 4 级页表遍历（4 次内存读）→ 写入 TLB → 数据访问</div>`;
+  } else if(s.path==='flush'){
+    tp.innerHTML=`<div style="font-size:.78rem;font-family:monospace;color:var(--bad);">进程切换 → 写新 CR3 → TLB 全部无效化（Flush）</div>`;
+  }
+
+  // Page table walk
+  const ptw=document.getElementById('ptwSteps');
+  ptw.innerHTML='';
+  if(s.ptw&&s.ptw.length>0){
+    s.ptw.forEach((step,i)=>{
+      const d=document.createElement('div');d.className='ptw-step'+(step.active?' active':'');d.textContent=step.lbl;ptw.appendChild(d);
+      if(i<s.ptw.length-1){const a=document.createElement('div');a.className='ptw-arrow';a.textContent='→';ptw.appendChild(a);}
+    });
+  } else if(s.path==='hit'||s.path==='hugepage'){
+    ptw.innerHTML=`<div style="color:var(--ok);font-size:.78rem;font-family:monospace;">直接得到物理地址，无需页表遍历 ✓</div>`;
+  } else if(s.path==='flush'){
+    ptw.innerHTML=`<div style="color:var(--dim2);font-size:.78rem;">TLB 已清空，下次访问重新走页表</div>`;
+  }
+
+  document.getElementById('btnPrev').disabled=idx===0;
+  document.getElementById('btnNext').disabled=idx===STEPS.length-1;
+}
+
+function buildStepList(){
+  const list=document.getElementById('stepList');
+  STEPS.forEach((s,i)=>{
+    const btn=document.createElement('button');
+    btn.className='step-btn'+(i===0?' active':'');
+    btn.innerHTML=`<b>Step ${i+1}</b>${s.label}`;
+    btn.onclick=()=>{currentStep=i;renderStep(i);stopPlay();};
+    list.appendChild(btn);
+  });
+}
+function goNext(){if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();}
+function goPrev(){if(currentStep>0){currentStep--;renderStep(currentStep);}}
+function reset(){stopPlay();currentStep=0;renderStep(0);}
+function togglePlay(){
+  if(playing){stopPlay();return;}
+  playing=true;document.getElementById('btnPlay').textContent='⏸ 暂停';
+  playTimer=setInterval(()=>{if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();},2200);
+}
+function stopPlay(){playing=false;clearInterval(playTimer);document.getElementById('btnPlay').textContent='▶ 播放';}
+buildStepList();renderStep(0);
+</script>
+</body>
+</html>

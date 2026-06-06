@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Redis Pub/Sub - 发布订阅模型</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#dc382c;--ok:#4ade80;--warn:#fbbf24;--blue:#38bdf8;--purple:#c084fc;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;}
+.page{max-width:960px;margin:0 auto;padding:48px clamp(16px,4vw,48px) 80px;}
+h1{font-size:2.2rem;font-weight:800;margin-bottom:10px;letter-spacing:-.04em;}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:10px;}
+.lead{font-size:1.05rem;color:var(--dim);line-height:1.85;margin-bottom:32px;max-width:680px;}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:40px;}
+.tag{border:1px solid rgba(220,56,44,.3);background:rgba(220,56,44,.08);color:var(--text);border-radius:999px;padding:5px 12px;font-size:.76rem;font-family:monospace;}
+
+h2{font-size:1.15rem;font-weight:700;margin:36px 0 14px;display:flex;align-items:center;gap:8px;}
+h2::before{content:'';display:inline-block;width:3px;height:18px;border-radius:2px;background:var(--accent);}
+h3{font-size:.95rem;font-weight:600;color:var(--text);margin:18px 0 8px;}
+p{color:var(--dim);font-size:.93rem;line-height:1.85;margin-bottom:12px;}
+ul,ol{color:var(--dim);font-size:.93rem;line-height:1.85;padding-left:20px;margin-bottom:12px;}
+li{margin-bottom:4px;}
+strong{color:var(--text);}
+code{background:rgba(255,255,255,.07);padding:1px 6px;border-radius:4px;font-size:.85em;font-family:monospace;color:var(--text);}
+
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:24px;}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px;}
+.card h3{font-size:.88rem;font-weight:600;margin-bottom:6px;}
+.card p{font-size:.82rem;margin:0;}
+
+.vs-table{width:100%;border-collapse:collapse;font-size:.88rem;margin:16px 0;}
+.vs-table th{padding:10px 14px;text-align:left;color:var(--dim);font-weight:600;font-size:.78rem;text-transform:uppercase;border-bottom:2px solid var(--border);}
+.vs-table td{padding:10px 14px;border-bottom:1px solid rgba(51,65,85,.4);vertical-align:top;line-height:1.6;}
+.vs-table tr:last-child td{border-bottom:none;}
+.vs-table tr:hover td{background:rgba(255,255,255,.02);}
+
+.code-block{background:#0d1117;border:1px solid var(--border);border-radius:10px;padding:16px 18px;font-family:monospace;font-size:.82rem;line-height:1.85;color:#94a3b8;margin:12px 0;overflow-x:auto;}
+.code-block .kw{color:#ff7b72;}.code-block .st{color:#a5d6ff;}.code-block .cm{color:#6e7681;}.code-block .fn{color:#d2a8ff;}.code-block .num{color:#79c0ff;}
+
+.alert{border-radius:10px;padding:14px 18px;margin:16px 0;font-size:.88rem;line-height:1.7;}
+.alert-warn{background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.3);color:var(--warn);}
+.alert-info{background:rgba(56,189,248,.07);border:1px solid rgba(56,189,248,.25);color:var(--blue);}
+.alert-ok{background:rgba(74,222,128,.07);border:1px solid rgba(74,222,128,.25);color:var(--ok);}
+
+.back-row{margin-top:40px;display:flex;gap:12px;flex-wrap:wrap;}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:9px 14px;color:var(--dim);background:rgba(255,255,255,.04);font-size:.88rem;}
+.btn:hover{color:var(--text);border-color:var(--accent);}
+@media(max-width:640px){.page{padding:28px 16px 60px;}.vs-table{font-size:.8rem;}}
+</style>
+</head>
+<body>
+<div class="page" data-page-type="B">
+  <div class="eyebrow">Redis / Pub/Sub / B 类型</div>
+  <h1>Redis Pub/Sub</h1>
+  <p class="lead">Redis Pub/Sub 是一个轻量级的发布-订阅消息系统。发布者（Publisher）向频道（Channel）发送消息，订阅者（Subscriber）实时接收。消息不持久化、不确认——这既是它的设计哲学，也是它的核心局限。</p>
+  <div class="tags">
+    <span class="tag">SUBSCRIBE</span><span class="tag">PUBLISH</span><span class="tag">PSUBSCRIBE</span>
+    <span class="tag">频道订阅</span><span class="tag">广播</span><span class="tag">实时通知</span>
+  </div>
+
+  <h2>工作模型</h2>
+  <p>Pub/Sub 是纯粹的<strong>实时广播</strong>：发布者把消息推给当前在线的订阅者，仅此而已。没有队列，没有 offset，没有重试。</p>
+  <div class="card-grid">
+    <div class="card">
+      <h3 style="color:var(--accent)">Publisher（发布者）</h3>
+      <p>执行 <code>PUBLISH channel message</code>，立即广播给该频道的所有订阅者。PUBLISH 返回接收到消息的订阅者数量。</p>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--blue)">Subscriber（订阅者）</h3>
+      <p>执行 <code>SUBSCRIBE channel</code> 后进入订阅模式，连接被"绑定"，只能接收消息，不能执行其他命令。</p>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--purple)">Pattern 订阅</h3>
+      <p><code>PSUBSCRIBE news.*</code> 可通过 glob 模式匹配多个频道。<code>news.tech</code>、<code>news.sports</code> 的消息都会被接收。</p>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--warn)">消息格式</h3>
+      <p>订阅者收到三元组：<code>[type, channel, message]</code>。type 为 <code>message</code>（精确订阅）或 <code>pmessage</code>（模式订阅）。</p>
+    </div>
+  </div>
+
+  <h2>基本命令</h2>
+  <div class="code-block"><span class="cm">-- 订阅者：订阅单个频道</span>
+<span class="kw">SUBSCRIBE</span> notifications
+
+<span class="cm">-- 订阅者：订阅多个频道</span>
+<span class="kw">SUBSCRIBE</span> <span class="st">channel1</span> <span class="st">channel2</span> <span class="st">channel3</span>
+
+<span class="cm">-- 订阅者：使用 glob 模式订阅</span>
+<span class="kw">PSUBSCRIBE</span> <span class="st">news.*</span>          <span class="cm">-- 匹配 news.tech, news.sports 等</span>
+<span class="kw">PSUBSCRIBE</span> <span class="st">user.[0-9]*</span>     <span class="cm">-- 匹配 user.42, user.100 等</span>
+
+<span class="cm">-- 发布者：向频道发送消息</span>
+<span class="kw">PUBLISH</span> notifications <span class="st">"user_login:42"</span>
+<span class="cm">-- 返回: 3 (表示 3 个订阅者收到)</span>
+
+<span class="cm">-- 查询频道信息（不影响订阅）</span>
+<span class="kw">PUBSUB</span> CHANNELS <span class="st">*</span>              <span class="cm">-- 列出所有活跃频道</span>
+<span class="kw">PUBSUB</span> NUMSUB notifications     <span class="cm">-- 频道的订阅者数量</span>
+<span class="kw">PUBSUB</span> NUMPAT                   <span class="cm">-- 模式订阅总数</span>
+
+<span class="cm">-- 退订</span>
+<span class="kw">UNSUBSCRIBE</span> notifications
+<span class="kw">PUNSUBSCRIBE</span> <span class="st">news.*</span></div>
+
+  <h2>核心特性与局限</h2>
+  <div class="alert alert-warn">
+    <strong>消息不持久化，不确认</strong>：订阅者离线期间发布的消息永久丢失。这是 Pub/Sub 的设计选择，不是 bug——它是为实时广播设计的，不是为可靠消息传递设计的。
+  </div>
+  <ul>
+    <li><strong>Fire-and-Forget：</strong>发布者不知道谁收到了消息，消息发出即结束</li>
+    <li><strong>无消息堆积：</strong>订阅者来不及处理时，消息会在服务端缓冲区堆积，超出 <code>client-output-buffer-limit</code> 后订阅者连接被强制断开</li>
+    <li><strong>无消息历史：</strong>新订阅者只能收到订阅之后发布的消息，无法回放历史</li>
+    <li><strong>无 ACK 机制：</strong>消息送达后没有确认，发布者无法感知投递失败</li>
+    <li><strong>单线程广播：</strong>Redis 主线程处理 PUBLISH，频道订阅者过多时会影响 Redis 整体性能</li>
+  </ul>
+
+  <h2>Pub/Sub vs Stream vs 消息队列对比</h2>
+  <table class="vs-table">
+    <thead>
+      <tr><th>特性</th><th>Redis Pub/Sub</th><th>Redis Stream</th><th>Kafka/MQ</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>消息持久化</td><td style="color:var(--bad)">✗ 不持久化</td><td style="color:var(--ok)">✓ 持久化</td><td style="color:var(--ok)">✓ 持久化</td></tr>
+      <tr><td>离线重放</td><td style="color:var(--bad)">✗</td><td style="color:var(--ok)">✓ 从任意 ID 重放</td><td style="color:var(--ok)">✓ 按 offset 重放</td></tr>
+      <tr><td>消息确认</td><td style="color:var(--bad)">✗ 无 ACK</td><td style="color:var(--ok)">✓ XACK</td><td style="color:var(--ok)">✓ offset commit</td></tr>
+      <tr><td>消费者组</td><td style="color:var(--bad)">✗</td><td style="color:var(--ok)">✓</td><td style="color:var(--ok)">✓</td></tr>
+      <tr><td>延迟</td><td style="color:var(--ok)">极低（亚毫秒）</td><td style="color:var(--ok)">低（毫秒级）</td><td style="color:var(--warn)">中（毫秒到秒）</td></tr>
+      <tr><td>适合场景</td><td>实时广播、在线通知</td><td>事件溯源、可靠队列</td><td>高吞吐、持久化队列</td></tr>
+    </tbody>
+  </table>
+
+  <h2>适合使用 Pub/Sub 的场景</h2>
+  <div class="alert alert-ok">
+    <strong>黄金法则：</strong>当消息丢失可接受时，才考虑 Pub/Sub。实时性要求高、可靠性要求低的广播场景是它的主场。
+  </div>
+  <ul>
+    <li><strong>实时在线状态广播：</strong>用户上/下线通知，丢失一次无所谓，下次心跳会更新</li>
+    <li><strong>缓存失效通知：</strong>数据库更新后广播失效指令，订阅者删除本地缓存；即使部分节点未收到，缓存 TTL 会最终一致</li>
+    <li><strong>实时仪表盘推送：</strong>监控数据、聊天室新消息提示，离线用户刷新页面即可获取最新状态</li>
+    <li><strong>分布式进程间通知：</strong>配置变更广播、限流规则推送，丢失后下次同步也可接受</li>
+  </ul>
+  <div class="alert alert-warn">
+    <strong>不适合场景：</strong>订单状态变更、支付通知、任务调度——这些需要可靠投递，应使用 Redis Stream、Kafka 或专业 MQ。
+  </div>
+
+  <h2>Go 代码示例</h2>
+  <div class="code-block"><span class="cm">// 订阅者（go-redis）</span>
+<span class="kw">func</span> <span class="fn">subscriber</span>(rdb *redis.Client) {
+    pubsub := rdb.Subscribe(context.Background(), <span class="st">"notifications"</span>)
+    <span class="kw">defer</span> pubsub.Close()
+
+    <span class="kw">for</span> msg := <span class="kw">range</span> pubsub.Channel() {
+        fmt.Printf(<span class="st">"收到: channel=%s payload=%s\n"</span>,
+            msg.Channel, msg.Payload)
+    }
+}
+
+<span class="cm">// 发布者</span>
+<span class="kw">func</span> <span class="fn">publisher</span>(rdb *redis.Client, msg string) {
+    n, err := rdb.Publish(context.Background(),
+        <span class="st">"notifications"</span>, msg).Result()
+    <span class="cm">// n = 收到消息的订阅者数量</span>
+    fmt.Printf(<span class="st">"投递给 %d 个订阅者\n"</span>, n)
+}
+
+<span class="cm">// 模式订阅</span>
+<span class="kw">func</span> <span class="fn">patternSubscriber</span>(rdb *redis.Client) {
+    pubsub := rdb.PSubscribe(context.Background(), <span class="st">"user.*"</span>)
+    <span class="kw">for</span> msg := <span class="kw">range</span> pubsub.Channel() {
+        <span class="cm">// msg.Pattern = "user.*"</span>
+        <span class="cm">// msg.Channel = "user.42" (实际频道名)</span>
+        fmt.Println(msg.Pattern, msg.Channel, msg.Payload)
+    }
+}</div>
+
+  <h2>常见误区</h2>
+  <ul>
+    <li><strong>误区 1：用 Pub/Sub 做任务队列</strong> — 消息不持久化，消费者宕机消息丢失，应改用 Stream 或 List</li>
+    <li><strong>误区 2：频道数量无限制</strong> — 每个活跃频道消耗内存，模式订阅需要全量匹配，高频道数量影响 PUBLISH 性能</li>
+    <li><strong>误区 3：订阅模式下可执行普通命令</strong> — 进入订阅模式后连接只能用 SUBSCRIBE/UNSUBSCRIBE/PING/QUIT</li>
+    <li><strong>误区 4：PUBLISH 成功 = 消息必然送达</strong> — 订阅者消费太慢超出缓冲区会被踢下线，消息丢失</li>
+  </ul>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← Redis 模块首页</a>
+    <a class="btn" href="redis-stream.html">Redis Stream</a>
+    <a class="btn" href="pipeline.html">Pipeline</a>
+    <a class="btn" href="data-types.html">数据类型</a>
+  </div>
+</div>
+</body>
+</html>

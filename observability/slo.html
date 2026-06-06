@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SLO & Error Budget - 可观测性</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#4ade80;--ok:#4ade80;--warn:#fbbf24;--err:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:radial-gradient(circle at 20% 0%,rgba(74,222,128,.1),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1260px;margin:0 auto;padding:40px 32px 80px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--dim2);margin-bottom:24px}
+.breadcrumb a{color:var(--dim2)}.breadcrumb a:hover{color:var(--text)}
+.page-title{font-size:clamp(1.6rem,3.5vw,2.8rem);letter-spacing:-.04em;margin-bottom:6px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{color:var(--dim);font-size:.95rem;margin-bottom:28px;max-width:640px;line-height:1.75}
+.layout{display:grid;grid-template-columns:240px 1fr;gap:20px}
+.left-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:18px}
+.left-panel h3{font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px}
+.step-btn{width:100%;text-align:left;border:1px solid transparent;background:none;color:var(--dim);padding:9px 12px;border-radius:10px;cursor:pointer;font-size:.82rem;line-height:1.5;transition:.15s;margin-bottom:4px;display:block}
+.step-btn:hover{border-color:rgba(74,222,128,.3);color:var(--text)}
+.step-btn.active{background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.4);color:var(--text)}
+.step-index{display:inline-block;width:18px;height:18px;border-radius:50%;background:rgba(74,222,128,.15);color:var(--accent);font-size:.68rem;font-weight:700;text-align:center;line-height:18px;margin-right:7px}
+.ctrl{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.ctrl button{flex:1;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:10px;padding:8px 4px;cursor:pointer;font-size:.76rem;transition:.15s}
+.ctrl button:hover{border-color:var(--accent);color:var(--text)}
+.center-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:22px;min-height:540px;display:flex;flex-direction:column;gap:16px}
+.step-msg{border-left:3px solid var(--accent);background:rgba(74,222,128,.06);border-radius:0 10px 10px 0;padding:10px 14px;font-size:.86rem;color:var(--text);line-height:1.7}
+/* SLO metrics */
+.slo-row{display:flex;gap:12px}
+.slo-card{flex:1;border:1px solid rgba(255,255,255,.07);background:rgba(30,41,59,.5);border-radius:10px;padding:12px 14px}
+.slo-card.warning{border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.06)}
+.slo-card.critical{border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.06)}
+.slo-label{font-size:.7rem;color:var(--dim2);margin-bottom:5px}
+.slo-value{font-size:1.5rem;font-weight:700;font-family:monospace}
+/* Budget chart */
+.budget-chart{border:1px solid rgba(255,255,255,.07);border-radius:10px;overflow:hidden;height:200px;position:relative;background:rgba(17,24,39,.5)}
+canvas{width:100%;height:100%}
+/* Timeline */
+.timeline{height:24px;background:rgba(30,41,59,.5);border-radius:6px;overflow:hidden;position:relative;margin-top:8px}
+.timeline-fill{height:100%;border-radius:6px;transition:width .5s;display:flex;align-items:center;padding:0 10px;font-size:.72rem;font-weight:600}
+/* Deploy button */
+.deploy-btn{display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);border-radius:10px;padding:10px 16px;font-size:.82rem;cursor:pointer;transition:.2s;color:var(--text)}
+.deploy-btn:disabled{opacity:0.4;cursor:not-allowed;border-color:rgba(248,113,113,.3);background:rgba(248,113,113,.06);color:var(--err)}
+.event-list{display:flex;flex-direction:column;gap:6px}
+.event-item{border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:8px 12px;font-size:.78rem;display:flex;align-items:center;gap:8px;transition:all .4s;opacity:0}
+.event-item.show{opacity:1}
+.event-item.incident{border-color:rgba(248,113,113,.3);background:rgba(248,113,113,.06)}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">可观测性</a><span>/</span>SLO & Error Budget</div>
+  <h1 class="page-title">SLO & Error Budget</h1>
+  <p class="subtitle">SLO（服务级别目标）定义了服务质量承诺（如 99.9% 月可用性），对应的 Error Budget 是允许的最大故障时间（约 43 分钟/月）。每次故障消耗预算，预算耗尽时冻结发布，强制工程团队优先修复可靠性问题。</p>
+
+  <div class="layout">
+    <div class="left-panel">
+      <h3>步骤</h3>
+      <div id="stepList"></div>
+      <div class="ctrl">
+        <button onclick="prev()">← 上一步</button>
+        <button onclick="next()">下一步 →</button>
+        <button onclick="reset()">重置</button>
+        <button id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      </div>
+    </div>
+    <div class="center-panel">
+      <div class="step-msg" id="stepMsg">点击"下一步"观察 Error Budget 的消耗和管理过程。</div>
+
+      <div class="slo-row">
+        <div class="slo-card">
+          <div class="slo-label">SLO 目标</div>
+          <div class="slo-value" style="color:var(--ok)">99.9%</div>
+        </div>
+        <div class="slo-card" id="availCard">
+          <div class="slo-label">本月实际可用性</div>
+          <div class="slo-value" id="availValue" style="color:var(--ok)">100.0%</div>
+        </div>
+        <div class="slo-card" id="budgetCard">
+          <div class="slo-label">剩余 Error Budget</div>
+          <div class="slo-value" id="budgetValue" style="color:var(--ok)">43min</div>
+        </div>
+        <div class="slo-card" id="burnCard">
+          <div class="slo-label">Burn Rate（消耗速率）</div>
+          <div class="slo-value" id="burnValue" style="color:var(--ok)">0x</div>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Error Budget 燃尽图（本月）</div>
+        <div class="budget-chart"><canvas id="budgetCanvas"></canvas></div>
+        <div style="font-size:.68rem;color:var(--dim2);margin-top:4px">横轴：当月天数（1~30） | 纵轴：剩余预算（分钟）</div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="deploy-btn" id="deployBtn" onclick="null">🚀 发布新版本</button>
+        <div id="deployStatus" style="font-size:.8rem;color:var(--dim)"></div>
+      </div>
+
+      <div>
+        <div style="font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">事件时间线</div>
+        <div class="event-list" id="eventList"></div>
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+const STEPS = [
+  {day:1,avail:100.0,budget:43,burn:0,events:[],deployEnabled:true,
+   msg:'月初：SLO = 99.9%，允许的月故障时间 = 43分钟（30天×24h×60min×0.1%）。Error Budget 满额，所有发布正常进行。'},
+  {day:8,avail:99.95,budget:35,burn:1,events:['Day 3: 发布 v1.2，耗时 3min 部署停机（-3min）','Day 6: 发布 v1.3，成功，0 故障'],deployEnabled:true,
+   msg:'第 8 天：经过两次发布，累计消耗约 8 分钟 Error Budget（3min 发布停机 + 5min 告警响应延迟），剩余 35 分钟。Burn Rate = 1x（刚好在正常消耗速度）。'},
+  {day:15,avail:99.92,budget:14,burn:3,events:['Day 3: 发布 v1.2，3min 停机','Day 6: 发布 v1.3，成功','Day 12: 🔴 数据库故障，停机 21min'],deployEnabled:true,
+   msg:'第 12 天：数据库主从切换失败，停机 21 分钟！Error Budget 从 35min 急剧降至 14min。Burn Rate 升至 3x（消耗速度是预算分配速度的 3 倍），需要告警。'},
+  {day:20,avail:99.89,budget:2,burn:6,events:['Day 3: 发布 v1.2，3min 停机','Day 6: 发布 v1.3，成功','Day 12: 🔴 数据库故障，21min','Day 18: 🔴 CDN 故障，12min'],deployEnabled:false,
+   msg:'⚠ 第 18 天：CDN 配置错误，再次停机 12 分钟，Error Budget 几乎耗尽（仅剩 2 分钟）。发布冻结！本月剩余 10 天不允许发布新版本，工程资源转向可靠性改善。'},
+  {day:25,avail:99.89,budget:2,burn:0,events:['Day 3: 发布 v1.2，3min 停机','Day 6: 发布 v1.3，成功','Day 12: 🔴 数据库故障，21min','Day 18: 🔴 CDN 故障，12min','Day 19-25: ✅ 稳定运行，修复数据库 HA 配置'],deployEnabled:false,
+   msg:'发布冻结期间（Day 19-25）：工程团队专注修复数据库高可用配置、CDN 变更流程管控。服务稳定运行，不再消耗 Budget。下月 Budget 将重置为 43 分钟。'},
+  {day:30,avail:99.89,budget:2,burn:0,events:['Day 3: 发布 v1.2，3min 停机','Day 12: 🔴 数据库故障，21min','Day 18: 🔴 CDN 故障，12min','Day 19-30: ✅ 稳定，改善可靠性'],deployEnabled:false,
+   msg:'月底：实际可用性 99.89%，低于 SLO 目标 99.9%。本月违反 SLO，SRE 团队需要复盘（Postmortem），改善监控告警、自动化故障转移，下月争取消耗在合理范围内。'},
+];
+
+let cur = -1, timer = null;
+
+function drawBudgetChart(day, budget){
+  const canvas = document.getElementById('budgetCanvas');
+  const W = canvas.offsetWidth || 700, H = 200;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  const maxBudget = 43;
+  const totalDays = 30;
+  // Grid
+  ctx.strokeStyle = 'rgba(255,255,255,.05)';
+  ctx.lineWidth = 1;
+  for(let i=0;i<=5;i++){
+    const y = H - (i/5)*H*0.85 - H*0.05;
+    ctx.beginPath(); ctx.moveTo(40,y); ctx.lineTo(W-10,y); ctx.stroke();
+    ctx.fillStyle = 'rgba(148,163,184,.5)';
+    ctx.font = '10px monospace';
+    ctx.fillText(Math.round(i/5*maxBudget)+'m', 2, y+4);
+  }
+  // Budget line (ideal linear burn)
+  ctx.setLineDash([5,4]);
+  ctx.strokeStyle = 'rgba(148,163,184,.3)';
+  ctx.beginPath();
+  ctx.moveTo(40, H*0.07);
+  ctx.lineTo(W-10, H-H*0.07);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // Actual budget line
+  const events = [
+    {day:0,budget:43},{day:3,budget:40},{day:6,budget:38},
+    {day:12,budget:17},{day:18,budget:5},{day:20,budget:2},{day:30,budget:2}
+  ];
+  ctx.beginPath();
+  ctx.strokeStyle = budget > 20 ? '#4ade80' : budget > 8 ? '#fbbf24' : '#f87171';
+  ctx.lineWidth = 2;
+  events.forEach((e,i) => {
+    const x = 40 + (e.day/totalDays)*(W-50);
+    const y = H - (e.budget/maxBudget)*H*0.85 - H*0.05;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    if(e.day <= day) {
+      ctx.fillStyle = e.budget < 5 ? '#f87171' : '#94a3b8';
+      ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2); ctx.fill();
+      ctx.beginPath();
+    }
+  });
+  // Only draw up to current day
+  const curBudget = budget;
+  const curX = 40 + (day/totalDays)*(W-50);
+  const curY = H - (curBudget/maxBudget)*H*0.85 - H*0.05;
+  ctx.beginPath();
+  ctx.strokeStyle = budget > 20 ? '#4ade80' : budget > 8 ? '#fbbf24' : '#f87171';
+  ctx.lineWidth = 2;
+  const drawEvents = events.filter(e => e.day <= day);
+  drawEvents.forEach((e,i) => {
+    const x = 40 + (e.day/totalDays)*(W-50);
+    const y = H - (e.budget/maxBudget)*H*0.85 - H*0.05;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+  // Current day marker
+  ctx.strokeStyle = 'rgba(255,255,255,.2)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(curX,H*0.05); ctx.lineTo(curX,H-H*0.05); ctx.stroke();
+  ctx.setLineDash([]);
+  // X axis labels
+  ctx.fillStyle = 'rgba(148,163,184,.5)';
+  ctx.font = '10px monospace';
+  [1,5,10,15,20,25,30].forEach(d => {
+    const x = 40 + (d/totalDays)*(W-50);
+    ctx.fillText(''+d, x-4, H-2);
+  });
+}
+
+function render(){
+  const step = cur >= 0 ? STEPS[cur] : STEPS[0];
+  document.getElementById('stepMsg').textContent = cur >= 0 ? step.msg : '点击"下一步"观察 Error Budget 的消耗和管理过程。';
+  const aEl = document.getElementById('availValue');
+  aEl.textContent = step.avail.toFixed(2)+'%';
+  aEl.style.color = step.avail >= 99.9 ? 'var(--ok)' : step.avail >= 99.5 ? 'var(--warn)' : 'var(--err)';
+  document.getElementById('availCard').className = 'slo-card' + (step.avail < 99.9 ? ' warning' : '');
+  const bEl = document.getElementById('budgetValue');
+  bEl.textContent = step.budget + 'min';
+  bEl.style.color = step.budget > 20 ? 'var(--ok)' : step.budget > 8 ? 'var(--warn)' : 'var(--err)';
+  document.getElementById('budgetCard').className = 'slo-card' + (step.budget <= 8 ? ' critical' : step.budget <= 20 ? ' warning' : '');
+  const burnEl = document.getElementById('burnValue');
+  burnEl.textContent = step.burn + 'x';
+  burnEl.style.color = step.burn <= 1 ? 'var(--ok)' : step.burn <= 3 ? 'var(--warn)' : 'var(--err)';
+  document.getElementById('burnCard').className = 'slo-card' + (step.burn > 3 ? ' critical' : step.burn > 1 ? ' warning' : '');
+  drawBudgetChart(step.day, step.budget);
+  const deployBtn = document.getElementById('deployBtn');
+  deployBtn.disabled = !step.deployEnabled;
+  document.getElementById('deployStatus').textContent = step.deployEnabled ? '✓ 可以发布（Budget 充足）' : '⛔ 发布冻结（Budget 耗尽）';
+  document.getElementById('deployStatus').style.color = step.deployEnabled ? 'var(--ok)' : 'var(--err)';
+  const list = document.getElementById('eventList');
+  list.innerHTML = '';
+  step.events.forEach(e => {
+    const div = document.createElement('div');
+    div.className = 'event-item show' + (e.includes('🔴') ? ' incident' : '');
+    div.innerHTML = `<span>${e.includes('🔴')?'🔴':e.includes('✅')?'✅':'📌'}</span><span>${e}</span>`;
+    list.appendChild(div);
+  });
+  buildStepList();
+}
+
+function buildStepList(){
+  const list = document.getElementById('stepList');
+  list.innerHTML = '';
+  STEPS.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-btn' + (i === cur ? ' active' : '');
+    btn.innerHTML = `<span class="step-index">${i+1}</span>Day ${s.day}：${s.budget}min`;
+    btn.onclick = () => { cur = i; render(); };
+    list.appendChild(btn);
+  });
+}
+
+function next(){ if(cur < STEPS.length-1){ cur++; render(); } }
+function prev(){ if(cur > -1){ cur--; render(); } }
+function reset(){ cur = -1; stopPlay(); render(); }
+function togglePlay(){ if(timer) stopPlay(); else startPlay(); }
+function startPlay(){
+  document.getElementById('playBtn').textContent = '⏸ 暂停';
+  timer = setInterval(() => {
+    if(cur < STEPS.length-1){ cur++; render(); } else stopPlay();
+  }, 2200);
+}
+function stopPlay(){
+  if(timer){ clearInterval(timer); timer = null; }
+  document.getElementById('playBtn').textContent = '▶ 播放';
+}
+
+render();
+</script>
+</body>
+</html>

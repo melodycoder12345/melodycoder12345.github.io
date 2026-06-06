@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Systemd - Linux</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#38bdf8;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 60% 0%,color-mix(in srgb,var(--accent) 10%,transparent),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+.content{max-width:1100px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px;margin-bottom:28px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,3.4rem);line-height:1.05;letter-spacing:-.05em;margin-bottom:14px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:999px;padding:5px 9px;font-size:.75rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);border-radius:14px;padding:12px 14px}
+.concept-list strong{display:block;font-size:.86rem;margin-bottom:3px}
+.concept-list span{display:block;color:var(--dim);font-size:.8rem;line-height:1.6}
+.body{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.section{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.6);border-radius:18px;padding:22px}
+.section h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px}
+.section p,.section li{color:var(--dim);font-size:.9rem;line-height:1.85}
+.section ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.section code{background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;font-size:.82rem}
+.code-block{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px;font-family:monospace;font-size:.78rem;color:var(--dim);overflow-x:auto;margin-top:10px;line-height:1.7}
+.back-row{margin-top:22px;display:flex;gap:12px}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text)}
+@media(max-width:900px){.hero,.body{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Unit 文件","body":"systemd 的配置单元，描述如何管理一个服务、挂载点、设备等。文件格式为 INI 风格，包含 [Unit]/[Service]/[Install] 等段。存放在 /etc/systemd/system/（管理员）和 /lib/systemd/system/（发行版）。","tag":"term"},
+  {"title":"依赖与排序","body":"Requires=强依赖（目标失败则自己也失败），Wants=弱依赖（目标失败不影响自己），After=/Before=控制启动顺序（不影响依赖关系）。使用 systemd-analyze dot 可视化依赖图。","tag":"term"},
+  {"title":"Cgroup 集成","body":"systemd 为每个服务分配独立的 cgroup，实现进程生命周期管理（服务停止时强制 kill 所有子进程）和资源限制（CPUQuota/MemoryLimit）。","tag":"term"},
+  {"title":"socket activation","body":"systemd 预先创建 socket 并监听，服务按需启动。客户端连接时才拉起服务进程，文件描述符直接传递。实现零停机重启：重启服务期间 socket 依然监听，不丢连接。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="B">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">Linux / Systemd / B 类型</div>
+      <h1>Systemd</h1>
+      <p class="summary">Systemd 是现代 Linux 的 PID 1 和服务管理器，替代了 SysVinit 和 Upstart。它并行启动服务、管理依赖、集成日志（journald）、管理 cgroup、处理挂载/网络，并提供统一的 <code>systemctl</code> 接口。理解 systemd 的 Unit 文件结构、依赖系统、socket activation 和资源限制是运维和后端开发的基础技能。</p>
+      <div class="tags"><span>systemctl</span><span>unit</span><span>journald</span><span>socket activation</span><span>cgroup</span><span>target</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>Unit 文件</strong><span>INI 格式配置，描述服务/挂载/设备/定时器等。</span></li>
+        <li><strong>依赖与排序</strong><span>Requires/Wants 控制依赖，After/Before 控制顺序。</span></li>
+        <li><strong>Cgroup 集成</strong><span>每个服务有独立 cgroup，管理资源限制和进程生命周期。</span></li>
+        <li><strong>socket activation</strong><span>socket 预创建，服务按需启动，支持零停机重启。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="body">
+    <section class="section">
+      <h2>Unit 文件结构</h2>
+      <div class="code-block">
+# /etc/systemd/system/myapp.service
+[Unit]
+Description=My Application
+Documentation=https://example.com
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=appuser
+Group=appgroup
+WorkingDirectory=/opt/myapp
+ExecStart=/opt/myapp/bin/server --port 8080
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+
+# 资源限制
+CPUQuota=200%
+MemoryMax=512M
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target</div>
+    </section>
+    <section class="section">
+      <h2>常用 systemctl 命令</h2>
+      <div class="code-block">
+# 服务管理
+systemctl start|stop|restart|reload myapp
+systemctl enable|disable myapp  # 开机启动
+systemctl status myapp          # 当前状态
+systemctl is-active myapp       # 脚本判断
+
+# 查看日志
+journalctl -u myapp -f          # 实时日志
+journalctl -u myapp --since "1h ago"
+journalctl -u myapp -n 100 -p err  # 最近100条错误
+
+# 系统分析
+systemd-analyze blame           # 各服务启动耗时
+systemd-analyze critical-chain  # 关键路径
+systemd-analyze dot | dot -Tpdf > deps.pdf</div>
+    </section>
+    <section class="section">
+      <h2>Service Type 类型</h2>
+      <ul>
+        <li><strong>simple（默认）：</strong>ExecStart 的进程是主进程，systemd 认为启动后服务即就绪</li>
+        <li><strong>forking：</strong>服务会 fork 后台进程，需指定 PIDFile，systemd 以子进程为主进程</li>
+        <li><strong>notify：</strong>服务调用 <code>sd_notify("READY=1")</code> 通知 systemd 已就绪，推荐</li>
+        <li><strong>exec：</strong>类似 simple，但只有 exec 成功才认为启动成功</li>
+        <li><strong>oneshot：</strong>执行一次就退出，常用于 ExecStartPre 初始化脚本</li>
+        <li><strong>idle：</strong>等所有任务完成后才启动（如 getty 登录提示）</li>
+      </ul>
+    </section>
+    <section class="section">
+      <h2>依赖关系详解</h2>
+      <ul>
+        <li><strong>Requires=：</strong>强依赖，若目标停止或失败，本服务也跟着停止</li>
+        <li><strong>Wants=：</strong>弱依赖，目标失败本服务不受影响，推荐用于可选依赖</li>
+        <li><strong>BindsTo=：</strong>比 Requires 更强，目标不活跃时立即停止自身</li>
+        <li><strong>PartOf=：</strong>声明属于某个组，停止/重启父 unit 时一起操作</li>
+        <li><strong>After=/Before=：</strong>只控制启动顺序，不建立依赖，两者独立</li>
+        <li><strong>Conflicts=：</strong>与指定 unit 互斥，启动时自动停止对方</li>
+        <li>网络依赖：<code>After=network-online.target</code>（网络完全就绪）vs <code>After=network.target</code>（网络接口启动）</li>
+      </ul>
+    </section>
+    <section class="section">
+      <h2>Socket Activation</h2>
+      <ul>
+        <li>systemd 预创建 socket，监听端口，服务进程按需拉起</li>
+        <li>服务通过 <code>SD_LISTEN_FDS</code> 环境变量获取 socket fd（从 fd=3 开始）</li>
+        <li>重启服务期间 socket 仍在监听，不会拒绝连接（零停机重启）</li>
+      </ul>
+      <div class="code-block">
+# myapp.socket
+[Socket]
+ListenStream=0.0.0.0:8080
+Accept=no
+
+[Install]
+WantedBy=sockets.target
+
+# 服务只需 .socket 激活，不需要 After=network.target
+# Go 代码使用：listener, _ := activation.Listeners()</div>
+    </section>
+    <section class="section">
+      <h2>Timer 定时任务</h2>
+      <div class="code-block">
+# backup.timer - 替代 cron
+[Unit]
+Description=Daily Backup
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true  # 错过执行时追补
+RandomizedDelaySec=10min  # 避免惊群
+
+[Install]
+WantedBy=timers.target
+
+# backup.service 对应服务文件
+# 查看定时器状态
+systemctl list-timers --all</div>
+      <ul style="margin-top:10px">
+        <li><strong>OnCalendar：</strong>日历表达式，如 <code>weekly</code> / <code>Mon 09:00</code></li>
+        <li><strong>OnBootSec：</strong>启动后多久执行</li>
+        <li><strong>Persistent=true：</strong>系统关机期间错过的执行，开机后补跑</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← Linux 首页</a>
+    <a class="btn" href="perf-tools.html">性能工具</a>
+  </div>
+</main>
+</body>
+</html>

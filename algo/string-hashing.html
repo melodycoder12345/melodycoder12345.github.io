@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>字符串哈希 - 算法</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#f59e0b;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 30% 0%,color-mix(in srgb,var(--accent) 10%,transparent),transparent 36%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,3.6rem);line-height:1.04;letter-spacing:-.05em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:200px minmax(0,1fr);gap:16px;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:12px;display:flex;flex-direction:column;gap:8px}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:10px;padding:9px 11px;cursor:pointer;font-family:inherit;transition:all .16s;font-size:.82rem}
+.step-btn:hover{color:var(--text)}.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.step-btn b{display:block;font-size:.7rem;color:var(--accent);margin-bottom:2px}
+.viz{padding:16px;display:flex;flex-direction:column;gap:12px}
+.stage{border:1px solid rgba(255,255,255,.06);border-radius:14px;background:rgba(15,23,42,.64);padding:14px}
+.status{border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:13px;background:rgba(255,255,255,.035)}
+.status h2{font-size:.95rem;margin-bottom:5px;color:var(--text)}
+.status p{color:var(--dim);font-size:.86rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:6px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.collision{border-color:var(--bad);color:var(--bad)}
+.controls{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:7px 11px;cursor:pointer;font-family:inherit;font-size:.83rem}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.deep code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.82rem;color:var(--text)}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:900px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+
+/* String display */
+.str-row{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:8px;align-items:flex-end;}
+.str-char{display:flex;flex-direction:column;align-items:center;gap:2px;}
+.char-box{width:32px;height:32px;border-radius:5px;border:1.5px solid rgba(255,255,255,.15);background:rgba(255,255,255,.04);display:flex;align-items:center;justify-content:center;font-family:monospace;font-size:.85rem;transition:all .3s;}
+.char-box.window{border-color:var(--accent);background:rgba(245,158,11,.12);}
+.char-box.leaving{border-color:rgba(248,113,113,.5);background:rgba(248,113,113,.1);}
+.char-box.entering{border-color:var(--ok);background:rgba(74,222,128,.1);}
+.char-box.collision{border-color:var(--bad);background:rgba(248,113,113,.15);animation:blink .4s 3;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.char-idx{font-size:.6rem;color:var(--dim2);font-family:monospace;}
+
+/* Hash formula */
+.hash-formula{font-family:monospace;font-size:.78rem;padding:10px;border:1px solid rgba(255,255,255,.06);border-radius:8px;background:rgba(255,255,255,.02);line-height:1.9;}
+.hash-op{color:var(--accent);}
+.hash-val{color:var(--ok);}
+.hash-remove{color:var(--bad);text-decoration:line-through;}
+.hash-add{color:var(--ok);}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"滚动哈希（Rabin-Karp）","body":"将长度为 k 的窗口内的字符串映射为一个整数（哈希值）。当窗口向右滑动时，不重新计算整个窗口的哈希，而是：减去最左字符的贡献（× base^(k-1)）+ 加上新字符。O(1) 时间完成哈希更新，总时间 O(n)。","tag":"term"},
+  {"title":"哈希碰撞","body":"两个不同的字符串映射到相同哈希值。使用大模数（10^9+7，10^9+9）和质数 base 降低碰撞概率；或使用双哈希（两组不同参数）几乎消除碰撞。碰撞发生时需要逐字符比对验证（fallback）。","tag":"term"},
+  {"title":"字符串哈希应用","body":"字符串搜索（Rabin-Karp 子串匹配）、查找最长重复子串（二分 + 哈希集合）、检测重复子字符串。比 KMP 实现简单，但有碰撞风险；比暴力 O(n×k) 快，但有隐藏常数。","tag":"term"},
+  {"title":"多模式匹配中的优势","body":"同时搜索多个模式串时，先哈希所有模式串放入集合，滑动窗口计算文本哈希，命中则验证。比 Aho-Corasick 实现简单，适合模式数量不固定或运行时动态添加模式的场景。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="A">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">算法 / 字符串 / A 类型</div>
+      <h1>字符串哈希</h1>
+      <p class="summary">滚动哈希（Rabin-Karp）将 k 长窗口映射为整数，窗口滑动时 O(1) 更新：减去最左字符 × base^(k-1)，加上新字符。动画展示窗口从左向右滑动，哈希值变化公式在窗口下方实时更新；发生哈希碰撞时（两个不同窗口值相同）触发红框高亮，然后启动逐字符比对（fallback）验证。</p>
+      <div class="tags"><span>Rabin-Karp</span><span>滚动哈希</span><span>字符串匹配</span><span>哈希碰撞</span><span>双哈希</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>滚动哈希</strong><span>O(1) 滑动窗口哈希更新，减左加右，总 O(n) 时间。</span></li>
+        <li><strong>哈希碰撞</strong><span>不同字符串映射相同值，碰撞时逐字符 fallback 验证。</span></li>
+        <li><strong>双哈希</strong><span>两组不同参数，碰撞概率降到 1/(10^18) 量级。</span></li>
+        <li><strong>应用</strong><span>子串匹配、最长重复子串、多模式匹配。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">步骤</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+
+    <section class="panel viz">
+      <!-- String + window -->
+      <div class="stage">
+        <div style="font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">文本串（搜索 "abc"，k=3，base=31，mod=1e9+7）</div>
+        <div class="str-row" id="strRow"></div>
+        <div class="hash-formula" id="hashFormula"></div>
+      </div>
+      <!-- Pattern + result -->
+      <div class="stage">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <div style="font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">模式串（pattern）</div>
+            <div class="str-row" id="patRow"></div>
+            <div style="font-size:.78rem;font-family:monospace;margin-top:8px;">hash("abc") = <span id="patHash" style="color:var(--accent);">--</span></div>
+          </div>
+          <div>
+            <div style="font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">匹配结果</div>
+            <div id="matchResult" style="font-size:.78rem;font-family:monospace;color:var(--dim);"></div>
+          </div>
+        </div>
+      </div>
+      <div class="status">
+        <div id="stepBadge" class="badge">初始</div>
+        <h2 id="statusTitle">初始化：计算模式串哈希</h2>
+        <p id="statusDesc">点击播放，观察滚动哈希窗口从左向右移动，哈希值 O(1) 更新。</p>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnPrev" onclick="goPrev()" disabled>◀ 上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+        <button class="ctrl" id="btnNext" onclick="goNext()">下一步 ▶</button>
+        <button class="ctrl" onclick="reset()" style="margin-left:auto">↺ 重置</button>
+      </div>
+    </section>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>滚动哈希公式</h2>
+      <ul>
+        <li>hash(s[i..i+k-1]) = Σ s[j] × base^(i+k-1-j) mod M，j 从 i 到 i+k-1</li>
+        <li><strong>滑动：</strong>hash[i+1..i+k] = (hash[i..i+k-1] - s[i] × base^(k-1)) × base + s[i+k]</li>
+        <li>预计算 base^(k-1) 和所有前缀哈希：O(n) 预处理，O(1) 查询任意子串哈希</li>
+        <li>前缀哈希：prefix[i] = hash(s[0..i-1])，任意子串 hash(s[l..r]) = prefix[r+1] - prefix[l] × base^(r-l+1)</li>
+      </ul>
+    </section>
+    <section>
+      <h2>参数选择</h2>
+      <ul>
+        <li><strong>base：</strong>通常选 131 或 31（字母集大小附近的质数）</li>
+        <li><strong>模数 M：</strong>选大质数，常用 10^9+7, 10^9+9, 10^18+9，单哈希约 1/M 碰撞概率</li>
+        <li><strong>双哈希：</strong>使用两组 (base, M)，碰撞概率约 1/(M1 × M2) ≈ 1/10^18</li>
+        <li>自然溢出：用 unsigned long long（2^64 取模），省去显式取模操作，稍快但碰撞概率略高</li>
+      </ul>
+    </section>
+    <section>
+      <h2>与 KMP/AC 自动机对比</h2>
+      <ul>
+        <li><strong>哈希：</strong>实现简单，O(n) 搜索，有碰撞风险；多模式时先哈希入集合，O(n) 扫描</li>
+        <li><strong>KMP：</strong>O(n+m) 无碰撞，但单模式；构建失配表需要理解较难</li>
+        <li><strong>Z 算法：</strong>O(n+m)，类似 KMP，代码更简洁</li>
+        <li><strong>AC 自动机：</strong>O(n+Σm) 多模式匹配，无碰撞风险；但实现复杂</li>
+        <li>竞赛中哈希常见：快速实现+低碰撞概率，用于找最长重复子串（二分+哈希集合）</li>
+      </ul>
+    </section>
+    <section>
+      <h2>最长重复子串问题</h2>
+      <ul>
+        <li>目标：找字符串中最长的出现两次或以上的子串</li>
+        <li><strong>算法：</strong>二分子串长度 k + 哈希集合判断重复</li>
+        <li>对于每个长度 k：O(n) 计算所有长度 k 子串的哈希，存入集合，若有重复则存在重复子串</li>
+        <li>时间复杂度：O(n log n)（二分 × 每次 O(n) 哈希检查）</li>
+        <li>后缀数组/后缀自动机可 O(n) 解决，但实现更复杂；竞赛中哈希+二分够用</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← 算法首页</a>
+    <a class="btn" href="aho-corasick.html">AC 自动机</a>
+  </div>
+</main>
+<script>
+const TEXT='abcxabc';
+const PATTERN='abc';
+const K=3;
+const BASE=31;
+const MOD=1e9+7;
+
+// Precompute simple hash values for illustration
+function simpleHash(s){
+  let h=0,b=1;
+  for(let i=s.length-1;i>=0;i--){
+    h=(h+(s.charCodeAt(i)-96)*b)%1000;
+    b=b*31%1000;
+  }
+  return h;
+}
+
+const patHashVal=simpleHash(PATTERN);
+
+const STEPS=[
+  {
+    label:'计算模式串哈希',
+    title:'初始化：计算 pattern="abc" 的哈希值',
+    badge:'初始',
+    desc:'计算模式串 "abc" 的哈希值：hash = (1×31² + 2×31 + 3) mod M = 基础哈希值（简化展示）。后续每个窗口哈希值将与此值比较。',
+    window:null,
+    formula:`hash("abc") = (a×31² + b×31 + c×1) mod M\n       = (1×961 + 2×31 + 3×1) mod M\n       = ${patHashVal}`,
+    collision:false,matchAt:null
+  },
+  {
+    label:'窗口[0-2]："abc"',
+    title:'窗口 [0,2]："abc"，哈希值 = 计算',
+    badge:'滑动',
+    desc:'初始窗口覆盖 s[0..2]="abc"。hash("abc")=hash(pattern)，命中！触发逐字符验证（a==a, b==b, c==c），确认匹配，在位置 0 记录一个匹配。',
+    window:{start:0,end:2,type:'enter'},
+    formula:`hash(s[0..2]) = hash("abc")\n= (a×31² + b×31 + c) = ${patHashVal}\n✓ 与 pattern hash 相等，验证通过 → 匹配!`,
+    collision:false,matchAt:0
+  },
+  {
+    label:'窗口[1-3]："bcx"，滚动更新',
+    title:'窗口右移：hash("bcx") = O(1) 更新',
+    badge:'O(1)更新',
+    desc:'窗口从 [0,2] 移动到 [1,3]。O(1) 滚动更新：减去 s[0]="a" 的贡献（×31²），乘以 base，加上新字符 s[3]="x"。新哈希值与 pattern 哈希不同，跳过，不需要逐字符比对。',
+    window:{start:1,end:3,type:'roll',leaving:0,entering:3},
+    formula:`hash[1..3] = (hash[0..2] - a×31²) × 31 + x\n= (${patHashVal} - 961) × 31 + 24\n= 新哈希值 ≠ ${patHashVal}\n跳过（不需要逐字符比对）`,
+    collision:false,matchAt:null
+  },
+  {
+    label:'窗口[2-4]："cxa"，继续滚动',
+    title:'窗口滚动到 [2,4]："cxa"',
+    badge:'滑动',
+    desc:'继续 O(1) 滚动：减去 s[1]="b"，加入 s[4]="a"。哈希值不同，跳过。累积处理了 3 个窗口，仅计算了 1 次完整哈希（初始）+ 2 次 O(1) 更新。',
+    window:{start:2,end:4,type:'roll',leaving:1,entering:4},
+    formula:`hash[2..4] = (hash[1..3] - b×31²) × 31 + a\n≠ ${patHashVal}，跳过`,
+    collision:false,matchAt:null
+  },
+  {
+    label:'窗口[4-6]："abc"，再次命中',
+    title:'窗口 [4,6]："abc"，第二次匹配，验证',
+    badge:'命中',
+    desc:'窗口到达 [4,6]="abc"，哈希值再次等于 patternHash！进行逐字符验证（a==a, b==b, c==c），确认第二个匹配位置 4。最终找到两个匹配：位置 0 和位置 4。',
+    window:{start:4,end:6,type:'enter'},
+    formula:`hash(s[4..6]) = hash("abc") = ${patHashVal}\n✓ 与 pattern hash 相等，验证通过 → 匹配!\n\n总结: 找到 2 个匹配位置: [0, 4]`,
+    collision:false,matchAt:[0,4]
+  },
+  {
+    label:'哈希碰撞演示',
+    title:'哈希碰撞：不同字符串哈希值相同',
+    badge:'碰撞',
+    desc:'（扩展演示）假设另一个字符串 "xyz" 的哈希值碰巧等于 pattern 哈希值（碰撞）。系统高亮红框警告，随即触发逐字符 fallback 比对：x≠a，立即返回不匹配。碰撞不会导致误报，但增加了少量比对开销。',
+    window:{start:0,end:2,type:'collision'},
+    formula:`hash("xyz") = ${patHashVal} ← 碰撞!\n逐字符验证: x ≠ a → 不匹配\n双哈希可将碰撞概率降至 1/10¹⁸`,
+    collision:true,matchAt:null
+  }
+];
+
+let currentStep=0,playing=false,playTimer=null;
+
+function buildStrRow(text,window,collision){
+  const row=document.getElementById('strRow');
+  row.innerHTML='';
+  for(let i=0;i<text.length;i++){
+    const div=document.createElement('div');div.className='str-char';
+    const box=document.createElement('div');
+    let cls='char-box';
+    if(window){
+      if(i>=window.start&&i<=window.end){
+        if(collision) cls+=' collision';
+        else if(window.type==='roll'&&i===window.leaving) cls+=' leaving';
+        else if(window.type==='roll'&&i===window.entering) cls+=' entering';
+        else cls+=' window';
+      }
+    }
+    box.className=cls;
+    box.textContent=text[i];
+    const idx=document.createElement('div');idx.className='char-idx';idx.textContent=i;
+    div.appendChild(box);div.appendChild(idx);
+    row.appendChild(div);
+  }
+}
+
+function buildPatRow(){
+  const row=document.getElementById('patRow');
+  row.innerHTML='';
+  for(let i=0;i<PATTERN.length;i++){
+    const div=document.createElement('div');div.className='str-char';
+    const box=document.createElement('div');box.className='char-box window';box.textContent=PATTERN[i];
+    const idx=document.createElement('div');idx.className='char-idx';idx.textContent=i;
+    div.appendChild(box);div.appendChild(idx);
+    row.appendChild(div);
+  }
+  document.getElementById('patHash').textContent=patHashVal;
+}
+
+function renderStep(idx){
+  const s=STEPS[idx];
+  document.querySelectorAll('.step-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  const bd=document.getElementById('stepBadge');
+  bd.textContent=s.badge;
+  bd.className='badge'+(s.collision?' collision':'');
+  document.getElementById('statusTitle').textContent=s.title;
+  document.getElementById('statusDesc').textContent=s.desc;
+
+  buildStrRow(TEXT,s.window,s.collision);
+  document.getElementById('hashFormula').textContent=s.formula;
+
+  const mr=document.getElementById('matchResult');
+  if(Array.isArray(s.matchAt)){
+    mr.innerHTML=`<span style="color:var(--ok);">✓ 找到 ${s.matchAt.length} 处匹配: [${s.matchAt.join(', ')}]</span>`;
+  } else if(s.matchAt===0||s.matchAt===null&&s.badge==='命中'){
+    mr.innerHTML=`<span style="color:var(--ok);">✓ 位置 0 匹配</span>`;
+  } else if(s.collision){
+    mr.innerHTML=`<span style="color:var(--bad);">✗ 哈希碰撞！逐字符验证后不匹配</span>`;
+  } else if(s.matchAt===null){
+    mr.innerHTML=`<span style="color:var(--dim2);">哈希不同，跳过</span>`;
+  }
+
+  document.getElementById('btnPrev').disabled=idx===0;
+  document.getElementById('btnNext').disabled=idx===STEPS.length-1;
+}
+
+function buildStepList(){
+  const list=document.getElementById('stepList');
+  STEPS.forEach((s,i)=>{
+    const btn=document.createElement('button');
+    btn.className='step-btn'+(i===0?' active':'');
+    btn.innerHTML=`<b>Step ${i+1}</b>${s.label}`;
+    btn.onclick=()=>{currentStep=i;renderStep(i);stopPlay();};
+    list.appendChild(btn);
+  });
+}
+function goNext(){if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();}
+function goPrev(){if(currentStep>0){currentStep--;renderStep(currentStep);}}
+function reset(){stopPlay();currentStep=0;renderStep(0);}
+function togglePlay(){
+  if(playing){stopPlay();return;}
+  playing=true;document.getElementById('btnPlay').textContent='⏸ 暂停';
+  playTimer=setInterval(()=>{if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();},2200);
+}
+function stopPlay(){playing=false;clearInterval(playTimer);document.getElementById('btnPlay').textContent='▶ 播放';}
+buildPatRow();buildStepList();renderStep(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>位运算 - 算法</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#fb923c;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 70% 0%,color-mix(in srgb,var(--accent) 10%,transparent),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+.content{max-width:1100px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px;margin-bottom:28px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,3.4rem);line-height:1.05;letter-spacing:-.05em;margin-bottom:14px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:999px;padding:5px 9px;font-size:.75rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);border-radius:14px;padding:12px 14px}
+.concept-list strong{display:block;font-size:.86rem;margin-bottom:3px}
+.concept-list span{display:block;color:var(--dim);font-size:.8rem;line-height:1.6}
+.body{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.section{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.6);border-radius:18px;padding:22px}
+.section h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px}
+.section p,.section li{color:var(--dim);font-size:.9rem;line-height:1.85}
+.section ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.section code{background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;font-size:.82rem}
+.code-block{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px;font-family:monospace;font-size:.78rem;color:var(--dim);overflow-x:auto;margin-top:10px;line-height:1.7}
+.trick-grid{display:grid;grid-template-columns:1fr;gap:8px}
+.trick{border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:10px 14px;background:rgba(255,255,255,.02)}
+.trick-name{font-size:.82rem;color:var(--text);font-weight:600;margin-bottom:6px}
+.trick-code{font-family:monospace;font-size:.78rem;color:var(--ok);background:rgba(74,222,128,.06);padding:5px 8px;border-radius:5px;margin-bottom:4px}
+.trick-desc{font-size:.76rem;color:var(--dim2);line-height:1.5}
+.back-row{margin-top:22px;display:flex;gap:12px}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text)}
+@media(max-width:900px){.hero,.body{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"基本位运算","body":"AND (&)：两位都是1才为1，用于取特定位或清零。OR (|)：任意一位为1则为1，用于设置位。XOR (^)：相同为0不同为1，用于翻转位和检测差异。NOT (~)：按位取反。","tag":"term"},
+  {"title":"移位运算","body":"左移 (<<)：相当于乘以 2^n，但要小心溢出。逻辑右移 (>>)：高位补0，C/Go 对无符号整数使用。算术右移：高位补符号位，Java/C 对有符号整数使用。","tag":"term"},
+  {"title":"Brian Kernighan 算法","body":"n &= (n-1) 清除最低有效位（lowest set bit）。用途：计算 popcount、判断 2 的幂次、枚举集合子集。原理：n-1 会将最低位1变为0，并将其右侧所有0变为1，AND 后最低位被清除。","tag":"term"},
+  {"title":"状态压缩 DP","body":"用整数的每一位表示状态集合中的一个元素，整数就是状态集合的位向量表示。常用于 TSP（旅行商问题）、集合划分等 NP 问题的 2^n 复杂度 DP，n<=20 时可行。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="B">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">算法 / 位运算 / B 类型</div>
+      <h1>位运算</h1>
+      <p class="summary">位运算直接操作整数的二进制位，时间复杂度 O(1)，在算法竞赛和系统编程中是常用优化手段。核心操作包括 AND/OR/XOR/NOT 和移位，关键技巧包括：Brian Kernighan 算法（清最低位1）、状态压缩 DP（用整数表示集合）、位掩码（权限/标志管理）、Gosper's Hack（枚举子集）。</p>
+      <div class="tags"><span>AND/OR/XOR</span><span>移位</span><span>popcount</span><span>状态压缩</span><span>位掩码</span><span>lowbit</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>基本位运算</strong><span>AND/OR/XOR/NOT，控制整数的特定位。</span></li>
+        <li><strong>移位运算</strong><span>左移乘2，右移除2，注意有符号右移的算术移位。</span></li>
+        <li><strong>Brian Kernighan</strong><span>n &= n-1 清最低有效位，计算 popcount 的关键。</span></li>
+        <li><strong>状态压缩 DP</strong><span>用整数位表示集合，2^n 状态的 DP 优化。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="body">
+    <section class="section">
+      <h2>基本操作速查</h2>
+      <div class="trick-grid">
+        <div class="trick">
+          <div class="trick-name">检测第 k 位是否为 1</div>
+          <div class="trick-code">(n >> k) & 1 == 1</div>
+          <div class="trick-desc">将第 k 位移到最低位后和 1 做 AND</div>
+        </div>
+        <div class="trick">
+          <div class="trick-name">设置第 k 位为 1</div>
+          <div class="trick-code">n |= (1 << k)</div>
+          <div class="trick-desc">第 k 位 OR 上 1</div>
+        </div>
+        <div class="trick">
+          <div class="trick-name">清除第 k 位（置0）</div>
+          <div class="trick-code">n &= ~(1 << k)</div>
+          <div class="trick-desc">取反后 AND，第 k 位变 0，其余不变</div>
+        </div>
+        <div class="trick">
+          <div class="trick-name">翻转第 k 位</div>
+          <div class="trick-code">n ^= (1 << k)</div>
+          <div class="trick-desc">XOR 上 1，0变1，1变0</div>
+        </div>
+        <div class="trick">
+          <div class="trick-name">清除最低有效位</div>
+          <div class="trick-code">n &= (n - 1)</div>
+          <div class="trick-desc">Brian Kernighan，循环可计算 popcount</div>
+        </div>
+        <div class="trick">
+          <div class="trick-name">提取最低有效位</div>
+          <div class="trick-code">lowbit = n & (-n)</div>
+          <div class="trick-desc">利用补码，-n = ~n+1，AND 后只剩最低位1</div>
+        </div>
+      </div>
+    </section>
+    <section class="section">
+      <h2>经典题型与技巧</h2>
+      <div class="code-block">
+// 1. 判断 2 的幂次
+// 2^n 只有 1 个 1，减 1 后全是 1，AND 为 0
+func isPowerOfTwo(n int) bool {
+    return n > 0 && (n & (n-1)) == 0
+}
+
+// 2. 计算 popcount（1 的个数）
+func popcount(n int) int {
+    count := 0
+    for n != 0 {
+        n &= n - 1  // 清除最低位 1
+        count++
+    }
+    return count
+}
+// 也可用：bits.OnesCount(uint(n))
+
+// 3. 只出现一次的数（XOR）
+// 相同数异或为 0，0 异或任何数为那个数
+func singleNumber(nums []int) int {
+    res := 0
+    for _, n := range nums { res ^= n }
+    return res
+}
+
+// 4. 不用加法做加法（XOR + 进位）
+func add(a, b int) int {
+    for b != 0 {
+        carry := (a & b) << 1  // 进位
+        a = a ^ b              // 无进位加
+        b = carry
+    }
+    return a
+}</div>
+    </section>
+    <section class="section">
+      <h2>状态压缩 DP</h2>
+      <ul>
+        <li>用整数的第 i 位表示第 i 个元素是否在集合中</li>
+        <li>全集：<code>(1&lt;&lt;n) - 1</code>，空集：<code>0</code></li>
+        <li>枚举所有子集：<code>for s := mask; s &gt; 0; s = (s-1) & mask</code></li>
+        <li>判断 i 是否在集合 s 中：<code>s &amp; (1&lt;&lt;i) != 0</code></li>
+        <li>将 i 加入集合 s：<code>s | (1&lt;&lt;i)</code></li>
+        <li>将 i 移出集合 s：<code>s &amp; ^(1&lt;&lt;i)</code></li>
+      </ul>
+      <div class="code-block">
+// TSP 旅行商问题 O(2^n * n^2)
+// dp[mask][i] = 访问了 mask 集合，当前在城市 i 的最短路
+n := 4
+dp := make([][]int, 1<<n)
+for i := range dp {
+    dp[i] = make([]int, n)
+    for j := range dp[i] { dp[i][j] = 1e9 }
+}
+dp[1][0] = 0  // 从城市 0 出发，只访问了城市 0
+
+for mask := 1; mask < (1 << n); mask++ {
+    for last := 0; last < n; last++ {
+        if dp[mask][last] == 1e9 { continue }
+        for next := 0; next < n; next++ {
+            if mask & (1 << next) != 0 { continue }
+            newMask := mask | (1 << next)
+            dp[newMask][next] = min(dp[newMask][next],
+                dp[mask][last] + dist[last][next])
+        }
+    }
+}</div>
+    </section>
+    <section class="section">
+      <h2>位运算在系统编程中的应用</h2>
+      <ul>
+        <li><strong>权限标志：</strong>Unix 文件权限 <code>rwxrwxrwx</code> 用 9 位表示，<code>chmod 755</code> = <code>0b111101101</code></li>
+        <li><strong>布隆过滤器：</strong>位数组 + 多个哈希函数，<code>查询时 bits[h(x)] &amp; 1</code></li>
+        <li><strong>CPU 状态标志：</strong>x86 EFLAGS 寄存器每一位是一个标志（ZF/CF/OF）</li>
+        <li><strong>网络掩码：</strong>IP 子网掩码如 <code>/24 = 0xFFFFFF00</code>，<code>ip &amp; mask</code> 得到网络地址</li>
+        <li><strong>哈希函数：</strong>MurmurHash/xxHash 大量使用位混合操作</li>
+        <li><strong>Bitmap 索引：</strong>数据库用 bitmap 存储索引，AND/OR 实现集合交并</li>
+      </ul>
+      <div class="code-block">
+// 位掩码权限管理
+const (
+    READ    = 1 << 0  // 0b001
+    WRITE   = 1 << 1  // 0b010
+    EXECUTE = 1 << 2  // 0b100
+)
+
+perms := READ | WRITE  // 拥有读写权限
+
+// 检查权限
+if perms & READ != 0 { /* 有读权限 */ }
+
+// 撤销写权限
+perms &= ^WRITE</div>
+    </section>
+    <section class="section">
+      <h2>高级技巧</h2>
+      <ul>
+        <li><strong>Gosper's Hack（枚举 k 个1的子集）：</strong>按字典序枚举所有恰好有 k 个位为 1 的整数</li>
+        <li><strong>平行位计数（SWAR）：</strong>用分治法在 O(log n) 步内计算 popcount</li>
+        <li><strong>交换两变量（无临时变量）：</strong><code>a^=b; b^=a; a^=b;</code>（现代代码不推荐，影响优化）</li>
+        <li><strong>绝对值（无分支）：</strong><code>mask = n >> 31; (n ^ mask) - mask</code></li>
+        <li><strong>符号函数：</strong><code>(n >> 31) | ((-n) >>> 31)</code></li>
+      </ul>
+      <div class="code-block">
+// Gosper's Hack：枚举所有 popcount(s) == k 的子集
+s := (1 << k) - 1  // 初始：k 个最低位为 1
+for s < (1 << n) {
+    // 处理 s
+    c := s & -s
+    r := s + c
+    s = (((r ^ s) >> 2) / c) | r
+}
+
+// 32 位 popcount (SWAR)
+func popcnt32(x uint32) uint32 {
+    x = x - ((x >> 1) & 0x55555555)
+    x = (x & 0x33333333) + ((x >> 2) & 0x33333333)
+    x = (x + (x >> 4)) & 0x0f0f0f0f
+    return (x * 0x01010101) >> 24
+}</div>
+    </section>
+    <section class="section">
+      <h2>常见误区</h2>
+      <ul>
+        <li><strong>有符号整数右移：</strong>Java/<code>C（signed）</code>是算术右移（高位补符号位），<code>&gt;&gt;&gt;</code> 才是逻辑右移</li>
+        <li><strong>溢出：</strong><code>1 &lt;&lt; 31</code> 在 32 位有符号整数中是负数（-2147483648），用 <code>1 &lt;&lt; 62</code> 避免</li>
+        <li><strong>运算符优先级：</strong><code>&amp;</code> 和 <code>|</code> 优先级低于 <code>==</code>，必须加括号：<code>(n &amp; 1) == 1</code></li>
+        <li><strong>Go 中无 <code>&gt;&gt;&gt;</code>：</strong>Go 的 <code>&gt;&gt;</code> 对有符号整数是算术移位，需要先转为 <code>uint</code></li>
+        <li><strong>位运算不等于逻辑运算：</strong><code>&amp;</code> 和 <code>&&</code> 不同，<code>|</code> 和 <code>||</code> 不同，后者有短路求值</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← 算法首页</a>
+    <a class="btn" href="two-pointers.html">双指针</a>
+  </div>
+</main>
+</body>
+</html>

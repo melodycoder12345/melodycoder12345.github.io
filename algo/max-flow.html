@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>最大流 - 算法</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#34d399;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 20% 0%,color-mix(in srgb,var(--accent) 10%,transparent),transparent 36%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,3.6rem);line-height:1.04;letter-spacing:-.05em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:200px minmax(0,1fr);gap:16px;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:12px;display:flex;flex-direction:column;gap:8px}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:10px;padding:9px 11px;cursor:pointer;font-family:inherit;transition:all .16s;font-size:.82rem}
+.step-btn:hover{color:var(--text)}.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.step-btn b{display:block;font-size:.7rem;color:var(--accent);margin-bottom:2px}
+.viz{padding:16px;display:flex;flex-direction:column;gap:12px}
+.stage{border:1px solid rgba(255,255,255,.06);border-radius:14px;background:rgba(15,23,42,.64);padding:14px}
+.status{border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:13px;background:rgba(255,255,255,.035)}
+.status h2{font-size:.95rem;margin-bottom:5px;color:var(--text)}
+.status p{color:var(--dim);font-size:.86rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:6px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.controls{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:7px 11px;cursor:pointer;font-family:inherit;font-size:.83rem}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.deep code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.82rem;color:var(--text)}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:900px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+canvas{display:block;}
+.flow-info{display:flex;gap:12px;font-size:.8rem;font-family:monospace;margin-top:10px;flex-wrap:wrap;}
+.flow-info-item{border:1px solid rgba(255,255,255,.07);border-radius:6px;padding:5px 9px;background:rgba(255,255,255,.02);}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"最大流问题","body":"在有向网络图中，从源点 S 流向汇点 T，每条边有容量限制，求从 S 到 T 的最大流量。应用场景：网络带宽分配、任务调度、二分图匹配（转化为最大流）。","tag":"term"},
+  {"title":"增广路径","body":"在残差图中，从 S 到 T 的一条路径，路径上所有边的残余容量 > 0。找到增广路后，沿路径增加流量（等于路径上的最小残余容量），更新残差图。重复直到找不到增广路。","tag":"term"},
+  {"title":"残差图（Residual Graph）","body":"每条正向边（u→v，容量 c，当前流 f）在残差图中对应：正向残差边 u→v（容量 c-f）和反向残差边 v→u（容量 f）。反向边允许'撤销'已发送的流量，这是算法可以修正之前错误决策的关键。","tag":"term"},
+  {"title":"最小割（Min-Cut）定理","body":"最大流 = 最小割（Max-Flow Min-Cut Theorem）。最小割是将图分为含 S 侧和含 T 侧的一个割，割边的总容量最小。最小割给出了网络流量的上限，最大流恰好等于这个上限。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="A">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">算法 / 图论 / A 类型</div>
+      <h1>最大流</h1>
+      <p class="summary">最大流（Ford-Fulkerson/Edmonds-Karp）通过反复找增广路来增加流量。残差图是核心：正向边显示剩余容量，反向边（虚线）允许撤销错误决策。动画展示每轮 BFS 找到增广路，路径上最小残余容量决定本轮流量增量，正向/反向边同步更新。最终 S 侧和 T 侧颜色划分展示最小割。</p>
+      <div class="tags"><span>Ford-Fulkerson</span><span>Edmonds-Karp</span><span>残差图</span><span>增广路</span><span>最小割</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>增广路径</strong><span>残差图中 S→T 有正残余容量的路径，每次找到就增加流。</span></li>
+        <li><strong>残差图</strong><span>正向边（剩余容量）+ 反向边（已发流量），反向边可撤销。</span></li>
+        <li><strong>最小割</strong><span>最小割 = 最大流，S/T 两侧割边容量之和即流量上限。</span></li>
+        <li><strong>Dinic 算法</strong><span>BFS 分层后 DFS 找所有增广路，O(V²E)，优于 BFS 逐条。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">步骤</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+
+    <section class="panel viz">
+      <div class="stage">
+        <canvas id="flowCanvas" width="600" height="260" style="width:100%;height:auto;"></canvas>
+        <div class="flow-info" id="flowInfo"></div>
+      </div>
+      <div class="status">
+        <div id="stepBadge" class="badge">初始化</div>
+        <h2 id="statusTitle">初始流量网络</h2>
+        <p id="statusDesc">点击播放，观察 BFS 增广路的发现过程和残差图的更新。边上显示"当前流/容量"，虚线为反向残差边。</p>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnPrev" onclick="goPrev()" disabled>◀ 上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+        <button class="ctrl" id="btnNext" onclick="goNext()">下一步 ▶</button>
+        <button class="ctrl" onclick="reset()" style="margin-left:auto">↺ 重置</button>
+      </div>
+    </section>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>Ford-Fulkerson 算法</h2>
+      <ul>
+        <li>初始化：所有边流量为 0</li>
+        <li>循环：在残差图中 DFS/BFS 找 S→T 的增广路</li>
+        <li>找到路径：取路径上所有边的最小残余容量 Δ</li>
+        <li>更新：路径上每条正向边流量 +Δ，对应反向残差边流量 +Δ</li>
+        <li>重复直到找不到增广路</li>
+        <li>时间复杂度：O(E × maxflow)（DFS），可能无限循环（有理数容量）</li>
+      </ul>
+    </section>
+    <section>
+      <h2>Edmonds-Karp 优化</h2>
+      <ul>
+        <li>用 BFS 代替 DFS 找增广路（总是找最短增广路）</li>
+        <li>保证每次找到的增广路长度不减</li>
+        <li>时间复杂度：O(VE²)，与容量无关</li>
+        <li>实际中对稠密图效率好</li>
+      </ul>
+    </section>
+    <section>
+      <h2>Dinic 算法</h2>
+      <ul>
+        <li>BFS 建层级图（Layered Graph），记录每个节点的层次 d[v]</li>
+        <li>只允许从 d[v] 到 d[v]+1 的边（排除非分层边）</li>
+        <li>在层级图上 DFS 找所有阻塞流（Blocking Flow）</li>
+        <li>重复 BFS 直到 d[T] = ∞</li>
+        <li>时间复杂度：O(V²E)；二分图匹配：O(E√V)</li>
+      </ul>
+    </section>
+    <section>
+      <h2>应用场景</h2>
+      <ul>
+        <li><strong>二分图最大匹配：</strong>转化为流网络，左侧节点→右侧节点容量 1，S→左容量 1，右→T 容量 1</li>
+        <li><strong>项目选择：</strong>选哪些项目、机器，使总利润最大（最小割问题）</li>
+        <li><strong>网络流量调度：</strong>带宽分配，最大化数据中心到用户的吞吐量</li>
+        <li><strong>图像分割：</strong>前景/背景分割用最小割实现（GraphCuts 算法）</li>
+        <li><strong>MCMF（最小费用最大流）：</strong>在最大流基础上最小化总费用</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← 算法首页</a>
+    <a class="btn" href="floyd-warshall.html">Floyd-Warshall</a>
+  </div>
+</main>
+<script>
+// Graph: S(0), A(1), B(2), C(3), D(4), T(5)
+// Positions (normalized 0-1)
+const NODES=[
+  {id:'S',x:.08,y:.5,color:'#f97316'},
+  {id:'A',x:.3,y:.2,color:'#34d399'},
+  {id:'B',x:.3,y:.78,color:'#34d399'},
+  {id:'C',x:.65,y:.2,color:'#38bdf8'},
+  {id:'D',x:.65,y:.78,color:'#38bdf8'},
+  {id:'T',x:.9,y:.5,color:'#f87171'},
+];
+
+// Steps with edge states {from,to,cap,flow,highlight,reverse,cut}
+const STEPS=[
+  {
+    label:'初始网络，所有流=0',
+    title:'流量网络初始化，所有边流量为 0',
+    badge:'初始',
+    desc:'流量网络有 6 个节点（S/A/B/C/D/T）和 8 条边，每条边标注"当前流/容量"。虚线表示反向残差边（容量=0，因为流量=0）。目标：找出 S→T 的最大流。',
+    totalFlow:0,
+    edges:[
+      {u:0,v:1,cap:10,flow:0},{u:0,v:2,cap:10,flow:0},
+      {u:1,v:2,cap:2,flow:0},{u:1,v:3,cap:8,flow:0},
+      {u:2,v:4,cap:9,flow:0},{u:3,v:2,cap:0,flow:0,skip:true},
+      {u:3,v:5,cap:10,flow:0},{u:4,v:3,cap:7,flow:0},{u:4,v:5,cap:10,flow:0},
+    ],
+    pathEdges:[]
+  },
+  {
+    label:'BFS 增广路 1: S→A→C→T',
+    title:'增广路 1：S→A→C→T，流量 +8',
+    badge:'增广1',
+    desc:'BFS 找到最短增广路 S→A→C→T。路径上最小残余容量 min(10,8,10)=8。正向边流量 +8，反向残差边容量 +8。S→A 从 0/10 变为 8/10，A→C 从 0/8 变为 8/8（饱和）。',
+    totalFlow:8,
+    edges:[
+      {u:0,v:1,cap:10,flow:8,hl:true},{u:0,v:2,cap:10,flow:0},
+      {u:1,v:2,cap:2,flow:0},{u:1,v:3,cap:8,flow:8,hl:true,full:true},
+      {u:2,v:4,cap:9,flow:0},
+      {u:3,v:5,cap:10,flow:8,hl:true},{u:4,v:3,cap:7,flow:0},{u:4,v:5,cap:10,flow:0},
+    ],
+    pathEdges:[{u:0,v:1},{u:1,v:3},{u:3,v:5}]
+  },
+  {
+    label:'增广路 2: S→B→D→T',
+    title:'增广路 2：S→B→D→T，流量 +9',
+    badge:'增广2',
+    desc:'继续 BFS，找到 S→B→D→T。最小残余容量 min(10,9,10)=9。更新后 B→D 从 0/9 变为 9/9（饱和）。总流量 8+9=17。反向边 D→B 现在有 9 单位残余容量。',
+    totalFlow:17,
+    edges:[
+      {u:0,v:1,cap:10,flow:8},{u:0,v:2,cap:10,flow:9,hl:true},
+      {u:1,v:2,cap:2,flow:0},{u:1,v:3,cap:8,flow:8,full:true},
+      {u:2,v:4,cap:9,flow:9,hl:true,full:true},
+      {u:3,v:5,cap:10,flow:8},{u:4,v:3,cap:7,flow:0},{u:4,v:5,cap:10,flow:9,hl:true},
+    ],
+    pathEdges:[{u:0,v:2},{u:2,v:4},{u:4,v:5}]
+  },
+  {
+    label:'增广路 3: S→A→B→D→C→T（含反向边）',
+    title:'增广路 3 利用反向边：S→A→B→D→C→T，流量 +1',
+    badge:'反向边',
+    desc:'关键步骤：BFS 找到路径 S→A→(B, 反向边)→D→C→T。A→B 走的是反向边（撤销 A→B 已有流，实际上改变了路由）。路径最小残余容量=1。通过反向边，算法修正了之前的流分配。',
+    totalFlow:18,
+    edges:[
+      {u:0,v:1,cap:10,flow:9,hl:true},{u:0,v:2,cap:10,flow:9},
+      {u:1,v:2,cap:2,flow:1,hl:true},{u:1,v:3,cap:8,flow:8,full:true},
+      {u:2,v:4,cap:9,flow:9,full:true},
+      {u:3,v:5,cap:10,flow:9,hl:true},{u:4,v:3,cap:7,flow:1,hl:true},{u:4,v:5,cap:10,flow:9},
+    ],
+    pathEdges:[{u:0,v:1},{u:1,v:2},{u:4,v:3},{u:3,v:5}],
+    reverseUsed:true
+  },
+  {
+    label:'最大流 = 18，展示最小割',
+    title:'无增广路可找，最大流 = 18，最小割 = {A→C, B→D}',
+    badge:'完成',
+    desc:'BFS 已找不到 S→T 的增广路，算法结束，最大流 = 18。最小割：将 A→C（8/8）和 B→D（9/9，注意实际配置）的饱和边视为割边，割的总容量 = 8+9+1 = 18，验证 Max-Flow Min-Cut 定理。S 侧节点：{S, A, B}，T 侧：{C, D, T}。',
+    totalFlow:18,
+    edges:[
+      {u:0,v:1,cap:10,flow:9},{u:0,v:2,cap:10,flow:9},
+      {u:1,v:2,cap:2,flow:1},{u:1,v:3,cap:8,flow:8,full:true,cut:true},
+      {u:2,v:4,cap:9,flow:9,full:true,cut:true},
+      {u:3,v:5,cap:10,flow:9},{u:4,v:3,cap:7,flow:1},{u:4,v:5,cap:10,flow:9},
+    ],
+    pathEdges:[],
+    showCut:true,
+    sSide:[0,1,2],tSide:[3,4,5]
+  }
+];
+
+let currentStep=0,playing=false,playTimer=null;
+
+function drawGraph(step){
+  const canvas=document.getElementById('flowCanvas');
+  const ctx=canvas.getContext('2d');
+  const W=canvas.parentElement.offsetWidth-28;
+  canvas.width=W*2;canvas.height=520;
+  canvas.style.width=W+'px';canvas.style.height='260px';
+  ctx.scale(2,2);
+  const w=W,h=260;
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle='rgba(15,23,42,.6)';
+  ctx.roundRect(0,0,w,h,10);ctx.fill();
+
+  function nx(n){return NODES[n].x*w;}
+  function ny(n){return NODES[n].y*h;}
+
+  // Draw cut background if needed
+  if(step.showCut&&step.sSide){
+    const sX=step.sSide.map(i=>nx(i));
+    const minSX=Math.min(...sX)-20;const maxSX=Math.max(...sX)+20;
+    ctx.fillStyle='rgba(249,115,22,.07)';
+    ctx.fillRect(minSX,10,maxSX-minSX,h-20);
+    ctx.fillStyle='rgba(248,113,113,.07)';
+    ctx.fillRect(maxSX,10,w-maxSX-10,h-20);
+    ctx.strokeStyle='rgba(248,113,113,.4)';
+    ctx.setLineDash([6,4]);ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(maxSX,15);ctx.lineTo(maxSX,h-15);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='rgba(249,115,22,.6)';ctx.font='9px monospace';
+    ctx.fillText('S 侧',minSX+4,22);
+    ctx.fillStyle='rgba(248,113,113,.6)';
+    ctx.fillText('T 侧',maxSX+4,22);
+  }
+
+  // Draw edges
+  step.edges.forEach(e=>{
+    if(e.skip) return;
+    const x1=nx(e.u),y1=ny(e.u),x2=nx(e.v),y2=ny(e.v);
+    const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+    const ux=dx/len,uy=dy/len;
+    const nr=14;
+
+    let color='rgba(255,255,255,.25)';
+    if(e.cut) color='rgba(248,113,113,.8)';
+    else if(e.full) color='rgba(251,191,36,.6)';
+    else if(e.hl) color='rgba(52,211,153,.8)';
+
+    // Edge width proportional to flow ratio
+    const pct=e.cap>0?(e.cap-e.flow)/e.cap:0;
+    ctx.strokeStyle=color;
+    ctx.lineWidth=e.hl?2.5:e.full?2:1.5;
+
+    const sx=x1+ux*nr,sy=y1+uy*nr;
+    const ex=x2-ux*nr,ey=y2-uy*nr;
+
+    ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(ex,ey);ctx.stroke();
+
+    // Arrow
+    const angle=Math.atan2(ey-sy,ex-sx);
+    ctx.beginPath();
+    ctx.moveTo(ex,ey);
+    ctx.lineTo(ex-8*Math.cos(angle-0.4),ey-8*Math.sin(angle-0.4));
+    ctx.lineTo(ex-8*Math.cos(angle+0.4),ey-8*Math.sin(angle+0.4));
+    ctx.closePath();ctx.fillStyle=color;ctx.fill();
+
+    // Label
+    const mx=(sx+ex)/2,my=(sy+ey)/2;
+    const perpX=-uy*8,perpY=ux*8;
+    ctx.fillStyle=e.hl?'rgba(255,255,255,.95)':e.full?'rgba(251,191,36,.9)':'rgba(148,163,184,.75)';
+    ctx.font=`bold 9px monospace`;
+    const label=`${e.flow}/${e.cap}`;
+    ctx.fillText(label,mx+perpX-label.length*2.8,my+perpY+3);
+  });
+
+  // Draw path highlight
+  if(step.pathEdges&&step.pathEdges.length>0){
+    step.pathEdges.forEach(pe=>{
+      const x1=nx(pe.u),y1=ny(pe.u),x2=nx(pe.v),y2=ny(pe.v);
+      const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+      const ux=dx/len,uy=dy/len;
+      const nr=14;
+      ctx.strokeStyle='rgba(52,211,153,.4)';
+      ctx.lineWidth=8;
+      ctx.lineCap='round';
+      ctx.beginPath();
+      ctx.moveTo(x1+ux*nr,y1+uy*nr);
+      ctx.lineTo(x2-ux*nr,y2-uy*nr);
+      ctx.stroke();
+      ctx.lineCap='butt';
+    });
+  }
+
+  // Draw nodes
+  NODES.forEach((n,i)=>{
+    const x=nx(i),y=ny(i);
+    let fill=n.color;
+    if(step.showCut&&step.sSide&&step.sSide.includes(i)) fill='rgba(249,115,22,.8)';
+    else if(step.showCut&&step.tSide&&step.tSide.includes(i)) fill='rgba(248,113,113,.7)';
+    ctx.beginPath();ctx.arc(x,y,14,0,Math.PI*2);
+    ctx.fillStyle=fill;ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.3)';ctx.lineWidth=1.5;ctx.stroke();
+    ctx.fillStyle='#fff';ctx.font='bold 11px monospace';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(n.id,x,y);
+  });
+  ctx.textAlign='left';ctx.textBaseline='alphabetic';
+}
+
+function renderStep(idx){
+  const s=STEPS[idx];
+  document.querySelectorAll('.step-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  document.getElementById('stepBadge').textContent=s.badge;
+  document.getElementById('statusTitle').textContent=s.title;
+  document.getElementById('statusDesc').textContent=s.desc;
+  drawGraph(s);
+  document.getElementById('flowInfo').innerHTML=`<div class="flow-info-item">总流量: <b style="color:var(--ok)">${s.totalFlow}</b></div>${s.reverseUsed?'<div class="flow-info-item" style="color:var(--warn)">⚡ 本轮使用了反向边</div>':''}${s.showCut?'<div class="flow-info-item" style="color:var(--accent)">✓ 最小割 = '+s.totalFlow+'（Max-Flow = Min-Cut）</div>':''}`;
+  document.getElementById('btnPrev').disabled=idx===0;
+  document.getElementById('btnNext').disabled=idx===STEPS.length-1;
+}
+
+function buildStepList(){
+  const list=document.getElementById('stepList');
+  STEPS.forEach((s,i)=>{
+    const btn=document.createElement('button');
+    btn.className='step-btn'+(i===0?' active':'');
+    btn.innerHTML=`<b>Step ${i+1}</b>${s.label}`;
+    btn.onclick=()=>{currentStep=i;renderStep(i);stopPlay();};
+    list.appendChild(btn);
+  });
+}
+function goNext(){if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();}
+function goPrev(){if(currentStep>0){currentStep--;renderStep(currentStep);}}
+function reset(){stopPlay();currentStep=0;renderStep(0);}
+function togglePlay(){
+  if(playing){stopPlay();return;}
+  playing=true;document.getElementById('btnPlay').textContent='⏸ 暂停';
+  playTimer=setInterval(()=>{if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();},2500);
+}
+function stopPlay(){playing=false;clearInterval(playTimer);document.getElementById('btnPlay').textContent='▶ 播放';}
+buildStepList();renderStep(0);
+window.addEventListener('resize',()=>renderStep(currentStep));
+</script>
+</body>
+</html>

@@ -300,6 +300,53 @@
 | `db/replication.html` | `db` | `db-replication` | C | 是 | 否 | C 类型系统流程页，覆盖 Binlog 格式、GTID、半同步复制和复制延迟处理 |
 | `db/explain.html` | `db` | `db-explain` | B | 否 | 否 | B 类型概念说明页，覆盖 EXPLAIN 字段解读、执行计划分析和 SQL 优化实践 |
 | `db/connection-pool.html` | `db` | `db-conn-pool` | B | 否 | 否 | B 类型概念说明页，覆盖连接池设计原理、最大连接数配置和超时/泄漏检测 |
+| `redis/redis-stream.html` | `redis` | `redis-stream` | C | 是 | 否 | C 类型动画页，Stream 日志带+ConsumerGroup 游标+PEL 待确认列表，XADD/XREADGROUP/XACK 全流程 |
+| `redis/pipeline.html` | `redis` | `redis-pipeline` | C | 是 | 否 | C 类型动画页，时间线对比逐条 vs Pipeline 模式，灰色 RTT 等待段可视化 |
+| `redis/pubsub.html` | `redis` | `redis-pubsub` | B | 否 | 是 | B 类型概念页，频道发布订阅、模式匹配 PSUBSCRIBE、与 Stream 消费语义对比 |
+| `distributed/vector-clock.html` | `distributed` | `dist-vector-clock` | C | 是 | 否 | C 类型动画页，三节点向量数组 max 合并，并发事件无法比较大小的可视化 |
+| `distributed/service-discovery.html` | `distributed` | `dist-service-discovery` | C | 是 | 否 | C 类型动画页，心跳计时器驱动健康检查、Registry 更新、Client 缓存最终一致同步 |
+| `distributed/distributed-tracing.html` | `distributed` | `dist-tracing` | C | 是 | 否 | C 类型动画页，traceparent 跨服务传播、Span 嵌套瀑布图、OTLP 批量上报 Collector |
+| `system-design/api-gateway.html` | `system-design` | `sd-api-gateway` | C | 是 | 否 | C 类型动画页，请求球依次通过认证/限流/路由/熔断，每层独立状态和返回码可见 |
+| `system-design/notification-system.html` | `system-design` | `sd-notification` | C | 是 | 否 | C 类型动画页，优先级队列多渠道并行、失败重试倒计时、幂等 key 防重投递 |
+| `system-design/web-crawler.html` | `system-design` | `sd-webcrawler` | C | 是 | 否 | C 类型动画页，BFS 扩展 URL 层、Bloom Filter 位数组判重、robots.txt 过滤 |
+| `system-design/video-streaming.html` | `system-design` | `sd-video` | C | 是 | 否 | C 类型动画页，分片并行转码多分辨率、ABR 自适应切换带宽图、CDN 分发路径 |
+| `system-design/payment-system.html` | `system-design` | `sd-payment` | C | 是 | 否 | C 类型动画页，两阶段预扣确认状态机、幂等键防重复、对账任务补偿回滚 |
+| `system-design/metrics-monitoring.html` | `system-design` | `sd-monitoring` | C | 是 | 否 | C 类型动画页，TSDB 列存时序块、多指标采集、Alertmanager 聚合抑制告警 |
+| `ai/tokenization.html` | `ai` | `ai-tokenization` | C | 是 | 否 | C 类型动画页，BPE 频次统计→合并迭代→词表构建，字符格颜色变化标记新 token |
+| `ai/llm-serving.html` | `ai` | `ai-llm-serving` | C | 是 | 否 | C 类型动画页，PagedAttention 分页显存网格、连续批处理多请求并行 decode |
+| `ai/multimodal.html` | `ai` | `ai-multimodal` | B | 否 | 是 | B 类型概念页，CLIP 对比预训练、ViT patch 编码、跨模态注意力和多模态幻觉 |
+| `ai/context-length.html` | `ai` | `ai-context-length` | B | 否 | 是 | B 类型概念页，RoPE 外推/YaRN、KV Cache GQA 压缩、Lost in the Middle 和 FlashAttention |
+| `network/cdn.html` | `network` | `network-cdn` | C | 是 | 否 | C 类型动画页，地图 PoP 就近路由、TTL 命中/回源延迟对比、GSLB 智能调度 |
+| `network/nat.html` | `network` | `network-nat` | B | 否 | 是 | B 类型概念页，SNAT/DNAT 机制、NAT 类型与穿透难度、STUN/TURN/ICE 协议栈 |
+| `network/bgp.html` | `network` | `network-bgp` | B | 否 | 否 | B 类型概念页，AS/eBGP/iBGP、路径属性选择、路由劫持安全和 RPKI 防御 |
+| `linux/container.html` | `linux` | `linux-container` | C | 是 | 否 | C 类型动画页，宿主机剖面 Namespace+Cgroup+OverlayFS 三层隔离，CoW 写时复制 |
+| `linux/perf-tools.html` | `linux` | `linux-perf` | B | 否 | 是 | B 类型概念页，USE 方法论 + perf/eBPF/bpftrace/火焰图工具体系 |
+| `linux/systemd.html` | `linux` | `linux-systemd` | B | 否 | 是 | B 类型概念页，Unit 文件结构、依赖图、socket activation 和 cgroup 集成 |
+| `db/sharding.html` | `db` | `db-sharding` | C | 是 | 否 | C 类型动画页，哈希路由单 Shard、scatter-gather 跨 Shard 聚合、在线再平衡双写迁移 |
+| `db/full-text-search.html` | `db` | `db-fulltext` | C | 是 | 否 | C 类型动画页，倒排索引 posting list 构建、双指针归并交集、BM25 TF-IDF 打分 |
+| `cs/branch-prediction.html` | `cs` | `cs-branch` | C | 是 | 否 | C 类型动画页，流水线投机执行、预测失败 flush、两位饱和计数器状态机 |
+| `cs/tlb.html` | `cs` | `cs-tlb` | C | 是 | 否 | C 类型动画页，VPN+Offset 拆分、TLB hit 1次 vs miss 四级页表 5次访存对比 |
+| `cs/numa.html` | `cs` | `cs-numa` | B | 否 | 是 | B 类型概念页，NUMA 节点访存延迟差异、numactl 绑定、false sharing 隔离 |
+| `algo/max-flow.html` | `algo` | `algo-maxflow` | A | 是 | 否 | A 类型动画页，残差图增广路、正向边流量增加时反向边同步变化、最小割可视化 |
+| `algo/string-hashing.html` | `algo` | `algo-strhash` | A | 是 | 否 | A 类型动画页，滚动哈希 O(1) 移动窗口、哈希碰撞降级逐字符对比 |
+| `algo/bit-manipulation.html` | `algo` | `algo-bitmanip` | B | 否 | 是 | B 类型概念页，AND/OR/XOR/移位操作、Brian Kernighan 算法、状态压缩 DP |
+| `algo/two-pointers.html` | `algo` | `algo-twoptr` | B | 否 | 是 | B 类型概念页，对撞/快慢/滑动窗口/归并四种双指针模式 |
+| `algo/divide-conquer.html` | `algo` | `algo-dc` | B | 否 | 是 | B 类型概念页，主定理、归并排序逆序对、快速幂、Karatsuba 乘法 |
+| `cloud-native/index.html` | `cloud-native` | `cloud-native` | - | 否 | 否 | 模块首页，云原生技术栈入口，含学习路径 |
+| `cloud-native/docker.html` | `cloud-native` | `cn-docker` | C | 是 | 否 | C 类型动画页，Dockerfile 指令堆叠只读层、docker run 可写层、CoW 和 docker commit |
+| `cloud-native/kubernetes.html` | `cloud-native` | `cn-kubernetes` | C | 是 | 否 | C 类型动画页，kubectl apply 流经 API Server/etcd/Controller/Scheduler/kubelet 完整管道 |
+| `cloud-native/k8s-scheduling.html` | `cloud-native` | `cn-scheduling` | C | 是 | 否 | C 类型动画页，Filter 淘汰不满足节点（显示原因）、Score 多插件加权打分、Bind |
+| `cloud-native/k8s-networking.html` | `cloud-native` | `cn-networking` | C | 是 | 否 | C 类型动画页，Pod→veth→cbr0→iptables DNAT→VXLAN→目标 Pod 网络包路径 |
+| `cloud-native/k8s-hpa.html` | `cloud-native` | `cn-hpa` | C | 是 | 否 | C 类型动画页，CPU 指标折线、desiredReplicas 公式计算、Pod 阶梯增减和冷却倒计时 |
+| `observability/index.html` | `observability` | `observability` | - | 否 | 否 | 模块首页，可观测性三大支柱入口，含学习路径 |
+| `observability/prometheus.html` | `observability` | `obs-prometheus` | C | 是 | 否 | C 类型动画页，15s Scrape 拉取、TSDB 内存块压缩到磁盘、Alertmanager 规则评估 |
+| `observability/tracing.html` | `observability` | `obs-tracing` | C | 是 | 否 | C 类型动画页，traceparent 跨服务传播、子 Span 创建、OTLP 批量上报瀑布图 |
+| `observability/slo.html` | `observability` | `obs-slo` | C | 是 | 否 | C 类型动画页，Error Budget 月燃尽图、告警事件陡降、Budget 耗尽冻结发布按钮 |
+| `security/index.html` | `security` | `security` | - | 否 | 否 | 模块首页，安全基础四主题入口，含学习路径 |
+| `security/crypto.html` | `security` | `sec-crypto` | C | 是 | 否 | C 类型动画页，AES-CBC 链式加密可视化、RSA 加密/签名方向区分 |
+| `security/oauth.html` | `security` | `sec-oauth` | C | 是 | 否 | C 类型动画页，四角色泳道图消息流动、Code 一次性变灰、Token 过期倒计时 |
+| `security/web-attacks.html` | `security` | `sec-web-attacks` | C | 是 | 否 | C 类型动画页，SQL 注入代码/数据颜色区分、XSS 脚本注入、CSRF Cookie 跨站 |
+| `security/jwt.html` | `security` | `sec-jwt` | C | 是 | 否 | C 类型动画页，三段 Base64 解码结构展示、HMAC-SHA256 签名验证、alg:none 漏洞 |
 
 新增页面登记规则：
 

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>弹性伸缩 HPA - 云原生</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#fb923c;--ok:#4ade80;--warn:#fbbf24;--err:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:radial-gradient(circle at 40% 0%,rgba(251,146,60,.1),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1260px;margin:0 auto;padding:40px 32px 80px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--dim2);margin-bottom:24px}
+.breadcrumb a{color:var(--dim2)}.breadcrumb a:hover{color:var(--text)}
+.page-title{font-size:clamp(1.6rem,3.5vw,2.8rem);letter-spacing:-.04em;margin-bottom:6px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{color:var(--dim);font-size:.95rem;margin-bottom:28px;max-width:640px;line-height:1.75}
+.layout{display:grid;grid-template-columns:260px 1fr;gap:20px}
+.left-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:18px}
+.left-panel h3{font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px}
+.step-btn{width:100%;text-align:left;border:1px solid transparent;background:none;color:var(--dim);padding:9px 12px;border-radius:10px;cursor:pointer;font-size:.82rem;line-height:1.5;transition:.15s;margin-bottom:4px;display:block}
+.step-btn:hover{border-color:rgba(251,146,60,.3);color:var(--text)}
+.step-btn.active{background:rgba(251,146,60,.1);border-color:rgba(251,146,60,.4);color:var(--text)}
+.step-index{display:inline-block;width:18px;height:18px;border-radius:50%;background:rgba(251,146,60,.15);color:var(--accent);font-size:.68rem;font-weight:700;text-align:center;line-height:18px;margin-right:7px}
+.ctrl{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.ctrl button{flex:1;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:10px;padding:8px 4px;cursor:pointer;font-size:.76rem;transition:.15s}
+.ctrl button:hover{border-color:var(--accent);color:var(--text)}
+.center-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:22px;min-height:540px}
+.step-msg{border-left:3px solid var(--accent);background:rgba(251,146,60,.06);border-radius:0 10px 10px 0;padding:10px 14px;font-size:.86rem;color:var(--text);line-height:1.7;margin-bottom:16px}
+/* CPU 折线图 */
+.chart-area{height:140px;border:1px solid rgba(255,255,255,.07);border-radius:10px;background:rgba(17,24,39,.5);position:relative;overflow:hidden;margin-bottom:12px}
+canvas{width:100%;height:100%}
+.threshold-label{position:absolute;right:6px;font-size:.65rem;color:var(--warn);font-family:monospace}
+/* 指标栏 */
+.metrics-row{display:flex;gap:12px;margin-bottom:14px}
+.metric-card{flex:1;border:1px solid rgba(255,255,255,.07);background:rgba(30,41,59,.5);border-radius:10px;padding:10px 14px}
+.metric-card.alert{border-color:rgba(251,146,60,.4);background:rgba(251,146,60,.06)}
+.metric-label{font-size:.7rem;color:var(--dim2);margin-bottom:4px}
+.metric-value{font-size:1.4rem;font-weight:700;font-family:monospace}
+.metric-value.high{color:var(--err)}
+.metric-value.ok{color:var(--ok)}
+/* Pod 列表 */
+.pod-list{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.pod-card{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.5);border-radius:8px;padding:8px 12px;font-size:.76rem;display:flex;align-items:center;gap:6px;transition:all .4s}
+.pod-card.new{border-color:var(--ok);background:rgba(74,222,128,.07);animation:fadeIn .5s}
+.pod-card.terminating{opacity:0.4;border-color:var(--err)}
+@keyframes fadeIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+/* HPA 状态 */
+.hpa-box{border:1px solid rgba(255,255,255,.07);background:rgba(30,41,59,.4);border-radius:10px;padding:12px;display:flex;gap:16px;align-items:center;margin-bottom:12px}
+.hpa-formula{font-family:monospace;font-size:.8rem;color:var(--dim);line-height:1.8;flex:1}
+.hpa-formula strong{color:var(--accent)}
+.cooldown-bar{height:6px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;margin-top:6px}
+.cooldown-fill{height:100%;background:var(--accent);border-radius:3px;transition:width .4s}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">云原生</a><span>/</span>弹性伸缩 HPA</div>
+  <h1 class="page-title">弹性伸缩 HPA</h1>
+  <p class="subtitle">HPA（Horizontal Pod Autoscaler）每 15s 从 metrics-server 抓取 CPU/内存，用公式 desiredReplicas = ceil(currentReplicas × currentMetric / targetMetric) 计算目标副本数，扩容后进入冷却期防止频繁伸缩。</p>
+
+  <div class="layout">
+    <div class="left-panel">
+      <h3>步骤</h3>
+      <div id="stepList"></div>
+      <div class="ctrl">
+        <button onclick="prev()">← 上一步</button>
+        <button onclick="next()">下一步 →</button>
+        <button onclick="reset()">重置</button>
+        <button id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      </div>
+    </div>
+    <div class="center-panel">
+      <div class="step-msg" id="stepMsg">点击"下一步"观察 HPA 弹性伸缩的完整流程。</div>
+
+      <div class="metrics-row">
+        <div class="metric-card" id="cpuCard">
+          <div class="metric-label">平均 CPU 利用率</div>
+          <div class="metric-value" id="cpuValue">30%</div>
+        </div>
+        <div class="metric-card" id="replicaCard">
+          <div class="metric-label">当前副本数</div>
+          <div class="metric-value" id="replicaValue">2</div>
+        </div>
+        <div class="metric-card" id="desiredCard">
+          <div class="metric-label">目标副本数</div>
+          <div class="metric-value" id="desiredValue">2</div>
+        </div>
+      </div>
+
+      <div class="chart-area">
+        <canvas id="cpuChart"></canvas>
+        <div class="threshold-label" id="thresholdLabel" style="top:30%">threshold: 70%</div>
+      </div>
+
+      <div class="hpa-box">
+        <div class="hpa-formula" id="hpaFormula">
+          desiredReplicas = ceil(2 × 30% / 70%) = <strong>1</strong> → 保持 2（最小值）<br>
+          冷却期：
+          <div class="cooldown-bar"><div class="cooldown-fill" id="cooldownFill" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <div style="font-size:.7rem;color:var(--dim2);margin-bottom:8px">Pod 列表（<span id="podCountLabel">2 个</span>）</div>
+      <div class="pod-list" id="podList"></div>
+    </div>
+  </div>
+</main>
+<script>
+const STEPS = [
+  {cpu:30,replicas:2,desired:2,cooldown:0,newPods:[],terminatingPods:[],
+   formula:'ceil(2 × 30% / 70%) = 0.86 → 保持最小值 2（不缩容）',
+   msg:'初始状态：Deployment 有 2 个 Pod，CPU 平均利用率 30%，HPA 目标阈值 70%。当前利用率低于阈值，不触发扩容。',cpuHigh:false,cooldownActive:false},
+  {cpu:45,replicas:2,desired:2,cooldown:0,newPods:[],terminatingPods:[],
+   formula:'ceil(2 × 45% / 70%) = 1.29 → 保持 2（不缩容，缩容延迟）',
+   msg:'流量增加，CPU 利用率升至 45%。仍低于 70% 阈值，HPA 不触发扩容。HPA 每 15s 检查一次。',cpuHigh:false,cooldownActive:false},
+  {cpu:85,replicas:2,desired:3,cooldown:0,newPods:[],terminatingPods:[],
+   formula:'ceil(2 × 85% / 70%) = 2.43 → desiredReplicas = 3 ⚠ 触发扩容',
+   msg:'CPU 利用率跳升到 85%，超过 70% 阈值！HPA 计算：ceil(2 × 85% / 70%) = 3，触发扩容，向 Deployment 发出 replicas=3 的 patch。',cpuHigh:true,cooldownActive:false},
+  {cpu:85,replicas:3,desired:3,cooldown:20,newPods:['pod-3'],terminatingPods:[],
+   formula:'ceil(2 × 85% / 70%) = 2.43 → desiredReplicas = 3 ✓',
+   msg:'新 Pod（pod-3）已启动加入负载。扩容完成后进入冷却期（Scale-Up Cooldown = 3 分钟），冷却期内即使 CPU 仍高也不再扩容，防止抖动。',cpuHigh:true,cooldownActive:true},
+  {cpu:92,replicas:3,desired:4,cooldown:80,newPods:['pod-3'],terminatingPods:[],
+   formula:'ceil(3 × 92% / 70%) = 3.94 → 冷却期中，抑制扩容到 4',
+   msg:'CPU 继续升高到 92%，理论上应扩到 4 个副本，但 HPA 仍在冷却期（进度 80%），扩容被抑制。这是防止指标波动导致频繁扩缩容的机制。',cpuHigh:true,cooldownActive:true},
+  {cpu:68,replicas:3,desired:3,cooldown:100,newPods:['pod-3'],terminatingPods:[],
+   formula:'ceil(3 × 68% / 70%) = 2.91 → 接近阈值，保持 3',
+   msg:'冷却期结束，同时 CPU 也回落到 68%（接近阈值），目标副本数保持 3，不缩容。缩容有更长的稳定窗口（5 分钟），避免流量恢复时需要重新扩容。',cpuHigh:false,cooldownActive:false},
+  {cpu:35,replicas:2,desired:2,cooldown:0,newPods:[],terminatingPods:['pod-3'],
+   formula:'ceil(3 × 35% / 70%) = 1.5 → desiredReplicas = 2 ↓ 触发缩容',
+   msg:'流量大幅下降，CPU 降至 35%，持续 5 分钟稳定窗口后，HPA 触发缩容：replicas 3→2。pod-3 进入 Terminating 状态，优雅退出（等待连接排空后删除）。',cpuHigh:false,cooldownActive:false},
+];
+
+let cur = -1, timer = null;
+const cpuHistory = [];
+
+function renderPods(step){
+  const list = document.getElementById('podList');
+  list.innerHTML = '';
+  const base = ['pod-1','pod-2'];
+  const allPods = [...base, ...step.newPods];
+  allPods.forEach(p => {
+    const div = document.createElement('div');
+    div.className = 'pod-card' + (step.newPods.includes(p) ? ' new' : '') + (step.terminatingPods.includes(p) ? ' terminating' : '');
+    div.innerHTML = `<span>📦</span><span>${p}</span><span style="font-size:.68rem;color:var(--dim2)">${step.terminatingPods.includes(p)?'Terminating':'Running'}</span>`;
+    list.appendChild(div);
+  });
+  document.getElementById('podCountLabel').textContent = allPods.length + ' 个';
+}
+
+function drawChart(cpuVal){
+  cpuHistory.push(cpuVal);
+  if(cpuHistory.length > 30) cpuHistory.shift();
+  const canvas = document.getElementById('cpuChart');
+  const W = canvas.offsetWidth || 600, H = 140;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  const threshold = 70;
+  const ty = H - (threshold/100)*H;
+  ctx.strokeStyle = 'rgba(251,191,36,.35)';
+  ctx.setLineDash([5,5]);
+  ctx.beginPath(); ctx.moveTo(0,ty); ctx.lineTo(W,ty); ctx.stroke();
+  ctx.setLineDash([]);
+  if(cpuHistory.length > 1){
+    ctx.beginPath();
+    ctx.strokeStyle = cpuVal > threshold ? '#f87171' : '#4ade80';
+    ctx.lineWidth = 2;
+    cpuHistory.forEach((v,i) => {
+      const x = (i/(cpuHistory.length-1))*W;
+      const y = H - (v/100)*H;
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+    const x = W, y = H - (cpuVal/100)*H;
+    ctx.beginPath();
+    ctx.arc(x,y,4,0,Math.PI*2);
+    ctx.fillStyle = cpuVal > threshold ? '#f87171' : '#4ade80';
+    ctx.fill();
+  }
+  document.getElementById('thresholdLabel').style.top = (ty/H*100) + '%';
+}
+
+function render(){
+  const step = cur >= 0 ? STEPS[cur] : STEPS[0];
+  document.getElementById('stepMsg').textContent = cur >= 0 ? step.msg : '点击"下一步"观察 HPA 弹性伸缩的完整流程。';
+  const cpuEl = document.getElementById('cpuValue');
+  cpuEl.textContent = step.cpu + '%';
+  cpuEl.className = 'metric-value' + (step.cpuHigh ? ' high' : ' ok');
+  document.getElementById('cpuCard').className = 'metric-card' + (step.cpuHigh ? ' alert' : '');
+  document.getElementById('replicaValue').textContent = step.replicas;
+  document.getElementById('desiredValue').textContent = step.desired;
+  document.getElementById('desiredValue').className = 'metric-value' + (step.desired > step.replicas ? ' high' : '');
+  document.getElementById('hpaFormula').innerHTML = step.formula.replace('⚠','<strong style="color:var(--err)">⚠</strong>').replace('↓','<strong style="color:var(--warn)">↓</strong>') + '<br>冷却期：<div class="cooldown-bar"><div class="cooldown-fill" id="cooldownFill" style="width:'+step.cooldown+'%"></div></div>';
+  drawChart(step.cpu);
+  renderPods(step);
+  buildStepList();
+}
+
+function buildStepList(){
+  const list = document.getElementById('stepList');
+  list.innerHTML = '';
+  STEPS.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-btn' + (i === cur ? ' active' : '');
+    btn.innerHTML = `<span class="step-index">${i+1}</span>CPU ${s.cpu}% → ${s.replicas}副本`;
+    btn.onclick = () => { cur = i; render(); };
+    list.appendChild(btn);
+  });
+}
+
+function next(){ if(cur < STEPS.length-1){ cur++; render(); } }
+function prev(){ if(cur > 0){ cur--; render(); } else { cur = -1; render(); } }
+function reset(){ cur = -1; cpuHistory.length=0; stopPlay(); render(); }
+function togglePlay(){ if(timer) stopPlay(); else startPlay(); }
+function startPlay(){
+  document.getElementById('playBtn').textContent = '⏸ 暂停';
+  timer = setInterval(() => {
+    if(cur < STEPS.length-1){ cur++; render(); } else stopPlay();
+  }, 2000);
+}
+function stopPlay(){
+  if(timer){ clearInterval(timer); timer = null; }
+  document.getElementById('playBtn').textContent = '▶ 播放';
+}
+
+render();
+</script>
+</body>
+</html>

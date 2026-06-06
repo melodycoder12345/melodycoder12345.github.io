@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pod 调度 - 云原生</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#f472b6;--ok:#4ade80;--warn:#fbbf24;--err:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:radial-gradient(circle at 25% 0%,rgba(244,114,182,.12),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1260px;margin:0 auto;padding:40px 32px 80px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--dim2);margin-bottom:24px}
+.breadcrumb a{color:var(--dim2)}.breadcrumb a:hover{color:var(--text)}
+.page-title{font-size:clamp(1.6rem,3.5vw,2.8rem);letter-spacing:-.04em;margin-bottom:6px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{color:var(--dim);font-size:.95rem;margin-bottom:28px;max-width:640px;line-height:1.75}
+.layout{display:grid;grid-template-columns:260px 1fr;gap:20px;align-items:start}
+.left-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:18px}
+.left-panel h3{font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px}
+.step-btn{width:100%;text-align:left;border:1px solid transparent;background:none;color:var(--dim);padding:9px 12px;border-radius:10px;cursor:pointer;font-size:.82rem;line-height:1.5;transition:.15s;margin-bottom:4px;display:block}
+.step-btn:hover{border-color:rgba(244,114,182,.3);color:var(--text)}
+.step-btn.active{background:rgba(244,114,182,.1);border-color:rgba(244,114,182,.4);color:var(--text)}
+.step-index{display:inline-block;width:18px;height:18px;border-radius:50%;background:rgba(244,114,182,.15);color:var(--accent);font-size:.68rem;font-weight:700;text-align:center;line-height:18px;margin-right:7px}
+.ctrl{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.ctrl button{flex:1;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:10px;padding:8px 4px;cursor:pointer;font-size:.76rem;transition:.15s;min-width:60px}
+.ctrl button:hover{border-color:var(--accent);color:var(--text)}
+.center-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:22px;min-height:540px}
+.step-msg{border-left:3px solid var(--accent);background:rgba(244,114,182,.06);border-radius:0 10px 10px 0;padding:10px 14px;font-size:.86rem;color:var(--text);line-height:1.7;margin-bottom:20px}
+.phase-label{font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px;font-weight:700}
+.pod-spec{display:inline-flex;align-items:center;gap:10px;background:rgba(244,114,182,.08);border:1px solid rgba(244,114,182,.3);border-radius:10px;padding:8px 14px;font-size:.82rem;margin-bottom:18px}
+.nodes-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.node-card{border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px;background:rgba(30,41,59,.5);transition:all .4s;position:relative;overflow:hidden}
+.node-card.filtered{opacity:0.3;border-color:rgba(248,113,113,.3)}
+.node-card.filtered::after{content:'✗';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:1.8rem;color:var(--err);opacity:0.7}
+.node-card.candidate{border-color:rgba(244,114,182,.4);background:rgba(244,114,182,.06)}
+.node-card.winner{border-color:var(--ok);background:rgba(74,222,128,.1);box-shadow:0 0 20px rgba(74,222,128,.2)}
+.node-name{font-size:.78rem;font-weight:700;margin-bottom:6px}
+.node-res{font-size:.7rem;color:var(--dim2);line-height:1.7;font-family:monospace}
+.node-score{display:none;font-size:1.1rem;font-weight:700;color:var(--ok);margin-top:6px}
+.node-card.candidate .node-score,.node-card.winner .node-score{display:block}
+.filter-reason{font-size:.66rem;color:var(--err);margin-top:4px;display:none}
+.node-card.filtered .filter-reason{display:block}
+.bind-badge{display:none;background:var(--ok);color:#052e16;border-radius:5px;padding:2px 6px;font-size:.7rem;font-weight:700;margin-top:6px}
+.node-card.winner .bind-badge{display:block}
+@media(max-width:900px){.layout{grid-template-columns:1fr}.nodes-grid{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">云原生</a><span>/</span>Pod 调度</div>
+  <h1 class="page-title">Pod 调度</h1>
+  <p class="subtitle">Scheduler 收到 Pending Pod 后，先 Filter 淘汰不满足条件的节点，再 Score 对剩余节点打分，最高分节点绑定 Pod。本例演示一个请求 2 CPU / 2Gi 内存且要求 SSD 节点的 Pod 调度过程。</p>
+
+  <div class="layout">
+    <div class="left-panel">
+      <h3>步骤</h3>
+      <div id="stepList"></div>
+      <div class="ctrl">
+        <button onclick="prev()">← 上一步</button>
+        <button onclick="next()">下一步 →</button>
+        <button onclick="reset()">重置</button>
+        <button id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      </div>
+    </div>
+    <div class="center-panel">
+      <div class="step-msg" id="stepMsg">点击"下一步"开始 Pod 调度流程。</div>
+
+      <div class="pod-spec">
+        <span>📦</span>
+        <div>
+          <div style="font-weight:600;margin-bottom:2px">待调度 Pod</div>
+          <div style="font-size:.74rem;color:var(--dim);font-family:monospace">requests: cpu=2, mem=2Gi | nodeSelector: disk=ssd</div>
+        </div>
+      </div>
+
+      <div class="phase-label" id="phaseLabel">等待调度</div>
+      <div class="nodes-grid" id="nodesGrid"></div>
+    </div>
+  </div>
+</main>
+<script>
+const NODES = [
+  {id:'n1',name:'node-1',cpu:'2/8',mem:'6/16',disk:'hdd',taint:'',score:0},
+  {id:'n2',name:'node-2',cpu:'7/8',mem:'14/16',disk:'ssd',taint:'',score:0},
+  {id:'n3',name:'node-3',cpu:'3/8',mem:'8/16',disk:'ssd',taint:'NoSchedule',score:0},
+  {id:'n4',name:'node-4',cpu:'2/8',mem:'10/16',disk:'ssd',taint:'',score:0},
+  {id:'n5',name:'node-5',cpu:'1/8',mem:'4/16',disk:'ssd',taint:'',score:0},
+];
+
+const STEPS = [
+  {
+    phase:'初始：全部节点',
+    state: {n1:'normal',n2:'normal',n3:'normal',n4:'normal',n5:'normal'},
+    scores:{},
+    msg:'Scheduler 收到 Pending Pod，开始 Filter 阶段：检查所有 5 个节点是否满足 Pod 的调度条件。'
+  },
+  {
+    phase:'Filter: NodeSelector（disk=ssd）',
+    state:{n1:'filtered',n2:'normal',n3:'normal',n4:'normal',n5:'normal'},
+    filterReasons:{n1:'nodeSelector 不匹配（disk=hdd）'},
+    scores:{},
+    msg:'Filter 1 - NodeSelector：node-1 的磁盘类型是 hdd，不满足 nodeSelector: disk=ssd，被淘汰。'
+  },
+  {
+    phase:'Filter: Taint/Toleration',
+    state:{n1:'filtered',n2:'normal',n3:'filtered',n4:'normal',n5:'normal'},
+    filterReasons:{n1:'nodeSelector 不匹配（disk=hdd）',n3:'Taint NoSchedule（Pod 无 Toleration）'},
+    scores:{},
+    msg:'Filter 2 - Taint：node-3 有 Taint=NoSchedule，Pod 没有对应的 Toleration，被淘汰。'
+  },
+  {
+    phase:'Filter: ResourceFit（cpu=2, mem=2Gi）',
+    state:{n1:'filtered',n2:'filtered',n3:'filtered',n4:'normal',n5:'normal'},
+    filterReasons:{n1:'nodeSelector 不匹配（disk=hdd）',n2:'CPU 可用量不足（可用 1 core < 需要 2）',n3:'Taint NoSchedule（Pod 无 Toleration）'},
+    scores:{},
+    msg:'Filter 3 - ResourceFit：node-2 已用 7/8 CPU，剩余 1 core 不足 2 core，被淘汰。剩余候选：node-4、node-5。'
+  },
+  {
+    phase:'Score 阶段：对候选节点打分',
+    state:{n1:'filtered',n2:'filtered',n3:'filtered',n4:'candidate',n5:'candidate'},
+    filterReasons:{n1:'nodeSelector 不匹配（disk=hdd）',n2:'CPU 可用量不足（可用 1 core < 需要 2）',n3:'Taint NoSchedule（Pod 无 Toleration）'},
+    scores:{n4:78,n5:92},
+    msg:'Score 阶段：对 node-4 和 node-5 运行打分插件（LeastRequested / BalancedAllocation / NodeAffinity 等）。node-4 得 78 分，node-5 得 92 分。'
+  },
+  {
+    phase:'Bind：绑定最高分节点',
+    state:{n1:'filtered',n2:'filtered',n3:'filtered',n4:'candidate',n5:'winner'},
+    filterReasons:{n1:'nodeSelector 不匹配（disk=hdd）',n2:'CPU 可用量不足（可用 1 core < 需要 2）',n3:'Taint NoSchedule（Pod 无 Toleration）'},
+    scores:{n4:78,n5:92},
+    msg:'Bind：node-5 得分最高（92），Scheduler 将 Pod.spec.nodeName 设为 node-5 并写入 etcd。node-5 的 kubelet Watch 到事件后，开始拉取镜像并启动容器。'
+  },
+];
+
+let cur = -1, timer = null;
+
+function renderNodes(step){
+  const grid = document.getElementById('nodesGrid');
+  grid.innerHTML = '';
+  NODES.forEach(n => {
+    const state = step ? (step.state[n.id] || 'normal') : 'normal';
+    const score = step && step.scores ? (step.scores[n.id] || null) : null;
+    const reason = step && step.filterReasons ? (step.filterReasons[n.id] || '') : '';
+    const div = document.createElement('div');
+    div.className = 'node-card ' + (state==='filtered'?'filtered':state==='candidate'?'candidate':state==='winner'?'winner':'');
+    div.innerHTML = `<div class="node-name">${n.name}</div>
+      <div class="node-res">CPU: ${n.cpu}<br>Mem: ${n.mem}<br>Disk: ${n.disk}${n.taint?'<br>Taint: '+n.taint:''}</div>
+      ${score!==null?`<div class="node-score">${score} pts</div>`:''}
+      ${reason?`<div class="filter-reason">${reason}</div>`:'<div class="filter-reason"></div>'}
+      ${state==='winner'?`<div class="bind-badge">✓ BOUND</div>`:''}`;
+    grid.appendChild(div);
+  });
+}
+
+function buildStepList(){
+  const list = document.getElementById('stepList');
+  list.innerHTML = '';
+  STEPS.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-btn' + (i === cur ? ' active' : '');
+    btn.innerHTML = `<span class="step-index">${i+1}</span>${s.phase.slice(0,22)}${s.phase.length>22?'…':''}`;
+    btn.onclick = () => { cur = i; render(); };
+    list.appendChild(btn);
+  });
+}
+
+function render(){
+  const step = cur >= 0 ? STEPS[cur] : null;
+  renderNodes(step);
+  document.getElementById('phaseLabel').textContent = step ? step.phase : '等待调度';
+  document.getElementById('stepMsg').textContent = step ? step.msg : '点击"下一步"开始 Pod 调度流程。';
+  buildStepList();
+}
+
+function next(){ if(cur < STEPS.length-1){ cur++; render(); } }
+function prev(){ if(cur > -1){ cur--; render(); } }
+function reset(){ cur = -1; stopPlay(); render(); }
+function togglePlay(){ if(timer) stopPlay(); else startPlay(); }
+function startPlay(){
+  document.getElementById('playBtn').textContent = '⏸ 暂停';
+  timer = setInterval(() => {
+    if(cur < STEPS.length-1){ cur++; render(); } else stopPlay();
+  }, 2000);
+}
+function stopPlay(){
+  if(timer){ clearInterval(timer); timer = null; }
+  document.getElementById('playBtn').textContent = '▶ 播放';
+}
+
+render();
+</script>
+</body>
+</html>

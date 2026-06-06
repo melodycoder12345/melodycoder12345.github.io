@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>向量时钟 - 分布式因果序</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#c084fc;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 20% 0%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 36%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:260px minmax(0,1fr) 290px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:440px;display:flex;flex-direction:column;padding:18px}
+.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:rgba(15,23,42,.64);overflow:hidden;padding:20px;}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}
+.status p{color:var(--dim);font-size:.9rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.conflict{border-color:var(--bad);color:var(--bad)}
+.badge.ok{border-color:var(--ok);color:var(--ok)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit;font-size:.85rem}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.deep code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.82rem;color:var(--text)}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+
+/* 向量时钟专用样式 */
+.vc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;width:100%;}
+.vc-node{display:flex;flex-direction:column;align-items:center;gap:8px;}
+.vc-name{font-size:.78rem;font-weight:700;font-family:monospace;padding:4px 12px;border-radius:6px;border:1px solid;}
+.vc-clock{display:flex;gap:4px;align-items:center;}
+.vc-slot{width:36px;height:36px;border:1.5px solid rgba(255,255,255,.18);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:800;font-family:monospace;transition:all .35s cubic-bezier(.4,0,.2,1);background:rgba(255,255,255,.04);}
+.vc-slot.updated{background:color-mix(in srgb,var(--accent) 22%,transparent);border-color:var(--accent);color:var(--accent);box-shadow:0 0 10px color-mix(in srgb,var(--accent) 40%,transparent);}
+.vc-slot.merged{background:rgba(74,222,128,.18);border-color:var(--ok);color:var(--ok);}
+.vc-slot.conflict-slot{background:rgba(248,113,113,.18);border-color:var(--bad);color:var(--bad);}
+.vc-slot-label{font-size:.62rem;color:var(--dim2);font-family:monospace;text-align:center;}
+
+/* 事件日志 */
+.vc-event{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:.72rem;font-family:monospace;min-height:20px;}
+.vc-event-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.vc-event-text{color:var(--dim);}
+
+/* 消息箭头区 */
+.vc-arrows{position:relative;height:40px;margin:8px 0;}
+.arrow-svg{width:100%;height:100%;}
+
+/* 对比关系说明 */
+.vc-compare{margin-top:16px;border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:12px 16px;background:rgba(255,255,255,.025);}
+.vc-compare h3{font-size:.78rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;}
+.compare-pair{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:.82rem;font-family:monospace;}
+.compare-vec{background:rgba(255,255,255,.06);border-radius:6px;padding:4px 10px;color:var(--text);}
+.compare-rel{color:var(--dim2);}
+.compare-rel.happens-before{color:var(--ok);}
+.compare-rel.concurrent{color:var(--bad);}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"向量时钟（Vector Clock）","body":"每个节点维护一个长度为 N（节点数）的整数数组。自身事件发生时，自己的时钟分量加 1；收到消息时，对每个分量取自身和消息携带的向量的最大值，再将自身分量加 1。","tag":"term"},
+  {"title":"因果序（Happens-Before）","body":"事件 A happens-before B，当且仅当 VC(A) 的每个分量都 ≤ VC(B) 且至少一个分量严格小于。可以理解为 A 的信息「有可能」影响 B。","tag":"term"},
+  {"title":"并发（Concurrent）","body":"两个事件的向量时钟既不满足 happens-before，也不满足 happens-after。VC(A) 与 VC(B) 无法比较大小，说明它们相互独立，在逻辑上同时发生。","tag":"term"},
+  {"title":"版本向量（Version Vector）","body":"向量时钟用于追踪事件因果序；版本向量用于追踪数据副本的版本关系。两者结构相同，语义略有区别。Dynamo、CRDTs 等系统广泛使用版本向量处理冲突。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">分布式 / 向量时钟 / C 类型</div>
+      <h1>向量时钟</h1>
+      <p class="summary">向量时钟解决了 Lamport 时钟无法区分并发与因果的问题。每个节点维护一个包含所有节点时钟的数组，消息携带发送方的向量快照，接收方通过逐位取 max 合并。当两个事件的向量无法比较大小时，它们就是并发的。</p>
+      <div class="tags"><span>因果序</span><span>Happens-Before</span><span>并发检测</span><span>版本向量</span><span>冲突解决</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>向量时钟 VC[A,B,C]</strong><span>三节点系统中每个节点的向量，VC[A] 表示节点 A 已知的 A 的事件计数。</span></li>
+        <li><strong>发送规则</strong><span>发送消息前，自身分量加 1，将当前向量附在消息中发送。</span></li>
+        <li><strong>接收规则</strong><span>逐位取 max(本地向量, 消息向量)，然后自身分量加 1。</span></li>
+        <li><strong>并发 = 无法比较</strong><span>VC(X)[i] &lt; VC(Y)[i] 但 VC(X)[j] &gt; VC(Y)[j] 时，X 和 Y 并发。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">Step Timeline</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <div class="vc-grid" id="vcGrid">
+          <!-- 三个节点，每个有向量时钟显示 -->
+          <div class="vc-node" id="nodeA">
+            <div class="vc-name" style="border-color:rgba(56,189,248,.5);color:#38bdf8;background:rgba(56,189,248,.08)">Node A</div>
+            <div class="vc-clock">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+                <div class="vc-slot" id="vA_A">0</div>
+                <div class="vc-slot-label">A</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+                <div class="vc-slot" id="vA_B">0</div>
+                <div class="vc-slot-label">B</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+                <div class="vc-slot" id="vA_C">0</div>
+                <div class="vc-slot-label">C</div>
+              </div>
+            </div>
+            <div class="vc-event" id="evtA"><div class="vc-event-dot" style="background:#38bdf8"></div><div class="vc-event-text">—</div></div>
+          </div>
+
+          <div class="vc-node" id="nodeB">
+            <div class="vc-name" style="border-color:rgba(192,132,252,.5);color:#c084fc;background:rgba(192,132,252,.08)">Node B</div>
+            <div class="vc-clock">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+                <div class="vc-slot" id="vB_A">0</div>
+                <div class="vc-slot-label">A</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+                <div class="vc-slot" id="vB_B">0</div>
+                <div class="vc-slot-label">B</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+                <div class="vc-slot" id="vB_C">0</div>
+                <div class="vc-slot-label">C</div>
+              </div>
+            </div>
+            <div class="vc-event" id="evtB"><div class="vc-event-dot" style="background:#c084fc"></div><div class="vc-event-text">—</div></div>
+          </div>
+
+          <div class="vc-node" id="nodeC">
+            <div class="vc-name" style="border-color:rgba(74,222,128,.5);color:#4ade80;background:rgba(74,222,128,.08)">Node C</div>
+            <div class="vc-clock">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+                <div class="vc-slot" id="vC_A">0</div>
+                <div class="vc-slot-label">A</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+                <div class="vc-slot" id="vC_B">0</div>
+                <div class="vc-slot-label">B</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:3px">
+                <div class="vc-slot" id="vC_C">0</div>
+                <div class="vc-slot-label">C</div>
+              </div>
+            </div>
+            <div class="vc-event" id="evtC"><div class="vc-event-dot" style="background:#4ade80"></div><div class="vc-event-text">—</div></div>
+          </div>
+        </div>
+
+        <!-- 消息箭头 SVG（简单连线提示） -->
+        <svg id="arrowSvg" style="width:100%;height:44px;margin:8px 0;" viewBox="0 0 560 44">
+          <defs>
+            <marker id="arrowBlue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#38bdf8"/>
+            </marker>
+            <marker id="arrowPurple" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#c084fc"/>
+            </marker>
+            <marker id="arrowGreen" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#4ade80"/>
+            </marker>
+          </defs>
+          <!-- 动态箭头 -->
+          <line id="msgArrow" x1="0" y1="22" x2="0" y2="22" stroke="transparent" stroke-width="2" stroke-dasharray="5,3" marker-end="url(#arrowBlue)"/>
+          <text id="msgLabel" x="0" y="16" fill="#64748b" font-size="10" font-family="monospace" text-anchor="middle"></text>
+        </svg>
+
+        <!-- 比较关系 -->
+        <div class="vc-compare" id="vcCompare" style="display:none">
+          <h3>因果关系判断</h3>
+          <div id="comparePairs"></div>
+        </div>
+      </div>
+      <div class="status">
+        <div id="stepBadge" class="badge">Step 1</div>
+        <h2 id="statusTitle">初始状态</h2>
+        <p id="statusDesc">三个节点各自维护向量时钟 [A,B,C]，初始全为 0。</p>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnPrev" onclick="goPrev()" disabled>◀ 上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+        <button class="ctrl" id="btnNext" onclick="goNext()">下一步 ▶</button>
+        <button class="ctrl" onclick="reset()" style="margin-left:auto">↺ 重置</button>
+      </div>
+    </section>
+
+    <div class="panel" style="display:flex;flex-direction:column;">
+      <div class="panel-hd">规则说明</div>
+      <div style="padding:14px;flex:1;overflow:auto;font-size:.82rem;color:var(--dim);line-height:1.85;">
+        <div style="margin-bottom:12px;">
+          <div style="color:var(--accent);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">本地事件规则</div>
+          <div style="background:rgba(255,255,255,.03);border-radius:8px;padding:10px;font-family:monospace;font-size:.78rem;">
+            VC[self] += 1
+          </div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <div style="color:var(--accent);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">发送消息规则</div>
+          <div style="background:rgba(255,255,255,.03);border-radius:8px;padding:10px;font-family:monospace;font-size:.78rem;">
+            VC[self] += 1<br>
+            msg.VC = copy(VC)
+          </div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <div style="color:var(--accent);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">接收消息规则</div>
+          <div style="background:rgba(255,255,255,.03);border-radius:8px;padding:10px;font-family:monospace;font-size:.78rem;">
+            for i in range(N):<br>
+            &nbsp;&nbsp;VC[i] = max(VC[i],<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;msg.VC[i])<br>
+            VC[self] += 1
+          </div>
+        </div>
+        <div>
+          <div style="color:var(--accent);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">比较关系</div>
+          <div style="font-size:.8rem;">
+            <div style="margin-bottom:6px;"><span style="color:var(--ok)">A → B</span>（A 先于 B）：<br>∀i: VC_A[i] ≤ VC_B[i] 且 ∃i: VC_A[i] &lt; VC_B[i]</div>
+            <div><span style="color:var(--bad)">A ∥ B</span>（并发）：<br>∃i: VC_A[i] > VC_B[i] 且 ∃j: VC_A[j] &lt; VC_B[j]</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>向量时钟 vs Lamport 时钟</h2>
+      <ul>
+        <li>Lamport 时钟：单个整数，<code>A → B ⟹ L(A) &lt; L(B)</code>，但反向不成立</li>
+        <li>向量时钟：<code>A → B</code> 当且仅当 <code>VC(A) &lt; VC(B)</code>，可双向判断</li>
+        <li>Lamport 时钟无法区分并发与因果；向量时钟可以精确检测并发</li>
+        <li>代价：向量时钟大小随节点数线性增长，节点数多时开销较大</li>
+        <li>实践中常用版本向量（Version Vector）替代，语义类似但聚焦于数据版本</li>
+      </ul>
+    </section>
+    <section>
+      <h2>工程应用场景</h2>
+      <ul>
+        <li><strong>Amazon Dynamo：</strong>每次写操作更新版本向量，读取时检测冲突版本，由客户端合并</li>
+        <li><strong>CouchDB：</strong>文档版本用向量记录，冲突自动检测，支持多主复制</li>
+        <li><strong>CRDT：</strong>无冲突数据类型内部用向量时钟追踪操作的因果依赖</li>
+        <li><strong>Git：</strong>类似概念，每个 commit 有 parent 链接，DAG 隐式编码了因果序</li>
+        <li><strong>消息去重：</strong>分布式系统中用向量时钟判断消息是否已经被因果覆盖</li>
+      </ul>
+    </section>
+    <section>
+      <h2>并发冲突的处理策略</h2>
+      <p>检测到并发事件后，需要选择合并策略：</p>
+      <ul>
+        <li><strong>Last-Write-Wins（LWW）：</strong>附加物理时间戳，选最新的写入，简单但可能丢数据</li>
+        <li><strong>客户端合并：</strong>将冲突版本全部返回给客户端，由应用层合并（Dynamo 方案）</li>
+        <li><strong>语义合并：</strong>根据数据类型的语义自动合并（如计数器取 max，集合取并集）</li>
+        <li><strong>CRDT：</strong>设计无冲突的数据结构，任何顺序合并都得到相同结果</li>
+      </ul>
+    </section>
+    <section>
+      <h2>向量时钟的局限</h2>
+      <ul>
+        <li>大小随节点数 N 线性增长，大规模集群（N=1000）开销显著</li>
+        <li>需要为每个节点分配固定 ID，动态扩缩容时向量长度变化</li>
+        <li>实践替代方案：<strong>点版本（Dotted Version Vectors）</strong>解决动态节点问题</li>
+        <li>矩阵时钟（Matrix Clock）可以追踪"节点 A 知道节点 B 了解到了什么"，但开销更高</li>
+        <li>仅追踪因果序，不提供全局线性化顺序（需要 Paxos/Raft 才能实现线性化）</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← 分布式系统首页</a>
+    <a class="btn" href="crdt.html">CRDT</a>
+    <a class="btn" href="gossip.html">Gossip 协议</a>
+    <a class="btn" href="raft.html">Raft</a>
+  </div>
+</main>
+
+<script>
+// 向量时钟步骤数据
+// 每个节点的向量：[A, B, C]
+// highlight: 哪些 slot 高亮 ('updated'|'merged'|'conflict-slot'|'')
+// arrow: {from, to, vc, color} 消息箭头
+// event: {A,B,C} 当前步骤的事件描述
+
+const STEPS = [
+  {
+    label:'初始状态',
+    title:'初始状态：所有节点向量全为 0',
+    badge:'初始',
+    desc:'三个节点 A、B、C 各自维护向量时钟 [A分量, B分量, C分量]，初始全为 0，表示没有任何事件发生。',
+    vA:[0,0,0], vB:[0,0,0], vC:[0,0,0],
+    hlA:['','',''], hlB:['','',''], hlC:['','',''],
+    evtA:'—', evtB:'—', evtC:'—',
+    arrow:null, compare:null
+  },
+  {
+    label:'A 本地事件 e1',
+    title:'节点 A 发生本地事件 e1（写操作）',
+    badge:'本地事件',
+    desc:'节点 A 发生本地事件（如写入一条记录）。根据本地事件规则：VC_A[A] += 1。向量变为 [1,0,0]，其他节点向量不变。',
+    vA:[1,0,0], vB:[0,0,0], vC:[0,0,0],
+    hlA:['updated','',''], hlB:['','',''], hlC:['','',''],
+    evtA:'本地事件 e1', evtB:'—', evtC:'—',
+    arrow:null, compare:null
+  },
+  {
+    label:'B 本地事件 e2',
+    title:'节点 B 并发地发生本地事件 e2',
+    badge:'本地事件',
+    desc:'与此同时（并发地），节点 B 也发生了本地事件 e2。VC_B[B] += 1，向量变为 [0,1,0]。注意：A 和 B 的事件此时是并发的，互不知晓。',
+    vA:[1,0,0], vB:[0,1,0], vC:[0,0,0],
+    hlA:['','',''], hlB:['','updated',''], hlC:['','',''],
+    evtA:'e1 发生后', evtB:'本地事件 e2', evtC:'—',
+    arrow:null, compare:null
+  },
+  {
+    label:'A 发消息给 B',
+    title:'A 发送消息给 B，携带向量 [1,0,0]',
+    badge:'发送消息',
+    desc:'节点 A 发送消息给 B（发送前 VC_A[A] += 1 → [2,0,0]），消息携带 A 的当前向量 [2,0,0]。',
+    vA:[2,0,0], vB:[0,1,0], vC:[0,0,0],
+    hlA:['updated','',''], hlB:['','',''], hlC:['','',''],
+    evtA:'发送消息 → B\n[2,0,0]', evtB:'等待消息', evtC:'—',
+    arrow:{from:'A',to:'B',label:'msg[2,0,0]'},
+    compare:null
+  },
+  {
+    label:'B 接收消息，合并向量',
+    title:'B 收到消息后，逐位取 max，然后 VC_B[B] += 1',
+    badge:'接收合并',
+    desc:'B 收到携带 [2,0,0] 的消息。接收规则：逐位 max([0,1,0], [2,0,0]) = [2,1,0]，然后 VC_B[B] += 1 → [2,2,0]。B 的向量"见证"了 A 的两个事件，因此 A.e1 → B 的这个接收事件。',
+    vA:[2,0,0], vB:[2,2,0], vC:[0,0,0],
+    hlA:['','',''], hlB:['merged','updated',''], hlC:['','',''],
+    evtA:'e1,e2 已完成', evtB:'收到 A 消息\n[2,0,0] → merge', evtC:'—',
+    arrow:{from:'A',to:'B',label:'msg[2,0,0]'},
+    compare:null
+  },
+  {
+    label:'C 独立发生 e3',
+    title:'节点 C 独立发生事件 e3（与 A、B 并发）',
+    badge:'并发事件',
+    desc:'C 独立发生了本地事件 e3，VC_C[C] += 1 → [0,0,1]。此时 C 完全不知道 A 和 B 的事件，与 A 的两个事件、B 的事件都是并发的。',
+    vA:[2,0,0], vB:[2,2,0], vC:[0,0,1],
+    hlA:['','',''], hlB:['','',''], hlC:['','','updated'],
+    evtA:'完成', evtB:'完成', evtC:'本地事件 e3',
+    arrow:null,
+    compare:null
+  },
+  {
+    label:'并发检测',
+    title:'比较 VC_A 和 VC_C：发现并发关系',
+    badge:'并发！',
+    desc:'比较 A 最终向量 [2,0,0] 和 C 的向量 [0,0,1]：VC_A[A]=2 > VC_C[A]=0，但 VC_A[C]=0 < VC_C[C]=1。两个维度"反向"，无法比较大小 → A 和 C 的事件是并发的，系统需要冲突解决策略。',
+    vA:[2,0,0], vB:[2,2,0], vC:[0,0,1],
+    hlA:['conflict-slot','','conflict-slot'], hlB:['','',''], hlC:['conflict-slot','','conflict-slot'],
+    evtA:'VC=[2,0,0]', evtB:'VC=[2,2,0]', evtC:'VC=[0,0,1]',
+    arrow:null,
+    compare:[
+      {a:'VC_A=[2,0,0]', rel:'→', b:'VC_B=[2,2,0]', type:'happens-before', label:'A happens-before B（B 见过 A 的消息）'},
+      {a:'VC_A=[2,0,0]', rel:'∥', b:'VC_C=[0,0,1]', type:'concurrent', label:'A 与 C 并发（相互不知晓）'},
+      {a:'VC_B=[2,2,0]', rel:'?', b:'VC_C=[0,0,1]', type:'concurrent', label:'B 与 C 也并发'},
+    ]
+  }
+];
+
+let currentStep = 0;
+let playing = false;
+let playTimer = null;
+
+function setSlot(id, val, cls) {
+  const el = document.getElementById(id);
+  el.textContent = val;
+  el.className = 'vc-slot' + (cls ? ' '+cls : '');
+}
+
+function renderStep(idx) {
+  const s = STEPS[idx];
+  document.querySelectorAll('.step-btn').forEach((b,i) => b.classList.toggle('active', i===idx));
+
+  const b = document.getElementById('stepBadge');
+  b.textContent = s.badge;
+  b.className = 'badge' + (s.badge==='并发！' ? ' conflict' : s.badge==='接收合并' ? ' ok' : '');
+  document.getElementById('statusTitle').textContent = s.title;
+  document.getElementById('statusDesc').textContent = s.desc;
+
+  // 更新向量时钟显示
+  ['A','B','C'].forEach(n => {
+    const vc = s['v'+n];
+    const hl = s['hl'+n];
+    ['A','B','C'].forEach((d,i) => {
+      setSlot('v'+n+'_'+d, vc[i], hl[i]);
+    });
+    const evtEl = document.getElementById('evt'+n);
+    evtEl.querySelector('.vc-event-text').textContent = s['evt'+n] || '—';
+  });
+
+  // 消息箭头
+  const arrow = document.getElementById('msgArrow');
+  const label = document.getElementById('msgLabel');
+  if (s.arrow) {
+    const positions = {A:93, B:280, C:467};
+    const colors = {A:'#38bdf8', B:'#c084fc', C:'#4ade80'};
+    const x1 = positions[s.arrow.from];
+    const x2 = positions[s.arrow.to];
+    const color = colors[s.arrow.from];
+    arrow.setAttribute('x1', x1); arrow.setAttribute('y1', 22);
+    arrow.setAttribute('x2', x2); arrow.setAttribute('y2', 22);
+    arrow.setAttribute('stroke', color);
+    arrow.setAttribute('marker-end', 'url(#arrow'+s.arrow.from.charAt(0).toUpperCase()+s.arrow.from.slice(1)+')');
+    label.setAttribute('x', (x1+x2)/2);
+    label.setAttribute('fill', color);
+    label.textContent = s.arrow.label;
+  } else {
+    arrow.setAttribute('x1',0); arrow.setAttribute('x2',0);
+    arrow.setAttribute('stroke','transparent');
+    label.textContent = '';
+  }
+
+  // 比较关系
+  const cmpEl = document.getElementById('vcCompare');
+  const pairsEl = document.getElementById('comparePairs');
+  if (s.compare) {
+    cmpEl.style.display = 'block';
+    pairsEl.innerHTML = s.compare.map(c =>
+      `<div class="compare-pair">
+        <span class="compare-vec">${c.a}</span>
+        <span class="compare-rel ${c.type}">${c.rel}</span>
+        <span class="compare-vec">${c.b}</span>
+        <span style="font-size:.72rem;color:var(--dim2);margin-left:6px;">${c.label}</span>
+      </div>`
+    ).join('');
+  } else {
+    cmpEl.style.display = 'none';
+  }
+
+  document.getElementById('btnPrev').disabled = idx === 0;
+  document.getElementById('btnNext').disabled = idx === STEPS.length - 1;
+}
+
+function buildStepList() {
+  const list = document.getElementById('stepList');
+  STEPS.forEach((s,i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-btn' + (i===0?' active':'');
+    btn.innerHTML = `<b>Step ${i+1}</b>${s.label}`;
+    btn.onclick = () => { currentStep = i; renderStep(i); stopPlay(); };
+    list.appendChild(btn);
+  });
+}
+
+function goNext() { if (currentStep < STEPS.length-1) { currentStep++; renderStep(currentStep); } else stopPlay(); }
+function goPrev() { if (currentStep > 0) { currentStep--; renderStep(currentStep); } }
+function reset() { stopPlay(); currentStep = 0; renderStep(0); }
+function togglePlay() {
+  if (playing) { stopPlay(); return; }
+  playing = true;
+  document.getElementById('btnPlay').textContent = '⏸ 暂停';
+  playTimer = setInterval(() => {
+    if (currentStep < STEPS.length-1) { currentStep++; renderStep(currentStep); }
+    else stopPlay();
+  }, 2000);
+}
+function stopPlay() {
+  playing = false;
+  clearInterval(playTimer);
+  document.getElementById('btnPlay').textContent = '▶ 播放';
+}
+
+buildStepList();
+renderStep(0);
+</script>
+</body>
+</html>

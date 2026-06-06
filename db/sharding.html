@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>分库分表 - 数据库</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#f97316;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 20% 0%,color-mix(in srgb,var(--accent) 10%,transparent),transparent 36%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,3.8rem);line-height:1.04;letter-spacing:-.05em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:200px minmax(0,1fr);gap:16px;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:12px;display:flex;flex-direction:column;gap:8px}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:10px;padding:9px 11px;cursor:pointer;font-family:inherit;transition:all .16s;font-size:.82rem}
+.step-btn:hover{color:var(--text)}.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.step-btn b{display:block;font-size:.7rem;color:var(--accent);margin-bottom:2px}
+.viz{padding:16px;display:flex;flex-direction:column;gap:12px}
+.stage{border:1px solid rgba(255,255,255,.06);border-radius:14px;background:rgba(15,23,42,.64);padding:14px}
+.status{border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:13px;background:rgba(255,255,255,.035)}
+.status h2{font-size:.95rem;margin-bottom:5px;color:var(--text)}
+.status p{color:var(--dim);font-size:.86rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:6px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.controls{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:7px 11px;cursor:pointer;font-family:inherit;font-size:.83rem}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.deep code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.82rem;color:var(--text)}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:900px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+
+/* Shard view */
+.shards{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
+.shard-col{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:100px;}
+.shard-label{font-size:.68rem;color:var(--dim2);font-family:monospace;text-align:center;}
+.shard-box{border:1.5px solid;border-radius:8px;padding:8px;min-width:90px;transition:all .4s;}
+.shard-box.active{box-shadow:0 0 10px currentColor;}
+.shard-bar-wrap{width:90px;height:80px;border:1px solid rgba(255,255,255,.08);border-radius:6px;background:rgba(255,255,255,.02);overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;}
+.shard-bar{width:100%;transition:height .5s cubic-bezier(.4,0,.2,1);display:flex;align-items:center;justify-content:center;font-size:.62rem;font-family:monospace;color:rgba(255,255,255,.8);}
+.shard-row-count{font-size:.68rem;font-family:monospace;text-align:center;}
+
+/* Scatter gather */
+.scatter-row{display:flex;align-items:center;gap:6px;font-size:.73rem;font-family:monospace;margin:3px 0;transition:all .3s;}
+.scatter-arrow{color:rgba(255,255,255,.25);font-size:.8rem;}
+.scatter-row.active .scatter-arrow{color:var(--accent);}
+
+/* Migration viz */
+.mig-row{display:flex;align-items:center;gap:8px;font-size:.72rem;margin-bottom:5px;font-family:monospace;}
+.mig-badge{border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:2px 6px;font-size:.65rem;}
+.mig-badge.moving{border-color:var(--warn);color:var(--warn);background:rgba(251,191,36,.08);}
+.mig-badge.done{border-color:var(--ok);color:var(--ok);}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Shard Key（分片键）","body":"决定数据落到哪个分片的字段。常见策略：哈希分片（hash(user_id) % N，数据均匀分布）、范围分片（按 user_id 范围，便于扫描但可能热点）、目录分片（维护路由表，灵活但额外开销）。","tag":"term"},
+  {"title":"Scatter-Gather（扇出查询）","body":"不带分片键的查询需要向所有分片并发发送请求（Scatter），等待所有分片返回结果后汇总合并（Gather）。查询时间 = 最慢分片的响应时间。分片数越多，扇出代价越大。","tag":"term"},
+  {"title":"再平衡（Rebalancing）","body":"增减分片时需要迁移数据。一致性哈希减少迁移量（增加 1 个节点只迁移 1/N 的数据），而取模哈希（hash % N → N+1）需要迁移几乎所有数据。迁移期间通常采用双写保证一致性。","tag":"term"},
+  {"title":"跨分片限制","body":"分片后 JOIN、跨分片事务、全局 ORDER BY/GROUP BY 代价极高或不可行。解决方案：业务层避免跨分片操作、冗余数据到单分片、使用分布式数据库（TiDB/YugabyteDB）。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">数据库 / 分库分表 / C 类型</div>
+      <h1>分库分表</h1>
+      <p class="summary">分库分表将数据按 shard key 哈希后路由到不同的分片（Shard）。动画展示：数据行按 user_id 哈希落入不同分片，柱状图显示各分片数据量；带 shard key 的查询直接命中单分片（快），不带 shard key 的查询 scatter-gather 扇出到所有分片（慢）；新增分片时一致性哈希只迁移部分数据块，双写保证迁移期间一致性。</p>
+      <div class="tags"><span>Shard Key</span><span>哈希分片</span><span>Scatter-Gather</span><span>一致性哈希</span><span>再平衡</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>Shard Key</strong><span>决定数据路由的字段，通常是 user_id 或 tenant_id。</span></li>
+        <li><strong>Scatter-Gather</strong><span>不带 shard key 的查询扇出到所有分片再汇总。</span></li>
+        <li><strong>一致性哈希</strong><span>增加节点只迁移 1/N 数据，比取模哈希迁移成本低得多。</span></li>
+        <li><strong>跨分片事务</strong><span>避免，用 Saga 或应用层补偿替代，代价极高。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">步骤</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+
+    <section class="panel viz">
+      <!-- Shards display -->
+      <div class="stage">
+        <div style="font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">分片布局（orders 表，按 user_id 哈希）</div>
+        <div class="shards" id="shardsView"></div>
+      </div>
+
+      <!-- Query view -->
+      <div class="stage" id="queryStage">
+        <div style="font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">查询路由</div>
+        <div id="queryViz" style="font-size:.8rem;font-family:monospace;color:var(--dim);"></div>
+      </div>
+
+      <div class="status">
+        <div id="stepBadge" class="badge">初始</div>
+        <h2 id="statusTitle">初始化分片布局</h2>
+        <p id="statusDesc">点击播放，观察哈希路由、Scatter-Gather 查询和再平衡数据迁移。</p>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnPrev" onclick="goPrev()" disabled>◀ 上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+        <button class="ctrl" id="btnNext" onclick="goNext()">下一步 ▶</button>
+        <button class="ctrl" onclick="reset()" style="margin-left:auto">↺ 重置</button>
+      </div>
+    </section>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>分片键选择原则</h2>
+      <ul>
+        <li><strong>高基数：</strong>区分度高，避免某个值占大多数（如 status 字段不适合）</li>
+        <li><strong>均匀分布：</strong>哈希后各分片数据量相近，避免热点分片</li>
+        <li><strong>业务关联：</strong>同一用户的数据在同一分片，避免跨分片 JOIN</li>
+        <li><strong>稳定性：</strong>分片键的值不能更改，否则需要跨分片迁移数据</li>
+        <li>反例：按时间分片（range sharding）容易造成写入热点，最新时间段一直是热分片</li>
+      </ul>
+    </section>
+    <section>
+      <h2>分库 vs 分表</h2>
+      <ul>
+        <li><strong>分表（单库）：</strong>将一张大表拆分为多张小表（orders_0, orders_1），解决单表行数过多的问题，索引效率提升</li>
+        <li><strong>分库：</strong>将表分到不同的数据库实例，解决单机连接数/写入 TPS 上限</li>
+        <li><strong>分库分表结合：</strong>N 个库 × M 个表，总分片数 = N×M，通常 N 和 M 都是 2 的幂</li>
+        <li>工具：ShardingSphere、Vitess（MySQL 分片代理）、MyCAT</li>
+      </ul>
+    </section>
+    <section>
+      <h2>全局 ID 方案</h2>
+      <ul>
+        <li>分片后不能用 AUTO_INCREMENT（每个分片独立自增，会重复）</li>
+        <li><strong>Snowflake：</strong>时间戳 41bit + 机器 ID 10bit + 序列号 12bit，64bit 全局唯一</li>
+        <li><strong>UUID v4：</strong>随机 128bit，全局唯一但写入 B-tree 索引会随机 IO（页分裂）</li>
+        <li><strong>UUID v7：</strong>时间戳前缀，有序写入，兼顾唯一性和 B-tree 性能</li>
+        <li><strong>数据库号段：</strong>批量申请 ID 段（如每次取 1000 个），减少 DB 请求</li>
+      </ul>
+    </section>
+    <section>
+      <h2>分片后的工程挑战</h2>
+      <ul>
+        <li><strong>跨分片分页：</strong><code>LIMIT 10 OFFSET 100</code> 需要各分片都返回 110 条再截取，性能差</li>
+        <li><strong>全局排序：</strong>在 coordinator 做内存排序，数据量大时耗时</li>
+        <li><strong>二级索引：</strong>按 user_id 分片，按 order_time 查询需要 scatter-gather，可维护一张单独的索引表</li>
+        <li><strong>运维复杂度：</strong>DDL 变更需要在所有分片执行，schema 迁移工具（gh-ost、pt-osc）必须支持分片</li>
+        <li><strong>评估先于分片：</strong>MySQL 单表支撑数亿行，优先考虑读写分离、归档、冷热分离</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← 数据库首页</a>
+    <a class="btn" href="replication.html">主从复制</a>
+  </div>
+</main>
+<script>
+const COLORS=['rgba(249,115,22,.7)','rgba(56,189,248,.7)','rgba(167,139,250,.7)','rgba(74,222,128,.7)'];
+const SHARD_BORDER=['rgba(249,115,22,.5)','rgba(56,189,248,.5)','rgba(167,139,250,.5)','rgba(74,222,128,.5)'];
+
+const STEPS=[
+  {
+    label:'初始：3 个分片',
+    title:'哈希分片路由：user_id % 3 决定目标分片',
+    badge:'路由',
+    desc:'orders 表按 user_id 哈希分成 3 个分片。Shard0: user_id % 3 = 0，Shard1: user_id % 3 = 1，Shard2: user_id % 3 = 2。数据量用柱状图高度表示，当前各分片相对均匀。',
+    shards:[{label:'Shard0\n(DB0.orders_0)',rows:42000,pct:42,active:false},{label:'Shard1\n(DB1.orders_1)',rows:39000,pct:39,active:false},{label:'Shard2\n(DB2.orders_2)',rows:44000,pct:44,active:false}],
+    query:`<div style="color:var(--dim2)">等待查询演示...</div>`
+  },
+  {
+    label:'带 shard key 查询（快）',
+    title:'SELECT * FROM orders WHERE user_id=42 → 直接命中 Shard0',
+    badge:'单分片',
+    desc:'查询携带 shard key（user_id=42），路由层计算 hash(42) % 3 = 0，直接路由到 Shard0，只访问一个分片。延迟低、无额外开销。这是分片设计中应该优化的"快路径"。',
+    shards:[{label:'Shard0\n(DB0.orders_0)',rows:42000,pct:42,active:true},{label:'Shard1\n(DB1.orders_1)',rows:39000,pct:39,active:false},{label:'Shard2\n(DB2.orders_2)',rows:44000,pct:44,active:false}],
+    query:`<div style="margin-bottom:6px;color:var(--text);">SELECT * FROM orders WHERE <span style="color:var(--ok);">user_id=42</span></div>
+<div class="scatter-row active"><span style="color:var(--accent);">→</span> hash(42) % 3 = <span style="color:var(--ok);">0</span> <span class="scatter-arrow">→</span> <span style="color:var(--ok);">Shard0 直接命中 ✓</span></div>
+<div style="color:var(--dim2);margin-top:6px;font-size:.7rem;">延迟: ~2ms（单分片访问）</div>`
+  },
+  {
+    label:'不带 shard key（Scatter-Gather）',
+    title:'SELECT ... WHERE status=\'paid\' → 扇出到所有分片',
+    badge:'Scatter',
+    desc:'查询不含 shard key（只按 status 过滤），无法确定数据在哪个分片，必须向所有分片并发发送查询（Scatter）。等所有分片返回后汇总合并（Gather）。总延迟 = 最慢分片的时间。',
+    shards:[{label:'Shard0',rows:42000,pct:42,active:true},{label:'Shard1',rows:39000,pct:39,active:true},{label:'Shard2',rows:44000,pct:44,active:true}],
+    query:`<div style="margin-bottom:6px;color:var(--text);">SELECT * FROM orders WHERE <span style="color:var(--warn);">status='paid'</span> ORDER BY created_at</div>
+<div class="scatter-row active" style="margin-bottom:3px;"><span style="color:var(--warn);">→</span> 无 shard key，必须 scatter-gather</div>
+<div style="display:flex;flex-direction:column;gap:3px;margin-top:4px;">
+<div class="mig-row"><span>Shard0</span><span class="mig-badge moving">扫描中 42k 行</span></div>
+<div class="mig-row"><span>Shard1</span><span class="mig-badge moving">扫描中 39k 行</span></div>
+<div class="mig-row"><span>Shard2</span><span class="mig-badge moving">扫描中 44k 行</span></div>
+</div>
+<div style="color:var(--bad);margin-top:8px;font-size:.7rem;">延迟: ~120ms（等最慢分片）+ coordinator 内存排序</div>`
+  },
+  {
+    label:'扩容：新增 Shard3',
+    title:'扩容新增 Shard3，迁移 1/4 数据',
+    badge:'扩容',
+    desc:'业务增长需要新增 Shard3。一致性哈希只需迁移约 1/4 的数据（每个老分片各迁出约 1/3 给新分片），而取模哈希（%3 → %4）需要迁移几乎所有数据。迁移期间双写到新旧分片保证一致性。',
+    shards:[{label:'Shard0',rows:31500,pct:32,active:false},{label:'Shard1',rows:29000,pct:29,active:false},{label:'Shard2',rows:33000,pct:33,active:false},{label:'Shard3（新）',rows:32000,pct:32,active:true}],
+    query:`<div style="margin-bottom:6px;color:var(--text);">一致性哈希再平衡（迁移约 1/4 数据）:</div>
+<div class="mig-row"><span style="width:70px">Shard0 →</span><span style="color:var(--warn);margin-right:6px;">−10.5k</span><span class="mig-badge done">迁出完成</span></div>
+<div class="mig-row"><span style="width:70px">Shard1 →</span><span style="color:var(--warn);margin-right:6px;">−10.0k</span><span class="mig-badge done">迁出完成</span></div>
+<div class="mig-row"><span style="width:70px">Shard2 →</span><span style="color:var(--warn);margin-right:6px;">−11.0k</span><span class="mig-badge done">迁出完成</span></div>
+<div class="mig-row"><span style="width:70px">Shard3 ←</span><span style="color:var(--ok);margin-right:6px;">+31.5k</span><span class="mig-badge done">接收完成</span></div>
+<div style="color:var(--dim2);font-size:.7rem;margin-top:6px;">迁移期间双写，完成后切换路由规则</div>`
+  }
+];
+
+let currentStep=0,playing=false,playTimer=null;
+
+function renderShards(shards){
+  const view=document.getElementById('shardsView');
+  view.innerHTML='';
+  shards.forEach((s,i)=>{
+    const col=document.createElement('div');col.className='shard-col';
+    const bar=document.createElement('div');bar.className='shard-bar-wrap';
+    const fill=document.createElement('div');
+    fill.className='shard-bar';
+    fill.style.height=s.pct+'%';
+    fill.style.background=COLORS[i%4];
+    fill.textContent=s.rows>1000?Math.round(s.rows/1000)+'k':s.rows;
+    bar.appendChild(fill);
+
+    const box=document.createElement('div');
+    box.className='shard-box'+(s.active?' active':'');
+    box.style.borderColor=SHARD_BORDER[i%4];
+    box.style.color=COLORS[i%4].replace('.7','.9');
+    box.style.background=COLORS[i%4].replace('rgba','rgba').replace('.7)','.07)');
+    box.innerHTML=`<div style="font-size:.68rem;font-family:monospace;line-height:1.6;">${s.label.replace('\n','<br>')}</div>`;
+    if(s.active) box.style.boxShadow='0 0 12px '+SHARD_BORDER[i%4];
+
+    const label=document.createElement('div');label.className='shard-label';label.textContent=s.rows.toLocaleString()+' rows';
+    col.appendChild(bar);col.appendChild(box);col.appendChild(label);
+    view.appendChild(col);
+  });
+}
+
+function renderStep(idx){
+  const s=STEPS[idx];
+  document.querySelectorAll('.step-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  document.getElementById('stepBadge').textContent=s.badge;
+  document.getElementById('statusTitle').textContent=s.title;
+  document.getElementById('statusDesc').textContent=s.desc;
+  renderShards(s.shards);
+  document.getElementById('queryViz').innerHTML=s.query;
+  document.getElementById('btnPrev').disabled=idx===0;
+  document.getElementById('btnNext').disabled=idx===STEPS.length-1;
+}
+
+function buildStepList(){
+  const list=document.getElementById('stepList');
+  STEPS.forEach((s,i)=>{
+    const btn=document.createElement('button');
+    btn.className='step-btn'+(i===0?' active':'');
+    btn.innerHTML=`<b>Step ${i+1}</b>${s.label}`;
+    btn.onclick=()=>{currentStep=i;renderStep(i);stopPlay();};
+    list.appendChild(btn);
+  });
+}
+function goNext(){if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();}
+function goPrev(){if(currentStep>0){currentStep--;renderStep(currentStep);}}
+function reset(){stopPlay();currentStep=0;renderStep(0);}
+function togglePlay(){
+  if(playing){stopPlay();return;}
+  playing=true;document.getElementById('btnPlay').textContent='⏸ 暂停';
+  playTimer=setInterval(()=>{if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();},2200);
+}
+function stopPlay(){playing=false;clearInterval(playTimer);document.getElementById('btnPlay').textContent='▶ 播放';}
+buildStepList();renderStep(0);
+</script>
+</body>
+</html>

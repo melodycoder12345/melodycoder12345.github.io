@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CDN - 网络</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#0ea5e9;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 50% 0%,color-mix(in srgb,var(--accent) 12%,transparent),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,3.8rem);line-height:1.04;letter-spacing:-.05em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:200px minmax(0,1fr);gap:16px;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:12px;display:flex;flex-direction:column;gap:8px}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:10px;padding:9px 11px;cursor:pointer;font-family:inherit;transition:all .16s;font-size:.82rem}
+.step-btn:hover{color:var(--text)}.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.step-btn b{display:block;font-size:.7rem;color:var(--accent);margin-bottom:2px}
+.viz{padding:16px;display:flex;flex-direction:column;gap:12px}
+.stage{border:1px solid rgba(255,255,255,.06);border-radius:14px;background:rgba(15,23,42,.64);padding:14px}
+.status{border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:13px;background:rgba(255,255,255,.035)}
+.status h2{font-size:.95rem;margin-bottom:5px;color:var(--text)}
+.status p{color:var(--dim);font-size:.86rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:6px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.miss{border-color:var(--warn);color:var(--warn)}
+.badge.hit{border-color:var(--ok);color:var(--ok)}
+.controls{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:7px 11px;cursor:pointer;font-family:inherit;font-size:.83rem}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.deep code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.82rem;color:var(--text)}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:900px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+
+/* Map nodes */
+.world-map{position:relative;width:100%;height:240px;background:rgba(255,255,255,.02);border-radius:10px;overflow:hidden;}
+.map-node{position:absolute;transform:translate(-50%,-50%);text-align:center;cursor:default;}
+.map-node .dot{width:12px;height:12px;border-radius:50%;margin:0 auto 3px;}
+.map-node .lbl{font-size:.62rem;color:var(--dim2);white-space:nowrap;}
+.origin-dot{background:rgba(248,113,113,.9);box-shadow:0 0 8px rgba(248,113,113,.5);}
+.pop-dot{background:rgba(14,165,233,.7);box-shadow:0 0 6px rgba(14,165,233,.4);transition:all .4s;}
+.pop-dot.miss{background:rgba(251,191,36,.8);box-shadow:0 0 8px rgba(251,191,36,.5);}
+.pop-dot.hit{background:rgba(74,222,128,.8);box-shadow:0 0 8px rgba(74,222,128,.5);}
+.user-dot{background:rgba(167,139,250,.8);box-shadow:0 0 6px rgba(167,139,250,.4);}
+svg.arrows{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;}
+
+/* PoP cache table */
+.pop-table{display:flex;flex-direction:column;gap:4px;}
+.pop-row{display:grid;grid-template-columns:80px 80px 80px 1fr;gap:8px;align-items:center;font-size:.72rem;font-family:monospace;padding:5px 7px;border-radius:6px;border:1px solid rgba(255,255,255,.05);}
+.pop-row.hit-row{background:rgba(74,222,128,.07);border-color:rgba(74,222,128,.2);}
+.pop-row.miss-row{background:rgba(251,191,36,.07);border-color:rgba(251,191,36,.2);}
+.pop-row.hdr{color:var(--dim2);border-color:transparent;font-size:.68rem;}
+.cache-bar{height:6px;border-radius:3px;transition:width .4s;}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"PoP（接入点）","body":"Point of Presence，CDN 在全球各地部署的边缘缓存节点。用户请求被 GSLB 路由到地理上最近的 PoP，从 PoP 缓存中返回内容，避免跨洋请求源站，将延迟从 200ms+ 降到 10–30ms。","tag":"term"},
+  {"title":"缓存命中 vs 回源","body":"命中（Hit）：PoP 中有缓存的副本，直接返回，延迟低、不消耗源站带宽。未命中（Miss）：PoP 没有缓存，向源站或上级 PoP 回源（Origin Pull），获取内容后缓存并返回。","tag":"term"},
+  {"title":"TTL（生存时间）","body":"缓存对象在 PoP 中存活的时间。TTL 到期后，PoP 下一次请求时回源重新获取。通过 Cache-Control 响应头设置，静态资源（图片/JS）通常 TTL 很长，动态内容 TTL 为 0 或不缓存。","tag":"term"},
+  {"title":"GSLB（全局负载均衡）","body":"Global Server Load Balancing。通过 DNS 将用户请求解析到最近的 PoP，选择依据包括 IP 地理位置、网络延迟探测、PoP 健康状态。当某个 PoP 故障时，GSLB 自动将流量切换到其他 PoP。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">网络 / CDN / C 类型</div>
+      <h1>CDN</h1>
+      <p class="summary">内容分发网络（CDN）通过在全球各地部署 PoP 边缘节点，将静态内容缓存到离用户最近的地方。GSLB 根据地理位置将请求路由到最近 PoP，命中缓存时直接返回（绿色，延迟低），未命中时回源（橙色，延迟高），TTL 到期后缓存自动刷新。</p>
+      <div class="tags"><span>PoP</span><span>GSLB</span><span>Cache-Control</span><span>TTL</span><span>回源</span><span>边缘节点</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>PoP（接入点）</strong><span>全球边缘缓存节点，离用户最近的 CDN 站点。</span></li>
+        <li><strong>GSLB</strong><span>通过 DNS 将请求路由到地理最近的 PoP。</span></li>
+        <li><strong>Cache Hit / Miss</strong><span>命中直接返回（快），未命中回源获取（慢）。</span></li>
+        <li><strong>TTL</strong><span>Cache-Control 头控制缓存生存时间，到期则回源刷新。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">请求场景</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+
+    <section class="panel viz">
+      <div class="stage">
+        <div style="font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;display:flex;gap:14px;">
+          <span>■ <span style="color:var(--bad)">源站</span></span>
+          <span>■ <span style="color:var(--accent)">PoP 节点</span></span>
+          <span>■ <span style="color:#a78bfa">用户</span></span>
+          <span>🟡 缓存 Miss（回源）</span>
+          <span>🟢 缓存 Hit</span>
+        </div>
+        <div class="world-map" id="worldMap">
+          <svg class="arrows" id="svgArrows"></svg>
+          <!-- nodes placed by JS -->
+        </div>
+        <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div style="font-size:.72rem;font-family:monospace;padding:8px 10px;border:1px solid rgba(255,255,255,.07);border-radius:8px;background:rgba(255,255,255,.02);">
+            <div style="color:var(--dim2);margin-bottom:4px;">GSLB 路由决策</div>
+            <div id="gslbInfo" style="color:var(--text);">--</div>
+          </div>
+          <div style="font-size:.72rem;font-family:monospace;padding:8px 10px;border:1px solid rgba(255,255,255,.07);border-radius:8px;background:rgba(255,255,255,.02);">
+            <div style="color:var(--dim2);margin-bottom:4px;">响应延迟</div>
+            <div id="latencyInfo" style="color:var(--ok);">--</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stage">
+        <div style="font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">PoP 缓存状态（对象: /logo.png, TTL: 300s）</div>
+        <div class="pop-table">
+          <div class="pop-row hdr"><span>PoP</span><span>状态</span><span>TTL剩余</span><span>命中率</span></div>
+          <div id="popRows"></div>
+        </div>
+      </div>
+
+      <div class="status">
+        <div id="stepBadge" class="badge">等待</div>
+        <h2 id="statusTitle">CDN 请求路由演示</h2>
+        <p id="statusDesc">点击播放，观察用户请求从不同地区发出，GSLB 如何路由到最近 PoP，以及缓存命中与回源的延迟差异。</p>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnPrev" onclick="goPrev()" disabled>◀ 上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+        <button class="ctrl" id="btnNext" onclick="goNext()">下一步 ▶</button>
+        <button class="ctrl" onclick="reset()" style="margin-left:auto">↺ 重置</button>
+      </div>
+    </section>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>CDN 工作流程</h2>
+      <ul>
+        <li>用户发起请求，DNS 查询 CDN 域名</li>
+        <li>GSLB 根据用户 IP 地理位置、延迟、PoP 健康状态，返回最近 PoP 的 IP</li>
+        <li>请求到达最近 PoP，查找缓存</li>
+        <li>命中：直接返回缓存内容，延迟 10–30ms</li>
+        <li>未命中：向源站或上级 PoP 回源，缓存内容，返回响应，延迟 100–300ms</li>
+        <li>TTL 到期后，PoP 缓存自动过期，下次请求触发回源刷新</li>
+      </ul>
+    </section>
+    <section>
+      <h2>缓存策略</h2>
+      <ul>
+        <li><strong>静态资源：</strong><code>Cache-Control: max-age=31536000, immutable</code>（1年），内容用哈希做文件名保证唯一</li>
+        <li><strong>HTML 页面：</strong>TTL 短（60–300s）或不缓存，保证内容更新及时</li>
+        <li><strong>Cache-Control vs Expires：</strong>现代优先用 Cache-Control，Expires 是旧标准</li>
+        <li><strong>Vary 头：</strong>按请求头（如 Accept-Encoding）分别缓存不同版本</li>
+        <li><strong>主动缓存刷新：</strong>CDN API 支持手动 Purge 指定 URL 或路径的缓存</li>
+        <li><strong>CDN 绕过：</strong>带 <code>?v=xxx</code> 参数或修改文件名强制获取新版本</li>
+      </ul>
+    </section>
+    <section>
+      <h2>高级功能</h2>
+      <ul>
+        <li><strong>Edge Functions：</strong>在 PoP 节点运行代码（Cloudflare Workers/Lambda@Edge），A/B 测试、URL 重写、个性化内容</li>
+        <li><strong>动态加速：</strong>对不可缓存的动态请求，CDN 通过优化路由（骨干网快速通道）减少延迟</li>
+        <li><strong>DDoS 防护：</strong>CDN 天然分散了流量，边缘节点可过滤恶意流量</li>
+        <li><strong>HTTPS 卸载：</strong>TLS 握手在 PoP 完成，与源站之间走内网/HTTP，减少握手延迟</li>
+        <li><strong>HTTP/3：</strong>支持 QUIC 协议，在弱网下减少队头阻塞</li>
+      </ul>
+    </section>
+    <section>
+      <h2>CDN 选型</h2>
+      <ul>
+        <li><strong>Cloudflare：</strong>最大 PoP 网络（~310 个），免费套餐，企业安全功能强</li>
+        <li><strong>AWS CloudFront：</strong>与 S3/ALB/API Gateway 原生集成，Lambda@Edge 功能强大</li>
+        <li><strong>Fastly：</strong>VCL 配置灵活，实时配置生效（&lt;1s），即时 Purge</li>
+        <li><strong>Akamai：</strong>最老牌，PoP 遍布全球，企业级 SLA</li>
+        <li>国内：阿里云 CDN、腾讯云 CDN，国内节点多，需要备案</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← 网络首页</a>
+    <a class="btn" href="http2.html">HTTP/2</a>
+  </div>
+</main>
+<script>
+const NODES={
+  origin:{x:85,y:45,label:'源站(美东)',type:'origin'},
+  pop_us:{x:15,y:38,label:'PoP美西',type:'pop'},
+  pop_eu:{x:48,y:22,label:'PoP欧洲',type:'pop'},
+  pop_sg:{x:72,y:60,label:'PoP新加坡',type:'pop'},
+  pop_jp:{x:82,y:35,label:'PoP东京',type:'pop'},
+  pop_cn:{x:76,y:48,label:'PoP北京',type:'pop'},
+};
+
+const STEPS=[
+  {
+    label:'初始状态',
+    title:'CDN 网络初始化，所有 PoP 缓存为空',
+    badge:'初始',
+    desc:'5 个 PoP 节点分布全球，源站在美东。所有 PoP 缓存为空（冷启动）。第一次请求各个地区的用户都会触发回源。',
+    gslb:'待请求',latency:'--',
+    popData:{pop_us:{state:'empty',ttl:'--',hit:'0%'},pop_eu:{state:'empty',ttl:'--',hit:'0%'},pop_sg:{state:'empty',ttl:'--',hit:'0%'},pop_jp:{state:'empty',ttl:'--',hit:'0%'},pop_cn:{state:'empty',ttl:'--',hit:'0%'}},
+    arrows:[],activeUser:null
+  },
+  {
+    label:'中国用户 → 第一次请求（Miss）',
+    title:'中国用户请求，PoP 北京 Cache Miss，回源',
+    badge:'Miss',
+    desc:'中国用户请求 logo.png。GSLB 将请求路由到最近的 PoP 北京。PoP 北京缓存为空（Miss），向美东源站回源，延迟 220ms。回源后内容缓存到 PoP 北京，TTL=300s。',
+    gslb:'用户(中国) → PoP北京（最近）',latency:'220ms（回源延迟高）',
+    popData:{pop_us:{state:'empty',ttl:'--',hit:'0%'},pop_eu:{state:'empty',ttl:'--',hit:'0%'},pop_sg:{state:'empty',ttl:'--',hit:'0%'},pop_jp:{state:'empty',ttl:'--',hit:'0%'},pop_cn:{state:'cached',ttl:'300s',hit:'0%（首次）'}},
+    arrows:[{from:'pop_cn',to:'origin',color:'rgba(251,191,36,.7)',label:'回源'}],activeUser:{x:74,y:52,label:'用户(中国)'}
+  },
+  {
+    label:'中国用户 → 第二次请求（Hit）',
+    title:'中国用户再次请求，PoP 北京 Cache Hit',
+    badge:'Hit',
+    desc:'同一用户再次请求 logo.png。PoP 北京缓存命中（TTL 剩余 280s），直接返回，延迟仅 18ms。无需回源，节省带宽，响应速度提升 12×。',
+    gslb:'用户(中国) → PoP北京（Hit）',latency:'18ms（缓存命中）',
+    popData:{pop_us:{state:'empty',ttl:'--',hit:'0%'},pop_eu:{state:'empty',ttl:'--',hit:'0%'},pop_sg:{state:'empty',ttl:'--',hit:'0%'},pop_jp:{state:'empty',ttl:'--',hit:'0%'},pop_cn:{state:'cached',ttl:'280s',hit:'50%'}},
+    arrows:[],activeUser:{x:74,y:52,label:'用户(中国)'}
+  },
+  {
+    label:'欧洲用户 → Cache Miss → 回源',
+    title:'欧洲用户首次请求，PoP 欧洲回源',
+    badge:'Miss',
+    desc:'欧洲用户请求相同资源。GSLB 路由到 PoP 欧洲，缓存为空，向美东源站回源，延迟 180ms。每个 PoP 独立维护自己的缓存，不共享（分布式缓存）。',
+    gslb:'用户(欧洲) → PoP欧洲（Miss）',latency:'180ms（回源）',
+    popData:{pop_us:{state:'empty',ttl:'--',hit:'0%'},pop_eu:{state:'cached',ttl:'300s',hit:'0%（首次）'},pop_sg:{state:'empty',ttl:'--',hit:'0%'},pop_jp:{state:'empty',ttl:'--',hit:'0%'},pop_cn:{state:'cached',ttl:'260s',hit:'65%'}},
+    arrows:[{from:'pop_eu',to:'origin',color:'rgba(251,191,36,.7)',label:'回源'}],activeUser:{x:48,y:28,label:'用户(欧洲)'}
+  },
+  {
+    label:'TTL 到期 → 缓存失效',
+    title:'PoP 北京 TTL 到期，下次请求触发回源刷新',
+    badge:'TTL',
+    desc:'PoP 北京缓存 TTL=300s 到期，缓存内容标记为 stale（过期）。下一个到来的中国用户请求会触发回源，重新获取最新内容（若源站内容已更新，用户将获取新版本），然后重置 TTL。',
+    gslb:'PoP北京 TTL=0 → 下次请求将回源',latency:'-- (待刷新)',
+    popData:{pop_us:{state:'empty',ttl:'--',hit:'0%'},pop_eu:{state:'cached',ttl:'180s',hit:'78%'},pop_sg:{state:'empty',ttl:'--',hit:'0%'},pop_jp:{state:'empty',ttl:'--',hit:'0%'},pop_cn:{state:'stale',ttl:'到期',hit:'82%'}},
+    arrows:[],activeUser:null
+  }
+];
+
+let currentStep=0,playing=false,playTimer=null;
+
+function buildMap(){
+  const map=document.getElementById('worldMap');
+  Object.entries(NODES).forEach(([id,n])=>{
+    const div=document.createElement('div');
+    div.id='node-'+id;
+    div.className='map-node';
+    div.style.left=n.x+'%';div.style.top=n.y+'%';
+    const dot=document.createElement('div');
+    dot.className='dot '+(n.type==='origin'?'origin-dot':n.type==='pop'?'pop-dot':'user-dot');
+    dot.id='dot-'+id;
+    const lbl=document.createElement('div');
+    lbl.className='lbl';lbl.textContent=n.label;
+    div.appendChild(dot);div.appendChild(lbl);
+    map.appendChild(div);
+  });
+}
+
+function drawArrows(arrows){
+  const svg=document.getElementById('svgArrows');
+  svg.innerHTML='';
+  const map=document.getElementById('worldMap');
+  const rect=map.getBoundingClientRect();
+  arrows.forEach(a=>{
+    const fromN=NODES[a.from],toN=NODES[a.to];
+    if(!fromN||!toN) return;
+    const x1=fromN.x/100*map.offsetWidth,y1=fromN.y/100*map.offsetHeight;
+    const x2=toN.x/100*map.offsetWidth,y2=toN.y/100*map.offsetHeight;
+    const line=document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',x1);line.setAttribute('y1',y1);
+    line.setAttribute('x2',x2);line.setAttribute('y2',y2);
+    line.setAttribute('stroke',a.color||'rgba(255,255,255,.3)');
+    line.setAttribute('stroke-width','2');
+    line.setAttribute('stroke-dasharray','6 4');
+    svg.appendChild(line);
+  });
+}
+
+function renderStep(idx){
+  const s=STEPS[idx];
+  document.querySelectorAll('.step-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  const bd=document.getElementById('stepBadge');
+  bd.textContent=s.badge;
+  bd.className='badge'+(s.badge==='Miss'?' miss':s.badge==='Hit'?' hit':'');
+  document.getElementById('statusTitle').textContent=s.title;
+  document.getElementById('statusDesc').textContent=s.desc;
+  document.getElementById('gslbInfo').textContent=s.gslb;
+  document.getElementById('latencyInfo').textContent=s.latency;
+  document.getElementById('latencyInfo').style.color=s.latency.includes('220')||s.latency.includes('180')?'var(--warn)':s.latency.includes('ms')?'var(--ok)':'var(--dim)';
+
+  // PoP dots
+  Object.entries(NODES).forEach(([id,n])=>{
+    if(n.type!=='pop') return;
+    const dot=document.getElementById('dot-'+id);
+    if(!dot) return;
+    const pd=s.popData[id];
+    dot.className='dot pop-dot';
+    if(pd?.state==='cached') dot.className='dot pop-dot hit';
+    else if(pd?.state==='stale') dot.className='dot pop-dot miss';
+    else if(pd?.state==='miss_active') dot.className='dot pop-dot miss';
+  });
+
+  // User node
+  const existingUser=document.getElementById('node-user');
+  if(existingUser) existingUser.remove();
+  if(s.activeUser){
+    const map=document.getElementById('worldMap');
+    const div=document.createElement('div');
+    div.id='node-user';div.className='map-node';
+    div.style.left=s.activeUser.x+'%';div.style.top=s.activeUser.y+'%';
+    const dot=document.createElement('div');
+    dot.className='dot user-dot';
+    const lbl=document.createElement('div');
+    lbl.className='lbl';lbl.textContent=s.activeUser.label;
+    div.appendChild(dot);div.appendChild(lbl);
+    map.appendChild(div);
+  }
+
+  // Draw arrows
+  drawArrows(s.arrows||[]);
+
+  // Pop rows
+  const rows=document.getElementById('popRows');
+  rows.innerHTML='';
+  Object.entries(s.popData).forEach(([id,pd])=>{
+    const n=NODES[id];
+    const div=document.createElement('div');
+    div.className='pop-row'+(pd.state==='cached'?' hit-row':pd.state==='miss_active'?' miss-row':pd.state==='stale'?' miss-row':'');
+    const hitNum=parseFloat(pd.hit)||0;
+    div.innerHTML=`<span>${n.label}</span><span>${pd.state==='cached'?'✓ HIT':pd.state==='stale'?'⚠ TTL期':pd.state==='miss_active'?'← 回源':'空'}</span><span>${pd.ttl}</span><span><div class="cache-bar" style="width:${hitNum}%;background:${hitNum>50?'rgba(74,222,128,.6)':'rgba(251,191,36,.5)'}"></div></span>`;
+    rows.appendChild(div);
+  });
+
+  document.getElementById('btnPrev').disabled=idx===0;
+  document.getElementById('btnNext').disabled=idx===STEPS.length-1;
+}
+
+function buildStepList(){
+  const list=document.getElementById('stepList');
+  STEPS.forEach((s,i)=>{
+    const btn=document.createElement('button');
+    btn.className='step-btn'+(i===0?' active':'');
+    btn.innerHTML=`<b>Step ${i+1}</b>${s.label}`;
+    btn.onclick=()=>{currentStep=i;renderStep(i);stopPlay();};
+    list.appendChild(btn);
+  });
+}
+function goNext(){if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();}
+function goPrev(){if(currentStep>0){currentStep--;renderStep(currentStep);}}
+function reset(){stopPlay();currentStep=0;renderStep(0);}
+function togglePlay(){
+  if(playing){stopPlay();return;}
+  playing=true;document.getElementById('btnPlay').textContent='⏸ 暂停';
+  playTimer=setInterval(()=>{if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();},2200);
+}
+function stopPlay(){playing=false;clearInterval(playTimer);document.getElementById('btnPlay').textContent='▶ 播放';}
+buildMap();buildStepList();renderStep(0);
+</script>
+</body>
+</html>

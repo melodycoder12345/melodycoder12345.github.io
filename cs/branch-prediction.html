@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>分支预测 - 计算机科学</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#ec4899;--ok:#4ade80;--warn:#fbbf24;--bad:#f87171;--blue:#38bdf8;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 30% 0%,color-mix(in srgb,var(--accent) 10%,transparent),transparent 36%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,3.6rem);line-height:1.04;letter-spacing:-.05em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:200px minmax(0,1fr);gap:16px;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:12px;display:flex;flex-direction:column;gap:8px}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:10px;padding:9px 11px;cursor:pointer;font-family:inherit;transition:all .16s;font-size:.82rem}
+.step-btn:hover{color:var(--text)}.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.step-btn b{display:block;font-size:.7rem;color:var(--accent);margin-bottom:2px}
+.viz{padding:16px;display:flex;flex-direction:column;gap:12px}
+.stage{border:1px solid rgba(255,255,255,.06);border-radius:14px;background:rgba(15,23,42,.64);padding:14px}
+.status{border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:13px;background:rgba(255,255,255,.035)}
+.status h2{font-size:.95rem;margin-bottom:5px;color:var(--text)}
+.status p{color:var(--dim);font-size:.86rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:6px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.ok{border-color:var(--ok);color:var(--ok)}
+.badge.bad{border-color:var(--bad);color:var(--bad)}
+.controls{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:7px 11px;cursor:pointer;font-family:inherit;font-size:.83rem}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.deep code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.82rem;color:var(--text)}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:900px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+
+/* Pipeline stages */
+.pipeline{display:grid;gap:6px;}
+.pipe-row{display:flex;align-items:center;gap:6px;font-size:.72rem;}
+.pipe-label{width:80px;flex-shrink:0;font-family:monospace;color:var(--dim2);font-size:.68rem;}
+.stage-cell{width:44px;height:32px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:.62rem;font-family:monospace;border:1px solid rgba(255,255,255,.06);transition:all .35s;flex-shrink:0;}
+.stage-cell.empty{background:rgba(255,255,255,.02);}
+.stage-cell.if{background:rgba(56,189,248,.35);border-color:rgba(56,189,248,.5);color:rgba(255,255,255,.9);}
+.stage-cell.id{background:rgba(167,139,250,.35);border-color:rgba(167,139,250,.5);color:rgba(255,255,255,.9);}
+.stage-cell.ex{background:rgba(74,222,128,.35);border-color:rgba(74,222,128,.5);color:rgba(255,255,255,.9);}
+.stage-cell.mem{background:rgba(249,115,22,.35);border-color:rgba(249,115,22,.5);color:rgba(255,255,255,.9);}
+.stage-cell.wb{background:rgba(251,191,36,.35);border-color:rgba(251,191,36,.5);color:rgba(255,255,255,.9);}
+.stage-cell.spec{background:rgba(255,255,255,.06);border:1.5px dashed rgba(255,255,255,.25);color:rgba(255,255,255,.5);}
+.stage-cell.flush{background:rgba(248,113,113,.2);border-color:rgba(248,113,113,.5);color:var(--bad);animation:flush .4s;}
+@keyframes flush{0%{transform:scale(1)}50%{transform:scale(.85)}100%{transform:scale(1)}}
+
+/* Cycle counter */
+.cycle-hdr{display:flex;gap:6px;margin-left:80px;margin-bottom:3px;}
+.cycle-num{width:44px;text-align:center;font-size:.6rem;color:var(--dim2);flex-shrink:0;font-family:monospace;}
+
+/* Predictor */
+.predictor{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;}
+.pred-box{border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:10px;background:rgba(255,255,255,.02);}
+.pred-title{font-size:.68rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;}
+.sat-counter{display:flex;gap:4px;margin-top:4px;}
+.sat-bit{width:24px;height:24px;border-radius:4px;border:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:.62rem;font-family:monospace;transition:all .3s;}
+.sat-bit.on{background:rgba(74,222,128,.3);border-color:rgba(74,222,128,.5);color:var(--ok);}
+.sat-bit.off{background:rgba(248,113,113,.15);border-color:rgba(248,113,113,.3);color:var(--bad);}
+.sat-bit.curr{box-shadow:0 0 0 2px rgba(255,255,255,.3);}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"流水线（Pipeline）","body":"CPU 将指令执行分为多个阶段（IF→ID→EX→MEM→WB），同时处理多条指令的不同阶段，类似流水线工厂。5 级流水线理论上可以 5× 加速，但数据相关、控制相关（分支）会导致停顿。","tag":"term"},
+  {"title":"分支预测（Branch Prediction）","body":"遇到条件分支时，CPU 不等分支结果，猜测一条路径继续取指执行（投机执行）。预测正确时无开销，预测错误时需要 flush 流水线（清除已投机执行的指令），代价是约 10–20 个时钟周期。","tag":"term"},
+  {"title":"2-bit 饱和计数器","body":"每个分支有一个 2-bit 状态（00=强不跳/01=弱不跳/10=弱跳/11=强跳）。预测跳转则执行 taken 路径，预测不跳则执行 fall-through 路径。正确时向当前方向饱和，错误时反向移动。一次预测失败不足以改变预测方向（需要连续两次）。","tag":"term"},
+  {"title":"分支预测误判代价","body":"现代 CPU 流水线深度 10–20 级，误判需要 flush 后续阶段所有指令（约等于流水线深度的周期数浪费）。Intel/AMD 现代 CPU 分支预测准确率可达 95–99%，但对误判敏感的热路径代码仍需关注（如排序循环的分支结构）。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">计算机科学 / CPU / C 类型</div>
+      <h1>分支预测</h1>
+      <p class="summary">CPU 流水线不等分支结果，预测一条路径继续取指（投机执行，虚线框）。预测正确时虚线框变实；预测错误时虚线框变红并 flush，重新从正确路径取指。2-bit 饱和计数器记录历史：连续预测错误两次才改变预测方向，避免一次误判就翻转。动画展示流水线停顿和 flush 的真实代价。</p>
+      <div class="tags"><span>流水线</span><span>投机执行</span><span>2-bit预测器</span><span>Pipeline Flush</span><span>分支惩罚</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>流水线（Pipeline）</strong><span>5 级并行执行（IF/ID/EX/MEM/WB），分支引入控制相关。</span></li>
+        <li><strong>投机执行</strong><span>预测一条路径先执行，错了再 flush，对了无代价。</span></li>
+        <li><strong>2-bit 饱和计数器</strong><span>4 个状态，需连续两次错误才改变预测方向。</span></li>
+        <li><strong>分支惩罚</strong><span>误判代价 ≈ 流水线深度 × 时钟周期，现代 CPU 约 10–20 周期。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">步骤</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+
+    <section class="panel viz">
+      <div class="stage">
+        <div style="font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;display:flex;gap:16px;">
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:rgba(56,189,248,.5);display:inline-block;"></span>IF</span>
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:rgba(167,139,250,.5);display:inline-block;"></span>ID</span>
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:rgba(74,222,128,.5);display:inline-block;"></span>EX</span>
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:rgba(249,115,22,.5);display:inline-block;"></span>MEM</span>
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:rgba(251,191,36,.5);display:inline-block;"></span>WB</span>
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;border:1.5px dashed rgba(255,255,255,.3);display:inline-block;"></span>投机</span>
+          <span style="display:flex;align-items:center;gap:4px;"><span style="width:12px;height:12px;border-radius:2px;background:rgba(248,113,113,.25);display:inline-block;"></span>Flush</span>
+        </div>
+        <div id="cycleHdr" class="cycle-hdr"></div>
+        <div class="pipeline" id="pipelineView"></div>
+      </div>
+
+      <!-- 2-bit predictor -->
+      <div class="stage">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <div style="font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">2-bit 饱和计数器状态</div>
+            <div class="sat-counter" id="satCounter"></div>
+            <div id="predDecision" style="margin-top:8px;font-size:.78rem;font-family:monospace;color:var(--dim);"></div>
+          </div>
+          <div>
+            <div style="font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">预测统计</div>
+            <div id="predStats" style="font-size:.78rem;font-family:monospace;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="status">
+        <div id="stepBadge" class="badge">流水线</div>
+        <h2 id="statusTitle">正常流水线执行</h2>
+        <p id="statusDesc">点击播放，观察分支指令到来时的投机执行和可能的 flush 过程。</p>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnPrev" onclick="goPrev()" disabled>◀ 上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+        <button class="ctrl" id="btnNext" onclick="goNext()">下一步 ▶</button>
+        <button class="ctrl" onclick="reset()" style="margin-left:auto">↺ 重置</button>
+      </div>
+    </section>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>分支预测器的演化</h2>
+      <ul>
+        <li><strong>静态预测：</strong>总是预测不跳（simplest），命中率约 50–65%</li>
+        <li><strong>1-bit 预测器：</strong>记录上次结果，命中率约 85%，但循环末尾（taken→not taken）每次循环都误判</li>
+        <li><strong>2-bit 饱和计数器：</strong>需要连续两次错误才改变方向，解决了 1-bit 在循环边界的问题</li>
+        <li><strong>局部历史预测器（PHT）：</strong>每个分支独立记录 k 位历史，查表预测，命中率 90%+</li>
+        <li><strong>TAGE 预测器（现代）：</strong>结合多长度全局历史，Intel/AMD 旗舰 CPU 使用，准确率 97–99%</li>
+      </ul>
+    </section>
+    <section>
+      <h2>流水线冲突类型</h2>
+      <ul>
+        <li><strong>数据冲突（Data Hazard）：</strong>指令需要前一指令的结果，用 Forwarding 或插入 NOP 解决</li>
+        <li><strong>控制冲突（Control Hazard）：</strong>分支指令，用分支预测解决，误判时 flush</li>
+        <li><strong>结构冲突（Structural Hazard）：</strong>两条指令同时需要同一硬件单元，用流水线停顿</li>
+        <li><strong>乱序执行（OoO）：</strong>重排指令顺序，避开数据依赖等待；ROB（Reorder Buffer）维持程序顺序提交</li>
+      </ul>
+    </section>
+    <section>
+      <h2>对程序性能的影响</h2>
+      <ul>
+        <li><strong>分支密集代码：</strong>大量 if/else 或 switch，每次误判浪费约 15 周期</li>
+        <li><strong>排序循环：</strong>随机数组的比较分支预测命中率低（约 50%），有序数组几乎 100%</li>
+        <li><strong>避免分支的技巧：</strong>条件移动（CMOV）、查表、无分支算法（bit tricks）</li>
+        <li><strong>profile-guided optimization（PGO）：</strong>编译器根据实际运行 profile 优化分支布局，使热路径更可预测</li>
+        <li><code>__builtin_expect</code>：告知编译器分支概率，影响指令顺序和 CPU 预测器</li>
+      </ul>
+    </section>
+    <section>
+      <h2>Spectre/Meltdown 漏洞</h2>
+      <ul>
+        <li>投机执行期间访问了无权访问的内存（投机路径上的越界访问）</li>
+        <li>投机失败后虽然结果被丢弃，但 CPU 缓存状态被修改（侧信道）</li>
+        <li>攻击者通过测量缓存访问时间（cache timing）推断出被保护的数据</li>
+        <li>修复：Retpoline（防止间接分支推测）、KPTI（内核页表隔离）、微码更新</li>
+        <li>代价：KPTI 对系统调用密集的应用性能损失 5–30%</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← CS 首页</a>
+    <a class="btn" href="tlb.html">TLB</a>
+  </div>
+</main>
+<script>
+// Pipeline states per cycle per instruction
+// Each step shows 8 cycles × N instructions
+const CYCLES=8;
+const STEPS=[
+  {
+    label:'正常流水线（无分支）',
+    title:'正常流水线：5 条指令依次进入各阶段',
+    badge:'流水线',
+    desc:'无分支指令，5 条普通指令正常流入流水线。每周期推进一级，5条指令（I1-I5）同时处于不同阶段，流水线满载。无停顿，IPC（指令/周期）= 1。',
+    satState:2, prediction:'taken', correct:null,
+    instructions:[
+      {name:'I1(ADD)',stages:[0,1,2,3,4,null,null,null]},
+      {name:'I2(MOV)',stages:[null,0,1,2,3,4,null,null]},
+      {name:'I3(CMP)',stages:[null,null,0,1,2,3,4,null]},
+      {name:'I4(BEQ)',stages:[null,null,null,0,1,2,3,4]},
+      {name:'I5(NOP)',stages:[null,null,null,null,0,1,2,3]},
+    ],
+    stats:{correct:0,wrong:0}
+  },
+  {
+    label:'分支 BEQ 到达，投机执行',
+    title:'BEQ 进入 EX 阶段，CPU 投机执行预测路径',
+    badge:'投机',
+    desc:'BEQ（branch if equal）到达 EX 阶段，分支结果尚未确定。2-bit 计数器状态=2（弱 Taken），预测跳转到目标地址。CPU 投机取指目标路径的指令（I-target1/2），用虚线框表示"投机中，结果待定"。',
+    satState:2, prediction:'taken', correct:null,
+    instructions:[
+      {name:'I3(CMP)',stages:[null,null,null,null,null,3,4,null]},
+      {name:'I4(BEQ)',stages:[null,null,null,null,0,1,2,3]},
+      {name:'I-t1(投机)',stages:[null,null,null,null,null,0,1,2],spec:true},
+      {name:'I-t2(投机)',stages:[null,null,null,null,null,null,0,1],spec:true},
+    ],
+    stats:{correct:0,wrong:0}
+  },
+  {
+    label:'预测正确：投机确认',
+    title:'分支实际跳转（Taken），预测正确，投机指令确认',
+    badge:'命中',
+    desc:'BEQ 执行完成，实际跳转成功（equal = true）。预测正确！投机中的 I-target1/2 从虚线框变为实线框，正常提交。2-bit 计数器从 2 → 3（强 Taken），下次仍预测跳转。无额外代价，流水线持续满载。',
+    satState:3, prediction:'taken', correct:true,
+    instructions:[
+      {name:'I4(BEQ)',stages:[null,null,null,null,null,null,null,4]},
+      {name:'I-t1(✓)',stages:[null,null,null,null,null,null,2,3]},
+      {name:'I-t2(✓)',stages:[null,null,null,null,null,null,1,2]},
+      {name:'I-t3(✓)',stages:[null,null,null,null,null,null,0,1]},
+    ],
+    stats:{correct:1,wrong:0}
+  },
+  {
+    label:'新分支：预测错误',
+    title:'新的 BNE 分支，预测 Taken，实际 Not Taken',
+    badge:'误判',
+    desc:'新的 BNE（branch if not equal）进来，2-bit 状态=3，预测 Taken，投机执行目标路径。EX 阶段发现实际条件为 not equal（应该 fall-through），预测错误！',
+    satState:3, prediction:'taken', correct:false,
+    instructions:[
+      {name:'I5(BNE)',stages:[null,null,0,1,2,3,null,null]},
+      {name:'I-t1(投机)',stages:[null,null,null,0,1,2,null,null],spec:true},
+      {name:'I-t2(投机)',stages:[null,null,null,null,0,1,null,null],spec:true},
+      {name:'I-t3(投机)',stages:[null,null,null,null,null,0,null,null],spec:true},
+    ],
+    stats:{correct:1,wrong:0}
+  },
+  {
+    label:'Pipeline Flush！',
+    title:'预测错误：Flush 投机指令，重新取指',
+    badge:'Flush',
+    desc:'检测到预测错误，立即 flush 流水线中的 3 条投机指令（变红消失），浪费了 3 个周期。2-bit 计数器 3→2（弱 Taken，还需再错一次才会预测 Not Taken）。从正确路径（fall-through: I-ft1）重新取指。',
+    satState:2, prediction:'taken', correct:false,
+    instructions:[
+      {name:'I5(BNE)',stages:[null,null,null,null,null,null,3,4]},
+      {name:'I-t1(✗)',stages:[null,null,null,null,null,null,null,null],flush:true},
+      {name:'I-t2(✗)',stages:[null,null,null,null,null,null,null,null],flush:true},
+      {name:'I-t3(✗)',stages:[null,null,null,null,null,null,null,null],flush:true},
+      {name:'I-ft1(重取)',stages:[null,null,null,null,null,null,0,1]},
+    ],
+    stats:{correct:1,wrong:1,penalty:3}
+  }
+];
+
+const STAGE_NAMES=['IF','ID','EX','MEM','WB'];
+const STAGE_CLS=['if','id','ex','mem','wb'];
+
+let currentStep=0,playing=false,playTimer=null;
+
+function renderPipeline(instructions){
+  const view=document.getElementById('pipelineView');
+  view.innerHTML='';
+
+  // cycle header
+  const hdr=document.getElementById('cycleHdr');
+  hdr.innerHTML='';
+  for(let i=1;i<=CYCLES;i++){
+    const d=document.createElement('div');d.className='cycle-num';d.textContent='C'+i;hdr.appendChild(d);
+  }
+
+  instructions.forEach(inst=>{
+    const row=document.createElement('div');row.className='pipe-row';
+    const lbl=document.createElement('div');lbl.className='pipe-label';lbl.textContent=inst.name;
+    row.appendChild(lbl);
+    inst.stages.forEach((s,ci)=>{
+      const cell=document.createElement('div');
+      if(inst.flush){
+        cell.className='stage-cell flush';
+        cell.textContent='✗';
+      } else if(s===null){
+        cell.className='stage-cell empty';
+      } else if(inst.spec){
+        cell.className='stage-cell spec';
+        cell.textContent=STAGE_NAMES[s]||'?';
+      } else {
+        cell.className='stage-cell '+STAGE_CLS[s];
+        cell.textContent=STAGE_NAMES[s];
+      }
+      row.appendChild(cell);
+    });
+    view.appendChild(row);
+  });
+}
+
+function renderPredictor(satState,prediction,correct,stats){
+  const sc=document.getElementById('satCounter');
+  const labels=['00\n强不跳','01\n弱不跳','10\n弱跳','11\n强跳'];
+  sc.innerHTML='';
+  for(let i=0;i<4;i++){
+    const bit=document.createElement('div');
+    const state=i<2?'off':'on';
+    bit.className='sat-bit '+(i<2?'off':'on')+(i===satState?' curr':'');
+    bit.textContent=i;
+    sc.appendChild(bit);
+  }
+  const sc2=document.getElementById('satCounter');
+  sc2.innerHTML='';
+  [['00','强\n不跳'],['01','弱\n不跳'],['10','弱\n跳'],['11','强\n跳']].forEach(([val,lbl],i)=>{
+    const bit=document.createElement('div');
+    bit.className='sat-bit '+(i<2?'off':'on')+(i===satState?' curr':'');
+    bit.title=lbl;
+    bit.textContent=val;
+    sc2.appendChild(bit);
+  });
+
+  const dec=document.getElementById('predDecision');
+  dec.innerHTML=`当前状态: <span style="color:${satState>=2?'var(--ok)':'var(--bad)'};">${['00强不跳','01弱不跳','10弱跳','11强跳'][satState]}</span><br>预测方向: <span style="color:${prediction==='taken'?'var(--ok)':'var(--bad)'};">${prediction==='taken'?'Taken（跳）':'Not Taken（不跳）'}</span>${correct===true?'<br><span style="color:var(--ok);">✓ 预测正确，无代价</span>':correct===false?'<br><span style="color:var(--bad);">✗ 预测错误！Flush '+（''||'3')+' 条投机指令</span>':''}`;
+
+  const ps=document.getElementById('predStats');
+  ps.innerHTML=`正确: <span style="color:var(--ok);">${stats.correct}</span> | 错误: <span style="color:var(--bad);">${stats.wrong}</span>${stats.penalty?' | 浪费周期: <span style="color:var(--warn);">'+stats.penalty+'</span>':''}`;
+}
+
+function renderStep(idx){
+  const s=STEPS[idx];
+  document.querySelectorAll('.step-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  const bd=document.getElementById('stepBadge');
+  bd.textContent=s.badge;
+  bd.className='badge'+(s.correct===true?' ok':s.correct===false?' bad':'');
+  document.getElementById('statusTitle').textContent=s.title;
+  document.getElementById('statusDesc').textContent=s.desc;
+  renderPipeline(s.instructions);
+  renderPredictor(s.satState,s.prediction,s.correct,s.stats);
+  document.getElementById('btnPrev').disabled=idx===0;
+  document.getElementById('btnNext').disabled=idx===STEPS.length-1;
+}
+
+function buildStepList(){
+  const list=document.getElementById('stepList');
+  STEPS.forEach((s,i)=>{
+    const btn=document.createElement('button');
+    btn.className='step-btn'+(i===0?' active':'');
+    btn.innerHTML=`<b>Step ${i+1}</b>${s.label}`;
+    btn.onclick=()=>{currentStep=i;renderStep(i);stopPlay();};
+    list.appendChild(btn);
+  });
+}
+function goNext(){if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();}
+function goPrev(){if(currentStep>0){currentStep--;renderStep(currentStep);}}
+function reset(){stopPlay();currentStep=0;renderStep(0);}
+function togglePlay(){
+  if(playing){stopPlay();return;}
+  playing=true;document.getElementById('btnPlay').textContent='⏸ 暂停';
+  playTimer=setInterval(()=>{if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();},2200);
+}
+function stopPlay(){playing=false;clearInterval(playTimer);document.getElementById('btnPlay').textContent='▶ 播放';}
+buildStepList();renderStep(0);
+</script>
+</body>
+</html>

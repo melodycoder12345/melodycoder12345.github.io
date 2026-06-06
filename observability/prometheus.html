@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prometheus - 可观测性</title>
+<script src="../nav.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#fb923c;--ok:#4ade80;--warn:#fbbf24;--err:#f87171;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:radial-gradient(circle at 20% 0%,rgba(251,146,60,.12),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+a{color:var(--accent);text-decoration:none}
+.wrap{max-width:1260px;margin:0 auto;padding:40px 32px 80px}
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--dim2);margin-bottom:24px}
+.breadcrumb a{color:var(--dim2)}.breadcrumb a:hover{color:var(--text)}
+.page-title{font-size:clamp(1.6rem,3.5vw,2.8rem);letter-spacing:-.04em;margin-bottom:6px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.subtitle{color:var(--dim);font-size:.95rem;margin-bottom:28px;max-width:640px;line-height:1.75}
+.layout{display:grid;grid-template-columns:260px 1fr;gap:20px}
+.left-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:18px}
+.left-panel h3{font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px}
+.step-btn{width:100%;text-align:left;border:1px solid transparent;background:none;color:var(--dim);padding:9px 12px;border-radius:10px;cursor:pointer;font-size:.82rem;line-height:1.5;transition:.15s;margin-bottom:4px;display:block}
+.step-btn:hover{border-color:rgba(251,146,60,.3);color:var(--text)}
+.step-btn.active{background:rgba(251,146,60,.1);border-color:rgba(251,146,60,.4);color:var(--text)}
+.step-index{display:inline-block;width:18px;height:18px;border-radius:50%;background:rgba(251,146,60,.15);color:var(--accent);font-size:.68rem;font-weight:700;text-align:center;line-height:18px;margin-right:7px}
+.ctrl{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.ctrl button{flex:1;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--dim);border-radius:10px;padding:8px 4px;cursor:pointer;font-size:.76rem;transition:.15s}
+.ctrl button:hover{border-color:var(--accent);color:var(--text)}
+.center-panel{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.7);border-radius:18px;padding:22px;min-height:540px;display:flex;flex-direction:column;gap:14px}
+.step-msg{border-left:3px solid var(--accent);background:rgba(251,146,60,.06);border-radius:0 10px 10px 0;padding:10px 14px;font-size:.86rem;color:var(--text);line-height:1.7}
+/* Scrape viz */
+.scrape-row{display:flex;align-items:center;gap:10px}
+.target-box{border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 14px;background:rgba(30,41,59,.5);font-size:.8rem;flex:1}
+.target-box.scraping{border-color:var(--accent);background:rgba(251,146,60,.08);animation:pulse .8s ease-in-out}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 rgba(251,146,60,0)}50%{box-shadow:0 0 16px rgba(251,146,60,.3)}}
+.arrow-anim{font-size:1.1rem;color:var(--accent);transition:all .3s}
+.prom-box{border:1px solid rgba(251,146,60,.3);border-radius:12px;padding:14px;background:rgba(251,146,60,.05);width:140px;text-align:center;font-size:.82rem;font-weight:600}
+/* TSDB */
+.tsdb-row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+.tsdb-block{border-radius:6px;padding:8px 10px;font-size:.7rem;font-family:monospace;min-width:80px;text-align:center;transition:all .4s}
+.tsdb-block.memory{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.3);color:#bae6fd}
+.tsdb-block.compressed{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.25);color:#86efac}
+.tsdb-block.new{animation:blockFadeIn .5s}
+@keyframes blockFadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+/* Alert */
+.alert-box{border:1px solid rgba(248,113,113,.3);background:rgba(248,113,113,.06);border-radius:10px;padding:10px 14px;font-size:.8rem;color:var(--err);display:flex;align-items:center;gap:10px}
+.alert-box.inactive{border-color:rgba(255,255,255,.08);background:rgba(255,255,255,.02);color:var(--dim2)}
+.alert-box.firing{border-color:var(--err);animation:alertPulse 1s infinite}
+@keyframes alertPulse{0%,100%{background:rgba(248,113,113,.06)}50%{background:rgba(248,113,113,.14)}}
+.metrics-preview{font-family:monospace;font-size:.73rem;color:var(--dim);line-height:1.8;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:10px;overflow-x:auto}
+.metrics-preview .hl{color:var(--accent)}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">可观测性</a><span>/</span>Prometheus</div>
+  <h1 class="page-title">Prometheus</h1>
+  <p class="subtitle">Prometheus 采用拉取（Pull）模式，每 15s 向 Target 的 /metrics 端点发起 HTTP 请求，解析文本格式指标，写入内存 TSDB 块（2h 后压缩到磁盘），Alertmanager 持续评估规则，跨越阈值时触发告警。</p>
+
+  <div class="layout">
+    <div class="left-panel">
+      <h3>步骤</h3>
+      <div id="stepList"></div>
+      <div class="ctrl">
+        <button onclick="prev()">← 上一步</button>
+        <button onclick="next()">下一步 →</button>
+        <button onclick="reset()">重置</button>
+        <button id="playBtn" onclick="togglePlay()">▶ 播放</button>
+      </div>
+    </div>
+    <div class="center-panel">
+      <div class="step-msg" id="stepMsg">点击"下一步"观察 Prometheus 的完整数据流。</div>
+
+      <div>
+        <div style="font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Scrape 采集</div>
+        <div class="scrape-row">
+          <div class="target-box" id="target1"><div style="font-weight:600;margin-bottom:3px">app-server:8080</div><div style="font-size:.7rem;color:var(--dim2)">/metrics</div></div>
+          <div class="arrow-anim" id="scrapeArrow">→</div>
+          <div class="prom-box">Prometheus<br><span style="font-size:.68rem;color:var(--dim)">每 15s 拉取</span></div>
+          <div class="arrow-anim" id="writeArrow" style="color:var(--dim2)">→</div>
+          <div style="border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 14px;background:rgba(30,41,59,.5);font-size:.8rem;text-align:center">
+            <div style="font-weight:600;margin-bottom:3px">TSDB</div>
+            <div style="font-size:.7rem;color:var(--dim2)">时序存储</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">指标样本（/metrics 输出）</div>
+        <div class="metrics-preview" id="metricsPreview">
+          <span class="hl">http_requests_total</span>{method="GET",status="200"} 1523<br>
+          <span class="hl">http_requests_total</span>{method="POST",status="500"} 3<br>
+          <span class="hl">process_cpu_seconds_total</span> 428.12<br>
+          <span class="hl">go_goroutines</span> 42
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">TSDB 块（内存 → 压缩磁盘）</div>
+        <div class="tsdb-row" id="tsdbRow">
+          <div class="tsdb-block memory">mem-block<br>T-2h ~ T</div>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:.72rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">告警规则评估</div>
+        <div class="alert-box inactive" id="alertBox">
+          <span>🔔</span>
+          <div><div style="font-weight:600">HighErrorRate</div><div style="font-size:.72rem">rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) &gt; 0.01</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+const STEPS = [
+  {scraping:false,blocks:['mem'],alertState:'inactive',
+   msg:'初始状态：Prometheus 已配置 scrape_configs，每 15s 向 Target 发起 HTTP GET /metrics 请求。TSDB 中有当前活跃的内存块。'},
+  {scraping:true,blocks:['mem','mem'],alertState:'inactive',
+   metrics:`<span class="hl">http_requests_total</span>{method="GET",status="200"} 1823\n<span class="hl">http_requests_total</span>{method="POST",status="500"} 4\n<span class="hl">process_cpu_seconds_total</span> 431.5\n<span class="hl">go_goroutines</span> 45`,
+   msg:'Prometheus 向 app-server:8080/metrics 发起 Scrape 请求，解析文本格式（OpenMetrics），每个 {metric_name + labels + value + timestamp} 作为一个 Sample 写入内存块。'},
+  {scraping:false,blocks:['mem','mem','mem'],alertState:'inactive',
+   msg:'经过多次 Scrape（~1h），内存块已积累约 7200 个 Sample（15s×240次）。TSDB 内存块是追加写入，每个 time series 按时间排序。'},
+  {scraping:false,blocks:['compressed','mem'],alertState:'inactive',
+   msg:'内存块到达 2h，Prometheus 后台将其压缩写入磁盘（Gorilla 压缩，约 1-2 字节/样本）。压缩块不可修改，是 TSDB 的不可变段（immutable segment）。'},
+  {scraping:true,blocks:['compressed','compressed','mem'],alertState:'inactive',
+   metrics:`<span class="hl">http_requests_total</span>{method="GET",status="200"} 2341\n<span class="hl" style="color:var(--err)">http_requests_total</span>{method="POST",status="500"} <strong style="color:var(--err)">48</strong>\n<span class="hl">process_cpu_seconds_total</span> 459.1\n<span class="hl">go_goroutines</span> 51`,
+   msg:'错误率上升：5xx 请求数从 4 增加到 48。Alertmanager 每 evaluation_interval（15s）对规则 HighErrorRate 进行一次 PromQL 查询。'},
+  {scraping:false,blocks:['compressed','compressed','mem'],alertState:'firing',
+   msg:'⚠ 告警触发！rate(http_requests_total{status~="5.."}[5m]) / rate(http_requests_total[5m]) = 0.048 > 0.01 阈值。状态 PENDING → FIRING。Alertmanager 发送通知到 Slack/PagerDuty。'},
+];
+
+let cur = -1, timer = null;
+
+function render(){
+  const step = cur >= 0 ? STEPS[cur] : STEPS[0];
+  document.getElementById('stepMsg').textContent = cur >= 0 ? step.msg : '点击"下一步"观察 Prometheus 的完整数据流。';
+  document.getElementById('target1').className = 'target-box' + (step.scraping ? ' scraping' : '');
+  document.getElementById('scrapeArrow').style.color = step.scraping ? 'var(--accent)' : 'var(--dim2)';
+  if(step.metrics){
+    document.getElementById('metricsPreview').innerHTML = step.metrics;
+  }
+  const row = document.getElementById('tsdbRow');
+  row.innerHTML = '';
+  (step.blocks||['mem']).forEach(b => {
+    const div = document.createElement('div');
+    div.className = 'tsdb-block ' + b + ' new';
+    div.innerHTML = b === 'compressed' ? 'disk-block<br>💾 压缩' : 'mem-block<br>🔥 活跃';
+    row.appendChild(div);
+  });
+  const alertEl = document.getElementById('alertBox');
+  alertEl.className = 'alert-box ' + (step.alertState || 'inactive');
+  if(step.alertState === 'firing'){
+    alertEl.innerHTML = '<span>🚨</span><div><div style="font-weight:600;color:var(--err)">FIRING: HighErrorRate</div><div style="font-size:.72rem">error rate = 4.8% > 1% (for 1m)</div></div>';
+  } else {
+    alertEl.innerHTML = '<span>🔔</span><div><div style="font-weight:600">HighErrorRate</div><div style="font-size:.72rem">rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.01</div></div>';
+  }
+  buildStepList();
+}
+
+function buildStepList(){
+  const list = document.getElementById('stepList');
+  list.innerHTML = '';
+  STEPS.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-btn' + (i === cur ? ' active' : '');
+    const labels = ['初始状态','Scrape 采集','多次 Scrape','内存块压缩','错误率上升','告警触发'];
+    btn.innerHTML = `<span class="step-index">${i+1}</span>${labels[i]}`;
+    btn.onclick = () => { cur = i; render(); };
+    list.appendChild(btn);
+  });
+}
+
+function next(){ if(cur < STEPS.length-1){ cur++; render(); } }
+function prev(){ if(cur > -1){ cur--; render(); } }
+function reset(){ cur = -1; stopPlay(); render(); }
+function togglePlay(){ if(timer) stopPlay(); else startPlay(); }
+function startPlay(){
+  document.getElementById('playBtn').textContent = '⏸ 暂停';
+  timer = setInterval(() => {
+    if(cur < STEPS.length-1){ cur++; render(); } else stopPlay();
+  }, 2000);
+}
+function stopPlay(){
+  if(timer){ clearInterval(timer); timer = null; }
+  document.getElementById('playBtn').textContent = '▶ 播放';
+}
+
+render();
+</script>
+</body>
+</html>

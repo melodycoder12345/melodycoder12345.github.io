@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>服务注册与发现 - 分布式</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#c084fc;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 20% 0%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 36%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:260px minmax(0,1fr) 280px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:440px;display:flex;flex-direction:column;padding:18px}
+.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:rgba(15,23,42,.64);overflow:hidden;padding:16px;}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}
+.status p{color:var(--dim);font-size:.9rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.fail{border-color:var(--bad);color:var(--bad)}
+.badge.ok{border-color:var(--ok);color:var(--ok)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit;font-size:.85rem}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.deep code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.82rem;color:var(--text)}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+
+/* 服务发现专用：三区布局 */
+.sd-stage{display:grid;grid-template-columns:1fr 120px 1fr;gap:12px;width:100%;align-items:start;}
+.sd-col-label{font-size:.68rem;font-family:monospace;text-transform:uppercase;letter-spacing:.1em;color:var(--dim2);text-align:center;margin-bottom:10px;}
+
+/* 服务实例卡片 */
+.svc-instance{border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:rgba(255,255,255,.03);transition:all .35s;}
+.svc-instance .svc-name{font-size:.82rem;font-weight:700;font-family:monospace;margin-bottom:6px;}
+.svc-instance .svc-addr{font-size:.72rem;color:var(--dim);font-family:monospace;margin-bottom:6px;}
+.svc-instance.dead{border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.06);opacity:.6;}
+.svc-instance.dead .svc-name{color:var(--bad);}
+
+/* 心跳计时圆 */
+.hb-ring{display:inline-flex;align-items:center;gap:5px;}
+.hb-circle{width:16px;height:16px;border-radius:50%;border:2px solid;position:relative;overflow:hidden;flex-shrink:0;}
+.hb-fill{position:absolute;bottom:0;left:0;right:0;transition:height .5s linear;}
+.hb-label{font-size:.68rem;font-family:monospace;}
+
+/* Registry 区域 */
+.registry-box{border:1.5px solid color-mix(in srgb,var(--accent) 40%,transparent);border-radius:14px;padding:14px;background:color-mix(in srgb,var(--accent) 6%,transparent);min-height:140px;}
+.registry-title{font-size:.72rem;font-weight:700;color:var(--accent);text-align:center;margin-bottom:12px;letter-spacing:.08em;}
+.reg-entry{font-size:.72rem;font-family:monospace;padding:5px 8px;border-radius:6px;margin-bottom:5px;border:1px solid;transition:all .35s;}
+.reg-entry.alive{border-color:rgba(74,222,128,.35);background:rgba(74,222,128,.07);color:var(--ok);}
+.reg-entry.expired{border-color:rgba(248,113,113,.35);background:rgba(248,113,113,.07);color:var(--bad);text-decoration:line-through;opacity:.6;}
+
+/* Client 缓存 */
+.client-cache{border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;background:rgba(255,255,255,.025);min-height:80px;}
+.cache-title{font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;}
+.cache-entry{font-size:.72rem;font-family:monospace;color:var(--dim);margin-bottom:4px;padding:3px 6px;border-radius:4px;transition:all .35s;}
+.cache-entry.fresh{background:rgba(74,222,128,.08);color:var(--ok);}
+.cache-entry.stale{background:rgba(248,113,113,.06);color:var(--bad);text-decoration:line-through;}
+.cache-entry.updated{background:rgba(56,189,248,.08);color:#38bdf8;animation:cacheUpdate .4s ease-out;}
+@keyframes cacheUpdate{from{transform:translateX(8px);opacity:0}to{transform:none;opacity:1}}
+
+/* 消息箭头 */
+.sd-arrow{display:flex;align-items:center;justify-content:center;gap:0;font-size:.7rem;color:var(--dim2);font-family:monospace;padding:4px 0;}
+.arrow-line{flex:1;height:2px;background:rgba(255,255,255,.12);}
+.arrow-head{color:rgba(255,255,255,.3);font-size:.9rem;}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"服务注册（Register）","body":"服务启动时，向注册中心（Consul/Etcd/Eureka）注册自己的地址（IP:Port）、健康检查端点和元数据。注册中心保存所有可用实例的列表。","tag":"term"},
+  {"title":"健康检查（Health Check）","body":"注册中心定期向服务实例发 HTTP/TCP 探针，或等待服务实例主动发送心跳（TTL 模式）。超过阈值未收到心跳或探针失败则将实例标记为不健康并移出可用列表。","tag":"term"},
+  {"title":"服务发现（Discover）","body":"客户端从注册中心查询服务名对应的实例列表，一般做本地缓存。推模式（Watch/长轮询）：注册中心主动推送变更；拉模式：客户端定期轮询。","tag":"term"},
+  {"title":"客户端负载均衡","body":"客户端拿到实例列表后，自行决定调用哪个实例（Round-Robin/随机/最小连接数）。区别于服务端负载均衡（通过 Nginx/LB 代理转发）。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">分布式 / 服务发现 / C 类型</div>
+      <h1>服务注册与发现</h1>
+      <p class="summary">服务实例启动时向注册中心注册，并通过心跳维持"存活"状态。心跳倒计时圆圈用于可视化 TTL：超时后注册中心将实例标记过期并从可用列表移除，Client 的本地缓存随之刷新，感知到可用实例减少。</p>
+      <div class="tags"><span>Consul</span><span>Etcd</span><span>心跳 / TTL</span><span>健康检查</span><span>客户端负载均衡</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>注册（Register）</strong><span>服务启动时写入注册中心：IP:Port + 健康检查配置 + 元数据。</span></li>
+        <li><strong>心跳 / TTL</strong><span>服务实例周期性续约（renew），超时不续则被注册中心摘除。</span></li>
+        <li><strong>Watch / 推送</strong><span>注册中心实例变更时，主动推给订阅变更的客户端。</span></li>
+        <li><strong>最终一致</strong><span>Client 看到的是注册中心的副本，有 propagation delay，不是实时的。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">Step Timeline</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+
+    <section class="panel viz">
+      <div class="stage">
+        <div class="sd-stage">
+          <!-- 左：服务实例 -->
+          <div>
+            <div class="sd-col-label">服务实例</div>
+            <div id="instances"></div>
+          </div>
+          <!-- 中：Registry -->
+          <div>
+            <div class="sd-col-label">Registry</div>
+            <div class="registry-box">
+              <div class="registry-title">order-service</div>
+              <div id="regEntries"></div>
+            </div>
+          </div>
+          <!-- 右：Client 缓存 -->
+          <div>
+            <div class="sd-col-label">Client 本地缓存</div>
+            <div class="client-cache">
+              <div class="cache-title">order-service 可用实例</div>
+              <div id="cacheEntries"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="status">
+        <div id="stepBadge" class="badge">Step 1</div>
+        <h2 id="statusTitle">服务启动，注册到 Registry</h2>
+        <p id="statusDesc">三个实例上线，向 Registry 注册，Client 订阅服务发现。</p>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnPrev" onclick="goPrev()" disabled>◀ 上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+        <button class="ctrl" id="btnNext" onclick="goNext()">下一步 ▶</button>
+        <button class="ctrl" onclick="reset()" style="margin-left:auto">↺ 重置</button>
+      </div>
+    </section>
+
+    <div class="panel" style="display:flex;flex-direction:column;">
+      <div class="panel-hd">模式对比</div>
+      <div style="padding:14px;flex:1;overflow:auto;font-size:.82rem;color:var(--dim);line-height:1.8;">
+        <div style="margin-bottom:12px;padding:10px;background:rgba(255,255,255,.03);border-radius:8px;">
+          <div style="color:var(--ok);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Client-Side 发现</div>
+          Client → Registry 查询<br>Client 本地负载均衡<br><span style="color:var(--dim2)">代表：Eureka + Ribbon</span>
+        </div>
+        <div style="margin-bottom:12px;padding:10px;background:rgba(255,255,255,.03);border-radius:8px;">
+          <div style="color:var(--accent);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Server-Side 发现</div>
+          Client → LB → 服务<br>LB 查询 Registry<br><span style="color:var(--dim2)">代表：Kubernetes + kube-proxy</span>
+        </div>
+        <div style="padding:10px;background:rgba(255,255,255,.03);border-radius:8px;">
+          <div style="color:var(--warn);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">注册方式</div>
+          <span style="color:var(--text)">自注册：</span>服务自己写入 Registry<br>
+          <span style="color:var(--text)">第三方注册：</span>部署工具（k8s）代为注册<br>
+          <span style="color:var(--dim2)">心跳 vs 探针：主动续约 vs 被动探测</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>心跳 vs 健康探针</h2>
+      <ul>
+        <li><strong>TTL 心跳（主动续约）：</strong>服务每 N 秒调用 <code>PUT /v1/agent/check/pass/{id}</code>，超时不续则摘除。实现简单，服务自控。</li>
+        <li><strong>健康探针（被动检查）：</strong>注册中心定期发 HTTP GET 或 TCP 建连，失败 N 次则摘除。更可靠，但增加注册中心负载。</li>
+        <li>Consul 支持两种方式，Etcd 依赖 Lease 续约（类似 TTL 心跳）</li>
+        <li>探针间隔 vs 检查失败容忍次数决定故障摘除延迟</li>
+      </ul>
+    </section>
+    <section>
+      <h2>CAP 视角</h2>
+      <ul>
+        <li><strong>Consul：</strong>基于 Raft，CP 系统。Leader 选举期间拒绝写操作，保证强一致，但可用性略低。</li>
+        <li><strong>Eureka：</strong>AP 系统。每个实例独立，网络分区时各节点继续提供数据，牺牲一致性，适合容忍短期旧数据。</li>
+        <li><strong>Etcd：</strong>基于 Raft，CP 系统，Kubernetes 使用。</li>
+        <li>大多数微服务场景，短暂路由到已故障实例触发重试比注册中心不可用代价更小，AP 更常见。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>注册延迟与缓存一致性</h2>
+      <p>实例下线到 Client 感知到之间有延迟：</p>
+      <ul>
+        <li>心跳超时检测：TTL × 失败容忍次数（可能 30s-90s）</li>
+        <li>注册中心内部传播：Raft 写入各节点（< 1s）</li>
+        <li>Client 缓存刷新：Watch 推送（毫秒级）或轮询间隔（5-30s）</li>
+        <li>总延迟：心跳检测时间 + 传播时间。应在 Client 加重试和熔断，不能依赖服务发现的实时性。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>工程建议</h2>
+      <ul>
+        <li>服务下线前先调用 Deregister，避免等待心跳超时，减少流量错误</li>
+        <li>Client 缓存 + 本地负载均衡，减少对 Registry 的直接依赖</li>
+        <li>使用断路器（Circuit Breaker）配合服务发现，快速隔离故障实例</li>
+        <li>注册信息携带版本号、环境标签，支持金丝雀和蓝绿部署</li>
+        <li>高并发下注册中心本身是 SPOF，应部署多副本并做好自身的容量规划</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← 分布式系统首页</a>
+    <a class="btn" href="gossip.html">Gossip 协议</a>
+    <a class="btn" href="raft.html">Raft</a>
+    <a class="btn" href="zookeeper.html">ZooKeeper</a>
+  </div>
+</main>
+
+<script>
+const STEPS = [
+  {
+    label:'服务启动注册',
+    title:'三个实例启动，向 Registry 注册',
+    badge:'注册',
+    desc:'order-service 的三个实例（:8001, :8002, :8003）启动后，分别向 Consul Registry 发起注册请求，携带地址和健康检查配置。Registry 将它们记录为"存活"状态。',
+    instances:[
+      {name:'order-service-1',addr:':8001',hb:90,state:'alive'},
+      {name:'order-service-2',addr:':8002',hb:90,state:'alive'},
+      {name:'order-service-3',addr:':8003',hb:75,state:'alive'},
+    ],
+    reg:[
+      {addr:':8001',state:'alive'},
+      {addr:':8002',state:'alive'},
+      {addr:':8003',state:'alive'},
+    ],
+    cache:[':8001',':8002',':8003'],
+    cacheState:['fresh','fresh','fresh']
+  },
+  {
+    label:'心跳倒计时',
+    title:'各实例持续发送心跳（TTL 续约）',
+    badge:'心跳',
+    desc:'每个实例每 30s 向 Registry 发送心跳续约。TTL 计时圆圈显示距下次续约的剩余时间——圆圈内填充比例代表已过时间，快满时表示即将需要续约。',
+    instances:[
+      {name:'order-service-1',addr:':8001',hb:70,state:'alive'},
+      {name:'order-service-2',addr:':8002',hb:55,state:'alive'},
+      {name:'order-service-3',addr:':8003',hb:30,state:'alive'},
+    ],
+    reg:[
+      {addr:':8001',state:'alive'},
+      {addr:':8002',state:'alive'},
+      {addr:':8003',state:'alive'},
+    ],
+    cache:[':8001',':8002',':8003'],
+    cacheState:['fresh','fresh','fresh']
+  },
+  {
+    label:'实例 3 宕机',
+    title:'order-service-3 宕机，停止心跳',
+    badge:'故障',
+    desc:'order-service-3 进程崩溃，不再发送心跳。此时 Registry 还未感知到，Client 的缓存仍然包含 :8003。流量路由到 :8003 会超时失败。',
+    instances:[
+      {name:'order-service-1',addr:':8001',hb:50,state:'alive'},
+      {name:'order-service-2',addr:':8002',hb:40,state:'alive'},
+      {name:'order-service-3',addr:':8003',hb:0,state:'dead'},
+    ],
+    reg:[
+      {addr:':8001',state:'alive'},
+      {addr:':8002',state:'alive'},
+      {addr:':8003',state:'alive'},
+    ],
+    cache:[':8001',':8002',':8003'],
+    cacheState:['fresh','fresh','stale']
+  },
+  {
+    label:'Registry 检测超时',
+    title:'TTL 超时：Registry 将 :8003 标记过期',
+    badge:'摘除',
+    desc:'Registry 发现 :8003 超过 90s 未续约（TTL 超时），将其标记为不健康，从可用列表中移除。通过 Watch 推送变更通知给所有订阅的 Client。',
+    instances:[
+      {name:'order-service-1',addr:':8001',hb:50,state:'alive'},
+      {name:'order-service-2',addr:':8002',hb:40,state:'alive'},
+      {name:'order-service-3',addr:':8003',hb:0,state:'dead'},
+    ],
+    reg:[
+      {addr:':8001',state:'alive'},
+      {addr:':8002',state:'alive'},
+      {addr:':8003',state:'expired'},
+    ],
+    cache:[':8001',':8002',':8003'],
+    cacheState:['fresh','fresh','stale']
+  },
+  {
+    label:'Client 缓存更新',
+    title:'Client 收到 Watch 通知，刷新本地缓存',
+    badge:'刷新',
+    desc:'Client 通过 Watch（长轮询）收到 Registry 推送的变更事件，从本地缓存中移除 :8003。后续请求只会路由到 :8001 和 :8002，故障实例不再被调用。',
+    instances:[
+      {name:'order-service-1',addr:':8001',hb:50,state:'alive'},
+      {name:'order-service-2',addr:':8002',hb:40,state:'alive'},
+      {name:'order-service-3',addr:':8003',hb:0,state:'dead'},
+    ],
+    reg:[
+      {addr:':8001',state:'alive'},
+      {addr:':8002',state:'alive'},
+      {addr:':8003',state:'expired'},
+    ],
+    cache:[':8001',':8002'],
+    cacheState:['updated','updated']
+  },
+  {
+    label:'新实例上线',
+    title:'新实例 :8004 注册，Client 缓存自动扩充',
+    badge:'扩容',
+    desc:'为了补充容量，新实例 order-service-4(:8004) 启动并注册。Registry 记录后推送给 Client，Client 缓存新增 :8004，后续请求自动将其纳入负载均衡池。',
+    instances:[
+      {name:'order-service-1',addr:':8001',hb:90,state:'alive'},
+      {name:'order-service-2',addr:':8002',hb:80,state:'alive'},
+      {name:'order-service-4',addr:':8004',hb:95,state:'alive'},
+    ],
+    reg:[
+      {addr:':8001',state:'alive'},
+      {addr:':8002',state:'alive'},
+      {addr:':8004',state:'alive'},
+    ],
+    cache:[':8001',':8002',':8004'],
+    cacheState:['fresh','fresh','updated']
+  }
+];
+
+let currentStep = 0, playing = false, playTimer = null;
+
+function hbColor(pct) {
+  if (pct < 30) return '#f87171';
+  if (pct < 60) return '#fbbf24';
+  return '#4ade80';
+}
+
+function renderStep(idx) {
+  const s = STEPS[idx];
+  document.querySelectorAll('.step-btn').forEach((b,i) => b.classList.toggle('active',i===idx));
+  const bd = document.getElementById('stepBadge');
+  bd.textContent = s.badge;
+  bd.className = 'badge' + (s.badge==='故障'||s.badge==='摘除'?' fail': s.badge==='扩容'||s.badge==='刷新'?' ok':'');
+  document.getElementById('statusTitle').textContent = s.title;
+  document.getElementById('statusDesc').textContent = s.desc;
+
+  // 服务实例
+  const inst = document.getElementById('instances');
+  inst.innerHTML = '';
+  s.instances.forEach(i => {
+    const div = document.createElement('div');
+    div.className = 'svc-instance' + (i.state==='dead'?' dead':'');
+    const color = hbColor(i.hb);
+    div.innerHTML = `
+      <div class="svc-name" style="color:${i.state==='dead'?'#f87171':'#e2e8f0'}">${i.name}</div>
+      <div class="svc-addr">${i.addr}</div>
+      <div class="hb-ring">
+        <div class="hb-circle" style="border-color:${color};">
+          <div class="hb-fill" style="height:${i.hb}%;background:${color}22;"></div>
+        </div>
+        <span class="hb-label" style="color:${color}">
+          ${i.state==='dead'?'× 停止心跳':`心跳 ${i.hb}%`}
+        </span>
+      </div>`;
+    inst.appendChild(div);
+  });
+
+  // Registry
+  const reg = document.getElementById('regEntries');
+  reg.innerHTML = '';
+  s.reg.forEach(r => {
+    const div = document.createElement('div');
+    div.className = 'reg-entry ' + r.state;
+    div.textContent = (r.state==='alive'?'✓ ':'✗ ') + r.addr;
+    reg.appendChild(div);
+  });
+
+  // Client 缓存
+  const cache = document.getElementById('cacheEntries');
+  cache.innerHTML = '';
+  if (s.cache.length === 0) {
+    cache.innerHTML = '<div style="color:var(--dim2);font-size:.72rem;font-family:monospace;">（空）</div>';
+  } else {
+    s.cache.forEach((c,i) => {
+      const div = document.createElement('div');
+      div.className = 'cache-entry ' + (s.cacheState[i]||'fresh');
+      div.textContent = c;
+      cache.appendChild(div);
+    });
+  }
+
+  document.getElementById('btnPrev').disabled = idx===0;
+  document.getElementById('btnNext').disabled = idx===STEPS.length-1;
+}
+
+function buildStepList() {
+  const list = document.getElementById('stepList');
+  STEPS.forEach((s,i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-btn'+(i===0?' active':'');
+    btn.innerHTML = `<b>Step ${i+1}</b>${s.label}`;
+    btn.onclick = () => { currentStep=i; renderStep(i); stopPlay(); };
+    list.appendChild(btn);
+  });
+}
+function goNext(){if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();}
+function goPrev(){if(currentStep>0){currentStep--;renderStep(currentStep);}}
+function reset(){stopPlay();currentStep=0;renderStep(0);}
+function togglePlay(){
+  if(playing){stopPlay();return;}
+  playing=true;document.getElementById('btnPlay').textContent='⏸ 暂停';
+  playTimer=setInterval(()=>{if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();},2000);
+}
+function stopPlay(){playing=false;clearInterval(playTimer);document.getElementById('btnPlay').textContent='▶ 播放';}
+buildStepList();renderStep(0);
+</script>
+</body>
+</html>

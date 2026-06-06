@@ -6,7 +6,7 @@
 
   const H = 44;
   const RKEY = 'recentPages_v2';
-  const MODULE_RE = '(algo|db|kafka|redis|linux|network|cs|golang|distributed|ai|system-design)';
+  const MODULE_RE = '(algo|db|kafka|redis|linux|network|cs|golang|distributed|ai|system-design|cloud-native|observability|security)';
   const MODULE_PATH_RE = new RegExp('/' + MODULE_RE + '/');
   const HOME = MODULE_PATH_RE.test(window.location.pathname) ? '../index.html' : 'index.html';
   const ROOT = HOME.replace(/index\.html$/, '');
@@ -426,7 +426,10 @@ body.sn-legacy-wrapped .sn-legacy-code{width:390px;min-width:390px;overflow:auto
       golang: { label: 'Golang', href: 'index.html' },
       distributed: { label: '分布式', href: 'index.html' },
       ai: { label: 'AI 系统', href: 'index.html' },
-      'system-design': { label: '系统设计', href: 'index.html' }
+      'system-design': { label: '系统设计', href: 'index.html' },
+      'cloud-native': { label: '云原生', href: 'index.html' },
+      observability: { label: '可观测性', href: 'index.html' },
+      security: { label: '安全基础', href: 'index.html' }
     };
     return match ? map[match[1]] : null;
   }
@@ -538,7 +541,10 @@ body.sn-legacy-wrapped .sn-legacy-code{width:390px;min-width:390px;overflow:auto
       golang: { cat: 'Golang', icon: '🐹' },
       distributed: { cat: '分布式', icon: '🌐' },
       ai: { cat: 'AI 系统', icon: '🤖' },
-      'system-design': { cat: '系统设计', icon: '🏛️' }
+      'system-design': { cat: '系统设计', icon: '🏛️' },
+      'cloud-native': { cat: '云原生', icon: '☁️' },
+      observability: { cat: '可观测性', icon: '🔭' },
+      security: { cat: '安全基础', icon: '🔐' }
     }[match[1]];
     var title = (d.querySelector('nav h1, .nav-title, header h1') || {}).textContent || d.title.replace(/\s*[-|].*$/, '');
     if (!window.NavTracker) return;

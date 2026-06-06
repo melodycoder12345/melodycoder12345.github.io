@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>视频流媒体 - 系统设计</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#f59e0b;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 20% 0%,color-mix(in srgb,var(--accent) 14%,transparent),transparent 36%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:220px minmax(0,1fr) 240px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:460px;display:flex;flex-direction:column;padding:18px}
+.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:rgba(15,23,42,.64);overflow:hidden;padding:16px;}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}
+.status p{color:var(--dim);font-size:.9rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit;font-size:.85rem}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.deep code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.82rem;color:var(--text)}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+
+/* 视频分片 + 转码 */
+.video-pipeline{width:100%;}
+.seg-label{font-size:.68rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;}
+.seg-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:14px;}
+.seg{width:48px;height:32px;border-radius:6px;border:1.5px solid;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-family:monospace;transition:all .35s;flex-shrink:0;}
+.seg.raw{border-color:rgba(100,116,139,.4);background:rgba(100,116,139,.08);color:#94a3b8;}
+.seg.cutting{border-color:var(--accent);background:rgba(245,158,11,.15);color:var(--accent);animation:segPulse .8s infinite;}
+.seg.done{border-color:rgba(74,222,128,.4);background:rgba(74,222,128,.08);color:var(--ok);}
+@keyframes segPulse{0%,100%{opacity:1}50%{opacity:.6}}
+
+/* 转码工作者 */
+.transcode-rows{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+.tc-row{display:flex;align-items:center;gap:8px;}
+.tc-label{font-size:.72rem;font-family:monospace;width:54px;flex-shrink:0;color:var(--dim);}
+.tc-segs{display:flex;gap:4px;flex-wrap:wrap;}
+.tc-seg{width:42px;height:26px;border-radius:5px;border:1px solid;display:flex;align-items:center;justify-content:center;font-size:.62rem;font-family:monospace;transition:all .35s;}
+.tc-seg.empty{border-color:rgba(255,255,255,.07);background:transparent;color:transparent;}
+.tc-seg.encoding{border-color:var(--warn);background:rgba(251,191,36,.12);color:var(--warn);}
+.tc-seg.encoded{border-color:rgba(74,222,128,.4);background:rgba(74,222,128,.08);color:var(--ok);}
+
+/* ABR 带宽图 */
+.abr-wrap{border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:10px;background:rgba(255,255,255,.02);}
+.abr-title{font-size:.68rem;color:var(--dim2);text-transform:uppercase;margin-bottom:6px;}
+.bandwidth-bar{height:40px;position:relative;border-radius:6px;overflow:hidden;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);margin-bottom:8px;}
+.bw-fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#38bdf8,#c084fc);transition:width .5s ease;border-radius:6px;}
+.bw-label{position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:.7rem;color:var(--text);font-family:monospace;z-index:1;}
+.quality-indicator{display:flex;gap:6px;flex-wrap:wrap;}
+.qi-dot{border-radius:5px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid;transition:all .35s;}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"视频分片（Segmentation）","body":"将长视频按固定时长（如 2-10s）切分为多个小文件（TS 或 MP4 分片），每个分片独立可传输。播放器按需请求下一个分片，而不是等待整个文件下载。","tag":"term"},
+  {"title":"ABR（自适应码率）","body":"播放器实时监测带宽，动态选择合适分辨率的分片。带宽充足时选 1080p，带宽不足时切换到 360p，保证视频不卡顿。HLS 的 M3U8 Playlist 描述了所有可用码率的 URL。","tag":"term"},
+  {"title":"HLS（HTTP Live Streaming）","body":"苹果开发的流媒体协议，将视频切成 TS 文件，通过 .m3u8 Playlist 描述分片列表和多码率选项，基于标准 HTTP/HTTPS 传输，CDN 友好。","tag":"term"},
+  {"title":"DASH（Dynamic Adaptive Streaming）","body":"MPEG 开发的开放标准，类似 HLS 但基于 FRAG MP4，用 .mpd Manifest 描述。YouTube 使用 DASH，支持更灵活的 DRM 和多音轨。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">系统设计 / 视频流媒体 / C 类型</div>
+      <h1>视频流媒体</h1>
+      <p class="summary">视频上传后，转码服务将其切分为固定长度的分片，每个分片并行转码为多个分辨率（360p/720p/1080p），输出段落按分辨率分行排列到 CDN。播放器通过 ABR 算法实时监测带宽，自动切换合适的分辨率层，保证流畅播放不卡顿。</p>
+      <div class="tags"><span>HLS</span><span>DASH</span><span>ABR 自适应码率</span><span>分片转码</span><span>CDN</span><span>ffmpeg</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>视频分片</strong><span>视频切成 2-10s 小块，播放器按需请求，不等整文件下载。</span></li>
+        <li><strong>ABR 自适应码率</strong><span>带宽不足时自动降低分辨率，确保播放连续性。</span></li>
+        <li><strong>HLS / M3U8</strong><span>Playlist 文件描述分片 URL 和多码率选项，基于 HTTP 传输。</span></li>
+        <li><strong>CDN 边缘缓存</strong><span>分片存 CDN，用户就近拉取，降低源站负载和延迟。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">流程步骤</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+
+    <section class="panel viz">
+      <div class="stage">
+        <div class="video-pipeline">
+          <!-- 原始分片 -->
+          <div class="seg-label">① 原始视频 → 分片切割</div>
+          <div class="seg-row" id="rawSegs"></div>
+
+          <!-- 转码行 -->
+          <div class="seg-label">② 并行转码（每分片 × 3 分辨率）</div>
+          <div class="transcode-rows">
+            <div class="tc-row">
+              <div class="tc-label" style="color:#f87171">1080p</div>
+              <div class="tc-segs" id="segs1080"></div>
+            </div>
+            <div class="tc-row">
+              <div class="tc-label" style="color:#fbbf24">720p</div>
+              <div class="tc-segs" id="segs720"></div>
+            </div>
+            <div class="tc-row">
+              <div class="tc-label" style="color:#4ade80">360p</div>
+              <div class="tc-segs" id="segs360"></div>
+            </div>
+          </div>
+
+          <!-- ABR 带宽图 -->
+          <div class="seg-label">③ 播放器 ABR：按带宽选分辨率</div>
+          <div class="abr-wrap">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <span style="font-size:.72rem;color:var(--dim);">当前带宽</span>
+              <div style="flex:1;height:8px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden;">
+                <div id="bwBar" style="height:100%;width:0%;background:linear-gradient(90deg,#38bdf8,#c084fc);transition:width .5s ease;border-radius:4px;"></div>
+              </div>
+              <span id="bwLabel" style="font-size:.72rem;font-family:monospace;color:var(--text);min-width:55px;">—</span>
+            </div>
+            <div class="quality-indicator" id="qualityIndicator"></div>
+            <div style="margin-top:8px;font-size:.72rem;color:var(--dim);font-family:monospace;" id="playheadInfo">播放游标: —</div>
+          </div>
+        </div>
+      </div>
+      <div class="status">
+        <div id="stepBadge" class="badge">上传</div>
+        <h2 id="statusTitle">视频上传完成</h2>
+        <p id="statusDesc">用户上传原始视频，转码服务开始处理。</p>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnPrev" onclick="goPrev()" disabled>◀ 上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+        <button class="ctrl" id="btnNext" onclick="goNext()">下一步 ▶</button>
+        <button class="ctrl" onclick="reset()" style="margin-left:auto">↺ 重置</button>
+      </div>
+    </section>
+
+    <div class="panel" style="display:flex;flex-direction:column;">
+      <div class="panel-hd">HLS Playlist</div>
+      <div style="padding:14px;flex:1;overflow:auto;">
+        <div style="font-size:.68rem;color:var(--dim2);margin-bottom:6px;">master.m3u8（多码率入口）</div>
+        <pre style="font-family:monospace;font-size:.73rem;color:#94a3b8;background:rgba(255,255,255,.03);border-radius:8px;padding:10px;overflow:auto;line-height:1.8;">#EXTM3U
+#EXT-X-VERSION:3
+
+#EXT-X-STREAM-INF:<span style="color:#f87171">BANDWIDTH=5000000</span>
+<span style="color:#f87171">1080p/index.m3u8</span>
+
+#EXT-X-STREAM-INF:<span style="color:#fbbf24">BANDWIDTH=2000000</span>
+<span style="color:#fbbf24">720p/index.m3u8</span>
+
+#EXT-X-STREAM-INF:<span style="color:#4ade80">BANDWIDTH=500000</span>
+<span style="color:#4ade80">360p/index.m3u8</span></pre>
+        <div style="font-size:.68rem;color:var(--dim2);margin-top:8px;margin-bottom:6px;">720p/index.m3u8（分片列表）</div>
+        <pre style="font-family:monospace;font-size:.73rem;color:#94a3b8;background:rgba(255,255,255,.03);border-radius:8px;padding:10px;overflow:auto;line-height:1.8;">#EXTM3U
+#EXT-X-TARGETDURATION:6
+#EXTINF:6.0,
+seg-001.ts
+#EXTINF:6.0,
+seg-002.ts
+#EXTINF:6.0,
+seg-003.ts
+...</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>分片长度的权衡</h2>
+      <ul>
+        <li><strong>短分片（2s）：</strong>ABR 切换更快，延迟低，适合直播；但分片数量多，Playlist 管理复杂</li>
+        <li><strong>长分片（10s）：</strong>HTTP 请求少，CDN 命中率高，适合 VOD；但切换延迟长</li>
+        <li>典型值：点播 6-10s，低延迟直播 2-3s，超低延迟 HLS（LHLS/LL-DASH）&lt; 1s</li>
+        <li>分片太短的问题：每个分片都有 HTTP 请求头开销，带宽利用率下降</li>
+      </ul>
+    </section>
+    <section>
+      <h2>转码优化</h2>
+      <ul>
+        <li>多分辨率并行转码：同一原始分片同时转 360p/720p/1080p，节省总时间</li>
+        <li>分布式转码：按分片维度分发到多个 Worker，视频时长不影响总时间</li>
+        <li>关键帧对齐：不同码率的分片在相同时间点切割，确保 ABR 切换无缝</li>
+        <li>感知质量编码（CRF）：根据画面复杂度动态调整码率，复杂场景更高码率</li>
+        <li>AV1 > H.265 > H.264：更新的编码格式压缩率更好，但转码算力更高</li>
+      </ul>
+    </section>
+    <section>
+      <h2>CDN 分发策略</h2>
+      <ul>
+        <li>分片上传到 S3/OSS 后，配置 CDN 缓存回源规则</li>
+        <li>分片内容不变（URL 含 hash/segment 编号），TTL 设为较长（7天+）</li>
+        <li>Playlist（.m3u8）动态变化（直播时追加），TTL 短（1-5s）或不缓存</li>
+        <li>预热（Cache Warming）：热门视频首次播放前提前推送到边缘节点</li>
+        <li>Range Request：大文件支持断点续传，客户端可只下载部分内容</li>
+      </ul>
+    </section>
+    <section>
+      <h2>直播与 VOD 差异</h2>
+      <ul>
+        <li><strong>VOD（点播）：</strong>全量转码后入库，用户随时拉取；可以慢慢转高质量</li>
+        <li><strong>直播：</strong>实时切片，转码后立即推送到 CDN；延迟和质量二选一</li>
+        <li><strong>RTMP → HLS：</strong>推流用低延迟的 RTMP，分发用 CDN 友好的 HLS</li>
+        <li><strong>DVR 回看：</strong>直播分片持久化存储，用户可以拖动到过去的位置</li>
+        <li><strong>WebRTC：</strong>P2P 传输实现真正毫秒级延迟，适合视频会议，不适合大规模分发</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← 系统设计首页</a>
+    <a class="btn" href="../network/cdn.html">CDN</a>
+    <a class="btn" href="object-storage.html">对象存储</a>
+  </div>
+</main>
+<script>
+const N_SEGS = 5;
+const STEPS = [
+  {
+    label:'视频上传分片',
+    title:'视频上传后，切分为 5 个等长分片',
+    badge:'分片',
+    desc:'原始视频文件被切分为 N 个固定时长分片（通常 6-10s 每片）。分片按编号排列，每个分片是独立的文件（TS 格式）。切分完成后立即触发转码任务。',
+    rawStates:Array(N_SEGS).fill('done'),
+    tc1080:Array(N_SEGS).fill('empty'),
+    tc720: Array(N_SEGS).fill('empty'),
+    tc360: Array(N_SEGS).fill('empty'),
+    bw:0, quality:['360p','720p','1080p'], active:'—', playhead:'seg-001 未开始'
+  },
+  {
+    label:'并行转码开始',
+    title:'每个分片同时开始 3 种分辨率的转码',
+    badge:'转码',
+    desc:'转码服务将每个分片分配给 3 个 Worker（1080p/720p/360p），并行处理。分片 1-3 正在转码中（黄色），分片 4-5 等待队列。1080p 转码最慢（码率最高），360p 最快。',
+    rawStates:Array(N_SEGS).fill('done'),
+    tc1080:['encoding','encoding','encoding','empty','empty'],
+    tc720: ['encoding','encoding','encoding','empty','empty'],
+    tc360: ['encoded','encoded','encoded','encoding','encoding'],
+    bw:80, quality:['360p','720p','1080p'], active:'360p', playhead:'seg-001 (360p)'
+  },
+  {
+    label:'转码陆续完成',
+    title:'前 3 个分片转码完成，播放器可以开始播放',
+    badge:'可播放',
+    desc:'分片 1-3 的 1080p/720p/360p 版本全部转码完成（绿色），上传到 CDN。此时播放器已可以请求并播放前 3 个分片。分片 4-5 继续转码，不影响播放开始。',
+    rawStates:Array(N_SEGS).fill('done'),
+    tc1080:['encoded','encoded','encoded','encoding','encoding'],
+    tc720: ['encoded','encoded','encoded','encoding','encoding'],
+    tc360: ['encoded','encoded','encoded','encoded','encoded'],
+    bw:80, quality:['360p','720p','1080p'], active:'720p', playhead:'seg-002 (720p)'
+  },
+  {
+    label:'ABR：带宽下降切换',
+    title:'播放器检测到带宽下降，自动切换到 720p',
+    badge:'ABR 切换',
+    desc:'用户网络带宽从 5Mbps 下降到 1.5Mbps，ABR 算法判断 1080p（需 5Mbps）无法保证流畅，自动切换到 720p（需 2Mbps）。下一段分片请求改为 720p 版本。切换发生在分片边界，无缝衔接。',
+    rawStates:Array(N_SEGS).fill('done'),
+    tc1080:['encoded','encoded','encoded','encoded','encoded'],
+    tc720: ['encoded','encoded','encoded','encoded','encoded'],
+    tc360: ['encoded','encoded','encoded','encoded','encoded'],
+    bw:35, quality:['360p','720p'], active:'720p', playhead:'seg-003 → 切换到 720p'
+  },
+  {
+    label:'带宽极低：降到 360p',
+    title:'带宽进一步下降，切换到最低 360p',
+    badge:'降级',
+    desc:'带宽下降到 300Kbps，低于 720p 所需（500Kbps+），播放器切换到 360p，确保视频继续播放而不卡顿。此时画质下降但无缓冲。当带宽恢复时，会自动升回高分辨率。',
+    rawStates:Array(N_SEGS).fill('done'),
+    tc1080:['encoded','encoded','encoded','encoded','encoded'],
+    tc720: ['encoded','encoded','encoded','encoded','encoded'],
+    tc360: ['encoded','encoded','encoded','encoded','encoded'],
+    bw:10, quality:['360p'], active:'360p', playhead:'seg-004 → 降级到 360p'
+  },
+  {
+    label:'带宽恢复，升回 1080p',
+    title:'带宽恢复，ABR 逐步升级到 1080p',
+    badge:'升级',
+    desc:'带宽恢复到 8Mbps，ABR 算法逐步（保守地）将分辨率升级：360p → 720p → 1080p。不会立即跳到最高质量，避免带宽波动导致反复切换（thrashing）。',
+    rawStates:Array(N_SEGS).fill('done'),
+    tc1080:['encoded','encoded','encoded','encoded','encoded'],
+    tc720: ['encoded','encoded','encoded','encoded','encoded'],
+    tc360: ['encoded','encoded','encoded','encoded','encoded'],
+    bw:95, quality:['360p','720p','1080p'], active:'1080p', playhead:'seg-005 (1080p)'
+  }
+];
+
+let currentStep=0,playing=false,playTimer=null;
+
+function renderSegs(containerId, states, palette){
+  const c=document.getElementById(containerId);
+  c.innerHTML='';
+  states.forEach((st,i)=>{
+    const div=document.createElement('div');
+    const colors={empty:'transparent',encoding:'#fbbf24',encoded:'#4ade80'};
+    div.className='tc-seg '+(st||'empty');
+    if(st!=='empty') div.textContent='s'+(i+1);
+    c.appendChild(div);
+  });
+}
+
+function renderStep(idx){
+  const s=STEPS[idx];
+  document.querySelectorAll('.step-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  document.getElementById('stepBadge').textContent=s.badge;
+  document.getElementById('statusTitle').textContent=s.title;
+  document.getElementById('statusDesc').textContent=s.desc;
+
+  // 原始分片
+  const rawRow=document.getElementById('rawSegs');
+  rawRow.innerHTML='';
+  s.rawStates.forEach((st,i)=>{
+    const div=document.createElement('div');
+    div.className='seg done';
+    div.textContent='s'+(i+1);
+    rawRow.appendChild(div);
+  });
+
+  renderSegs('segs1080',s.tc1080);
+  renderSegs('segs720',s.tc720);
+  renderSegs('segs360',s.tc360);
+
+  // 带宽条
+  document.getElementById('bwBar').style.width=s.bw+'%';
+  const bwVal=Math.round(s.bw/100*8);
+  document.getElementById('bwLabel').textContent=bwVal+'Mbps';
+
+  // 质量指示
+  const qi=document.getElementById('qualityIndicator');
+  qi.innerHTML='';
+  const allQ=['360p','720p','1080p'];
+  const colors={'360p':'#4ade80','720p':'#fbbf24','1080p':'#f87171'};
+  allQ.forEach(q=>{
+    const div=document.createElement('div');
+    const available=s.quality.includes(q);
+    const active=s.active===q;
+    div.className='qi-dot';
+    div.style.borderColor=available?colors[q]:'rgba(255,255,255,.1)';
+    div.style.background=active?`${colors[q]}25`:'rgba(255,255,255,.02)';
+    div.style.color=available?colors[q]:'#475569';
+    div.textContent=q+(active?' ✓':'');
+    qi.appendChild(div);
+  });
+
+  document.getElementById('playheadInfo').textContent='播放游标: '+s.playhead;
+  document.getElementById('btnPrev').disabled=idx===0;
+  document.getElementById('btnNext').disabled=idx===STEPS.length-1;
+}
+
+function buildStepList(){
+  const list=document.getElementById('stepList');
+  STEPS.forEach((s,i)=>{
+    const btn=document.createElement('button');
+    btn.className='step-btn'+(i===0?' active':'');
+    btn.innerHTML=`<b>Step ${i+1}</b>${s.label}`;
+    btn.onclick=()=>{currentStep=i;renderStep(i);stopPlay();};
+    list.appendChild(btn);
+  });
+}
+function goNext(){if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();}
+function goPrev(){if(currentStep>0){currentStep--;renderStep(currentStep);}}
+function reset(){stopPlay();currentStep=0;renderStep(0);}
+function togglePlay(){
+  if(playing){stopPlay();return;}
+  playing=true;document.getElementById('btnPlay').textContent='⏸ 暂停';
+  playTimer=setInterval(()=>{if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();},2000);
+}
+function stopPlay(){playing=false;clearInterval(playTimer);document.getElementById('btnPlay').textContent='▶ 播放';}
+buildStepList();renderStep(0);
+</script>
+</body>
+</html>

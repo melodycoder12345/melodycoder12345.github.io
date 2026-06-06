@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>API Gateway - 系统设计</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#f59e0b;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 20% 0%,color-mix(in srgb,var(--accent) 14%,transparent),transparent 36%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:240px minmax(0,1fr) 260px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:460px;display:flex;flex-direction:column;padding:18px}
+.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:rgba(15,23,42,.64);overflow:hidden;padding:20px 16px;}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}
+.status p{color:var(--dim);font-size:.9rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.reject{border-color:var(--bad);color:var(--bad)}
+.badge.pass{border-color:var(--ok);color:var(--ok)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit;font-size:.85rem}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.deep code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.82rem;color:var(--text)}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+
+/* 漏斗请求流动画 */
+.funnel-wrap{display:flex;flex-direction:column;align-items:center;gap:0;width:100%;}
+.funnel-stage{width:100%;display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:12px;border:1.5px solid;transition:all .35s;margin-bottom:6px;position:relative;}
+.funnel-stage.idle{border-color:rgba(255,255,255,.1);background:rgba(255,255,255,.03);}
+.funnel-stage.active{border-color:var(--accent);background:rgba(245,158,11,.08);box-shadow:0 0 16px rgba(245,158,11,.15);}
+.funnel-stage.blocked{border-color:rgba(248,113,113,.5);background:rgba(248,113,113,.08);}
+.funnel-stage.passed{border-color:rgba(74,222,128,.4);background:rgba(74,222,128,.06);}
+.stage-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;}
+.stage-name{font-weight:700;font-size:.88rem;color:var(--text);flex:1;}
+.stage-state{font-size:.75rem;font-family:monospace;min-width:70px;text-align:right;}
+.stage-detail{font-size:.76rem;color:var(--dim);margin-top:3px;}
+
+/* 请求球 */
+.req-ball{width:20px;height:20px;border-radius:50%;background:var(--accent);position:fixed;box-shadow:0 0 12px rgba(245,158,11,.6);transition:all .5s cubic-bezier(.4,0,.2,1);pointer-events:none;display:none;z-index:100;}
+/* 拒绝弹出 */
+.reject-toast{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:rgba(248,113,113,.15);border:1px solid rgba(248,113,113,.4);border-radius:8px;padding:4px 10px;font-size:.72rem;font-family:monospace;color:var(--bad);display:none;}
+.reject-toast.visible{display:block;animation:toastIn .3s ease-out;}
+@keyframes toastIn{from{opacity:0;transform:translateY(-50%) scale(.8)}to{opacity:1;transform:translateY(-50%) scale(1)}}
+
+/* 后端服务区 */
+.backends{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+.backend-box{flex:1;min-width:80px;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:8px 10px;text-align:center;font-size:.75rem;font-family:monospace;transition:all .35s;}
+.backend-box.routed{border-color:var(--ok);background:rgba(74,222,128,.08);color:var(--ok);}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"认证（Authentication）","body":"验证请求者的身份：JWT 签名验证、OAuth 2.0 Token 校验、API Key 查找。只确认"你是谁"，不决定"你能做什么"。","tag":"term"},
+  {"title":"限流（Rate Limiting）","body":"控制每个客户端/IP/用户在时间窗口内的请求数量。算法：令牌桶（允许突发）、滑动窗口（精确）、固定窗口（简单）。超限返回 429。","tag":"term"},
+  {"title":"熔断器（Circuit Breaker）","body":"监控后端服务的错误率。当错误率超过阈值，进入 OPEN 状态，直接拒绝请求（fail-fast）而不调用后端，防止级联故障。等待恢复窗口后进入 HALF-OPEN 试探。","tag":"term"},
+  {"title":"路由匹配","body":"根据请求路径、Header、Host 等规则，将请求转发到对应的后端服务（如 /api/users/* → user-service，/api/orders/* → order-service）。支持路径重写和负载均衡策略。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">系统设计 / API Gateway / C 类型</div>
+      <h1>API Gateway</h1>
+      <p class="summary">API Gateway 是微服务架构的统一入口，将跨切面关注点（认证、限流、路由、熔断）集中处理。动画展示一个请求球依次通过串联的处理层：每层有独立状态，被拒绝时显示具体原因和 HTTP 状态码，通过后继续向下一层传递。</p>
+      <div class="tags"><span>认证</span><span>限流 429</span><span>路由</span><span>熔断器</span><span>反向代理</span><span>Kong / Nginx</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>认证（Auth）</strong><span>JWT 验签、API Key 查找、OAuth Token 校验，确认请求者身份。</span></li>
+        <li><strong>限流（Rate Limit）</strong><span>令牌桶/滑动窗口控制 QPS，超限返回 429 Too Many Requests。</span></li>
+        <li><strong>路由（Router）</strong><span>路径/Header 规则匹配，将请求转发到对应微服务。</span></li>
+        <li><strong>熔断器</strong><span>错误率超阈值后 Open 状态：直接返回错误，避免雪崩。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">请求场景</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <div class="funnel-wrap" id="funnelWrap">
+          <!-- 入口 -->
+          <div style="text-align:center;margin-bottom:12px;">
+            <div id="reqIndicator" style="display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(245,158,11,.3);background:rgba(245,158,11,.06);border-radius:20px;padding:6px 14px;font-size:.8rem;font-family:monospace;">
+              <span style="color:var(--accent)">●</span>
+              <span id="reqLabel">等待请求...</span>
+            </div>
+          </div>
+
+          <!-- 处理层 -->
+          <div class="funnel-stage idle" id="layer-auth">
+            <div class="stage-icon" style="background:rgba(56,189,248,.1)">🔐</div>
+            <div>
+              <div class="stage-name">认证 / Auth</div>
+              <div class="stage-detail" id="d-auth">JWT 签名验证 / API Key 查找</div>
+            </div>
+            <div class="stage-state" id="s-auth" style="color:var(--dim2)">—</div>
+            <div class="reject-toast" id="r-auth">401 Unauthorized</div>
+          </div>
+
+          <div class="funnel-stage idle" id="layer-rate">
+            <div class="stage-icon" style="background:rgba(251,191,36,.1)">⏱</div>
+            <div>
+              <div class="stage-name">限流 / Rate Limit</div>
+              <div class="stage-detail" id="d-rate">令牌桶: 100 req/s per user</div>
+            </div>
+            <div class="stage-state" id="s-rate" style="color:var(--dim2)">—</div>
+            <div class="reject-toast" id="r-rate">429 Too Many Requests</div>
+          </div>
+
+          <div class="funnel-stage idle" id="layer-route">
+            <div class="stage-icon" style="background:rgba(192,132,252,.1)">🔀</div>
+            <div>
+              <div class="stage-name">路由 / Router</div>
+              <div class="stage-detail" id="d-route">路径匹配 → 选择后端服务</div>
+            </div>
+            <div class="stage-state" id="s-route" style="color:var(--dim2)">—</div>
+          </div>
+
+          <div class="funnel-stage idle" id="layer-cb">
+            <div class="stage-icon" style="background:rgba(248,113,113,.1)">⚡</div>
+            <div>
+              <div class="stage-name">熔断器 / Circuit Breaker</div>
+              <div class="stage-detail" id="d-cb">CLOSED（正常） / OPEN（熔断）</div>
+            </div>
+            <div class="stage-state" id="s-cb" style="color:var(--dim2)">CLOSED</div>
+            <div class="reject-toast" id="r-cb">503 Service Unavailable</div>
+          </div>
+
+          <!-- 后端区 -->
+          <div style="margin-top:10px;">
+            <div style="font-size:.68rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;text-align:center;">后端服务</div>
+            <div class="backends">
+              <div class="backend-box" id="b-user">user-svc<br>:8001</div>
+              <div class="backend-box" id="b-order">order-svc<br>:8002</div>
+              <div class="backend-box" id="b-product">product-svc<br>:8003</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="status">
+        <div id="stepBadge" class="badge">等待</div>
+        <h2 id="statusTitle">选择请求场景</h2>
+        <p id="statusDesc">共有 5 种场景：正常请求、Auth 失败、限流触发、熔断器 OPEN、正常路由到不同后端。</p>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnPrev" onclick="goPrev()" disabled>◀ 上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+        <button class="ctrl" id="btnNext" onclick="goNext()">下一步 ▶</button>
+        <button class="ctrl" onclick="reset()" style="margin-left:auto">↺ 重置</button>
+      </div>
+    </section>
+
+    <div class="panel" style="display:flex;flex-direction:column;">
+      <div class="panel-hd">Gateway 实现</div>
+      <div style="padding:14px;flex:1;overflow:auto;font-size:.8rem;color:var(--dim);line-height:1.8;">
+        <div style="margin-bottom:10px;">
+          <div style="color:var(--accent);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">主流方案</div>
+          <div style="background:rgba(255,255,255,.03);border-radius:8px;padding:10px;">
+            <div style="margin-bottom:6px;"><span style="color:var(--text)">Kong：</span>Nginx + Lua 插件，声明式配置，生产最广泛</div>
+            <div style="margin-bottom:6px;"><span style="color:var(--text)">APISIX：</span>etcd 动态路由，支持 Python/Go 插件</div>
+            <div style="margin-bottom:6px;"><span style="color:var(--text)">Envoy：</span>L7 代理，Istio 数据面，支持 xDS 动态配置</div>
+            <div><span style="color:var(--text)">AWS APIGW：</span>托管方案，自动扩缩，适合 Serverless</div>
+          </div>
+        </div>
+        <div>
+          <div style="color:var(--accent);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;">熔断器状态机</div>
+          <div style="background:rgba(255,255,255,.03);border-radius:8px;padding:10px;font-family:monospace;font-size:.76rem;">
+            CLOSED → (错误率↑) → OPEN<br>
+            OPEN → (等待窗口) → HALF-OPEN<br>
+            HALF-OPEN → (试探成功) → CLOSED<br>
+            HALF-OPEN → (试探失败) → OPEN
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>与反向代理的区别</h2>
+      <ul>
+        <li>反向代理（Nginx）：主要做负载均衡和 TLS 终止，逻辑简单</li>
+        <li>API Gateway：在代理之上增加认证、限流、熔断、转换、监控等业务逻辑</li>
+        <li>服务网格（Istio）：下沉到每个 Pod 的 Sidecar，解决 East-West 流量；Gateway 负责 North-South（外部流量入口）</li>
+        <li>BFF（Backend for Frontend）：为不同终端（App/Web/Partner）定制聚合的特化 Gateway</li>
+      </ul>
+    </section>
+    <section>
+      <h2>性能关键点</h2>
+      <ul>
+        <li>认证缓存：JWT 签名验证 CPU 密集，用短期 Token 缓存避免每次重验</li>
+        <li>限流 Redis：分布式限流用 Lua 脚本保证 Redis 原子性，避免竞态</li>
+        <li>连接池：到后端服务使用长连接池（keep-alive），避免每次请求新建 TCP</li>
+        <li>异步日志：请求日志异步写入，不阻塞响应路径</li>
+        <li>Gateway 本身应无状态，方便水平扩展；有状态数据（限流计数、熔断状态）放 Redis</li>
+      </ul>
+    </section>
+    <section>
+      <h2>限流算法对比</h2>
+      <ul>
+        <li><strong>令牌桶：</strong>固定速率添加令牌，允许突发（令牌积累）。适合正常流量有短时峰值的场景。</li>
+        <li><strong>漏桶：</strong>固定速率处理请求，严格平滑，不允许突发。适合对后端保护要求严格的场景。</li>
+        <li><strong>固定窗口：</strong>统计固定时间窗口内的请求数，边界处可能有 2x 突发（窗口切换问题）。</li>
+        <li><strong>滑动窗口：</strong>精确统计任意时间窗口，无边界问题，但内存开销稍大。</li>
+      </ul>
+    </section>
+    <section>
+      <h2>网关的 12-Factor 设计</h2>
+      <ul>
+        <li>路由规则动态加载：不需要重启 Gateway 即可新增/修改路由（etcd Watch / Admin API）</li>
+        <li>Plugin 化：认证/限流/日志每个都是独立插件，可配置，可热插拔</li>
+        <li>灰度路由：通过 Header/Cookie/IP 将部分流量路由到金丝雀版本</li>
+        <li>可观测性：每个请求记录 TraceID（注入 traceparent Header），方便跨服务追踪</li>
+        <li>优雅降级：后端不可用时可返回缓存/兜底数据，而不是直接 502</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← 系统设计首页</a>
+    <a class="btn" href="rate-limiter.html">限流器</a>
+    <a class="btn" href="../distributed/distributed-tracing.html">分布式追踪</a>
+    <a class="btn" href="../distributed/service-discovery.html">服务发现</a>
+  </div>
+</main>
+
+<script>
+const STEPS = [
+  {
+    label:'正常请求通过',
+    title:'正常请求：依次通过所有层',
+    badge:'200 OK',
+    desc:'合法 JWT、未超过限流、order-svc 熔断器 CLOSED。请求依次通过认证→限流→路由→熔断器，转发到 order-service，返回 200。',
+    layers:[
+      {id:'auth',  state:'passed', stateText:'✓ JWT 有效', detail:'sub:user42, exp:+1h'},
+      {id:'rate',  state:'passed', stateText:'✓ 剩余 87/100', detail:'令牌桶: 剩余 87 个令牌'},
+      {id:'route', state:'passed', stateText:'→ order-svc', detail:'POST /api/orders/* → order-svc:8002'},
+      {id:'cb',    state:'passed', stateText:'CLOSED', detail:'错误率 2% < 50% 阈值'},
+    ],
+    backend:'order',
+    rejects:[]
+  },
+  {
+    label:'Auth 失败：无 Token',
+    title:'认证失败：请求头无 Authorization',
+    badge:'401',
+    desc:'请求头缺少 Authorization: Bearer <token>。认证层检测到后直接返回 401 Unauthorized，请求不会进入后续处理层。后端服务完全不知道这次请求的存在。',
+    layers:[
+      {id:'auth',  state:'blocked', stateText:'✗ 无 Token', detail:'缺少 Authorization header'},
+      {id:'rate',  state:'idle',    stateText:'跳过', detail:''},
+      {id:'route', state:'idle',    stateText:'跳过', detail:''},
+      {id:'cb',    state:'idle',    stateText:'跳过', detail:''},
+    ],
+    backend:null,
+    rejects:['auth']
+  },
+  {
+    label:'限流触发：QPS 超限',
+    title:'认证通过，但 QPS 超过限流阈值',
+    badge:'429',
+    desc:'JWT 有效，但该用户在当前窗口内已发送超过 100 次请求，令牌桶耗尽，返回 429 Too Many Requests。限流器内置 Retry-After 响应头，告知客户端何时可以重试。',
+    layers:[
+      {id:'auth',  state:'passed',  stateText:'✓ JWT 有效', detail:'sub:user42, exp:+1h'},
+      {id:'rate',  state:'blocked', stateText:'✗ 已超限', detail:'令牌桶耗尽，剩余 0/100'},
+      {id:'route', state:'idle',    stateText:'跳过', detail:''},
+      {id:'cb',    state:'idle',    stateText:'跳过', detail:''},
+    ],
+    backend:null,
+    rejects:['rate']
+  },
+  {
+    label:'熔断器 OPEN',
+    title:'熔断器打开：后端服务异常率过高',
+    badge:'503',
+    desc:'order-service 最近 60s 内错误率升至 58%（超过 50% 阈值），熔断器进入 OPEN 状态。即使请求通过了认证和限流，网关也直接返回 503 而不调用后端，保护后端免受更多流量冲击（fail-fast）。',
+    layers:[
+      {id:'auth',  state:'passed',  stateText:'✓ JWT 有效', detail:'sub:user42, exp:+1h'},
+      {id:'rate',  state:'passed',  stateText:'✓ 剩余 62/100', detail:'令牌桶: 剩余 62 个令牌'},
+      {id:'route', state:'passed',  stateText:'→ order-svc', detail:'POST /api/orders/* → order-svc:8002'},
+      {id:'cb',    state:'blocked', stateText:'OPEN 熔断', detail:'错误率 58% > 50%，熔断 30s'},
+    ],
+    backend:null,
+    rejects:['cb']
+  },
+  {
+    label:'路由到 user-service',
+    title:'不同路径路由到不同后端服务',
+    badge:'200 OK',
+    desc:'请求路径 GET /api/users/42 匹配 user-service 路由规则，被转发到 user-svc:8001 而不是 order-svc。路由层支持精确路径、前缀匹配、正则和 Header 匹配，同时支持权重分流实现灰度发布。',
+    layers:[
+      {id:'auth',  state:'passed', stateText:'✓ JWT 有效', detail:'sub:user42, exp:+1h'},
+      {id:'rate',  state:'passed', stateText:'✓ 剩余 55/100', detail:'令牌桶: 剩余 55 个令牌'},
+      {id:'route', state:'passed', stateText:'→ user-svc', detail:'GET /api/users/* → user-svc:8001'},
+      {id:'cb',    state:'passed', stateText:'CLOSED', detail:'user-svc 错误率 0.1%'},
+    ],
+    backend:'user',
+    rejects:[]
+  }
+];
+
+let currentStep=0,playing=false,playTimer=null;
+
+function renderStep(idx){
+  const s=STEPS[idx];
+  document.querySelectorAll('.step-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  const bd=document.getElementById('stepBadge');
+  bd.textContent=s.badge;
+  bd.className='badge'+(s.badge.startsWith('4')||s.badge.startsWith('5')?' reject':s.badge.startsWith('2')?' pass':'');
+  document.getElementById('statusTitle').textContent=s.title;
+  document.getElementById('statusDesc').textContent=s.desc;
+
+  // 设置请求标签
+  document.getElementById('reqLabel').textContent='→ '+s.title.split('：')[0];
+
+  // 更新各层状态
+  s.layers.forEach(l=>{
+    const el=document.getElementById('layer-'+l.id);
+    el.className='funnel-stage '+(l.state==='passed'?'passed':l.state==='blocked'?'blocked':l.state==='active'?'active':'idle');
+    document.getElementById('s-'+l.id).textContent=l.stateText;
+    document.getElementById('s-'+l.id).style.color=l.state==='passed'?'var(--ok)':l.state==='blocked'?'var(--bad)':'var(--dim2)';
+    document.getElementById('d-'+l.id).textContent=l.detail||'';
+    const rEl=document.getElementById('r-'+l.id);
+    if(rEl) rEl.className='reject-toast'+(s.rejects.includes(l.id)?' visible':'');
+  });
+
+  // 后端高亮
+  ['user','order','product'].forEach(b=>{
+    document.getElementById('b-'+b).className='backend-box'+(s.backend===b?' routed':'');
+  });
+
+  document.getElementById('btnPrev').disabled=idx===0;
+  document.getElementById('btnNext').disabled=idx===STEPS.length-1;
+}
+
+function buildStepList(){
+  const list=document.getElementById('stepList');
+  STEPS.forEach((s,i)=>{
+    const btn=document.createElement('button');
+    btn.className='step-btn'+(i===0?' active':'');
+    btn.innerHTML=`<b>Step ${i+1}</b>${s.label}`;
+    btn.onclick=()=>{currentStep=i;renderStep(i);stopPlay();};
+    list.appendChild(btn);
+  });
+}
+function goNext(){if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();}
+function goPrev(){if(currentStep>0){currentStep--;renderStep(currentStep);}}
+function reset(){stopPlay();currentStep=0;renderStep(0);}
+function togglePlay(){
+  if(playing){stopPlay();return;}
+  playing=true;document.getElementById('btnPlay').textContent='⏸ 暂停';
+  playTimer=setInterval(()=>{if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();},2000);
+}
+function stopPlay(){playing=false;clearInterval(playTimer);document.getElementById('btnPlay').textContent='▶ 播放';}
+buildStepList();renderStep(0);
+</script>
+</body>
+</html>

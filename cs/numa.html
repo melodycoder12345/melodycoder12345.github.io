@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NUMA - 计算机原理</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#f472b6;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 30% 0%,color-mix(in srgb,var(--accent) 10%,transparent),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+.content{max-width:1100px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px;margin-bottom:28px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,3.4rem);line-height:1.05;letter-spacing:-.05em;margin-bottom:14px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:999px;padding:5px 9px;font-size:.75rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);border-radius:14px;padding:12px 14px}
+.concept-list strong{display:block;font-size:.86rem;margin-bottom:3px}
+.concept-list span{display:block;color:var(--dim);font-size:.8rem;line-height:1.6}
+.body{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.section{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.6);border-radius:18px;padding:22px}
+.section h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px}
+.section p,.section li{color:var(--dim);font-size:.9rem;line-height:1.85}
+.section ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.section code{background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;font-size:.82rem}
+.code-block{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px;font-family:monospace;font-size:.78rem;color:var(--dim);overflow-x:auto;margin-top:10px;line-height:1.7}
+.callout{border-left:3px solid var(--warn);background:rgba(251,191,36,.07);border-radius:0 10px 10px 0;padding:12px 16px;margin:14px 0;font-size:.88rem;color:var(--dim);line-height:1.75}
+.back-row{margin-top:22px;display:flex;gap:12px}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text)}
+@media(max-width:900px){.hero,.body{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"NUMA Node","body":"Non-Uniform Memory Access 节点，包含一组 CPU 核心和直连到这组 CPU 的本地内存。访问本地内存延迟约 70ns，访问远端节点内存需要经过 QPI/UPI 总线，延迟约 100-150ns，带宽也更低。","tag":"term"},
+  {"title":"NUMA Affinity","body":"将进程/线程绑定到特定 NUMA 节点，同时保证内存从同一节点分配，避免跨节点内存访问。Linux 工具：numactl --cpunodebind=0 --membind=0 ./program","tag":"term"},
+  {"title":"False Sharing","body":"不同 CPU 核心修改同一 cache line（64 字节）中的不同变量，导致 cache line 频繁失效和跨核同步，性能急剧下降。解决：用 alignas(64) 或 padding 将热变量隔离到不同 cache line。","tag":"term"},
+  {"title":"NUMA Balancing","body":"Linux 内核自动 NUMA 平衡：定期扫描进程内存访问模式，将频繁远端访问的内存页迁移到访问它的 CPU 所在节点（NUMA page migration），或将进程迁移到内存所在节点。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="B">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">计算机原理 / NUMA / B 类型</div>
+      <h1>NUMA</h1>
+      <p class="summary">Non-Uniform Memory Access（非一致性内存访问）是现代多路服务器的内存架构。多个 CPU socket 各自有直连的本地内存，跨 socket 访问内存需要经过 QPI/UPI 互联，延迟高 2-3 倍、带宽更低。错误的 NUMA 配置是高性能服务（数据库/消息队列/机器学习）性能下降的常见原因，理解 NUMA 对性能调优至关重要。</p>
+      <div class="tags"><span>NUMA</span><span>numactl</span><span>QPI/UPI</span><span>cache line</span><span>false sharing</span><span>NUMA balancing</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>NUMA Node</strong><span>一组 CPU+本地内存，本地访问约 70ns，跨节点约 150ns。</span></li>
+        <li><strong>NUMA Affinity</strong><span>绑定进程到节点，确保内存从同一节点分配。</span></li>
+        <li><strong>False Sharing</strong><span>不同核修改同一 cache line，引发跨核失效风暴。</span></li>
+        <li><strong>NUMA Balancing</strong><span>内核自动迁移页/进程减少远端访问。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="body">
+    <section class="section">
+      <h2>NUMA 架构基础</h2>
+      <ul>
+        <li><strong>UMA（一致性内存）：</strong>所有 CPU 通过共享总线访问统一内存，延迟相同，但带宽竞争随核数增加而恶化</li>
+        <li><strong>NUMA 的优势：</strong>每个 socket 有本地内存总线，扩展核数时带宽随之扩展，无总线瓶颈</li>
+        <li><strong>QPI/UPI 互联：</strong>Intel 用 QPI（QuickPath Interconnect，后改名 UPI）连接多个 socket，带宽约 50-100 GB/s，但仍低于本地 DDR5 内存带宽（~200 GB/s/channel）</li>
+        <li><strong>典型配置：</strong>双路服务器 2 个 NUMA 节点，四路服务器 4 个节点，访问延迟随 hop 数增加</li>
+        <li>查看 NUMA 拓扑：<code>numactl --hardware</code> 或 <code>lstopo</code></li>
+      </ul>
+    </section>
+    <section class="section">
+      <h2>NUMA 内存分配策略</h2>
+      <ul>
+        <li><strong>local（默认）：</strong>在当前 CPU 所在节点分配内存，最优策略</li>
+        <li><strong>bind：</strong>强制从指定节点分配，若不足则 OOM，不跨节点</li>
+        <li><strong>preferred：</strong>优先从指定节点分配，不足时可跨节点</li>
+        <li><strong>interleave：</strong>轮询各节点分配，适合内存总带宽敏感（如大型内存映射文件）</li>
+      </ul>
+      <div class="code-block">
+# 查看 NUMA 拓扑
+numactl --hardware
+# node 0 cpus: 0-23  node 1 cpus: 24-47
+# node distances: 0-0:10  0-1:21
+
+# 绑定到 node 0，内存也从 node 0 分配
+numactl --cpunodebind=0 --membind=0 ./redis-server
+
+# 查看进程 NUMA 内存分布
+numastat -p redis-server</div>
+    </section>
+    <section class="section">
+      <h2>False Sharing</h2>
+      <div class="callout">⚠ 64 字节是 CPU cache line 的大小。若两个频繁写入的变量在同一个 cache line 中，它们会相互驱逐彼此的缓存，即使它们从不互相依赖。</div>
+      <div class="code-block">
+// 糟糕：counter_a 和 counter_b 在同一 cache line
+struct BadCounters {
+    int64_t counter_a;  // 8 bytes
+    int64_t counter_b;  // 8 bytes，同一 cache line!
+};
+
+// 正确：用 padding 隔离到不同 cache line
+struct GoodCounters {
+    alignas(64) int64_t counter_a;
+    alignas(64) int64_t counter_b;
+};
+
+// Go 中的对齐
+type Counter struct {
+    _ [64]byte  // padding
+    v int64
+    _ [56]byte  // padding
+}</div>
+    </section>
+    <section class="section">
+      <h2>NUMA 对数据库的影响</h2>
+      <ul>
+        <li><strong>MySQL / PostgreSQL：</strong>默认不做 NUMA 绑定，内存可能分配在远端节点，建议：<code>numactl --interleave=all mysqld</code>（均匀利用多节点内存带宽）</li>
+        <li><strong>Redis：</strong>单线程，优先绑定到单 NUMA 节点（<code>numactl --cpunodebind=0 --membind=0</code>），避免远端访问</li>
+        <li><strong>JVM（Java）：</strong>G1/ZGC 有 NUMA-aware 内存分配（<code>-XX:+UseNUMA</code>），各 GC 线程倾向分配本地节点的 region</li>
+        <li><strong>Kafka：</strong>JVM 进程，启用 <code>-XX:+UseNUMA</code> 即可，page cache 效果好于 JVM heap 调优</li>
+        <li>大内存服务（>= 128GB 使用量）NUMA 调优收益最显著</li>
+      </ul>
+    </section>
+    <section class="section">
+      <h2>Linux NUMA Balancing</h2>
+      <ul>
+        <li>内核周期性地将进程的内存页标记为 <code>PROT_NONE</code>，触发 page fault 时记录访问来自哪个 CPU</li>
+        <li>若发现进程频繁从远端节点访问内存，内核会迁移内存页到本地节点</li>
+        <li>或者迁移进程线程到内存所在节点（task migration）</li>
+        <li>可通过 <code>/proc/sys/kernel/numa_balancing</code> 开关，对于已 NUMA 绑定的服务建议关闭（减少 page fault 开销）</li>
+        <li><strong>numastat 监控：</strong><code>watch numastat</code> 观察 numa_miss（远端分配次数），优化目标是 miss 接近 0</li>
+      </ul>
+    </section>
+    <section class="section">
+      <h2>Cache 层次与延迟参考</h2>
+      <ul>
+        <li><strong>L1 Cache：</strong>~1ns，每核独占，64KB（指令+数据各 32KB）</li>
+        <li><strong>L2 Cache：</strong>~4ns，每核独占，256KB~4MB</li>
+        <li><strong>L3（LLC）Cache：</strong>~12ns，所有核共享，16-64MB</li>
+        <li><strong>本地 DRAM：</strong>~70ns，NUMA 本地节点内存</li>
+        <li><strong>远端 DRAM：</strong>~140-200ns，跨 NUMA 节点内存（2-3× 本地延迟）</li>
+        <li><strong>NVME SSD 随机读：</strong>~100μs（1000× DRAM）</li>
+        <li>理解这些延迟数字帮助判断性能优化方向：内存带宽瓶颈 vs NUMA 跨节点 vs cache miss</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← CS 首页</a>
+    <a class="btn" href="tlb.html">TLB</a>
+  </div>
+</main>
+</body>
+</html>

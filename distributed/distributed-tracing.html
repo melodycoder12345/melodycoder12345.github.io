@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>分布式追踪 - Trace / Span 瀑布图</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#c084fc;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 20% 0%,color-mix(in srgb,var(--accent) 16%,transparent),transparent 36%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:240px minmax(0,1fr) 260px;gap:16px;align-items:stretch;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}
+.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:480px;display:flex;flex-direction:column;padding:18px}
+.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:rgba(15,23,42,.64);overflow:hidden;padding:16px 14px;}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}
+.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}
+.status p{color:var(--dim);font-size:.9rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.badge.error{border-color:var(--bad);color:var(--bad)}
+.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit;font-size:.85rem}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.deep code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.82rem;color:var(--text)}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+
+/* Trace 瀑布图专用样式 */
+.trace-header{display:flex;align-items:center;gap:0;margin-bottom:10px;}
+.trace-header .svc-col{width:160px;flex-shrink:0;font-size:.68rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;}
+.trace-header .time-col{flex:1;position:relative;font-size:.68rem;color:var(--dim2);}
+.time-tick{position:absolute;font-size:.62rem;color:var(--dim2);}
+
+.span-row{display:flex;align-items:center;gap:0;margin-bottom:6px;cursor:pointer;border-radius:6px;transition:background .15s;}
+.span-row:hover{background:rgba(255,255,255,.03);}
+.span-row.highlighted{background:rgba(192,132,252,.08);}
+.span-svc{width:160px;flex-shrink:0;font-size:.75rem;font-family:monospace;display:flex;align-items:center;gap:4px;}
+.span-indent{display:inline-block;width:10px;flex-shrink:0;}
+.span-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.span-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px;}
+.span-timeline{flex:1;position:relative;height:22px;}
+.span-bar{position:absolute;top:50%;transform:translateY(-50%);height:14px;border-radius:4px;transition:all .4s cubic-bezier(.4,0,.2,1);display:flex;align-items:center;padding:0 5px;font-size:.62rem;white-space:nowrap;overflow:hidden;}
+.span-duration{font-size:.68rem;font-family:monospace;color:var(--dim);margin-left:4px;width:36px;text-align:right;}
+.span-row.error-span .span-bar{border:1px solid var(--bad)!important;}
+
+/* 选中 Span 详情 */
+.span-detail{border:1px solid rgba(192,132,252,.25);border-radius:10px;padding:10px 12px;margin-top:8px;background:rgba(192,132,252,.05);font-size:.78rem;display:none;}
+.span-detail.visible{display:block;}
+.sd-row{display:flex;gap:12px;margin-bottom:4px;}
+.sd-key{color:var(--dim2);width:100px;flex-shrink:0;}
+.sd-val{color:var(--text);font-family:monospace;flex:1;}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Trace","body":"一次完整的请求链路，从入口（如 HTTP 请求到达 API Gateway）到最终响应的所有操作集合。一个 Trace 由唯一的 TraceID 标识。","tag":"term"},
+  {"title":"Span","body":"Trace 中的最小工作单元，代表一次操作（如一次 RPC 调用、数据库查询）。每个 Span 有 spanID、parentSpanID（指向父调用）、开始/结束时间和标签（Tag）。","tag":"term"},
+  {"title":"上下文传播（Context Propagation）","body":"服务调用时，在 HTTP Header（traceparent）或 gRPC Metadata 中传递 traceID 和 spanID。下游服务读取后创建子 Span，设置 parentSpanID，从而形成调用链。","tag":"term"},
+  {"title":"OpenTelemetry（OTEL）","body":"CNCF 的可观测性标准，统一 Metrics、Traces、Logs 的采集 API 和 SDK。代替厂商特定的 Jaeger/Zipkin 客户端，通过 OTLP 协议导出到后端。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">分布式 / Tracing / C 类型</div>
+      <h1>分布式追踪</h1>
+      <p class="summary">分布式追踪将一次请求在多个服务间的执行路径串联成瀑布图（Waterfall）。横轴是绝对时间，每行是一个 Span，缩进体现 parent-child 关系。点击 Span 可查看 TraceID/SpanID 等上下文信息，直观看出哪个服务是性能瓶颈。</p>
+      <div class="tags"><span>TraceID</span><span>SpanID</span><span>W3C traceparent</span><span>OpenTelemetry</span><span>Jaeger</span><span>Zipkin</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>Trace（请求链路）</strong><span>一次请求的完整调用树，由唯一 TraceID 标识。</span></li>
+        <li><strong>Span（工作单元）</strong><span>调用链中的最小单元，有父子关系，记录耗时和标签。</span></li>
+        <li><strong>traceparent Header</strong><span>W3C 标准：<code>version-traceId-spanId-flags</code>，跨服务传递上下文。</span></li>
+        <li><strong>OTLP</strong><span>OpenTelemetry Protocol，统一导出 Span 数据到 Jaeger/Tempo 等后端。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">Step Timeline</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+
+    <section class="panel viz">
+      <div class="stage" id="stage">
+        <!-- 瀑布图区域 -->
+        <div style="margin-bottom:8px;">
+          <span style="font-size:.7rem;color:var(--dim2);font-family:monospace;">TraceID: </span>
+          <span id="traceId" style="font-size:.7rem;color:var(--accent);font-family:monospace;">ab3f...c129</span>
+          <span style="font-size:.7rem;color:var(--dim2);margin-left:12px;">Total: </span>
+          <span id="totalDuration" style="font-size:.7rem;color:var(--text);font-family:monospace;">—</span>
+        </div>
+        <!-- 时间轴标头 -->
+        <div class="trace-header">
+          <div class="trace-svc-col" style="width:160px;font-size:.68rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;">服务 / 操作</div>
+          <div style="flex:1;display:flex;justify-content:space-between;font-size:.62rem;color:var(--dim2);font-family:monospace;padding:0 4px;">
+            <span>0ms</span><span id="tMid">—</span><span id="tEnd">—</span>
+          </div>
+          <div style="width:40px;"></div>
+        </div>
+        <div id="spanRows"></div>
+        <!-- Span 详情 -->
+        <div class="span-detail" id="spanDetail">
+          <div class="sd-row"><span class="sd-key">Trace ID</span><span class="sd-val" id="dtTraceId">—</span></div>
+          <div class="sd-row"><span class="sd-key">Span ID</span><span class="sd-val" id="dtSpanId">—</span></div>
+          <div class="sd-row"><span class="sd-key">Parent Span</span><span class="sd-val" id="dtParent">—</span></div>
+          <div class="sd-row"><span class="sd-key">Service</span><span class="sd-val" id="dtService">—</span></div>
+          <div class="sd-row"><span class="sd-key">Duration</span><span class="sd-val" id="dtDuration">—</span></div>
+          <div class="sd-row"><span class="sd-key">Status</span><span class="sd-val" id="dtStatus">—</span></div>
+        </div>
+      </div>
+      <div class="status">
+        <div id="stepBadge" class="badge">Step 1</div>
+        <h2 id="statusTitle">一次 HTTP 请求进入系统</h2>
+        <p id="statusDesc">点击任意 Span 查看上下文传播信息。</p>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnPrev" onclick="goPrev()" disabled>◀ 上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+        <button class="ctrl" id="btnNext" onclick="goNext()">下一步 ▶</button>
+        <button class="ctrl" onclick="reset()" style="margin-left:auto">↺ 重置</button>
+      </div>
+    </section>
+
+    <div class="panel" style="display:flex;flex-direction:column;">
+      <div class="panel-hd">与日志/指标的区别</div>
+      <div style="padding:14px;flex:1;overflow:auto;font-size:.82rem;color:var(--dim);line-height:1.8;">
+        <div style="padding:10px;background:rgba(255,255,255,.03);border-radius:8px;margin-bottom:10px;">
+          <div style="color:var(--ok);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Metrics（指标）</div>
+          <div>聚合数据，回答"整体如何"<br>例：P99 延迟 = 240ms<br><span style="color:var(--dim2)">无法定位具体哪条请求慢</span></div>
+        </div>
+        <div style="padding:10px;background:rgba(255,255,255,.03);border-radius:8px;margin-bottom:10px;">
+          <div style="color:var(--warn);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Logs（日志）</div>
+          <div>单点事件，回答"发生了什么"<br>有 requestId 但跨服务很难关联<br><span style="color:var(--dim2)">靠 grep 串联链路效率低</span></div>
+        </div>
+        <div style="padding:10px;background:rgba(255,255,255,.03);border-radius:8px;">
+          <div style="color:var(--accent);font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Traces（追踪）</div>
+          <div>请求粒度，回答"这条请求哪步慢"<br>自动关联跨服务调用链<br><span style="color:var(--dim2)">可定位到具体 SQL / RPC</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>W3C traceparent 格式</h2>
+      <p>HTTP Header 传递格式：</p>
+      <p style="font-family:monospace;font-size:.85rem;color:var(--text);background:rgba(255,255,255,.04);padding:10px;border-radius:6px;line-height:1.8;">
+        traceparent: <span style="color:#fbbf24">00</span>-<span style="color:#c084fc">ab3f...c129</span>-<span style="color:#38bdf8">0123...ef45</span>-<span style="color:#4ade80">01</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;版本&nbsp; traceId(32位)&nbsp; spanId(16位)&nbsp; flags
+      </p>
+      <ul>
+        <li><strong>version：</strong>固定 00</li>
+        <li><strong>traceId：</strong>全局唯一，128bit，贯穿整条链路</li>
+        <li><strong>parentSpanId：</strong>调用者的 spanId，下游据此构建父子关系</li>
+        <li><strong>flags：</strong>01 表示采样，00 表示不采样</li>
+      </ul>
+    </section>
+    <section>
+      <h2>采样策略</h2>
+      <ul>
+        <li><strong>头采样（Head-based）：</strong>请求入口决定是否采样，全链路一致，但无法事后决定</li>
+        <li><strong>尾采样（Tail-based）：</strong>全量收集，在 Collector 层按条件过滤（如只保留 P99 慢请求）；代价是 Collector 需要缓冲全部 Span</li>
+        <li><strong>固定比例：</strong>每 N 条采 1 条，简单但会漏掉偶发慢请求</li>
+        <li>生产建议：错误请求 100% 采样 + 正常请求 1-5% 采样</li>
+      </ul>
+    </section>
+    <section>
+      <h2>OpenTelemetry 架构</h2>
+      <ul>
+        <li><strong>SDK：</strong>代码中创建 Span、设置属性，支持 Go/Java/Python 等多语言</li>
+        <li><strong>Collector：</strong>接收 OTLP，做采样/过滤/聚合，转发到后端（Jaeger/Tempo/Zipkin）</li>
+        <li><strong>自动插桩：</strong>HTTP/gRPC/数据库驱动无需修改代码，SDK 自动注入 Span</li>
+        <li>推荐部署：App → OTEL SDK → OTEL Collector → Jaeger/Grafana Tempo</li>
+      </ul>
+    </section>
+    <section>
+      <h2>关键排障场景</h2>
+      <ul>
+        <li><strong>P99 慢请求定位：</strong>按 duration &gt; 阈值过滤 Trace，找出耗时最长的 Span</li>
+        <li><strong>跨服务错误传播：</strong>某 Span status=ERROR，追溯 parentSpanId 找到根因服务</li>
+        <li><strong>数据库 N+1 问题：</strong>同一 Trace 内看到大量相似 DB Span，识别 ORM 滥用</li>
+        <li><strong>依赖拓扑分析：</strong>汇聚 SpanName 构建服务调用图，识别未知依赖和热点路径</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← 分布式系统首页</a>
+    <a class="btn" href="gossip.html">Gossip 协议</a>
+    <a class="btn" href="service-discovery.html">服务注册与发现</a>
+  </div>
+</main>
+
+<script>
+// 每个 span: id, parent, svc, op, color, start(ms), dur(ms), depth, error
+const TRACES = {
+  normal: {
+    totalMs: 210,
+    spans: [
+      {id:'s1', parent:null,  svc:'api-gateway',  op:'HTTP POST /order',       color:'#c084fc', start:0,   dur:210, depth:0, error:false},
+      {id:'s2', parent:'s1',  svc:'order-service',op:'createOrder',             color:'#38bdf8', start:8,   dur:192, depth:1, error:false},
+      {id:'s3', parent:'s2',  svc:'order-service',op:'DB: INSERT orders',       color:'#38bdf8', start:12,  dur:18,  depth:2, error:false},
+      {id:'s4', parent:'s2',  svc:'inventory-svc',op:'checkStock RPC',          color:'#fbbf24', start:35,  dur:60,  depth:2, error:false},
+      {id:'s5', parent:'s4',  svc:'inventory-svc',op:'DB: SELECT stock',        color:'#fbbf24', start:40,  dur:48,  depth:3, error:false},
+      {id:'s6', parent:'s2',  svc:'payment-svc',  op:'chargeCard RPC',          color:'#4ade80', start:100, dur:90,  depth:2, error:false},
+      {id:'s7', parent:'s6',  svc:'payment-svc',  op:'externalAPI: charge',     color:'#4ade80', start:110, dur:72,  depth:3, error:false},
+    ]
+  },
+  error: {
+    totalMs: 145,
+    spans: [
+      {id:'s1', parent:null,  svc:'api-gateway',  op:'HTTP POST /order',       color:'#c084fc', start:0,   dur:145, depth:0, error:false},
+      {id:'s2', parent:'s1',  svc:'order-service',op:'createOrder',             color:'#38bdf8', start:8,   dur:132, depth:1, error:false},
+      {id:'s3', parent:'s2',  svc:'order-service',op:'DB: INSERT orders',       color:'#38bdf8', start:12,  dur:18,  depth:2, error:false},
+      {id:'s4', parent:'s2',  svc:'inventory-svc',op:'checkStock RPC',          color:'#f87171', start:35,  dur:60,  depth:2, error:true},
+      {id:'s5', parent:'s4',  svc:'inventory-svc',op:'DB: SELECT stock',        color:'#f87171', start:40,  dur:24,  depth:3, error:false},
+      {id:'s6', parent:'s4',  svc:'inventory-svc',op:'TIMEOUT: lock wait',      color:'#f87171', start:65,  dur:30,  depth:3, error:true},
+    ]
+  }
+};
+
+const STEPS = [
+  {
+    label:'请求进入系统',
+    title:'API Gateway 收到请求，创建根 Span',
+    badge:'Trace 开始',
+    desc:'HTTP POST /order 到达 API Gateway，创建 Trace 的根 Span（span-1），生成唯一 TraceID。后续所有调用都会在 HTTP Header 中携带 traceparent 传递 TraceID。',
+    trace:'normal', visibleCount:1, highlighted:'s1'
+  },
+  {
+    label:'调用 order-service',
+    title:'Gateway → order-service：创建子 Span',
+    badge:'子 Span',
+    desc:'Gateway 调用 order-service 时，在请求 Header 中附上 traceparent（含 traceId 和自身 spanId）。order-service 收到后创建子 Span（span-2），设置 parentSpanId = span-1。',
+    trace:'normal', visibleCount:2, highlighted:'s2'
+  },
+  {
+    label:'数据库查询',
+    title:'order-service 执行 DB INSERT，Span 嵌套',
+    badge:'DB Span',
+    desc:'order-service 内部的数据库驱动自动创建子 Span（span-3），记录 SQL 语句和耗时（18ms）。通过缩进层级可以直观看出这是 createOrder 操作的子步骤。',
+    trace:'normal', visibleCount:3, highlighted:'s3'
+  },
+  {
+    label:'调用 inventory-service',
+    title:'并发调用库存服务（span-4, span-5）',
+    badge:'RPC 调用',
+    desc:'createOrder 调用库存服务 checkStock，传递 traceparent。库存服务创建 span-4，内部 DB 查询创建 span-5。从瀑布图的时间位置可以看出这两个 RPC 是顺序发生的。',
+    trace:'normal', visibleCount:5, highlighted:'s4'
+  },
+  {
+    label:'调用支付服务',
+    title:'调用支付服务，发起外部 API 调用（span-6, span-7）',
+    badge:'外部 API',
+    desc:'库存检查完成后，调用支付服务。支付服务内部调用外部收单 API（externalAPI），这个外部调用耗时 72ms，是整条链路最慢的部分——在瀑布图上横条最长。',
+    trace:'normal', visibleCount:7, highlighted:'s7'
+  },
+  {
+    label:'错误场景：锁超时',
+    title:'异常 Trace：库存服务锁等待超时，红色标注',
+    badge:'ERROR',
+    desc:'另一条 Trace 中，库存服务内部 DB 行锁等待超时（30ms 后失败）。span-4 和 span-6 标记为 ERROR 状态（红色）。从 spanId 反查 parentSpanId 可以精准定位：是 inventory-svc 的锁等待导致了整条链路失败，而非 gateway 或 order-service 的问题。',
+    trace:'error', visibleCount:6, highlighted:'s6'
+  }
+];
+
+let currentStep = 0, playing = false, playTimer = null, selectedSpan = null;
+
+function pct(v, total) { return (v / total * 100).toFixed(1) + '%'; }
+function msStr(v) { return v + 'ms'; }
+
+function renderTrace(step) {
+  const t = TRACES[step.trace];
+  const totalMs = t.totalMs;
+  document.getElementById('totalDuration').textContent = totalMs + 'ms';
+  document.getElementById('tMid').textContent = Math.round(totalMs/2)+'ms';
+  document.getElementById('tEnd').textContent = totalMs+'ms';
+
+  const rows = document.getElementById('spanRows');
+  rows.innerHTML = '';
+  const spansToShow = t.spans.slice(0, step.visibleCount);
+
+  spansToShow.forEach(span => {
+    const row = document.createElement('div');
+    row.className = 'span-row' + (span.id === step.highlighted ? ' highlighted':'') + (span.error?' error-span':'');
+    row.innerHTML = `
+      <div class="span-svc">
+        ${'<div class="span-indent"></div>'.repeat(span.depth)}
+        <div class="span-dot" style="background:${span.error?'#f87171':span.color}"></div>
+        <div class="span-name" style="color:${span.error?'var(--bad)':span.color};font-size:.7rem">${span.op}</div>
+      </div>
+      <div class="span-timeline">
+        <div class="span-bar" style="left:${pct(span.start,totalMs)};width:${pct(span.dur,totalMs)};background:${span.error?'rgba(248,113,113,.2)':span.color+'22'};border:1px solid ${span.error?'#f87171':span.color+'88'};">
+          <span style="color:${span.error?'#f87171':span.color}">${span.dur}ms</span>
+        </div>
+      </div>
+      <div class="span-duration" style="color:${span.error?'var(--bad)':'var(--dim)'};">${msStr(span.dur)}</div>`;
+    row.onclick = () => showSpanDetail(span, t.totalMs);
+    rows.appendChild(row);
+  });
+}
+
+function showSpanDetail(span, total) {
+  const d = document.getElementById('spanDetail');
+  d.classList.add('visible');
+  document.getElementById('dtTraceId').textContent = 'ab3f...c129';
+  document.getElementById('dtSpanId').textContent = span.id;
+  document.getElementById('dtParent').textContent = span.parent || '（根 Span）';
+  document.getElementById('dtService').textContent = span.svc;
+  document.getElementById('dtDuration').textContent = span.dur + 'ms (start+' + span.start + 'ms)';
+  document.getElementById('dtStatus').textContent = span.error ? '❌ ERROR: timeout' : '✓ OK';
+  document.getElementById('dtStatus').style.color = span.error ? 'var(--bad)' : 'var(--ok)';
+}
+
+function renderStep(idx) {
+  const s = STEPS[idx];
+  document.querySelectorAll('.step-btn').forEach((b,i) => b.classList.toggle('active',i===idx));
+  const bd = document.getElementById('stepBadge');
+  bd.textContent = s.badge;
+  bd.className = 'badge' + (s.badge==='ERROR'?' error':'');
+  document.getElementById('statusTitle').textContent = s.title;
+  document.getElementById('statusDesc').textContent = s.desc;
+  renderTrace(s);
+  document.getElementById('spanDetail').classList.remove('visible');
+  document.getElementById('btnPrev').disabled = idx===0;
+  document.getElementById('btnNext').disabled = idx===STEPS.length-1;
+}
+
+function buildStepList() {
+  const list = document.getElementById('stepList');
+  STEPS.forEach((s,i) => {
+    const btn = document.createElement('button');
+    btn.className = 'step-btn'+(i===0?' active':'');
+    btn.innerHTML = `<b>Step ${i+1}</b>${s.label}`;
+    btn.onclick = () => { currentStep=i; renderStep(i); stopPlay(); };
+    list.appendChild(btn);
+  });
+}
+function goNext(){if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();}
+function goPrev(){if(currentStep>0){currentStep--;renderStep(currentStep);}}
+function reset(){stopPlay();currentStep=0;renderStep(0);}
+function togglePlay(){
+  if(playing){stopPlay();return;}
+  playing=true;document.getElementById('btnPlay').textContent='⏸ 暂停';
+  playTimer=setInterval(()=>{if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();},2000);
+}
+function stopPlay(){playing=false;clearInterval(playTimer);document.getElementById('btnPlay').textContent='▶ 播放';}
+buildStepList();renderStep(0);
+</script>
+</body>
+</html>

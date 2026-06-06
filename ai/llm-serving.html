@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLM 推理服务 - AI</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--panel:#111827;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#f97316;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;--purple:#a78bfa;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 70% 0%,color-mix(in srgb,var(--accent) 10%,transparent),transparent 36%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:inherit}
+.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}
+.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}
+.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
+.lab{display:grid;grid-template-columns:200px minmax(0,1fr);gap:16px;margin-bottom:20px}
+.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}
+.panel-hd{padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}
+.steps{padding:12px;display:flex;flex-direction:column;gap:8px}
+.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:10px;padding:9px 11px;cursor:pointer;font-family:inherit;transition:all .16s;font-size:.82rem}
+.step-btn:hover{color:var(--text)}
+.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.step-btn b{display:block;font-size:.7rem;color:var(--accent);margin-bottom:2px}
+.viz{padding:16px;display:flex;flex-direction:column;gap:12px}
+.stage{border:1px solid rgba(255,255,255,.06);border-radius:14px;background:rgba(15,23,42,.64);padding:14px;}
+.status{border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:13px;background:rgba(255,255,255,.035)}
+.status h2{font-size:.95rem;margin-bottom:5px;color:var(--text)}
+.status p{color:var(--dim);font-size:.86rem;line-height:1.75}
+.badge{display:inline-flex;margin-bottom:6px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
+.controls{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:7px 11px;cursor:pointer;font-family:inherit;font-size:.83rem}
+.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}
+.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}
+.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}
+.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.deep code{background:rgba(255,255,255,.06);padding:2px 6px;border-radius:4px;font-size:.82rem;color:var(--text)}
+.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text);border-color:var(--accent)}
+@media(max-width:900px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+
+/* GPU Memory grid */
+.gpu-mem{display:grid;gap:1px;margin-top:8px;}
+.mem-row{display:flex;gap:1px;}
+.mem-cell{width:18px;height:18px;border-radius:3px;transition:all .3s;flex-shrink:0;}
+.mem-cell.free{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);}
+.mem-cell.req1{background:rgba(249,115,22,.55);border:1px solid rgba(249,115,22,.7);}
+.mem-cell.req2{background:rgba(56,189,248,.55);border:1px solid rgba(56,189,248,.7);}
+.mem-cell.req3{background:rgba(167,139,250,.55);border:1px solid rgba(167,139,250,.7);}
+.mem-cell.req4{background:rgba(74,222,128,.55);border:1px solid rgba(74,222,128,.7);}
+.mem-cell.model{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.15);}
+.mem-cell.frag{background:rgba(248,113,113,.2);border:1px solid rgba(248,113,113,.25);}
+
+/* Page table */
+.ptable{font-family:monospace;font-size:.73rem;}
+.ptable-row{display:flex;gap:10px;padding:4px 6px;border-radius:4px;border-bottom:1px solid rgba(255,255,255,.04);}
+.ptable-row:last-child{border-bottom:none;}
+.ptable-row.new{background:rgba(249,115,22,.08);color:var(--accent);}
+.ptable-lno{color:var(--dim2);width:80px;flex-shrink:0;}
+.ptable-pno{color:var(--text);width:60px;}
+.ptable-state{margin-left:auto;color:var(--dim2);font-size:.66rem;}
+
+/* Batch viz */
+.batch-grid{display:flex;flex-direction:column;gap:4px;}
+.batch-row{display:flex;align-items:center;gap:6px;font-size:.73rem;}
+.batch-label{width:70px;color:var(--dim2);font-family:monospace;flex-shrink:0;}
+.batch-bar{display:flex;gap:2px;flex:1;}
+.batch-tok{width:18px;height:18px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:.55rem;font-family:monospace;transition:all .3s;}
+.batch-tok.prefill{background:rgba(249,115,22,.5);color:rgba(255,255,255,.9);}
+.batch-tok.decode{background:rgba(74,222,128,.45);color:rgba(255,255,255,.9);}
+.batch-tok.wait{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.06);}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Prefill vs Decode","body":"LLM 推理分两阶段：Prefill 阶段处理输入 prompt（并行，计算密集），产生第一个 token 的 KV Cache；Decode 阶段逐 token 自回归生成（串行，内存带宽受限），每步使用已有 KV Cache 计算注意力。","tag":"term"},
+  {"title":"KV Cache","body":"注意力机制中，已处理过的 token 的 Key/Value 矩阵不需要重新计算，可以缓存在 GPU 显存中。KV Cache 大小 = 层数 × 序列长度 × 隐藏维度 × 2（K+V），是推理显存的主要消耗。","tag":"term"},
+  {"title":"PagedAttention","body":"vLLM 提出的内存管理技术：将 KV Cache 分成固定大小的"页"（如 16 个 token），用页表映射逻辑 token 位置到物理显存页。不再预留连续大块显存，碎片率接近 0，显存利用率大幅提升。","tag":"term"},
+  {"title":"连续批处理（Continuous Batching）","body":"不等待一批请求都完成，新请求 prefill 完成后立即加入 decode batch，旧请求完成后立即从 batch 中移除。GPU 利用率从传统静态批处理的 ~30% 提升到 ~90%。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="C">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">AI / 推理服务 / C 类型</div>
+      <h1>LLM 推理服务</h1>
+      <p class="summary">大型语言模型的推理服务需要解决 GPU 显存的高效利用问题。传统方式预留连续大块显存导致严重碎片，PagedAttention 将 KV Cache 分成固定页通过页表映射，碎片接近零。连续批处理让 GPU 始终满载。动画展示显存网格的分配状态、页表映射、多请求并行 decode 的 batch 组成。</p>
+      <div class="tags"><span>PagedAttention</span><span>KV Cache</span><span>Continuous Batching</span><span>vLLM</span><span>Prefill</span><span>Decode</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>KV Cache</strong><span>缓存已计算的 Key/Value 矩阵，避免重复计算注意力。</span></li>
+        <li><strong>PagedAttention</strong><span>将 KV Cache 分页，用页表消除显存碎片。</span></li>
+        <li><strong>Prefill / Decode</strong><span>两阶段推理：并行处理 prompt → 逐 token 自回归生成。</span></li>
+        <li><strong>连续批处理</strong><span>请求完成即离开 batch，新请求立即加入，GPU 持续满载。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="lab">
+    <aside class="panel">
+      <div class="panel-hd">步骤</div>
+      <div class="steps" id="stepList"></div>
+    </aside>
+
+    <section class="panel viz">
+      <!-- GPU Memory Grid -->
+      <div class="stage">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <span style="font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;">GPU 显存（KV Cache 分页示意）</span>
+          <div style="display:flex;gap:10px;font-size:.65rem;">
+            <span style="color:rgba(255,255,255,.35);">■ 模型权重</span>
+            <span style="color:rgba(249,115,22,.8);">■ 请求A</span>
+            <span style="color:rgba(56,189,248,.8);">■ 请求B</span>
+            <span style="color:rgba(167,139,250,.8);">■ 请求C</span>
+            <span style="color:rgba(248,113,113,.45);">■ 碎片</span>
+          </div>
+        </div>
+        <div id="gpuGrid"></div>
+        <div style="font-size:.68rem;color:var(--dim2);margin-top:6px;font-family:monospace;">显存利用率: <span id="memUtil" style="color:var(--ok);">--</span> | 碎片率: <span id="fragRate" style="color:var(--dim2);">--</span></div>
+      </div>
+
+      <!-- Page table & Batch -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="stage">
+          <div style="font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">页表（逻辑→物理页映射）</div>
+          <div class="ptable" id="ptable">
+            <div class="ptable-row"><span class="ptable-lno">逻辑位置</span><span class="ptable-pno">物理页</span><span class="ptable-state">状态</span></div>
+          </div>
+        </div>
+        <div class="stage">
+          <div style="font-size:.7rem;color:var(--dim2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;">连续批处理（Decode 阶段）</div>
+          <div class="batch-grid" id="batchGrid"></div>
+        </div>
+      </div>
+
+      <div class="status">
+        <div id="stepBadge" class="badge">Prefill</div>
+        <h2 id="statusTitle">请求到达，Prefill 阶段</h2>
+        <p id="statusDesc">点击播放观察显存页的分配、页表映射和多请求并行 decode 的过程。</p>
+      </div>
+      <div class="controls">
+        <button class="ctrl" id="btnPrev" onclick="goPrev()" disabled>◀ 上一步</button>
+        <button class="ctrl primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
+        <button class="ctrl" id="btnNext" onclick="goNext()">下一步 ▶</button>
+        <button class="ctrl" onclick="reset()" style="margin-left:auto">↺ 重置</button>
+      </div>
+    </section>
+  </section>
+
+  <section class="deep">
+    <section>
+      <h2>传统 vs PagedAttention 显存对比</h2>
+      <ul>
+        <li><strong>传统（连续分配）：</strong>为每个请求预留最大序列长度的连续显存，即使输出很短也占满</li>
+        <li><strong>碎片问题：</strong>预留空间用不完，空间已分配但未使用（内部碎片），且无法被其他请求使用</li>
+        <li><strong>PagedAttention：</strong>KV Cache 分成固定大小的 page（如 16 tokens），按需分配物理页</li>
+        <li><strong>逻辑/物理解耦：</strong>逻辑上连续的 token 序列，物理上可以存在不连续的页中</li>
+        <li><strong>结果：</strong>显存碎片率从 60–80% 降到 &lt;4%，单 GPU 并发请求数提升 3–4×</li>
+      </ul>
+    </section>
+    <section>
+      <h2>连续批处理原理</h2>
+      <ul>
+        <li><strong>静态批处理：</strong>等待一批请求都完成才处理下一批，先完成的请求等待其他请求，GPU 空置</li>
+        <li><strong>Iteration-level scheduling：</strong>每个 decode step 都是一个独立的 forward pass</li>
+        <li><strong>动态 batch：</strong>每个 step 都可以加入新请求的 prefill 或移除完成的请求</li>
+        <li><strong>Prefill 插入：</strong>新请求 prefill 结束后立即加入 decode batch 的下一步</li>
+        <li><strong>吞吐量提升：</strong>相比静态批处理，吞吐量提升 10–20×（vLLM 实测数据）</li>
+      </ul>
+    </section>
+    <section>
+      <h2>推理优化技术</h2>
+      <ul>
+        <li><strong>量化（Quantization）：</strong>FP16 → INT8/INT4，显存减半，精度略损</li>
+        <li><strong>Flash Attention：</strong>重新实现注意力计算的内存访问模式，减少 HBM 读写</li>
+        <li><strong>Speculative Decoding：</strong>小模型先生成多个候选 token，大模型并行验证</li>
+        <li><strong>Tensor Parallelism：</strong>将模型权重矩阵按列/行切分到多 GPU，减少单卡显存占用</li>
+        <li><strong>Prefix Caching：</strong>相同 system prompt 的 KV Cache 在多请求间共享</li>
+      </ul>
+    </section>
+    <section>
+      <h2>推理服务架构</h2>
+      <ul>
+        <li><strong>vLLM：</strong>PagedAttention + 连续批处理的开源参考实现，支持 OpenAI 兼容 API</li>
+        <li><strong>TGI（HuggingFace）：</strong>Rust gRPC server + Python 推理，支持流式输出</li>
+        <li><strong>TensorRT-LLM：</strong>NVIDIA 专有编译优化，A100/H100 上性能最高</li>
+        <li><strong>调度层：</strong>多副本负载均衡，按队列深度或 GPU 利用率路由</li>
+        <li><strong>Token 流式输出：</strong>Server-Sent Events（SSE），每生成一个 token 立即推送</li>
+        <li><strong>SLA：</strong>TTFT（首 token 延迟）和 TPS（tokens/sec）是主要指标</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← AI 首页</a>
+    <a class="btn" href="tokenization.html">BPE 分词</a>
+    <a class="btn" href="quantization.html">量化</a>
+  </div>
+</main>
+<script>
+const ROWS=8,COLS=16;
+// Layout: rows 0 = model weights (8 cells), rest = KV cache pages
+const MODEL_CELLS=new Set();
+for(let i=0;i<8;i++) MODEL_CELLS.add(i);
+
+const STEPS=[
+  {
+    label:'初始状态：显存空闲',
+    title:'初始状态：模型权重加载，KV Cache 页均空闲',
+    badge:'空闲',
+    desc:'模型权重（灰色）占用显存约 40%，剩余 96 个物理页全部空闲（深色）。传统方式会立即预留请求的最大长度显存，PagedAttention 按需分配。',
+    pages:{}, ptable:[], batch:[],
+    util:'40%', frag:'0%'
+  },
+  {
+    label:'请求A Prefill（8 tokens）',
+    title:'请求 A 到达，Prefill 阶段分配 KV Cache 页',
+    badge:'Prefill',
+    desc:'请求 A 的 prompt 有 8 个 token，需要 1 个 KV Cache 页（每页 16 token 容量，此处用 8 格示意）。PagedAttention 从空闲页池分配物理页 #3，建立逻辑到物理的映射。',
+    pages:{3:'req1',4:'req1',5:'req1',6:'req1',7:'req1',8:'req1',9:'req1',10:'req1'},
+    ptable:[{lno:'A: token 0-7',pno:'Page #3',state:'活跃',cls:'new'}],
+    batch:[{label:'req-A',toks:['P','P','P','P','P','P','P','P'],colors:['prefill','prefill','prefill','prefill','prefill','prefill','prefill','prefill']}],
+    util:'46%', frag:'0%'
+  },
+  {
+    label:'请求B、C 加入',
+    title:'请求 B、C 到达并完成 Prefill，加入 Decode batch',
+    badge:'批处理',
+    desc:'请求 B（6 tokens）和 C（4 tokens）完成 prefill，分别分配独立的物理页。连续批处理将三个请求的 decode 步骤合并到同一个 forward pass 中并行执行，GPU 利用率显著提升。',
+    pages:{3:'req1',4:'req1',5:'req1',6:'req1',7:'req1',8:'req1',9:'req1',10:'req1',16:'req2',17:'req2',18:'req2',19:'req2',20:'req2',21:'req2',32:'req3',33:'req3',34:'req3',35:'req3'},
+    ptable:[
+      {lno:'A: token 0-7',pno:'Page #3',state:'Decode',cls:''},
+      {lno:'B: token 0-5',pno:'Page #16',state:'Decode',cls:'new'},
+      {lno:'C: token 0-3',pno:'Page #32',state:'Decode',cls:'new'},
+    ],
+    batch:[
+      {label:'req-A',toks:['D','D','D','D','D','D','D','D','D'],colors:Array(9).fill('decode')},
+      {label:'req-B',toks:['D','D','D','D','D','D','D'],colors:Array(7).fill('decode')},
+      {label:'req-C',toks:['D','D','D','D','D'],colors:Array(5).fill('decode')},
+    ],
+    util:'55%', frag:'0%'
+  },
+  {
+    label:'传统方式：碎片对比',
+    title:'传统方式的显存碎片（对比）',
+    badge:'碎片对比',
+    desc:'（对比场景）传统方式为请求 A 预留最大 512 token 的连续显存，请求 A 只用了 64 token，剩余 448 token 的空间被浪费（红色）。三个请求合计浪费约 60% 显存。PagedAttention 碎片率 <4%。',
+    pages:{3:'req1',4:'req1',5:'req1',6:'req1',7:'req1',8:'req1',9:'req1',10:'req1',11:'frag',12:'frag',13:'frag',14:'frag',15:'frag',16:'req2',17:'req2',18:'req2',19:'req2',20:'req2',21:'req2',22:'frag',23:'frag',24:'frag',25:'frag',26:'frag',27:'frag',28:'frag',29:'frag',32:'req3',33:'req3',34:'req3',35:'req3',36:'frag',37:'frag',38:'frag',39:'frag',40:'frag',41:'frag',42:'frag',43:'frag',44:'frag',45:'frag'},
+    ptable:[
+      {lno:'A: 预留0-511',pno:'Page #3-14',state:'大量浪费',cls:''},
+      {lno:'B: 预留0-511',pno:'Page #16-29',state:'大量浪费',cls:''},
+      {lno:'C: 预留0-511',pno:'Page #32-45',state:'大量浪费',cls:''},
+    ],
+    batch:[
+      {label:'req-A',toks:['■','■','■','■','■','□','□','□','□','□','□','□'],colors:['decode','decode','decode','decode','decode','frag','frag','frag','frag','frag','frag','frag']},
+    ],
+    util:'61%', frag:'39%（浪费）'
+  },
+  {
+    label:'请求A 完成，页释放',
+    title:'请求 A 生成完成，物理页立即释放给下一请求',
+    badge:'释放',
+    desc:'请求 A 生成 EOS token，推理完成。PagedAttention 立即释放请求 A 占用的物理页（#3），这些页重新进入空闲池，可立即被新请求使用。GPU 无需等待其他请求完成。',
+    pages:{16:'req2',17:'req2',18:'req2',19:'req2',20:'req2',21:'req2',22:'req2',32:'req3',33:'req3',34:'req3',35:'req3',36:'req3'},
+    ptable:[
+      {lno:'A: 已完成',pno:'--（已释放）',state:'释放',cls:''},
+      {lno:'B: token 0-13',pno:'Page #16',state:'Decode',cls:''},
+      {lno:'C: token 0-9',pno:'Page #32',state:'Decode',cls:''},
+    ],
+    batch:[
+      {label:'req-B',toks:['D','D','D','D','D','D','D','D','D','D','D','D','D','D'],colors:Array(14).fill('decode')},
+      {label:'req-C',toks:['D','D','D','D','D','D','D','D','D','D'],colors:Array(10).fill('decode')},
+      {label:'req-D(新)',toks:['P','P','P','P','P'],colors:Array(5).fill('prefill')},
+    ],
+    util:'48%', frag:'<4%'
+  }
+];
+
+let currentStep=0,playing=false,playTimer=null;
+
+function renderGrid(pages){
+  const grid=document.getElementById('gpuGrid');
+  grid.innerHTML='';
+  for(let r=0;r<ROWS;r++){
+    const row=document.createElement('div');
+    row.className='mem-row';
+    for(let c=0;c<COLS;c++){
+      const idx=r*COLS+c;
+      const cell=document.createElement('div');
+      cell.className='mem-cell ';
+      if(MODEL_CELLS.has(idx)) cell.className+='model';
+      else if(pages[idx]==='req1') cell.className+='req1';
+      else if(pages[idx]==='req2') cell.className+='req2';
+      else if(pages[idx]==='req3') cell.className+='req3';
+      else if(pages[idx]==='req4') cell.className+='req4';
+      else if(pages[idx]==='frag') cell.className+='frag';
+      else cell.className+='free';
+      row.appendChild(cell);
+    }
+    grid.appendChild(row);
+  }
+}
+
+function renderPtable(rows){
+  const pt=document.getElementById('ptable');
+  pt.innerHTML='<div class="ptable-row" style="border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:3px;"><span class="ptable-lno" style="color:var(--dim2);">逻辑位置</span><span class="ptable-pno" style="color:var(--dim2);">物理页</span><span class="ptable-state" style="color:var(--dim2);">状态</span></div>';
+  rows.forEach(r=>{
+    const div=document.createElement('div');
+    div.className='ptable-row '+(r.cls||'');
+    div.innerHTML=`<span class="ptable-lno">${r.lno}</span><span class="ptable-pno">${r.pno}</span><span class="ptable-state">${r.state}</span>`;
+    pt.appendChild(div);
+  });
+}
+
+function renderBatch(rows){
+  const bg=document.getElementById('batchGrid');
+  bg.innerHTML='';
+  if(!rows.length){bg.innerHTML='<div style="color:var(--dim2);font-size:.78rem;padding:6px;">暂无活跃请求</div>';return;}
+  rows.forEach(r=>{
+    const div=document.createElement('div');
+    div.className='batch-row';
+    const label=document.createElement('div');
+    label.className='batch-label';label.textContent=r.label;
+    const bar=document.createElement('div');
+    bar.className='batch-bar';
+    r.toks.forEach((t,i)=>{
+      const tok=document.createElement('div');
+      tok.className='batch-tok '+(r.colors[i]||'wait');
+      tok.textContent=t==='■'||t==='□'?'':t.length>1?'':t;
+      if(r.colors[i]==='frag') tok.style.background='rgba(248,113,113,.2)';
+      bar.appendChild(tok);
+    });
+    div.appendChild(label);div.appendChild(bar);
+    bg.appendChild(div);
+  });
+}
+
+function renderStep(idx){
+  const s=STEPS[idx];
+  document.querySelectorAll('.step-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  document.getElementById('stepBadge').textContent=s.badge;
+  document.getElementById('statusTitle').textContent=s.title;
+  document.getElementById('statusDesc').textContent=s.desc;
+  renderGrid(s.pages||{});
+  renderPtable(s.ptable||[]);
+  renderBatch(s.batch||[]);
+  document.getElementById('memUtil').textContent=s.util;
+  document.getElementById('fragRate').textContent=s.frag;
+  document.getElementById('fragRate').style.color=parseFloat(s.frag)>10?'var(--bad)':'var(--dim2)';
+  document.getElementById('btnPrev').disabled=idx===0;
+  document.getElementById('btnNext').disabled=idx===STEPS.length-1;
+}
+
+function buildStepList(){
+  const list=document.getElementById('stepList');
+  STEPS.forEach((s,i)=>{
+    const btn=document.createElement('button');
+    btn.className='step-btn'+(i===0?' active':'');
+    btn.innerHTML=`<b>Step ${i+1}</b>${s.label}`;
+    btn.onclick=()=>{currentStep=i;renderStep(i);stopPlay();};
+    list.appendChild(btn);
+  });
+}
+function goNext(){if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();}
+function goPrev(){if(currentStep>0){currentStep--;renderStep(currentStep);}}
+function reset(){stopPlay();currentStep=0;renderStep(0);}
+function togglePlay(){
+  if(playing){stopPlay();return;}
+  playing=true;document.getElementById('btnPlay').textContent='⏸ 暂停';
+  playTimer=setInterval(()=>{if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();},2000);
+}
+function stopPlay(){playing=false;clearInterval(playTimer);document.getElementById('btnPlay').textContent='▶ 播放';}
+buildStepList();renderStep(0);
+</script>
+</body>
+</html>

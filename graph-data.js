@@ -12,7 +12,10 @@
     golang:  { label: 'Golang',     color: '#00add8' },
     distributed: { label: '分布式',     color: '#c084fc' },
     ai:      { label: 'AI 系统',     color: '#8b5cf6' },
-    'system-design': { label: '系统设计', color: '#f59e0b' }
+    'system-design': { label: '系统设计', color: '#f59e0b' },
+    'cloud-native': { label: '云原生', color: '#38bdf8' },
+    observability: { label: '可观测性', color: '#fb923c' },
+    security: { label: '安全基础', color: '#f87171' }
   };
 
   window.GRAPH_NODES = [
@@ -170,7 +173,7 @@
     {id:'quic', label:'QUIC', module:'network', type:'page', href:'network/quic.html', desc:'UDP 上的现代传输协议，内置 TLS 1.3、连接迁移和独立流。'},
     {id:'kraft', label:'KRaft', module:'kafka', type:'page', href:'kafka/kraft.html', desc:'Kafka 元数据管理的新模式，逐步替代 ZooKeeper。'},
     {id:'exactly-once', label:'Exactly Once', module:'kafka', type:'page', href:'kafka/exactly-once.html', desc:'幂等 Producer、事务和 offset 原子提交组合出的端到端处理语义。'},
-    {id:'redis-stream', label:'Redis Stream', module:'redis', type:'page', href:'modern-topic.html?id=redis-stream', desc:'带消费者组和 ACK 的消息流结构，可与 Kafka 对比。'},
+    {id:'redis-stream', label:'Redis Stream', module:'redis', type:'page', href:'redis/redis-stream.html', desc:'Stream 日志带+ConsumerGroup 游标+PEL 确认列表，带消费者组和 ACK 的消息流结构。'},
     {id:'tls', label:'TLS 1.3', module:'network', type:'page', href:'network/tls.html', desc:'TLS 1.3 握手、证书链验证、前向安全和 0-RTT 复用，是 HTTPS/gRPC/QUIC 的加密基础。'},
     {id:'websocket', label:'WebSocket', module:'network', type:'page', href:'network/websocket.html', desc:'HTTP Upgrade 握手、全双工帧传输和心跳机制，适合实时通信场景。'},
     {id:'grpc', label:'gRPC / Protobuf', module:'network', type:'page', href:'network/grpc.html', desc:'HTTP/2 多路复用、Protobuf 二进制序列化和四种流 RPC 模式，是微服务间通信的主流选择。'},
@@ -204,7 +207,65 @@
     {id:'linux-netstack', label:'Linux 网络协议栈', module:'linux', type:'page', href:'linux/network-stack.html', desc:'socket→TCP→IP→Netfilter→网卡 DMA 的完整收发包路径，是网络调优和 eBPF 的基础。'},
     {id:'db-replication', label:'MySQL 主从复制', module:'db', type:'page', href:'db/replication.html', desc:'Binlog 传输、GTID 全局事务 ID、半同步复制和复制延迟，读写分离和 CDC 的基础。'},
     {id:'db-explain', label:'EXPLAIN 执行计划', module:'db', type:'page', href:'db/explain.html', desc:'type/key/rows/Extra 字段解读，识别全表扫描和 filesort，SQL 性能优化的主要工具。'},
-    {id:'db-conn-pool', label:'数据库连接池', module:'db', type:'page', href:'db/connection-pool.html', desc:'连接复用避免重复握手开销，池大小设置、超时参数和泄漏检测是核心配置项。'}
+    {id:'db-conn-pool', label:'数据库连接池', module:'db', type:'page', href:'db/connection-pool.html', desc:'连接复用避免重复握手开销，池大小设置、超时参数和泄漏检测是核心配置项。'},
+    // Redis 补充页面
+    {id:'redis-pipeline', label:'Redis Pipeline', module:'redis', type:'page', href:'redis/pipeline.html', desc:'批量命令消除 RTT 等待，时间线对比展示 Pipeline 灰色等待段大幅缩短。'},
+    {id:'redis-pubsub', label:'Pub/Sub', module:'redis', type:'page', href:'redis/pubsub.html', desc:'发布订阅频道模型和模式匹配，与 Stream 消费语义的对比。'},
+    // Distributed 补充页面
+    {id:'dist-vector-clock', label:'向量时钟', module:'distributed', type:'page', href:'distributed/vector-clock.html', desc:'多节点向量数组 max 合并，无法比较大小的两个时钟代表并发事件。'},
+    {id:'dist-service-discovery', label:'服务注册与发现', module:'distributed', type:'page', href:'distributed/service-discovery.html', desc:'心跳驱动的健康检查、Registry 和 Client 本地缓存最终一致性同步。'},
+    {id:'dist-tracing', label:'分布式追踪', module:'distributed', type:'page', href:'distributed/distributed-tracing.html', desc:'瀑布图可视化 Span 嵌套时间关系，traceparent 在服务间传播 TraceID/SpanID。'},
+    // System Design 补充页面
+    {id:'sd-api-gateway', label:'API Gateway', module:'system-design', type:'page', href:'system-design/api-gateway.html', desc:'认证/限流/路由/熔断串联，每个策略有独立内部状态，请求球逐层通过。'},
+    {id:'sd-notification', label:'通知系统', module:'system-design', type:'page', href:'system-design/notification-system.html', desc:'优先级队列多渠道并行、失败重试倒计时和幂等 key 防重复投递。'},
+    {id:'sd-webcrawler', label:'网络爬虫', module:'system-design', type:'page', href:'system-design/web-crawler.html', desc:'BFS 向外扩展 URL、Bloom Filter 位数组判重和 robots.txt 过滤。'},
+    {id:'sd-video', label:'视频流媒体', module:'system-design', type:'page', href:'system-design/video-streaming.html', desc:'分片并行转码多分辨率、ABR 自适应码率和 CDN 边缘分发。'},
+    {id:'sd-payment', label:'支付系统', module:'system-design', type:'page', href:'system-design/payment-system.html', desc:'两阶段预扣确认状态机、幂等键防重复支付和对账任务补偿回滚。'},
+    {id:'sd-monitoring', label:'监控系统', module:'system-design', type:'page', href:'system-design/metrics-monitoring.html', desc:'TSDB 时序列存块、Alertmanager 聚合抑制和多维指标采集流水线。'},
+    // AI 补充页面
+    {id:'ai-tokenization', label:'BPE 分词', module:'ai', type:'page', href:'ai/tokenization.html', desc:'字节对编码迭代合并高频相邻对，词表从数据统计中生成。'},
+    {id:'ai-llm-serving', label:'LLM 推理服务', module:'ai', type:'page', href:'ai/llm-serving.html', desc:'PagedAttention 分页显存管理消除碎片，连续批处理提升 GPU 利用率。'},
+    {id:'ai-multimodal', label:'多模态 AI', module:'ai', type:'page', href:'ai/multimodal.html', desc:'CLIP 对齐视觉语言、跨模态注意力和扩散模型生成多类型内容。'},
+    {id:'ai-context-length', label:'长上下文 LLM', module:'ai', type:'page', href:'ai/context-length.html', desc:'RoPE 位置编码外推、KV Cache 压缩和 Lost in the Middle 长文本注意力问题。'},
+    // Network 补充页面
+    {id:'network-cdn', label:'CDN', module:'network', type:'page', href:'network/cdn.html', desc:'地理就近 PoP 节点、GSLB 路由和 TTL 驱动的缓存命中/回源策略。'},
+    {id:'network-nat', label:'NAT', module:'network', type:'page', href:'network/nat.html', desc:'SNAT/DNAT 地址转换、NAT 类型和 STUN/TURN/ICE 穿透机制。'},
+    {id:'network-bgp', label:'BGP', module:'network', type:'page', href:'network/bgp.html', desc:'路径向量协议、AS 路由策略（LOCAL_PREF/AS_PATH/MED）和 RPKI 防劫持。'},
+    // Linux 补充页面
+    {id:'linux-container', label:'容器原理', module:'linux', type:'page', href:'linux/container.html', desc:'Namespace+Cgroup+OverlayFS 三层组合实现隔离，容器不是虚拟机。'},
+    {id:'linux-perf', label:'性能工具', module:'linux', type:'page', href:'linux/perf-tools.html', desc:'USE 方法论指导 perf/eBPF/bpftrace 系统性定位 CPU/内存/IO 瓶颈。'},
+    {id:'linux-systemd', label:'Systemd', module:'linux', type:'page', href:'linux/systemd.html', desc:'PID 1 服务管理、Unit 依赖图、socket activation 和 cgroup 集成。'},
+    // DB 补充页面
+    {id:'db-sharding', label:'分库分表', module:'db', type:'page', href:'db/sharding.html', desc:'哈希分片路由单 shard、scatter-gather 跨 shard 代价和在线再平衡双写迁移。'},
+    {id:'db-fulltext', label:'全文检索', module:'db', type:'page', href:'db/full-text-search.html', desc:'倒排索引构建 posting list、双指针归并交集和 BM25 TF-IDF 相关性打分。'},
+    // CS 补充页面
+    {id:'cs-branch', label:'分支预测', module:'cs', type:'page', href:'cs/branch-prediction.html', desc:'流水线投机执行、预测失败 flush 代价和两位饱和计数器状态机。'},
+    {id:'cs-tlb', label:'TLB', module:'cs', type:'page', href:'cs/tlb.html', desc:'虚拟地址 VPN+Offset 拆分，TLB hit 1次访存 vs miss 四级页表遍历 5次。'},
+    {id:'cs-numa', label:'NUMA', module:'cs', type:'page', href:'cs/numa.html', desc:'跨 NUMA 节点访存延迟 2-3x，numactl 绑定优化和 false sharing 隔离。'},
+    // Algo 补充页面
+    {id:'algo-maxflow', label:'最大流', module:'algo', type:'page', href:'algo/max-flow.html', desc:'增广路算法和残差图，正向流量增加时反向边同步变化的 Ford-Fulkerson 机制。'},
+    {id:'algo-strhash', label:'字符串哈希', module:'algo', type:'page', href:'algo/string-hashing.html', desc:'Rabin-Karp 滚动哈希 O(1) 移动窗口，哈希碰撞时回退逐字符对比。'},
+    {id:'algo-bitmanip', label:'位运算', module:'algo', type:'page', href:'algo/bit-manipulation.html', desc:'AND/OR/XOR 基本操作、Brian Kernighan 清最低位和状态压缩 DP 用位表示集合。'},
+    {id:'algo-twoptr', label:'双指针', module:'algo', type:'page', href:'algo/two-pointers.html', desc:'对撞指针/快慢指针/滑动窗口/归并四种模式将 O(n²) 降至 O(n)。'},
+    {id:'algo-dc', label:'分治', module:'algo', type:'page', href:'algo/divide-conquer.html', desc:'主定理分析递推式、归并排序求逆序对、矩阵快速幂和 Karatsuba 大整数乘法。'},
+    // 云原生模块
+    {id:'cloud-native', label:'云原生', module:'cloud-native', type:'module', href:'cloud-native/index.html', desc:'Docker 镜像分层、K8s 控制面、Pod 调度、Service 网络和 HPA 弹性伸缩。'},
+    {id:'cn-docker', label:'Docker 镜像分层', module:'cloud-native', type:'page', href:'cloud-native/docker.html', desc:'每条 Dockerfile 指令生成一层，OverlayFS 叠加只读镜像和可写容器层，CoW 写时复制。'},
+    {id:'cn-kubernetes', label:'K8s 控制面', module:'cloud-native', type:'page', href:'cloud-native/kubernetes.html', desc:'kubectl apply → API Server 认证鉴权 → etcd Raft → Controller Watch → Scheduler → kubelet。'},
+    {id:'cn-scheduling', label:'Pod 调度', module:'cloud-native', type:'page', href:'cloud-native/k8s-scheduling.html', desc:'Filter 淘汰不满足节点（资源/Taint），Score 多插件加权打分，最优节点绑定 Pod。'},
+    {id:'cn-networking', label:'Service 网络', module:'cloud-native', type:'page', href:'cloud-native/k8s-networking.html', desc:'ClusterIP 是虚拟 IP，iptables DNAT 规则完成真正的负载均衡转发，VXLAN 跨节点。'},
+    {id:'cn-hpa', label:'HPA 弹性伸缩', module:'cloud-native', type:'page', href:'cloud-native/k8s-hpa.html', desc:'metrics-server 提供 CPU 指标，HPA 公式计算目标副本数，冷却期防频繁伸缩。'},
+    // 可观测性模块
+    {id:'observability', label:'可观测性', module:'observability', type:'module', href:'observability/index.html', desc:'Prometheus 指标采集、OpenTelemetry 链路追踪和 SLO Error Budget 管理三大支柱。'},
+    {id:'obs-prometheus', label:'Prometheus', module:'observability', type:'page', href:'observability/prometheus.html', desc:'拉取模式 Scrape 每 15s、TSDB 内存块压缩到磁盘和 Alertmanager 规则持续评估。'},
+    {id:'obs-tracing', label:'OpenTelemetry 追踪', module:'observability', type:'page', href:'observability/tracing.html', desc:'traceparent 头传播 traceId/spanId，Span 批量 OTLP 上报，瀑布图可视化调用链。'},
+    {id:'obs-slo', label:'SLO & Error Budget', module:'observability', type:'page', href:'observability/slo.html', desc:'SLO 目标定义月故障预算，Error Budget 耗尽冻结发布，Burn Rate 预警。'},
+    // 安全基础模块
+    {id:'security', label:'安全基础', module:'security', type:'module', href:'security/index.html', desc:'对称非对称加密原理、OAuth 2.0 授权码流程、Web 攻击防御和 JWT 令牌机制。'},
+    {id:'sec-crypto', label:'对称/非对称加密', module:'security', type:'page', href:'security/crypto.html', desc:'AES-CBC 链式加密和 RSA 加密/签名方向，加密保机密性，签名保真实性。'},
+    {id:'sec-oauth', label:'OAuth 2.0', module:'security', type:'page', href:'security/oauth.html', desc:'授权码流程四角色，Code 一次性后端渠道换 Token，Access Token 有过期时间。'},
+    {id:'sec-web-attacks', label:'Web 攻击', module:'security', type:'page', href:'security/web-attacks.html', desc:'SQL 注入代码数据混淆、XSS 输出编码防御和 CSRF SameSite Cookie+Token 双重防御。'},
+    {id:'sec-jwt', label:'JWT', module:'security', type:'page', href:'security/jwt.html', desc:'三段 Base64 结构解析、HMAC-SHA256 签名验证流程和 alg:none 安全漏洞说明。'}
   ];
 
   window.GRAPH_EDGES = [
@@ -281,6 +342,42 @@
     ['linux-ipc','vm'],['linux-ipc','linux-signal'],['linux-signal','linux-ipc'],['linux-signal','go-concurrency'],
     ['linux-netstack','epoll'],['linux-netstack','tcp'],['linux-netstack','zero-copy'],['linux-netstack','ebpf'],
     ['db-replication','mysql-logs'],['db-replication','kafka-overview'],['db-replication','cap-theorem'],['db-replication','distributed-db'],
-    ['db-explain','bplus'],['db-explain','db-query-plan'],['db-explain','db'],['db-conn-pool','db'],['db-conn-pool','go-sql'],['db-conn-pool','go-concurrency']
+    ['db-explain','bplus'],['db-explain','db-query-plan'],['db-explain','db'],    ['db-conn-pool','db'],['db-conn-pool','go-sql'],['db-conn-pool','go-concurrency'],
+    // Redis 补充
+    ['redis-pipeline','redis-stream'],['redis-pipeline','tcp'],['redis-pubsub','redis-stream'],['redis-pubsub','kafka-overview'],
+    // Distributed 补充
+    ['dist-vector-clock','cap-theorem'],['dist-vector-clock','crdt'],['dist-service-discovery','raft'],['dist-service-discovery','gossip'],
+    ['dist-service-discovery','consistent-hash'],['dist-tracing','obs-tracing'],['dist-tracing','http'],
+    // System Design 补充
+    ['sd-api-gateway','lb'],['sd-api-gateway','redis-types'],['sd-api-gateway','tls'],['sd-api-gateway','grpc'],
+    ['sd-notification','kafka-overview'],['sd-notification','redis-types'],['sd-webcrawler','bloom'],['sd-webcrawler','bfs'],
+    ['sd-video','network-cdn'],['sd-video','consistent-hash'],['sd-payment','dist-2pc'],['sd-payment','redis-lock'],
+    ['sd-monitoring','obs-prometheus'],['sd-monitoring','kafka-consumer'],['sd-monitoring','redis-types'],
+    // AI 补充
+    ['ai-tokenization','ai-llm-overview'],['ai-llm-serving','ai-kv-cache'],['ai-llm-serving','memory-addressing'],
+    ['ai-multimodal','ai-diffusion'],['ai-multimodal','ai-attention'],['ai-context-length','ai-kv-cache'],['ai-context-length','ai-attention'],
+    // Network 补充
+    ['network-cdn','dns'],['network-cdn','lb'],['network-nat','tcp'],['network-bgp','dns'],['network-bgp','lb'],
+    // Linux 补充
+    ['linux-container','cgroup'],['linux-container','ebpf'],['linux-container','cn-docker'],['linux-perf','ebpf'],
+    ['linux-perf','linux-process'],['linux-systemd','cgroup'],['linux-systemd','linux-process'],
+    // DB 补充
+    ['db-sharding','consistent-hash'],['db-sharding','distributed-db'],['db-fulltext','bloom'],['db-fulltext','bplus'],
+    // CS 补充
+    ['cs-branch','cpu-pipeline'],['cs-tlb','memory-addressing'],['cs-numa','cache-hierarchy'],['cs-numa','memory-addressing'],
+    // Algo 补充
+    ['algo-maxflow','bfs'],['algo-maxflow','dijkstra'],['algo-strhash','kmp'],['algo-strhash','sliding-window'],
+    ['algo-bitmanip','dp'],['algo-bitmanip','hash'],['algo-twoptr','sliding-window'],['algo-twoptr','bfs'],
+    ['algo-dc','sort'],['algo-dc','dp'],
+    // Cloud Native 内部
+    ['cn-docker','linux-container'],['cn-docker','cgroup'],['cn-kubernetes','raft'],['cn-kubernetes','cn-docker'],
+    ['cn-scheduling','cn-kubernetes'],['cn-networking','tcp'],['cn-networking','linux-container'],
+    ['cn-hpa','sd-monitoring'],['cn-hpa','obs-prometheus'],
+    // Observability 内部
+    ['obs-prometheus','sd-monitoring'],['obs-prometheus','kafka-consumer'],['obs-tracing','dist-tracing'],
+    ['obs-tracing','http'],['obs-slo','obs-prometheus'],['obs-slo','sd-monitoring'],
+    // Security 内部
+    ['sec-crypto','tls'],['sec-oauth','sec-jwt'],['sec-oauth','http'],['sec-jwt','http'],
+    ['sec-web-attacks','db'],['sec-web-attacks','http'],['sec-jwt','redis-types']
   ];
 })();

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>分治 - 算法</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<style>
+:root{--bg:#0f172a;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#a78bfa;--ok:#4ade80;--warn:#fbbf24;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(circle at 50% 0%,color-mix(in srgb,var(--accent) 10%,transparent),transparent 38%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
+.content{max-width:1100px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px;margin-bottom:28px}
+.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}
+.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}
+h1{font-size:clamp(2rem,4vw,3.4rem);line-height:1.05;letter-spacing:-.05em;margin-bottom:14px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.summary{font-size:1rem;color:var(--dim);line-height:1.85}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:999px;padding:5px 9px;font-size:.75rem;font-family:monospace}
+.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}
+.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);border-radius:14px;padding:12px 14px}
+.concept-list strong{display:block;font-size:.86rem;margin-bottom:3px}
+.concept-list span{display:block;color:var(--dim);font-size:.8rem;line-height:1.6}
+.body{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.section{border:1px solid rgba(255,255,255,.07);background:rgba(17,24,39,.6);border-radius:18px;padding:22px}
+.section h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px}
+.section p,.section li{color:var(--dim);font-size:.9rem;line-height:1.85}
+.section ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}
+.section code{background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;font-size:.82rem}
+.code-block{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px;font-family:monospace;font-size:.78rem;color:var(--dim);overflow-x:auto;margin-top:10px;line-height:1.7}
+.recurrence{background:rgba(167,139,250,.06);border:1px solid rgba(167,139,250,.2);border-radius:10px;padding:14px;margin:10px 0;font-family:monospace;font-size:.85rem;color:var(--text);line-height:2}
+.back-row{margin-top:22px;display:flex;gap:12px}
+.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}
+.btn:hover{color:var(--text)}
+@media(max-width:900px){.hero,.body{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+</style>
+<script>window.PAGE_CONCEPTS=[
+  {"title":"分治三步骤","body":"Divide（分）：将问题分成若干规模更小的相同子问题。Conquer（治）：递归求解各子问题，直到问题足够小可直接求解（base case）。Combine（合）：将子问题解合并为原问题的解。","tag":"term"},
+  {"title":"主定理（Master Theorem）","body":"分治递推式 T(n) = aT(n/b) + f(n) 的复杂度分析工具。关键比较：f(n) 与 n^(log_b a) 的关系。三种情况：递归主导、两者相当（多一个 log 因子）、合并主导。","tag":"term"},
+  {"title":"归并排序","body":"经典分治：将数组对半分，递归排序两半，线性时间归并。T(n)=2T(n/2)+O(n)，O(n log n)。稳定排序，外排序的基础。可以求逆序对数（归并时统计跨越中点的逆序对）。","tag":"term"},
+  {"title":"Karatsuba 乘法","body":"大整数相乘的分治算法：将 n 位数拆成两半，用 3 次 n/2 位乘法替代 4 次（普通分治）。T(n) = 3T(n/2) + O(n)，复杂度 O(n^1.585)，优于暴力 O(n²)。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="content" data-page-type="B">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">算法 / 分治 / B 类型</div>
+      <h1>分治</h1>
+      <p class="summary">分治（Divide and Conquer）将大问题递归分解为相同结构的子问题，每层只需处理合并逻辑，整体复杂度通过主定理分析。经典实例：归并排序（O(n log n)）、快速排序、二分搜索、快速幂、Karatsuba 大整数乘法、FFT 多项式乘法。分治与动态规划的区别：DP 子问题重叠且需要记忆化，分治子问题独立不重叠。</p>
+      <div class="tags"><span>归并排序</span><span>快速幂</span><span>二分</span><span>主定理</span><span>FFT</span><span>逆序对</span></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">核心术语</div>
+      <ul class="concept-list">
+        <li><strong>分治三步骤</strong><span>Divide → Conquer（递归）→ Combine（合并）。</span></li>
+        <li><strong>主定理</strong><span>T(n)=aT(n/b)+f(n) 的复杂度分析，比较 f(n) 与 n^log_b(a)。</span></li>
+        <li><strong>归并排序</strong><span>分治经典，稳定 O(n log n)，可用于求逆序对。</span></li>
+        <li><strong>Karatsuba 乘法</strong><span>3次递归替代4次，O(n^1.585) 大整数乘法。</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="body">
+    <section class="section">
+      <h2>主定理</h2>
+      <p style="color:var(--dim);font-size:.9rem;margin-bottom:12px">T(n) = aT(n/b) + f(n)，a≥1, b>1，f(n) 是合并代价</p>
+      <div class="recurrence">
+Case 1: f(n) = O(n^(log_b a - ε))
+  → T(n) = Θ(n^log_b a)  [递归主导]
+
+Case 2: f(n) = Θ(n^log_b a)
+  → T(n) = Θ(n^log_b a · log n)
+
+Case 3: f(n) = Ω(n^(log_b a + ε))
+  → T(n) = Θ(f(n))  [合并主导]
+      </div>
+      <ul>
+        <li>归并排序：T(n) = 2T(n/2) + O(n)，Case 2 → O(n log n)</li>
+        <li>二分搜索：T(n) = T(n/2) + O(1)，Case 2 → O(log n)</li>
+        <li>Karatsuba：T(n) = 3T(n/2) + O(n)，log₂3≈1.585，Case 1 → O(n^1.585)</li>
+        <li>Strassen 矩阵乘法：T(n) = 7T(n/2) + O(n²)，→ O(n^2.807)</li>
+      </ul>
+    </section>
+    <section class="section">
+      <h2>归并排序 & 逆序对</h2>
+      <div class="code-block">
+// 归并排序（同时统计逆序对）
+var invCount int
+
+func mergeSort(nums []int, l, r int) {
+    if l >= r { return }
+    mid := (l + r) / 2
+    mergeSort(nums, l, mid)
+    mergeSort(nums, mid+1, r)
+    merge(nums, l, mid, r)
+}
+
+func merge(nums []int, l, mid, r int) {
+    tmp := make([]int, r-l+1)
+    i, j, k := l, mid+1, 0
+    for i <= mid && j <= r {
+        if nums[i] <= nums[j] {
+            tmp[k] = nums[i]; i++
+        } else {
+            // nums[i..mid] 都比 nums[j] 大（左半有序）
+            invCount += mid - i + 1
+            tmp[k] = nums[j]; j++
+        }
+        k++
+    }
+    for i <= mid { tmp[k] = nums[i]; i++; k++ }
+    for j <= r  { tmp[k] = nums[j]; j++; k++ }
+    copy(nums[l:r+1], tmp)
+}</div>
+    </section>
+    <section class="section">
+      <h2>快速幂（矩阵快速幂）</h2>
+      <div class="code-block">
+// 快速幂 O(log n)
+func pow(base, exp, mod int) int {
+    res := 1
+    base %= mod
+    for exp > 0 {
+        if exp & 1 == 1 {
+            res = res * base % mod
+        }
+        base = base * base % mod
+        exp >>= 1
+    }
+    return res
+}
+
+// 矩阵快速幂（斐波那契第 n 项）
+// [F(n+1)]   [1 1]^n   [F(1)]
+// [F(n)  ] = [1 0]   * [F(0)]
+type Matrix [2][2]int64
+
+func matMul(a, b Matrix) Matrix {
+    var c Matrix
+    for i := 0; i < 2; i++ {
+        for j := 0; j < 2; j++ {
+            for k := 0; k < 2; k++ {
+                c[i][j] += a[i][k] * b[k][j]
+            }
+        }
+    }
+    return c
+}
+
+func fibonacci(n int) int64 {
+    if n <= 1 { return int64(n) }
+    base := Matrix{{1,1},{1,0}}
+    res := Matrix{{1,0},{0,1}}  // 单位矩阵
+    n--
+    for n > 0 {
+        if n&1 == 1 { res = matMul(res, base) }
+        base = matMul(base, base)
+        n >>= 1
+    }
+    return res[0][0]
+}</div>
+    </section>
+    <section class="section">
+      <h2>二分搜索（分治的特例）</h2>
+      <div class="code-block">
+// 通用二分模板（查找满足条件的最左位置）
+func lowerBound(nums []int, target int) int {
+    l, r := 0, len(nums)
+    for l < r {
+        mid := (l + r) / 2
+        if nums[mid] < target {
+            l = mid + 1
+        } else {
+            r = mid
+        }
+    }
+    return l  // 返回第一个 >= target 的位置
+}
+
+// 二分答案：找最小满足条件的 k
+// 例：最小化最大分割子数组和（分割数组）
+func splitArray(nums []int, k int) int {
+    lo, hi := slices.Max(nums), sum(nums)
+    for lo < hi {
+        mid := (lo + hi) / 2
+        if canSplit(nums, k, mid) {
+            hi = mid
+        } else {
+            lo = mid + 1
+        }
+    }
+    return lo
+}
+
+// 检查是否能以 mid 为最大和将数组分为 k 段
+func canSplit(nums []int, k, limit int) bool {
+    count, cur := 1, 0
+    for _, n := range nums {
+        if cur+n > limit { count++; cur = 0 }
+        cur += n
+    }
+    return count <= k
+}</div>
+    </section>
+    <section class="section">
+      <h2>Karatsuba 大整数乘法</h2>
+      <ul>
+        <li>普通长乘法：O(n²)，n 位数需要 n² 次单位乘法</li>
+        <li>朴素分治（四次递归）：T(n) = 4T(n/2) + O(n) → O(n²)，无提升</li>
+        <li>Karatsuba 关键：用 3 次递归替代 4 次</li>
+      </ul>
+      <div class="code-block">
+// 设 x = a·B + b，y = c·B + d（B = 10^(n/2)）
+// 普通：xy = ac·B² + (ad+bc)·B + bd  （4次乘法）
+// Karatsuba：
+//   z0 = b·d
+//   z2 = a·c
+//   z1 = (a+b)·(c+d) - z2 - z0  = ad+bc （只用1次乘法）
+// xy = z2·B² + z1·B + z0
+
+// T(n) = 3T(n/2) + O(n) → O(n^log2(3)) ≈ O(n^1.585)
+// Python: 大整数乘法默认使用 Karatsuba
+// Go crypto/big 包实现了 Karatsuba 和 Toom-Cook3</div>
+    </section>
+    <section class="section">
+      <h2>分治 vs 动态规划</h2>
+      <ul>
+        <li><strong>分治：</strong>子问题相互独立，不重叠，可以直接递归解决</li>
+        <li><strong>动态规划：</strong>子问题重叠，需要记忆化（memo）或自底向上计算避免重复</li>
+        <li>快速排序：子问题不重叠（左/右各自排序）→ 分治</li>
+        <li>最长公共子序列：<code>dp[i][j]</code> 依赖 <code>dp[i-1][j-1]</code>，重叠 → DP</li>
+        <li>FFT（快速傅里叶变换）：分治 + 蝴蝶运算，O(n log n) 多项式乘法</li>
+        <li><strong>适用分治的信号：</strong>问题可以自然地对半分，合并代价不高于子问题规模</li>
+      </ul>
+    </section>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">← 算法首页</a>
+    <a class="btn" href="two-pointers.html">双指针</a>
+  </div>
+</main>
+</body>
+</html>
