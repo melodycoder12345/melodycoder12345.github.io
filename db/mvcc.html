@@ -57,7 +57,10 @@
 .rv-box.active rect{stroke:var(--accent);stroke-width:2;stroke-dasharray:none;fill:rgba(167,139,250,.1);}
 @keyframes mvcc-glow{0%,100%{filter:drop-shadow(0 0 4px color-mix(in srgb,var(--accent) 50%,transparent));}50%{filter:drop-shadow(0 0 10px color-mix(in srgb,var(--accent) 80%,transparent));}}
 
-.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}.status p{color:var(--dim);font-size:.9rem;line-height:1.75}.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}.badge.failure{border-color:var(--bad);color:var(--bad)}.badge.recovery{border-color:var(--ok);color:var(--ok)}.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit}.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}.ctrl:disabled{opacity:.45;cursor:not-allowed}
+.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}.status p{color:var(--dim);font-size:.9rem;line-height:1.75}.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}.badge.failure{border-color:var(--bad);color:var(--bad)}.badge.recovery{border-color:var(--ok);color:var(--ok)}.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}.speed-wrap{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;padding:6px 14px;display:flex;align-items:center;gap:10px;margin-left:auto;}
+.speed-wrap .speed-label{color:var(--text);font-weight:600;white-space:nowrap;font-size:0.8rem;}
+.speed-val{font-family:monospace;font-size:0.78rem;color:var(--blue);min-width:26px;text-align:center;}
+.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit}.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}.ctrl:disabled{opacity:.45;cursor:not-allowed}
 .deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}.btn:hover{color:var(--text);border-color:var(--accent)}@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
 </style>
 <script>window.PAGE_CONCEPTS=[
@@ -180,7 +183,7 @@
           </g>
         </svg>
       </div>
-      <div class="controls"><button class="ctrl" id="btnReset">重置</button><button class="ctrl" id="btnPrev">上一步</button><button class="ctrl primary" id="btnPlay">播放</button><button class="ctrl" id="btnNext">下一步</button></div>
+      <div class="controls"><button class="ctrl" id="btnReset">重置</button><button class="ctrl" id="btnPrev">上一步</button><button class="ctrl primary" id="btnPlay">播放</button><button class="ctrl" id="btnNext">下一步</button><div class="speed-wrap"><span class="speed-label">速度</span><span class="speed-label" style="font-weight:400;color:var(--dim)">慢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span class="speed-label" style="font-weight:400;color:var(--dim)">快</span><span class="speed-val" id="speedVal">中速</span></div></div>
     </section>
     <aside class="panel"><div class="panel-hd">当前状态</div><div class="status"><span class="badge" id="stateBadge">normal</span><h2 id="stepTitle"></h2><p id="stepDesc"></p><p id="stepDetail" style="margin-top:8px;font-size:.82rem;"></p></div></aside>
   </section>
@@ -415,7 +418,14 @@ function next() { idx = Math.min(STEPS.length-1, idx+1); render(); if (idx === S
 function prev() { idx = Math.max(0, idx-1); render(); }
 function reset() { idx = 0; pause(); render(); }
 function pause() { if (timer) clearInterval(timer); timer = null; play.textContent = '播放'; }
-function toggle() { if (timer) { pause(); return; } play.textContent = '暂停'; timer = setInterval(next, 2000); }
+const SPEED = [2000,1200,700,350,120];
+const SPEED_LABELS = ['极慢','慢','中速','快','极快'];
+const speedRange = document.getElementById('speedRange');
+const speedVal = document.getElementById('speedVal');
+function updateSpeedLabel(){speedVal.textContent=SPEED_LABELS[parseInt(speedRange.value)-1];}
+speedRange.addEventListener('input',updateSpeedLabel);
+updateSpeedLabel();
+function toggle() { if (timer) { pause(); return; } play.textContent = '暂停'; timer = setInterval(next,SPEED[parseInt(speedRange.value)-1]); }
 
 document.getElementById('btnNext').onclick = next;
 document.getElementById('btnPrev').onclick = prev;

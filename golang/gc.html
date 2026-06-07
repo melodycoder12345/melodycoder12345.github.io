@@ -51,6 +51,9 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
 .lc{padding:0 14px 0 4px;white-space:pre-wrap;word-break:break-word;}
 .kw{color:#ff7b72}.fn{color:#d2a8ff}.st{color:#a5d6ff}.num{color:#79c0ff}.cm{color:#8b949e}.id{color:#e6edf3}.pkg{color:#ffa657}
 .controls{display:flex;align-items:center;gap:10px;padding:11px 22px;border-top:1px solid var(--border2);background:var(--panel);flex-shrink:0;}
+.speed-wrap{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;padding:6px 14px;display:flex;align-items:center;gap:10px;}
+.speed-wrap .speed-label{color:var(--text);font-weight:600;white-space:nowrap;font-size:0.8rem;}
+.speed-val{font-family:monospace;font-size:0.78rem;color:var(--blue);min-width:26px;text-align:center;}
 .ctrl-btn{background:rgba(255,255,255,.07);border:1px solid var(--border2);color:var(--text);padding:7px 16px;border-radius:8px;cursor:pointer;font-size:.82rem;font-family:inherit;transition:all .15s;}
 .ctrl-btn:hover{background:rgba(255,255,255,.12);}.ctrl-btn:disabled{opacity:.35;cursor:not-allowed;}.ctrl-btn.primary{background:rgba(0,173,216,.16);border-color:rgba(0,173,216,.35);color:var(--accent);}
 .ctrl-btn.primary:hover{background:rgba(0,173,216,.25);}
@@ -114,6 +117,14 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
   <button class="ctrl-btn primary" id="btnNext">下一步 →</button>
   <button class="ctrl-btn" id="playBtn" onclick="togglePlay()">▶ 播放</button>
   <span style="margin-left:auto;font-size:.76rem;color:var(--dim2)" id="ctrlCtr"></span>
+
+  <div class="speed-wrap">
+    <span class="speed-label">速度</span>
+    <span class="speed-label" style="font-weight:400;color:var(--dim)">慢</span>
+    <input type="range" id="speedRange" min="1" max="5" value="3">
+    <span class="speed-label" style="font-weight:400;color:var(--dim)">快</span>
+    <span class="speed-val" id="speedVal">中速</span>
+  </div>
 </div>
 <div class="extras">
   <div class="ext-section">
@@ -670,7 +681,13 @@ svg.innerHTML=out;
 // ── Play/Pause ──
 let playing=false;
 let playTimer=null;
-const PLAY_SPEED=2000;
+const SPEED = [2000,1200,700,350,120];
+const SPEED_LABELS = ['极慢','慢','中速','快','极快'];
+const speedRange = document.getElementById('speedRange');
+const speedVal = document.getElementById('speedVal');
+function updateSpeedLabel(){speedVal.textContent=SPEED_LABELS[parseInt(speedRange.value)-1];}
+speedRange.addEventListener('input',updateSpeedLabel);
+updateSpeedLabel();
 
 function togglePlay(){
   if(!playing && curStep>=totalSteps()-1){curStep=0;render();}
@@ -690,7 +707,7 @@ function togglePlay(){
         return;
       }
       curStep++;render();
-    },PLAY_SPEED);
+    },SPEED[parseInt(document.getElementById('speedRange').value)-1]);
   } else {
     clearInterval(playTimer);playTimer=null;
   }

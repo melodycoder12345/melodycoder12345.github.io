@@ -32,8 +32,9 @@ nav h1{font-size:1.1rem;font-weight:600;}
 .main{display:flex;flex:1;overflow:hidden;}
 .viz-panel{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;}
 .viz-area{flex:1;overflow:auto;padding:16px 20px;}
-.desc-box{padding:10px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
-.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.desc-box{display:flex;align-items:center;gap:10px;flex:1;min-width:0;overflow:hidden;font-size:0.83rem;color:var(--dim);padding:0 4px;}
+.desc-box #descText{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+.step-counter{font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;flex-shrink:0;}
 .code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
 .code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
 .code-dot{width:10px;height:10px;border-radius:50%;}
@@ -48,9 +49,11 @@ nav h1{font-size:1.1rem;font-weight:600;}
 .btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;font-family:inherit;}
 .btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(110,231,183,0.15);border-color:rgba(110,231,183,0.3);color:var(--linux);}
 .btn:disabled{opacity:0.4;cursor:not-allowed;}
-.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
-input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--linux);cursor:pointer;}
+.speed-wrap{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;padding:6px 14px;display:flex;align-items:center;gap:10px;}
+.speed-wrap .speed-label{color:var(--text);font-weight:600;white-space:nowrap;font-size:0.8rem;}
+.speed-val{font-family:monospace;font-size:0.78rem;color:var(--blue);min-width:26px;text-align:center;}
+input[type=range]{-webkit-appearance:none;width:130px;height:5px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--linux);cursor:pointer;box-shadow:0 0 6px rgba(56,189,248,0.5);}
 
 /* IO timeline styles */
 .io-diagram{width:100%;}
@@ -130,10 +133,6 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
         <div id="ioModels"></div>
       </div>
     </div>
-    <div class="desc-box">
-      <span id="descText">点击播放开始演示</span>
-      <span class="step-counter" id="stepCounter">0 / 0</span>
-    </div>
   </div>
 
   <div class="code-panel">
@@ -151,7 +150,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
   <button class="btn" id="btnPrev">◀ 上一步</button>
   <button class="btn primary" id="btnPlay">▶ 播放</button>
   <button class="btn" id="btnNext">下一步 ▶</button>
-  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+    <div class="desc-box"><span id="descText">点击播放开始演示</span><span class="step-counter" id="stepCounter">0 / 0</span></div>
+  <div class="speed-wrap">
+    <span class="speed-label">速度</span>
+    <span class="speed-label" style="font-weight:400;color:var(--dim)">慢</span>
+    <input type="range" id="speedRange" min="1" max="5" value="3">
+    <span class="speed-label" style="font-weight:400;color:var(--dim)">快</span>
+    <span class="speed-val" id="speedVal">中速</span>
+  </div>
 </div>
 
 <script>
@@ -393,7 +399,8 @@ function jumpToLine(ln) {
 }
 
 let cur = 0, playing = false, timer = null;
-const SPEED = [1800,1200,700,400,180];
+const SPEED = [2000,1200,700,350,120];
+const SPEED_LABELS = ['极慢','慢','中速','快','极快'];
 
 function render() {
   const s = STEPS[cur];

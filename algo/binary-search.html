@@ -41,8 +41,9 @@ nav h1{font-size:1.2rem;font-weight:600;}.complexity{margin-left:auto;display:fl
 .ptr-arrow{font-size:0.8rem;}
 .range-indicator{position:absolute;height:3px;border-radius:2px;bottom:0;transition:all 0.25s;}
 .result-badge{padding:10px 20px;border-radius:8px;font-size:0.95rem;font-weight:600;font-family:monospace;}
-.desc-box{padding:12px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.9rem;color:var(--dim);min-height:44px;display:flex;align-items:center;gap:12px;}
-.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.desc-box{display:flex;align-items:center;gap:10px;flex:1;min-width:0;overflow:hidden;font-size:0.83rem;color:var(--dim);padding:0 4px;}
+.desc-box #descText{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+.step-counter{font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;flex-shrink:0;}
 .code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
 .code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
 .code-dot{width:10px;height:10px;border-radius:50%;}
@@ -57,9 +58,11 @@ nav h1{font-size:1.2rem;font-weight:600;}.complexity{margin-left:auto;display:fl
 .btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
 .btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.3);color:var(--blue);}
 .btn:disabled{opacity:0.4;cursor:not-allowed;}
-.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
-input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--yellow);cursor:pointer;}
+.speed-wrap{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;padding:6px 14px;display:flex;align-items:center;gap:10px;}
+.speed-wrap .speed-label{color:var(--text);font-weight:600;white-space:nowrap;font-size:0.8rem;}
+.speed-val{font-family:monospace;font-size:0.78rem;color:var(--blue);min-width:26px;text-align:center;}
+input[type=range]{-webkit-appearance:none;width:130px;height:5px;background:var(--border);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--yellow);cursor:pointer;box-shadow:0 0 6px rgba(56,189,248,0.5);}
 
 /* MOBILE_INJECTED */
 @media(max-width:768px){
@@ -110,10 +113,6 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
       </div>
       <div id="resultBadge" style="visibility:hidden" class="result-badge"></div>
     </div>
-    <div class="desc-box">
-      <span id="descText">点击播放开始演示</span>
-      <span class="step-counter" id="stepCounter">0 / 0</span>
-    </div>
   </div>
   <div class="code-panel">
     <div class="code-panel-header">
@@ -130,7 +129,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
   <button class="btn" id="btnPrev">◀ 上一步</button>
   <button class="btn primary" id="btnPlay">▶ 播放</button>
   <button class="btn" id="btnNext">下一步 ▶</button>
-  <div class="speed-wrap"><span>🐢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>🐇</span></div>
+    <div class="desc-box"><span id="descText">点击播放开始演示</span><span class="step-counter" id="stepCounter">0 / 0</span></div>
+  <div class="speed-wrap">
+    <span class="speed-label">速度</span>
+    <span class="speed-label" style="font-weight:400;color:var(--dim)">慢</span>
+    <input type="range" id="speedRange" min="1" max="5" value="3">
+    <span class="speed-label" style="font-weight:400;color:var(--dim)">快</span>
+    <span class="speed-val" id="speedVal">中速</span>
+  </div>
 </div>
 <script>
 const CODE_LINES = [
@@ -225,7 +231,8 @@ function generateSteps(arr, target) {
 let target = 7;
 let steps = generateSteps(ARR, target);
 let cur = 0, playing = false, timer = null;
-const SPEED = [800,500,300,180,80];
+const SPEED = [2000,1200,700,350,120];
+const SPEED_LABELS = ['极慢','慢','中速','快','极快'];
 
 const arrRow=document.getElementById('arrRow'),ptrRow=document.getElementById('ptrRow'),
   codeBody=document.getElementById('codeBody'),descText=document.getElementById('descText'),
@@ -234,6 +241,10 @@ const arrRow=document.getElementById('arrRow'),ptrRow=document.getElementById('p
   btnNext=document.getElementById('btnNext'),btnReset=document.getElementById('btnReset'),
   speedRange=document.getElementById('speedRange'),targetInput=document.getElementById('targetInput'),
   searchBtn=document.getElementById('searchBtn');
+const speedVal = document.getElementById('speedVal');
+function updateSpeedLabel(){speedVal.textContent=SPEED_LABELS[parseInt(speedRange.value)-1];}
+speedRange.addEventListener('input',updateSpeedLabel);
+updateSpeedLabel();
 
 function buildCode(){
   codeBody.innerHTML=CODE_LINES.map((l,i)=>`<div class="code-line" data-line="${i}"><span class="ln">${i+1}</span><span class="lc">${l.html||'&nbsp;'}</span></div>`).join('');

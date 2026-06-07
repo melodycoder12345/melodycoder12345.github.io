@@ -125,6 +125,15 @@
     $('btnPlay').textContent = '播放';
   }
 
+  function getInterval() {
+    const sr = document.getElementById('speedRange');
+    if (sr) {
+      const SPEED = [2000,1200,700,350,120];
+      return SPEED[parseInt(sr.value) - 1];
+    }
+    return demo.interval || 1400;
+  }
+
   function play() {
     if (state.timer) {
       stop();
@@ -137,7 +146,7 @@
         return;
       }
       setStep(state.index + 1);
-    }, demo.interval || 1400);
+    }, getInterval());
   }
 
   function init() {

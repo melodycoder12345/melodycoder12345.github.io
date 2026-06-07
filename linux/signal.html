@@ -39,6 +39,9 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
 .step-item.active{border-color:var(--accent);color:var(--text);background:color-mix(in srgb,var(--accent) 12%,transparent);}
 .step-item b{display:block;font-size:.7rem;color:var(--accent);margin-bottom:3px;}
 .ctrl-foot{padding:10px;border-top:1px solid var(--border);display:flex;gap:6px;}
+.speed-wrap{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;padding:6px 14px;display:flex;align-items:center;gap:10px;margin-left:auto;}
+.speed-wrap .speed-label{color:var(--text);font-weight:600;white-space:nowrap;font-size:0.8rem;}
+.speed-val{font-family:monospace;font-size:0.78rem;color:var(--blue);min-width:26px;text-align:center;}
 .cbtn{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--text);border-radius:8px;padding:7px 10px;cursor:pointer;font-family:inherit;font-size:.82rem;flex:1;}
 .cbtn:hover{background:rgba(255,255,255,.1);}
 .cbtn.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent);}
@@ -107,7 +110,7 @@ svg.main-svg{width:100%;height:100%;}
       <button class="cbtn" id="btnReset">重置</button>
       <button class="cbtn" id="btnPrev">◀</button>
       <button class="cbtn primary" id="btnPlay">播放</button>
-      <button class="cbtn" id="btnNext">▶</button>
+      <button class="cbtn" id="btnNext">▶</button><div class="speed-wrap"><span class="speed-label">速度</span><span class="speed-label" style="font-weight:400;color:var(--dim)">慢</span><input type="range" id="speedRange" min="1" max="5" value="3"><span class="speed-label" style="font-weight:400;color:var(--dim)">快</span><span class="speed-val" id="speedVal">中速</span></div>
     </div>
   </aside>
   <section class="viz-panel">
@@ -379,7 +382,14 @@ function next(){const len=SCENARIOS[sc].steps.length;idx=Math.min(len-1,idx+1);r
 function prev(){idx=Math.max(0,idx-1);render();}
 function reset(){idx=0;pause();render();}
 function pause(){if(timer)clearInterval(timer);timer=null;document.getElementById('btnPlay').textContent='播放';}
-function toggle(){if(timer){pause();return;}document.getElementById('btnPlay').textContent='暂停';timer=setInterval(next,2200);}
+const SPEED = [2000,1200,700,350,120];
+const SPEED_LABELS = ['极慢','慢','中速','快','极快'];
+const speedRange = document.getElementById('speedRange');
+const speedVal = document.getElementById('speedVal');
+function updateSpeedLabel(){speedVal.textContent=SPEED_LABELS[parseInt(speedRange.value)-1];}
+speedRange.addEventListener('input',updateSpeedLabel);
+updateSpeedLabel();
+function toggle(){if(timer){pause();return;}document.getElementById('btnPlay').textContent='暂停';timer=setInterval(next,SPEED[parseInt(speedRange.value)-1]);}
 
 document.querySelectorAll('.sc-tab').forEach((t,i)=>t.onclick=()=>loadScenario(i));
 document.getElementById('btnNext').onclick=next;document.getElementById('btnPrev').onclick=prev;

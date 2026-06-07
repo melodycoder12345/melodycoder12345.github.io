@@ -15,7 +15,7 @@
 <meta name="twitter:description" content="按位分桶排序，适合固定长度整数或字符串。">
 <title>基数排序 - 算法可视化</title>
 <style>
-:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;}
+:root{--bg:#0f172a;--panel:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--blue:#38bdf8;--yellow:#fbbf24;--orange:#fb923c;--green:#4ade80;--purple:#c084fc;--red:#f87171;}
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
 nav{display:flex;align-items:center;gap:16px;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
@@ -56,8 +56,9 @@ nav h1{font-size:1.2rem;font-weight:600;}.complexity{margin-left:auto;display:fl
 .bucket-item{font-size:0.7rem;font-family:monospace;font-weight:600;background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.25);color:var(--blue);border-radius:4px;padding:2px 4px;width:100%;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .bucket-item.newest{background:rgba(251,191,36,0.2);border-color:rgba(251,191,36,0.5);color:var(--yellow);}
 
-.desc-box{padding:10px 24px;background:rgba(255,255,255,0.03);border-top:1px solid var(--border);font-size:0.88rem;color:var(--dim);min-height:42px;display:flex;align-items:center;gap:12px;flex-shrink:0;}
-.step-counter{margin-left:auto;font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;}
+.desc-box{display:flex;align-items:center;gap:10px;flex:1;min-width:0;overflow:hidden;font-size:0.83rem;color:var(--dim);padding:0 4px;}
+.desc-box #descText{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+.step-counter{font-size:0.78rem;color:var(--dim);font-family:monospace;white-space:nowrap;flex-shrink:0;}
 .code-panel{width:45%;min-width:380px;display:flex;flex-direction:column;overflow:hidden;}
 .code-panel-header{padding:10px 16px;border-bottom:1px solid var(--border);font-size:0.85rem;color:var(--dim);display:flex;align-items:center;gap:8px;flex-shrink:0;}
 .code-dot{width:10px;height:10px;border-radius:50%;}
@@ -72,9 +73,26 @@ nav h1{font-size:1.2rem;font-weight:600;}.complexity{margin-left:auto;display:fl
 .btn{background:rgba(255,255,255,0.07);border:1px solid var(--border);color:var(--text);padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.85rem;transition:all 0.15s;}
 .btn:hover{background:rgba(255,255,255,0.12);}.btn.primary{background:rgba(56,189,248,0.15);border-color:rgba(56,189,248,0.3);color:var(--blue);}
 .btn:disabled{opacity:0.4;cursor:not-allowed;}
-.speed-wrap{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:0.8rem;color:var(--dim);}
-input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;}
+.speed-wrap{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;padding:6px 14px;display:flex;align-items:center;gap:10px;}
+.speed-wrap .speed-label{color:var(--text);font-weight:600;white-space:nowrap;font-size:0.8rem;}
+.speed-val{font-family:monospace;font-size:0.78rem;color:var(--blue);min-width:26px;text-align:center;}
+input[type=range]{-webkit-appearance:none;width:130px;height:5px;background:var(--border);border-radius:3px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--blue);cursor:pointer;box-shadow:0 0 6px rgba(56,189,248,0.5);}
+input[type=range]::-webkit-slider-runnable-track{border-radius:3px;}
+/* concept panel (injected into nav.js #__autoConcept) */
+.cp-section{padding:14px 16px 0;}
+.cp-title{font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--blue);margin-bottom:8px;}
+.cp-desc{font-size:0.78rem;color:var(--dim);line-height:1.7;}
+.cp-divider{height:1px;background:rgba(255,255,255,0.06);margin:0 16px;}
+.cp-table{width:100%;border-collapse:collapse;font-size:0.75rem;}
+.cp-table td{padding:4px 0;color:var(--dim);}
+.cp-table td:first-child{color:var(--text);width:52%;}
+.cp-tag{display:inline-block;padding:1px 8px;border-radius:100px;font-size:0.68rem;font-family:monospace;}
+.cp-tag.stable{background:rgba(74,222,128,0.15);color:var(--green);}
+.cp-tag.unstable{background:rgba(248,113,113,0.15);color:var(--red);}
+.cp-list{padding-left:14px;font-size:0.76rem;color:var(--dim);line-height:1.8;list-style-type:disc;}
+.cp-list li{margin-bottom:2px;}
+.cp-list strong{color:var(--text);}
 
 /* MOBILE_INJECTED */
 @media(max-width:768px){
@@ -114,10 +132,6 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 <div class="main">
   <div class="viz-panel">
     <div class="viz-area" id="vizArea"></div>
-    <div class="desc-box">
-      <span id="descText">点击播放开始演示</span>
-      <span class="step-counter" id="stepCounter">0 / 0</span>
-    </div>
   </div>
   <div class="code-panel">
     <div class="code-panel-header">
@@ -134,7 +148,14 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
   <button class="btn" id="btnPrev">&#9664; 上一步</button>
   <button class="btn primary" id="btnPlay">&#9654; 播放</button>
   <button class="btn" id="btnNext">下一步 &#9654;</button>
-  <div class="speed-wrap"><span>&#x1F422;</span><input type="range" id="speedRange" min="1" max="5" value="3"><span>&#x1F407;</span></div>
+  <div class="desc-box"><span id="descText">点击播放开始演示</span><span class="step-counter" id="stepCounter">0 / 0</span></div>
+  <div class="speed-wrap">
+    <span class="speed-label">速度</span>
+    <span class="speed-label" style="font-weight:400;color:var(--dim)">慢</span>
+    <input type="range" id="speedRange" min="1" max="5" value="3">
+    <span class="speed-label" style="font-weight:400;color:var(--dim)">快</span>
+    <span class="speed-val" id="speedVal">中速</span>
+  </div>
 </div>
 <script>
 const CODE_LINES = [
@@ -378,7 +399,8 @@ function generateSteps() {
 
 let steps = generateSteps();
 let cur = 0, playing = false, timer = null;
-const SPEED = [900,550,320,180,70];
+const SPEED = [2000,1200,700,350,120];
+const SPEED_LABELS = ['极慢','慢','中速','快','极快'];
 
 const vizArea = document.getElementById('vizArea');
 const codeBody = document.getElementById('codeBody');
@@ -389,6 +411,10 @@ const btnPrev = document.getElementById('btnPrev');
 const btnNext = document.getElementById('btnNext');
 const btnReset = document.getElementById('btnReset');
 const speedRange = document.getElementById('speedRange');
+const speedVal = document.getElementById('speedVal');
+function updateSpeedLabel(){speedVal.textContent=SPEED_LABELS[parseInt(speedRange.value)-1];}
+speedRange.addEventListener('input',updateSpeedLabel);
+updateSpeedLabel();
 
 function buildCode() {
   codeBody.innerHTML = CODE_LINES.map((l,i) =>
@@ -598,6 +624,21 @@ btnReset.addEventListener('click', () => { pause(); cur = 0; render(); });
 buildCode();
 LangSwitcher.init(renderCode);
 render();
+setTimeout(function(){
+  var p=document.getElementById('__autoConcept');if(!p)return;
+  var d=document.createElement('div');
+  d.innerHTML='<div class="cp-divider" style="margin:6px 0 0"></div>'+
+    '<div class="cp-section"><div class="cp-title">算法原理</div>'+
+    '<div class="cp-desc">从最低位到最高位（LSD），对每一位用稳定的计数排序分桶。低位先排保证高位相同时低位顺序正确，d 轮后数组完全有序。</div></div>'+
+    '<div class="cp-divider"></div>'+
+    '<div class="cp-section"><div class="cp-title">复杂度</div>'+
+    '<table class="cp-table"><tr><td>最好时间</td><td>O(d·(n+k))</td></tr><tr><td>平均时间</td><td>O(d·(n+k))</td></tr><tr><td>最坏时间</td><td>O(d·(n+k))</td></tr><tr><td>空间</td><td>O(n+k)</td></tr><tr><td>稳定性</td><td><span class="cp-tag stable">稳定</span></td></tr></table></div>'+
+    '<div class="cp-divider"></div>'+
+    '<div class="cp-section" style="padding-bottom:14px"><div class="cp-title">关键特性</div>'+
+    '<ul class="cp-list"><li><strong>LSD 策略</strong>：低位到高位，每轮必须用稳定排序</li><li><strong>接近 O(n)</strong>：固定位数整数（手机号、IP）时效率极高</li><li><strong>依赖稳定子排序</strong>：本实现以计数排序作为每轮的子程序</li><li>不适合位数 d 很大或比较代价低的场景</li></ul></div>';
+  p.querySelectorAll('.sn-auto-concept-h,.sn-auto-card').forEach(function(el){el.remove();});
+  p.appendChild(d);
+},250);
 </script>
 </body>
 </html>

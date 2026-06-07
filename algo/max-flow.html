@@ -47,6 +47,11 @@ h1{font-size:clamp(2rem,4vw,3.6rem);line-height:1.04;letter-spacing:-.05em;margi
 .status p{color:var(--dim);font-size:.86rem;line-height:1.75}
 .badge{display:inline-flex;margin-bottom:6px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}
 .controls{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.speed-wrap{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;padding:6px 14px;display:flex;align-items:center;gap:10px;}
+.speed-wrap .speed-label{color:var(--text);font-weight:600;white-space:nowrap;font-size:0.8rem;}
+.speed-val{font-family:monospace;font-size:0.78rem;color:var(--blue);min-width:26px;text-align:center;}
+.desc-box{display:flex;align-items:center;gap:10px;flex:1;min-width:0;overflow:hidden;font-size:0.83rem;color:var(--dim);padding:0 4px;}
+.step-counter{font-size:0.8rem;color:var(--dim);font-family:monospace;white-space:nowrap;flex-shrink:0;}
 .ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:7px 11px;cursor:pointer;font-family:inherit;font-size:.83rem}
 .ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
 .ctrl:disabled{opacity:.45;cursor:not-allowed}
@@ -111,6 +116,14 @@ canvas{display:block;}
         <button class="ctrl" id="btnPrev" onclick="goPrev()" disabled>◀ 上一步</button>
         <button class="ctrl primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
         <button class="ctrl" id="btnNext" onclick="goNext()">下一步 ▶</button>
+        <div class="desc-box"><span id="descText">点击播放开始演示</span><span class="step-counter" id="stepCounter"></span></div>
+        <div class="speed-wrap">
+          <span class="speed-label">速度</span>
+          <span class="speed-label" style="font-weight:400;color:var(--dim)">慢</span>
+          <input type="range" id="speedRange" min="1" max="5" value="3">
+          <span class="speed-label" style="font-weight:400;color:var(--dim)">快</span>
+          <span class="speed-val" id="speedVal">中速</span>
+        </div>
         <button class="ctrl" onclick="reset()" style="margin-left:auto">↺ 重置</button>
       </div>
     </section>
@@ -386,10 +399,17 @@ function buildStepList(){
 function goNext(){if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();}
 function goPrev(){if(currentStep>0){currentStep--;renderStep(currentStep);}}
 function reset(){stopPlay();currentStep=0;renderStep(0);}
+const SPEED = [2000,1200,700,350,120];
+const SPEED_LABELS = ['极慢','慢','中速','快','极快'];
+const speedRange = document.getElementById('speedRange');
+const speedVal = document.getElementById('speedVal');
+function updateSpeedLabel(){speedVal.textContent=SPEED_LABELS[parseInt(speedRange.value)-1];}
+speedRange.addEventListener('input',updateSpeedLabel);
+updateSpeedLabel();
 function togglePlay(){
   if(playing){stopPlay();return;}
   playing=true;document.getElementById('btnPlay').textContent='⏸ 暂停';
-  playTimer=setInterval(()=>{if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();},2500);
+  playTimer=setInterval(()=>{if(currentStep<STEPS.length-1){currentStep++;renderStep(currentStep);}else stopPlay();},SPEED[parseInt(speedRange.value)-1]);
 }
 function stopPlay(){playing=false;clearInterval(playTimer);document.getElementById('btnPlay').textContent='▶ 播放';}
 buildStepList();renderStep(0);
