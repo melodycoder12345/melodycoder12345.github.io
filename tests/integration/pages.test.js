@@ -22,7 +22,9 @@ const MODULE_INDEX_PAGES = [
   'index.html', 'golang/index.html', 'cs/index.html',
   'algo/index.html', 'db/index.html', 'kafka/index.html',
   'redis/index.html', 'linux/index.html', 'network/index.html',
-  'distributed/index.html',
+  'distributed/index.html', 'ai/index.html', 'system-design/index.html',
+  'cloud-native/index.html', 'observability/index.html',
+  'security/index.html', 'testing/index.html',
 ];
 
 function read(rel) {

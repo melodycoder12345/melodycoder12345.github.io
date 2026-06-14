@@ -24,7 +24,7 @@ const TODAY = new Date().toISOString().slice(0, 10);
 const MODULES = [
   'algo', 'db', 'redis', 'linux', 'network', 'kafka', 'cs',
   'golang', 'distributed', 'ai', 'system-design', 'cloud-native',
-  'observability', 'security'
+  'observability', 'security', 'testing'
 ];
 
 // ── 从 graph-data.js 提取的节点数据（直接内嵌，不依赖浏览器 runtime）────────
