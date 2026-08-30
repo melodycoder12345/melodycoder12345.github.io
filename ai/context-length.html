@@ -55,16 +55,16 @@ h1{font-size:clamp(2rem,4vw,3.4rem);line-height:1.05;letter-spacing:-.05em;margi
   {"title":"RoPE（旋转位置编码）","body":"Rotary Position Embedding，通过在注意力计算中对 Q/K 向量的各维度旋转，将位置信息编码进相对角度而非绝对值。优点：允许在推理时外推到训练时未见过的长度，比 ALiBi 更通用。LLaMA、Mistral、Qwen 都使用 RoPE。通过调整旋转基础频率 θ（YaRN/LongRoPE）可支持更长序列。","tag":"term"},
   {"title":"KV Cache","body":"注意力机制缓存已生成 token 的 Key/Value 矩阵，避免每步 decode 时重算。缺点：显存随序列长度线性增长——128K token 的 KV Cache 对 70B 模型可达数十 GB。压缩方案：MultiQuery Attention（所有 head 共享一组 KV）、Grouped Query Attention（GQA，分组共享）、KV Cache 量化。","tag":"term"},
   {"title":"Lost in the Middle","body":"2023 斯坦福论文发现：LLM 的注意力对序列开头和结尾的信息更敏感，中间部分的信息容易被忽视。即使上下文窗口足够长，将关键信息放在中间也会导致性能下降。实际应用中的缓解方法：Reranking 把最相关段落放在首/尾，RAPTOR 层次化摘要压缩中间部分。","tag":"trap"},
-  {"title":"Chunked / Ring Attention","body":"Ring Attention 将 Q、K、V 分块分布到多 GPU，每块只计算自己负责的注意力区域，块间通过 ring allreduce 通信。使注意力计算和显存可以横向扩展。Stripe Attention 是其改进版，通过跨步分配 token 提高 GPU 利用率。是实现百万 token 上下文的关键工程技术。","tag":"term"}
+  {"title":"Chunked / Ring Attention","body":"Ring Attention 将序列分块到多设备：每个设备保留自己的 Q 块，并沿环交换 K/V 块、累积在线 softmax 结果；通信不是 ring all-reduce。它可扩展注意力的序列容量，但效率取决于通信带宽、拓扑与负载均衡。","tag":"term"}
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="B">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">AI 系统 / 长上下文 / B 类型</div>
+      <div class="eyebrow">AI 系统 / 长上下文</div>
       <h1>长上下文 LLM</h1>
-      <p class="summary">从 GPT-3 的 4K token 到 Gemini 1.5 的 1M token，长上下文能力是近两年大模型的核心竞争维度。但实现长上下文不是简单"放大"——需要解决三个独立的挑战：位置编码的外推（RoPE/ALiBi）、KV Cache 的显存爆炸（GQA/量化）和注意力的信息提取质量（Lost in the Middle）。这三个问题的解法相互独立但又相互制约，理解它们是读懂 LLaMA 3.1、Qwen2.5 等长文本架构的关键。</p>
+      <p class="summary">声明的上下文窗口只表示接口或模型允许的 token 上限，不保证模型能同等可靠地利用窗口内每个位置。长上下文还要同时处理位置外推、KV Cache 容量、注意力计算和信息检索质量。</p>
       <div class="tags"><span>RoPE</span><span>YaRN</span><span>KV Cache</span><span>GQA</span><span>Lost in the Middle</span><span>Ring Attention</span><span>Sliding Window</span></div>
     </div>
     <div class="card">
@@ -85,8 +85,8 @@ h1{font-size:clamp(2rem,4vw,3.4rem);line-height:1.05;letter-spacing:-.05em;margi
         <li><strong>绝对位置编码（APE）的局限：</strong>训练时只见过 0~L 的位置，推理时遇到 L+1 就 OOD（分布外），性能断崖式下降</li>
         <li><strong>RoPE 的旋转机制：</strong>对 Q 和 K 向量的第 2i、2i+1 维度按位置 m 旋转 mθᵢ 角，只要两个 token 的相对位置 m-n 相同，点积结果就相同——实现了相对位置的编码</li>
         <li><strong>Position Interpolation（线性内插）：</strong>将位置 m 除以比例因子 s=L'/L，把超出训练长度的位置映射回训练范围内，需要少量微调</li>
-        <li><strong>YaRN（Yet Another RoPE ext.）：</strong>对不同频率维度使用不同缩放策略（高频插值+低频外推），无需微调就能支持 2-4x 训练长度的外推</li>
-        <li><strong>LongRoPE：</strong>通过搜索每个 RoPE 维度的最优缩放因子（256维各不同），将 Phi-3 的上下文从 4K 扩展到 128K</li>
+        <li><strong>YaRN（Yet Another RoPE ext.）：</strong>组合不同频率的缩放与注意力尺度修正；论文结果依赖模型与继续训练/微调配置，不能视为无需适配的通用倍数保证</li>
+        <li><strong>LongRoPE：</strong>搜索不同维度和长度区间的位置缩放；论文展示了特定模型的扩展结果，不代表任意 RoPE 模型可直接得到相同窗口</li>
       </ul>
       <div class="code-block"><span class="cm"># RoPE 旋转矩阵（简化）</span>
 <span class="kw">def</span> <span class="fn">rotate_half</span>(x):
@@ -119,22 +119,22 @@ h1{font-size:clamp(2rem,4vw,3.4rem);line-height:1.05;letter-spacing:-.05em;margi
     <section class="section">
       <h2>注意力机制的效率优化</h2>
       <ul>
-        <li><strong>标准注意力的问题：</strong>O(n²) 时间和显存复杂度，128K token 的注意力矩阵 = 128K × 128K × 2B = 32GB 显存（仅矩阵本身）</li>
-        <li><strong>FlashAttention（1/2/3）：</strong>不将完整 QKᵀ 矩阵写入 HBM 显存，分块计算并用在线 softmax 增量更新，将注意力的 HBM 访问量从 O(n²) 降到 O(n²/M)（M 为 SRAM 大小）</li>
+        <li><strong>标准注意力的问题：</strong>全注意力的分数计算量随序列长度平方增长；朴素实现若物化单个 fp16 注意力矩阵，128K×128K 约为 32 GiB，但现代融合内核通常不会完整保存它</li>
+        <li><strong>FlashAttention（1/2/3）：</strong>不将完整 QKᵀ 矩阵写入 HBM，使用分块与在线 softmax 减少读写；精确 IO 界取决于序列长度、head 维度与片上存储容量，不能只写成忽略维度的 O(n²/M)</li>
         <li><strong>Sliding Window Attention（SWA）：</strong>每个 token 只关注前 W 个 token（如 W=4096），复杂度降为 O(n·W)，Mistral/Mixtral 使用，多层叠加后感受野仍可覆盖全序列</li>
         <li><strong>Ring Attention：</strong>将序列分块到 N 个 GPU，每个 GPU 处理自己的 Q 块，通过环形 all-to-all 轮换 K/V 块完成全序列注意力，线性扩展显存</li>
         <li><strong>稀疏注意力：</strong>BigBird 结合全局 token + 局部窗口 + 随机 sparse，近似 O(n) 复杂度，适合文档级长文本</li>
       </ul>
-      <div class="callout">FlashAttention 是 2022 年以来影响最大的 LLM 推理优化：速度提升 2-4x，显存节省 10-20x，几乎所有主流框架（vLLM、TGI、DeepSpeed）都默认开启。</div>
+      <div class="callout">FlashAttention 通过 IO-aware tiling 避免物化完整注意力矩阵。实际速度和内存收益随序列长度、head 维度、硬件、精度与框架集成变化，应以基准测试确认。</div>
     </section>
     <section class="section">
       <h2>Lost in the Middle 与工程实践</h2>
       <ul>
-        <li><strong>现象：</strong>Liu et al. 2023 论文"Lost in the Middle"发现：将关键段落放在 20K token 上下文的开头或结尾，比放在中间的准确率高 10-20%</li>
-        <li><strong>原因分析：</strong>注意力分数的 softmax 倾向于极化（recent bias + primacy bias），中间位置的 attention 被稀释</li>
+        <li><strong>现象：</strong>“Lost in the Middle”在其多文档问答和键值检索实验中观察到位置敏感、常呈 U 形的性能；差距随模型、任务和上下文变化，不是固定百分比</li>
+        <li><strong>原因边界：</strong>论文展示的是行为评测结果，不能仅凭该结果断言由 softmax 极化这一单一机制导致</li>
         <li><strong>RAG 中的应对策略：</strong>检索后 Reranking 将最相关段落放在 prompt 首/尾；使用 LostInTheMiddle-aware 的 prompt 模板</li>
         <li><strong>RAPTOR（递归摘要）：</strong>将长文档递归压缩为多层摘要树，避免让 LLM 直接处理超长原文</li>
-        <li><strong>LLMLingua 压缩：</strong>用小模型对 prompt 中的 token 打重要性分数，删去低分 token，将上下文压缩 5-20x 同时保留关键信息</li>
+        <li><strong>LLMLingua 压缩：</strong>用小模型估计 token 重要性并压缩 prompt；可用压缩率与任务质量必须在具体数据上验证</li>
         <li><strong>实测上下文利用率：</strong>NIAH（Needle In A Haystack）测试将关键句藏在不同位置的长文中，用于测试模型是否真正"利用"了长上下文</li>
       </ul>
     </section>
@@ -145,7 +145,7 @@ h1{font-size:clamp(2rem,4vw,3.4rem);line-height:1.05;letter-spacing:-.05em;margi
         <li><strong>适合场景：</strong>完整代码库分析（无需 RAG 分块）、长文档问答（书籍/合同）、多轮对话历史保留、大型 repo 的 bug 定位</li>
         <li><strong>误区 1：</strong>上下文越长越好——注意力质量随长度下降，100K token 中的关键信息可能不如 4K 精选段落</li>
         <li><strong>误区 2：</strong>长上下文可以替代微调——长上下文做的是 in-context learning，模型无法从中"学习"持久知识</li>
-        <li><strong>推理成本：</strong>128K context 的 prefill 成本是 4K 的 32 倍（注意力 O(n²)），即使 FlashAttention 也只优化显存不优化时间复杂度</li>
+        <li><strong>推理成本：</strong>从 4K 增至 128K 是长度增加 32 倍；全注意力项的理论计算增长更接近平方，而整模型耗时还包含线性层、并行效率和内核，因此不是固定 32 倍</li>
       </ul>
       <div class="callout">NIAH（Needle in a Haystack）测试已成为评估长上下文质量的标准 benchmark：在 128K token 的随机文本中藏入一个"魔法数字"，要求模型找到它。GPT-4 在 ~64K 中间位置仍有明显准确率下降。</div>
     </section>

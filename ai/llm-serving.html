@@ -96,15 +96,15 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
 <script>window.PAGE_CONCEPTS=[
   {"title":"Prefill vs Decode","body":"LLM 推理分两阶段：Prefill 阶段处理输入 prompt（并行，计算密集），产生第一个 token 的 KV Cache；Decode 阶段逐 token 自回归生成（串行，内存带宽受限），每步使用已有 KV Cache 计算注意力。","tag":"term"},
   {"title":"KV Cache","body":"注意力机制中，已处理过的 token 的 Key/Value 矩阵不需要重新计算，可以缓存在 GPU 显存中。KV Cache 大小 = 层数 × 序列长度 × 隐藏维度 × 2（K+V），是推理显存的主要消耗。","tag":"term"},
-  {"title":"PagedAttention","body":"vLLM 提出的内存管理技术：将 KV Cache 分成固定大小的"页"（如 16 个 token），用页表映射逻辑 token 位置到物理显存页。不再预留连续大块显存，碎片率接近 0，显存利用率大幅提升。","tag":"term"},
-  {"title":"连续批处理（Continuous Batching）","body":"不等待一批请求都完成，新请求 prefill 完成后立即加入 decode batch，旧请求完成后立即从 batch 中移除。GPU 利用率从传统静态批处理的 ~30% 提升到 ~90%。","tag":"term"}
+  {"title":"PagedAttention","body":"vLLM 论文中的 KV Cache 内存管理方法：把缓存分成块并通过映射管理非连续物理内存，以减少预留和碎片；实际收益取决于实现与工作负载。","tag":"term"},
+  {"title":"连续批处理（Continuous Batching）","body":"在迭代边界动态加入或移除请求，减少静态 batch 的等待与 padding；利用率和吞吐提升需按工作负载测量。","tag":"term"}
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">AI / 推理服务 / C 类型</div>
+      <div class="eyebrow">AI / 推理服务</div>
       <h1>LLM 推理服务</h1>
       <p class="summary">大型语言模型的推理服务需要解决 GPU 显存的高效利用问题。传统方式预留连续大块显存导致严重碎片，PagedAttention 将 KV Cache 分成固定页通过页表映射，碎片接近零。连续批处理让 GPU 始终满载。动画展示显存网格的分配状态、页表映射、多请求并行 decode 的 batch 组成。</p>
       <div class="tags"><span>PagedAttention</span><span>KV Cache</span><span>Continuous Batching</span><span>vLLM</span><span>Prefill</span><span>Decode</span></div>
@@ -179,7 +179,7 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
         <li><strong>碎片问题：</strong>预留空间用不完，空间已分配但未使用（内部碎片），且无法被其他请求使用</li>
         <li><strong>PagedAttention：</strong>KV Cache 分成固定大小的 page（如 16 tokens），按需分配物理页</li>
         <li><strong>逻辑/物理解耦：</strong>逻辑上连续的 token 序列，物理上可以存在不连续的页中</li>
-        <li><strong>结果：</strong>显存碎片率从 60–80% 降到 &lt;4%，单 GPU 并发请求数提升 3–4×</li>
+        <li><strong>结果边界：</strong>vLLM 论文在其测试配置中报告了接近零的 KV 内存浪费和吞吐提升；实际碎片与并发收益取决于块大小、序列分布、模型和硬件</li>
       </ul>
     </section>
     <section>

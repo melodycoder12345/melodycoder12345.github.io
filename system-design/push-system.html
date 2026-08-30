@@ -27,7 +27,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
 .steps-panel{background:rgba(17,24,39,.92);border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;overflow:hidden}
 .sp-head{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,.06)}
 .sp-eyebrow{font-size:.65rem;color:var(--accent);text-transform:uppercase;letter-spacing:.14em;font-weight:700;margin-bottom:6px}
-.sp-title{font-size:1rem;font-weight:700;margin-bottom:4px}
+.sp-title{font-size:1rem;font-weight:700;margin:0 0 4px}
 .sp-sub{font-size:.75rem;color:var(--dim);line-height:1.5}
 .scene-tabs{display:flex;flex-direction:column;gap:4px;padding:12px 10px;border-bottom:1px solid rgba(255,255,255,.06)}
 .scene-tab{padding:8px 12px;border-radius:8px;font-size:.78rem;cursor:pointer;border:1px solid transparent;color:var(--dim);transition:all .15s;text-align:left;background:none}
@@ -64,7 +64,7 @@ svg.arch{width:100%;height:100%}
   <aside class="steps-panel">
     <div class="sp-head">
       <div class="sp-eyebrow">System Design</div>
-      <div class="sp-title">消息推送系统</div>
+      <h1 class="sp-title">消息推送系统</h1>
       <div class="sp-sub">长连接 · Kafka 分发 · 扇出 · ACK</div>
     </div>
     <div class="scene-tabs" id="sceneTabs">
@@ -128,7 +128,7 @@ svg.arch{width:100%;height:100%}
       </div>
       <div class="dp-block">
         <h4>幂等处理</h4>
-        <p>消息携带全局唯一 <code>msg_id</code>，客户端收到重复消息时去重，保证 At Least Once 语义下不重复展示。</p>
+        <p>消息携带稳定的 <code>msg_id</code>，客户端在去重记录保留期内抑制重复展示。At Least Once 本身允许重复；去重存储过期、清理或故障后仍可能再次展示。</p>
       </div>
       <div class="dp-block">
         <h4>离线消息</h4>
@@ -183,7 +183,7 @@ const SCENES = [
     comps: COMPS_FULL,
     steps: [
       { from:'senderClient', to:'apiServer',  color:'#38bdf8', msg:'发送消息\n{ to: UserA, text: "Hi" }',  desc:'发送方通过 HTTP/RPC 将消息发送到 API 服务。API 服务负责鉴权、消息落库和发布到 Kafka。' },
-      { from:'apiServer',    to:'db',         color:'#fbbf24', msg:'持久化消息\n(msg_id, from, to, text)',   desc:'消息先持久化到 DB，保证不丢失。即使后续推送失败，也可以在用户重新上线时从 DB 拉取离线消息。' },
+      { from:'apiServer',    to:'db',         color:'#fbbf24', msg:'持久化消息\n(msg_id, from, to, text)',   desc:'消息先持久化，再尝试推送；这让客户端可在保留期内补拉，但仍需复制、备份、提交确认和灾难恢复来定义数据丢失边界。' },
       { from:'apiServer',    to:'kafka',      color:'#ff6b35', msg:'Publish msg\nTopic: user_push',          desc:'API 服务将消息发布到 Kafka Topic，解耦消息产生和推送逻辑。Kafka 提供缓冲和可靠投递能力。' },
       { from:'kafka',        to:'pushWorker', color:'#f59e0b', msg:'消费消息',                              desc:'Push Worker 从 Kafka 消费消息，负责将消息路由到接收方所在的 Gateway 并推送。' },
       { from:'pushWorker',   to:'redis',      color:'#f87171', msg:'GET user_gateway:UserA\n→ Gateway-1',   desc:'Push Worker 查询 Redis 路由表，找到 User A 的 WebSocket 连接在 Gateway-1 上。' },
@@ -210,7 +210,7 @@ const SCENES = [
       { from:'gateway', to:'redis',   color:'#f87171', msg:'DEL user_gateway:UserA',                  desc:'Gateway 检测到连接断开，清理 Redis 中的路由记录，避免其他 Worker 向已断开的连接推送消息。' },
       { from:'client',  to:'gateway', color:'#4ade80', msg:'重新建立 WebSocket\n+ 携带 last_seq=42',  desc:'客户端实现指数退避重连，重连时携带最后收到的消息序号 last_seq，用于拉取离线期间的消息。' },
       { from:'gateway', to:'redis',   color:'#4ade80', msg:'SET user_gateway:UserA\nGateway-1 EX 300', desc:'连接建立后，Gateway 重新注册路由信息到 Redis，TTL 300s，后续推送就能找到正确的 Gateway。' },
-      { from:'gateway', to:'db',      color:'#38bdf8', msg:'拉取离线消息\nSELECT WHERE seq > 42',    desc:'Gateway 从 DB 查询 seq > 42 的离线消息，批量推送给客户端，保证断线期间的消息不丢失。' },
+      { from:'gateway', to:'db',      color:'#38bdf8', msg:'拉取离线消息\nSELECT WHERE seq > 42',    desc:'Gateway 从 DB 查询 seq > 42 且仍在保留期内的消息并批量推送；游标、删除策略和故障恢复共同决定可补拉范围。' },
       { from:'db',      to:'gateway', color:'#4ade80', msg:'返回离线消息\n[msg43, msg44, msg45]',     desc:'DB 返回离线消息列表。Gateway 按序推送，客户端去重（幂等），保证用户看到完整消息流。' },
       { from:'gateway', to:'client',  color:'#4ade80', msg:'推送离线消息 + 实时消息',                desc:'客户端收到离线消息后更新 last_seq，恢复正常实时推送状态。整个重连过程对用户几乎无感。' },
     ]

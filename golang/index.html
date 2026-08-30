@@ -223,7 +223,7 @@ section{margin-bottom:64px;}
   <div class="qa-grid">
     <div class="qa">
       <div class="qa-q">goroutine 和 thread 的区别？</div>
-      <div class="qa-a">goroutine 初始栈 <strong>2KB</strong>（OS thread ~1-8MB），由 Go runtime 在用户态调度，不经过内核。M:N 模型，少量 OS thread 复用大量 goroutine，<strong>百万级并发</strong>不需要百万个线程。</div>
+      <div class="qa-a">goroutine 使用可动态扩缩的小栈，由 Go runtime 采用 M:N 模型调度到较少的 OS thread。栈大小与调度成本是版本相关实现细节；能否承载百万级 goroutine 取决于每个 goroutine 的栈、引用对象和工作负载。</div>
     </div>
     <div class="qa">
       <div class="qa-q">什么时候用 channel，什么时候用 mutex？</div>
@@ -231,11 +231,11 @@ section{margin-bottom:64px;}
     </div>
     <div class="qa">
       <div class="qa-q">Go GC 停顿有多长？</div>
-      <div class="qa-a">现代 Go（1.14+）目标 <strong>&lt;1ms</strong>。并发三色标记，只有 mark termination 和 sweep termination 是 STW。GOGC 控制触发频率（默认 100 = 堆翻倍触发），<strong>减少对象数量</strong>比调 GOGC 更根本。</div>
+      <div class="qa-a">Go GC 通过并发标记尽量缩短 STW，但没有适用于所有程序的固定停顿上限，应使用 runtime/metrics、trace 和 profile 实测。GOGC 依据存活堆与 GC roots 调整目标堆大小；降低分配速率和存活对象规模通常更根本。</div>
     </div>
     <div class="qa">
       <div class="qa-q">逃逸分析是什么，为什么重要？</div>
-      <div class="qa-a">编译期决定变量分配在<strong>栈</strong>还是<strong>堆</strong>。栈分配零 GC 压力，函数返回即回收。返回指针、赋给 interface{}、闭包捕获等会触发逃逸到堆。用 <code style="font-family:monospace;color:var(--go)">-gcflags=-m</code> 观察逃逸原因。</div>
+      <div class="qa-a">编译器通过逃逸分析决定值更适合放在<strong>栈</strong>还是<strong>堆</strong>。返回指针、接口转换、闭包捕获等是常见候选，但并非脱离上下文就必然逃逸；结果取决于生命周期、内联、调用链和编译器版本。用 <code style="font-family:monospace;color:var(--go)">-gcflags=-m</code> 观察当前构建的决定。</div>
     </div>
   </div>
 </section>

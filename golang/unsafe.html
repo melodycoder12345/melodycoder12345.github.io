@@ -60,7 +60,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
 .nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;}
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;}
 .back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{margin:0;font-size:1.06rem;font-weight:700;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .table-wrap{overflow-x:auto;margin:10px 0;}
@@ -76,7 +76,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
 <body>
 <div class="nav-bar">
   <a href="index.html" class="back">← 返回</a>
-  <span class="nav-title">⚠️ unsafe 包</span>
+  <h1 class="nav-title">⚠️ unsafe 包</h1>
   <div class="nav-tags">
     <span class="ntag">unsafe</span>
     <span class="ntag">memory</span>
@@ -170,11 +170,11 @@ tr:hover td{background:rgba(255,255,255,.02);}
       <div class="card">
         <div class="card-hd"><h3>uintptr 不是指针，GC 不追踪它</h3><span class="badge badge-high">高频</span></div>
         <div class="card-body">
-          <p><code>uintptr</code> 是整数类型，编译器和 GC 不将其视为指针。将 <code>unsafe.Pointer</code> 转换为 <code>uintptr</code> 后，GC 在下一次 safe-point 时可以<strong>移动或回收</strong>原来的对象（Go 未来可能引入移动 GC），uintptr 保存的数值就成了悬空整数。</p>
+          <p><code>uintptr</code> 是整数类型，编译器和 GC 不将其视为引用。将 <code>unsafe.Pointer</code> 转换为 <code>uintptr</code> 后，若没有其他活引用，GC 可以回收原对象；代码也不能依赖当前非移动 GC 的实现细节。</p>
           <pre><span class="cm">// ❌ 极度危险：uintptr 跨语句持有</span>
 <span class="kw">var</span> x <span class="id">MyStruct</span>
 p := <span class="pkg">uintptr</span>(<span class="pkg">unsafe</span>.<span class="fn">Pointer</span>(&amp;x))  <span class="cm">// GC safe-point 可能在这里</span>
-<span class="cm">// 此时 GC 运行，x 被移动，p 指向无效地址</span>
+<span class="cm">// 此时 GC 可能不再把 p 当作保持 x 存活的引用</span>
 field := (*<span class="pkg">int</span>)(<span class="pkg">unsafe</span>.<span class="fn">Pointer</span>(p + <span class="pkg">unsafe</span>.<span class="fn">Offsetof</span>(x.<span class="id">Field</span>)))
 <span class="cm">// *field 读写可能崩溃或数据错乱</span></pre>
           <pre><span class="cm">// ✅ 正确：在单个表达式内完成 uintptr 算术并立即转回 Pointer</span>
@@ -357,7 +357,7 @@ field := (*<span class="pkg">int</span>)(<span class="pkg">unsafe</span>.<span c
         <div class="qa-a">
           Go 1.20+ 推荐：<code>unsafe.String(unsafe.SliceData(b), len(b))</code>，直接复用 slice 底层数组的指针，不分配新内存。<br><br>
           风险：<br>
-          1. <strong>生命周期风险</strong>：返回的 string 底层数据和 []byte 共享，若 []byte 被 GC 回收或被写入，string 内容会改变甚至崩溃；<br>
+          1. <strong>别名风险</strong>：返回的 string 与 []byte 共享底层数据；string 会保持数据存活，但后续写入原 slice 会改变 string 的可观察内容并破坏不可变假设；<br>
           2. <strong>不可变性违反</strong>：Go string 语义是不可变，但底层 byte 可被写入，会破坏 string interning 等优化假设；<br>
           3. <strong>竞态问题</strong>：多 goroutine 下若 []byte 被并发修改而 string 被读取，产生 data race。<br><br>
           使用场景：请求解析、协议处理等生命周期明确、只读的临时转换。
@@ -420,7 +420,7 @@ field := (*<span class="pkg">int</span>)(<span class="pkg">unsafe</span>.<span c
     ))
     <span class="pkg">fmt</span>.<span class="fn">Println</span>(*field)  <span class="cm">// 42</span>
 }</pre>
-            <p>uintptr 算术和转回 Pointer 在同一个表达式内完成，编译器插入写屏障保证安全。</p>
+            <p>uintptr 算术和转回 Pointer 在同一个转换表达式内完成，符合 unsafe 文档列出的有效转换模式；这与写屏障无关。</p>
           </div>
         </div>
       </div>

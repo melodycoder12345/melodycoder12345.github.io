@@ -79,13 +79,13 @@ tr:hover td{background:rgba(255,255,255,.02)}
 </style>
 </head>
 <body>
-<main class="content" data-page-type="B">
+<main class="content">
 
 <section class="hero">
   <div class="card">
-    <div class="eyebrow">Security / Supply Chain / B 类型</div>
+    <div class="eyebrow">Security / Supply Chain</div>
     <h1>供应链安全</h1>
-    <p class="summary">现代软件 90% 的代码来自第三方依赖和开源组件。当攻击者无法直接入侵目标时，转而污染上游软件供应链——镜像、依赖包、构建环境。SBOM 是物料清单，Cosign 是防伪签名，go.sum 是校验和，每一层都是抵御供应链攻击的防线。</p>
+    <p class="summary">现代软件大量依赖第三方组件；具体占比随系统和统计口径而异。攻击者可能污染依赖、构建环境、发布账户或镜像。SBOM 提供组件可见性，签名与 Provenance 帮助验证制品身份和构建来源，但任何单项控制都不能证明代码无漏洞或无恶意行为。</p>
     <div class="tags"><span>SBOM</span><span>SPDX</span><span>CycloneDX</span><span>Cosign</span><span>Sigstore</span><span>syft</span><span>Dependabot</span><span>go.sum</span><span>Keyless</span></div>
     <div class="callout"><strong>核心威胁模型：</strong>攻击者不攻击你的代码，而是攻击你信任的代码。供应链攻击的特点是从可信渠道投递恶意内容，传统安全扫描无法发现。</div>
   </div>
@@ -94,7 +94,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div class="term"><strong>SBOM</strong><span>Software Bill of Materials，软件物料清单，记录软件中所有组件的完整列表，包括版本、许可证、来源。</span></div>
     <div class="term"><strong>Sigstore</strong><span>Linux Foundation 项目，提供免费、透明的软件签名基础设施，包括 Cosign（签名工具）、Fulcio（CA）、Rekor（透明日志）。</span></div>
     <div class="term"><strong>Keyless 签名</strong><span>使用 OIDC 身份（如 GitHub Actions workflow）做临时密钥签名，无需管理长期密钥，签名可通过工作流身份验证。</span></div>
-    <div class="term"><strong>SLSA</strong><span>Supply chain Levels for Software Artifacts，Google 提出的供应链安全成熟度框架，L1-L4 逐级加固。</span></div>
+    <div class="term"><strong>SLSA</strong><span>Supply-chain Levels for Software Artifacts，开放的软件供应链安全框架。当前稳定规范 v1.2 按 track 组织要求；Build track 定义 L1–L3，不能沿用旧版单一 L1–L4 表。</span></div>
     <div class="term"><strong>Provenance</strong><span>软件制品的出处证明，记录"谁"在"何时"用"什么"构建了这个版本，SLSA 的核心概念。</span></div>
   </div>
 </section>
@@ -109,7 +109,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div class="incident-title">SolarWinds Orion 后门 <span class="incident-year">2020</span></div>
     <div class="incident-body">
       <strong>攻击手法：</strong>攻击者（Cozy Bear/APT29）入侵了 SolarWinds 的构建服务器，在 Orion 软件的<strong>合法构建流程</strong>中植入后门 SUNBURST。恶意代码随官方软件更新推送给 18,000+ 客户（含美国政府、微软、FireEye）。<br><br>
-      <strong>关键特征：</strong>代码经过正常签名，来自官方渠道，传统病毒扫描无法检测。后门在安装后休眠 14 天再激活，绕过沙箱检测。<br><br>
+      <strong>关键特征：</strong>恶意更新经过合法发布链路和代码签名，传统基于来源信任的控制不足以发现它；部分行为包含延迟执行与环境检查。<br><br>
       <strong>防御启示：</strong>构建环境必须有独立安全保障；SBOM 可帮助快速定位受影响的组织；需要 Build Provenance（构建出处证明）验证构建过程的完整性。
     </div>
   </div>
@@ -320,15 +320,14 @@ updates:
 
 <article class="section">
   <h2>SLSA 框架：供应链安全成熟度</h2>
-  <p>SLSA（Supply chain Levels for Software Artifacts）由 Google 提出，提供可量化的供应链安全等级：</p>
+  <p>SLSA 最初由 Google 贡献，现为 OpenSSF 项目。下面按当前稳定的 SLSA v1.2 Build track 描述；旧版草案的单一 L4（含双人审核、可复现构建等）不应与当前 Build L3 混用：</p>
   <div class="table-wrap">
     <table>
       <thead><tr><th>等级</th><th>要求</th><th>防御的威胁</th></tr></thead>
       <tbody>
-        <tr><td><code>SLSA L1</code></td><td>构建过程有脚本记录，可生成 Provenance（出处元数据）</td><td>防止误操作覆盖构建产物</td></tr>
-        <tr><td><code>SLSA L2</code></td><td>Provenance 由构建服务（如 GitHub Actions）自动生成和签名</td><td>防止开发者本地构建替换 CI 产物</td></tr>
-        <tr><td><code>SLSA L3</code></td><td>构建环境隔离，Provenance 不可伪造（硬件级信任根）</td><td>防止 CI 系统本身被攻击</td></tr>
-        <tr><td><code>SLSA L4</code></td><td>双人审核所有变更，可复现构建（hermetic build）</td><td>防止内部人员作恶（如 xz-utils 场景）</td></tr>
+        <tr><td><code>Build L1</code></td><td>构建过程生成符合格式的 Provenance</td><td>提供制品如何构建的基础信息</td></tr>
+        <tr><td><code>Build L2</code></td><td>由托管构建平台生成、签名 Provenance</td><td>让消费者验证制品来自预期构建服务</td></tr>
+        <tr><td><code>Build L3</code></td><td>构建平台满足更强的隔离、防伪造和机密管理要求</td><td>降低构建运行之间及构建者伪造 Provenance 的风险</td></tr>
       </tbody>
     </table>
   </div>
@@ -338,7 +337,8 @@ jobs:
     uses: slsa-framework/slsa-github-generator/.github/workflows/builder_go_slsa3.yml@v1.9.0
     with:
       go-version: "1.22"
-    # 自动生成 SLSA L3 级别 provenance
+    # 具体达到的 SLSA Build level 取决于构建平台、工作流与生成器版本；
+    # 不能仅因使用某个 Action 就自行宣称 L3
     # Provenance 记录：
     # - 构建触发的 workflow 和 commit sha
     # - 构建使用的镜像和工具版本
@@ -361,11 +361,11 @@ slsa-verifier verify-artifact myapp-binary \
   </div>
   <div class="qa-card" onclick="toggleQA(this)">
     <div class="qa-q">Cosign Keyless 签名和传统 GPG 签名有什么优劣？<span class="qa-arrow">&#9654;</span></div>
-    <div class="qa-a">传统 GPG 问题：1) 私钥需要安全管理，泄露后历史签名全部失效；2) 公钥分发和信任建立复杂（Web of Trust）；3) CI 环境中需要存储长期私钥（Secret）。Cosign Keyless 优势：1) 无需管理长期私钥，每次签名用临时 OIDC 凭证；2) 签名身份绑定到工作流（"由 GitHub Actions 的某个 workflow 在某次 commit 构建"），更有语义；3) 所有签名记录在 Rekor 透明日志，不可否认，公开可审计。缺点：依赖 Sigstore 公共基础设施（Fulcio CA 和 Rekor），企业内网需自建实例（sigstore/scaffolding）。</div>
+    <div class="qa-a">长期 GPG 密钥需要安全托管、轮换和可信公钥分发；私钥泄漏会危及泄漏期间可伪造的签名，但不会自动让所有历史签名失效，仍需结合签名时间、撤销时间和验证策略判断。Cosign Keyless 用短期密钥和 OIDC 身份证书，减少长期私钥托管；验证方仍必须约束 issuer、certificate identity、制品摘要并验证透明日志证据。离线或私有环境可选择自建 Sigstore 服务或密钥模式，而非一概必须使用公共实例。</div>
   </div>
   <div class="qa-card" onclick="toggleQA(this)">
     <div class="qa-q">如何防止像 xz-utils 这样的社会工程学攻击？<span class="qa-arrow">&#9654;</span></div>
-    <div class="qa-a">技术层面：1) 重要版本发布必须有 Build Provenance，验证构建来自指定 CI 流程；2) 包含构建脚本的测试文件变更需要多人 review（xz 后门藏在 .m4 测试脚本中）；3) SBOM + 依赖 pinning，精确锁定版本；4) 开启 Rekor 透明日志，可审计每次发布的签名历史。流程层面：1) 维护者角色变更需要现有维护者投票；2) 重大变更（发布脚本、构建配置）需要至少 2 名核心维护者 approve；3) 新维护者在获得发布权限前有审查期。现实上：大型开源项目资源有限，防止有耐心的国家级攻击者极为困难。SLSA L4 要求双人审核是最高防线，但也意味着更高维护成本。</div>
+    <div class="qa-a">技术层面可验证 Build Provenance、固定依赖、审计构建脚本和发布身份；流程层面可对敏感路径实施多人审核、分离合并与发布权限、保护维护者账户。SBOM 只回答“包含什么”，签名只回答“谁对哪个摘要签名”，都不能单独发现恶意源码。双人审核属于源码治理策略，不是 SLSA v1.2 Build track 的 L4 要求。</div>
   </div>
   <div class="qa-card" onclick="toggleQA(this)">
     <div class="qa-q">构建环境（CI）的安全如何保障？<span class="qa-arrow">&#9654;</span></div>
@@ -390,12 +390,12 @@ trivy fs ./src --security-checks vuln
 # - 不扫描 node_modules（数千个包）
 # - 不扫描 vendor/ 目录
 # - 不扫描运行时依赖的系统包
-# - 现代应用 ~90% 代码来自第三方
+# - 现代应用通常包含大量第三方代码，比例随项目而异
 
 # 结果：log4shell 出来时
 # 不知道自己的 Java 服务是否用了 log4j
 # 花数天人工排查每个服务</code></pre>
-        <p><strong>问题</strong>：只扫描自研代码等于漏掉了 90% 的攻击面。大多数真实 CVE 都在依赖中。</p>
+        <p><strong>问题</strong>：只扫描自研代码会漏掉依赖和基础镜像中的攻击面；实际占比与漏洞分布应由目标系统的 SBOM 和扫描结果衡量。</p>
       </div>
       <div class="pitfall-col">
         <pre><code># 正确：扫描镜像整体（含所有依赖）

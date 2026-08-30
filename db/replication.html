@@ -89,10 +89,10 @@ code{background:rgba(255,255,255,.08);border-radius:4px;padding:1px 5px;font-fam
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">DB / MySQL 复制 / C 类型</div>
+      <div class="eyebrow">DB / MySQL 复制</div>
       <h1>MySQL 主从复制</h1>
       <p class="summary">MySQL 主从复制通过 Binlog 将主库的写操作异步或半同步地传播到从库，实现读写分离和高可用。理解 GTID、复制延迟和半同步模式，是排查主从延迟和实现 CDC 的基础。</p>
       <div class="tags"><span>Binlog</span><span>GTID</span><span>半同步</span><span>复制延迟</span></div>
@@ -217,7 +217,7 @@ code{background:rgba(255,255,255,.08);border-radius:4px;padding:1px 5px;font-fam
       <ul>
         <li><code>slave_parallel_type=LOGICAL_CLOCK</code>：同一 binlog 提交组（group commit）内的事务并行执行</li>
         <li>MySQL 8.0 WRITESET：不冲突的事务（写入不同行）可跨 group 并行，大幅降低复制延迟</li>
-        <li>并行度受 <code>slave_parallel_workers</code> 控制，建议 8-16</li>
+        <li>并行度由并行 worker 参数控制；MySQL 8.0.26 起推荐使用 <code>replica_parallel_workers</code> 命名，取值应按事务冲突率、CPU 与复制延迟压测</li>
       </ul>
     </section>
     <section>
@@ -226,12 +226,12 @@ code{background:rgba(255,255,255,.08);border-radius:4px;padding:1px 5px;font-fam
         <li><strong>Canal</strong>（阿里）：伪装成从库连接主库，消费 Binlog 事件，推送到 MQ</li>
         <li><strong>Debezium</strong>：开源，支持 MySQL/PostgreSQL/MongoDB，输出 Kafka 消息</li>
         <li>ROW 格式必须开启，binlog_row_image=FULL 才能获取完整前后镜像</li>
-        <li>CDC 延迟一般 &lt;100ms，可用于缓存同步、搜索索引、数仓增量同步</li>
+        <li>CDC 延迟取决于事务大小、网络、连接器与下游处理能力，应以端到端延迟指标和积压量监控，而非假定固定小于 100ms</li>
       </ul>
     </section>
     <section>
       <h2>GTID 主从切换</h2>
-      <p>传统复制切换需要手动计算 binlog position，GTID 模式下从库知道自己已执行的 GTID 集合，切换时只需 <code>CHANGE MASTER TO MASTER_AUTO_POSITION=1</code>，新主库自动补发缺失的 GTID 事务，大幅简化高可用切换流程（MHA/Orchestrator 均依赖 GTID）。</p>
+      <p>传统文件位置复制需要管理 binlog 文件与 position；GTID 自动定位可按已执行 GTID 集合请求缺失事务，简化重新挂载。MySQL 8.0.23 起推荐使用 <code>CHANGE REPLICATION SOURCE TO SOURCE_AUTO_POSITION=1</code>；提升新主、数据补齐和脑裂防护仍需由高可用编排系统负责。</p>
     </section>
   </section>
 </main>
@@ -246,7 +246,7 @@ const STEPS=[
   {title:"从库 IO Thread 写入 Relay Log",desc:"从库 IO Thread 接收 Binlog 事件，顺序写入本地 Relay Log 文件（结构与 Binlog 相同）。",kind:"normal",nodes:[3,5],edges:[4],detail:"IO Thread 写 Relay Log 是独立异步的，SQL Thread 从 Relay Log 消费。两个 Thread 解耦让接收和重放可以并发。"},
   {title:"从库 SQL Thread apply 变更",desc:"从库 SQL Thread（或 MTS worker pool）读取 Relay Log，在从库上重放行变更，更新从库数据。",kind:"normal",nodes:[4,6],edges:[5],detail:"apply 完成后，Executed_Gtid_Set 更新。SHOW SLAVE STATUS 可查看 Seconds_Behind_Master（复制延迟秒数）。"},
   {title:"（故障）SQL Thread 处理慢，延迟累积",desc:"主库写入速度 > 从库 SQL Thread apply 速度时，Relay Log 积压，Seconds_Behind_Master 持续增长，读从库返回旧数据。",kind:"failure",nodes:[3,5],edges:[4],fail:[5,6],detail:"排查：SHOW SLAVE STATUS 查 Exec_Master_Log_Pos 和 Read_Master_Log_Pos 差值。解决：开启并行复制（slave_parallel_workers）。"},
-  {title:"半同步复制：等待从库 ACK 再提交",desc:"半同步模式下，主库写完 Binlog 后必须等待至少一个从库确认（ACK）收到并写入 Relay Log，才提交事务返回客户端。",kind:"semi",nodes:[1,2,3],edges:[2,6],detail:"半同步（rpl_semi_sync_master）保证主库宕机时至少一个从库已收到最新数据，RPO=0。代价是写延迟增加一个 RTT（通常几毫秒）。"},
+  {title:"半同步复制：等待副本 ACK 后返回",desc:"半同步模式下，源库向客户端返回提交成功前，等待至少一个启用半同步的副本确认已接收事务事件；ACK 时点取决于插件配置和版本。",kind:"semi",nodes:[1,2,3],edges:[2,6],detail:"半同步可降低已确认事务在单源故障时丢失的风险，但 ACK 不等于副本已执行事务，也不能单独保证故障切换 RPO=0；超时后还可能退化为异步复制。"},
   {title:"（故障）主库宕机，GTID failover",desc:"主库宕机，MHA/Orchestrator 检测到心跳超时，选择 Executed_Gtid_Set 最新的从库提升为新主，其他从库重新 CHANGE MASTER 指向新主。",kind:"failure",fail:[1],nodes:[3,4],edges:[7],detail:"GTID 模式下从库提升为新主时，新主会拒绝重复 GTID 事务（幂等性）。其他从库对齐 GTID 后自动继续复制。"}
 ];
 let idx=0,timer=null;

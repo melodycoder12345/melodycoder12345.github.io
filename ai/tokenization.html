@@ -91,10 +91,10 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">AI / 分词 / C 类型</div>
+      <div class="eyebrow">AI / 分词</div>
       <h1>BPE 分词</h1>
       <p class="summary">BPE（Byte-Pair Encoding）是 GPT 系列使用的分词算法。它从单字符开始，每轮统计语料中相邻符号对的频次，合并最高频的一对为新 token，反复迭代直到词表达到目标大小。动画逐步展示字符格的合并过程、频次统计气泡、词表的增长，以及同一个词在不同上下文中被切分成不同 token 的现象。</p>
       <div class="tags"><span>BPE</span><span>Subword</span><span>Tokenizer</span><span>GPT</span><span>词表</span><span>Vocab</span></div>
@@ -166,7 +166,7 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
       <ul>
         <li><strong>BPE（GPT 系列）：</strong>字节级 BPE，语言无关，词表约 50k–100k</li>
         <li><strong>WordPiece（BERT）：</strong>类似 BPE，但合并选择基于似然而非频次，用 ## 前缀标记子词</li>
-        <li><strong>SentencePiece（T5/Llama）：</strong>不依赖空格分词，对中文/日文友好，使用 Unigram 模型</li>
+        <li><strong>SentencePiece（T5/Llama 等）：</strong>它是直接从原始句子训练的 tokenizer 工具包，可使用 Unigram 或 BPE；具体模型采用哪种算法需查其 tokenizer 配置</li>
         <li><strong>字符级：</strong>无 OOV，但序列长、注意力计算昂贵</li>
         <li><strong>词级：</strong>序列短，但词表大、OOV 严重、形态变化无法共享</li>
       </ul>
@@ -176,7 +176,7 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
       <ul>
         <li>模型输入是 token ID，不是字符；词嵌入表（Embedding）大小 = 词表大小</li>
         <li><strong>Token 边界效应：</strong>"unhappiness" 可能切成 "un", "happiness" 或 "un", "hap", "pi", "ness"</li>
-        <li>中文通常每个汉字 1–2 token，英文常用词 1 token，罕见词多 token</li>
+        <li>字符与 token 的比例由词表和文本分布决定；语言、空格、大小写、代码和生僻字都会改变结果，应使用目标模型 tokenizer 实测</li>
         <li>上下文窗口（如 8192）是 token 数而非字符数</li>
         <li>Tiktoken（OpenAI）：BPE 的 Rust 高性能实现，GPT-4 使用 cl100k_base 词表</li>
         <li>特殊 token：<code>&lt;|endoftext|&gt;</code>、<code>&lt;|im_start|&gt;</code> 等标记对话格式</li>
@@ -187,7 +187,7 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
       <ul>
         <li>"lower" → ["low","er"] 或 ["lower"]，取决于语料频次和合并顺序</li>
         <li>大小写影响：" Hello" 和 "Hello" 是不同 token（前者有空格前缀）</li>
-        <li>数字：每个数字字符通常单独 token，"1000" = ["1","0","0","0"]</li>
+        <li>数字：可能按单个数字或多位片段切分，具体结果随 tokenizer 词表和正则预分词规则变化</li>
         <li>多语言：非英文字符在词表较少，中文字符平均消耗 token 更多</li>
         <li><strong>工程意义：</strong>Prompt 长度 = token 数 ≠ 字符数，计费和上下文限制都基于 token</li>
       </ul>

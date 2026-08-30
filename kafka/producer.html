@@ -226,9 +226,9 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 <script>
 window.PAGE_CONCEPTS = [
   { title: 'RecordAccumulator', body: `消息缓冲区，按 Partition 维护独立的 Deque<ProducerBatch>。新消息先写入缓冲，待批次满足条件后由 Sender 线程发送。` },
-  { title: 'batch.size & linger.ms', body: `batch.size（默认 16KB）：批次达到该大小立即发送。linger.ms（默认 0）：等待更多消息的最大毫秒数，权衡吞吐与延迟。`, tag: '吞吐 vs 延迟' },
-  { title: 'acks 确认机制', body: `acks=0：不等确认（最快，可能丢消息）。acks=1：Leader 写入即确认。acks=all：ISR 全部写入才确认（最安全）。` },
-  { title: '幂等性 & 事务', body: `幂等 Producer（enable.idempotence=true）：每条消息带 PID+序号，Broker 去重，实现单分区精确一次。事务 API 扩展为跨分区原子写。`, tag: 'Exactly-Once' },
+  { title: 'batch.size & linger.ms', body: `batch.size 控制单个分区批次的目标上限；linger.ms 控制批次未满时最多等待多久。Apache Kafka 4.0 起 Java Producer 的 linger.ms 默认值由 0ms 改为 5ms，具体默认值应以所用客户端和版本为准。`, tag: '吞吐 vs 延迟' },
+  { title: 'acks 确认机制', body: `acks=0：不等确认（最快，可能丢消息）。acks=1：Leader 本地追加即确认。acks=all：等待当前 ISR 满足提交条件；应与合适的 min.insync.replicas 配合，否则 ISR 缩到 1 时仍可能只由 Leader 确认。` },
+  { title: '幂等性 & 事务', body: `幂等 Producer 通过 PID、epoch 和批次序号对客户端重试去重；Kafka 3.0 起在没有冲突配置时默认启用。它不去重应用主动重发，也不等于端到端 Exactly-Once；事务 API 提供跨分区写入及消费位点提交的原子边界。`, tag: 'Exactly-Once' },
   { title: 'NetworkClient', body: `底层 NIO 网络层，维护与各 Broker 的连接。Sender 线程从 RecordAccumulator 取批次，通过 NetworkClient 发送并处理响应。` }
 ];
 
@@ -278,8 +278,8 @@ const STEPS = [
   { highlightLines:[14,15], hlJs:[8,9,10,11], hlPy:[8,9], description:"Step 2: 消息按 Partition 分组，填充到对应的 Batch 队列中" },
   { highlightLines:[15,16], hlJs:[10,11,12], hlPy:[10,11], description:"Step 3: linger.ms=10ms 超时 OR batch.size=100 满 → 触发批量发送" },
   { highlightLines:[34], hlJs:[25,26,27,28,29,30], hlPy:[17,18,19,20,21,22,23,24], description:"Step 4: NetworkClient 通过 TCP 将批次发送到 Leader Broker" },
-  { highlightLines:[16,17], hlJs:[13,14], hlPy:[12,13,14], description:"Step 5: acks=1 → Leader 写入本地日志后立即返回 ack，性能最佳" },
-  { highlightLines:[17], hlJs:[14,15], hlPy:[13,14,15], description:"Step 6: acks=all → 等待 ISR 中所有副本同步后才返回 ack，最强可靠性" },
+  { highlightLines:[16,17], hlJs:[13,14], hlPy:[12,13,14], description:"Step 5: acks=1 → Leader 本地追加后返回 ack；延迟通常较低，但 Leader 在副本复制前故障可能丢失已确认记录" },
+  { highlightLines:[17], hlJs:[14,15], hlPy:[13,14,15], description:"Step 6: acks=all → 等待当前 ISR 满足确认条件；配合 min.insync.replicas 与禁用不洁选举才能形成更完整的可靠性约束" },
   { highlightLines:[18,19,20], hlJs:[15,16,17,18], hlPy:[14,15,16], description:"Step 7: Leader 写入失败 → NetworkClient 按 backoff 策略重试，最多 MaxAttempts 次" },
   { highlightLines:[34], hlJs:[30,31,32,33], hlPy:[26,27,28,29], description:"Step 8: 所有消息成功发送，WriteMessages 返回 nil，发送完成" },
 ];

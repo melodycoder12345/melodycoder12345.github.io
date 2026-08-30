@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="OpenTelemetry 统一 API 和 SDK，一次插桩同时采集 Trace、Metric、Log 三类信号，通过 Collector 做统一处理和路由，输出到任意后端（Jaeger/Prometheus/Loki）。">
+<meta name="description" content="OpenTelemetry 为 Trace、Metric、Log 提供统一 API、SDK、数据模型与 Collector 管道，并通过开放协议连接不同后端。">
 <link rel="canonical" href="https://melodycoder12345.github.io/observability/opentelemetry.html">
 <meta property="og:title" content="OpenTelemetry — 码海拾贝">
 <meta property="og:description" content="OpenTelemetry 统一 API 和 SDK，一次插桩同时采集 Trace、Metric、Log 三类信号，通过 Collector 路由到任意后端。">
@@ -125,13 +125,27 @@ a{color:var(--accent);text-decoration:none}
 .sc-warn{color:var(--warn)}
 .corr-banner{border:2px dashed rgba(52,211,153,.35);border-radius:8px;text-align:center;padding:9px 14px;font-size:.74rem;color:var(--accent);background:rgba(52,211,153,.04);line-height:1.6;display:none}
 .corr-banner.cb-on{display:block}
+@media (max-width:940px){
+  .wrap{padding:32px 22px 64px}
+  .layout{grid-template-columns:1fr}
+  .left-panel{position:static}
+}
+@media (max-width:640px){
+  .wrap{padding:24px 14px 52px}
+  .left-panel,.center-panel{padding:15px;border-radius:14px}
+  .svc-chain{overflow-x:auto;padding-bottom:6px}
+  .svc-box{min-width:130px}
+  .pipe-row3,.samp-grid{grid-template-columns:1fr}
+  .sp-nm{width:105px}
+  .tab-nav{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
 <main class="wrap">
   <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">可观测性</a><span>/</span>OpenTelemetry</div>
   <h1 class="page-title">OpenTelemetry</h1>
-  <p class="subtitle">可观测性领域的统一标准。OpenTelemetry（OTel）提供统一的 API 和 SDK，一次插桩同时采集 Trace、Metric、Log 三类信号，通过 Collector 做统一处理和路由，输出到任意后端（Jaeger / Prometheus / Loki / Datadog）。彻底解决各厂商 SDK 不兼容、迁移成本高的问题。</p>
+  <p class="subtitle">OpenTelemetry（OTel）为 Trace、Metric、Log 提供统一 API、SDK、数据模型、语义约定和 OTLP 协议。各信号需要相应插桩与 SDK 支持，Collector 可接收、处理并导出到兼容后端，从而降低而非彻底消除后端迁移与运维成本。</p>
 
   <div class="layout">
     <div class="left-panel">
@@ -226,7 +240,7 @@ a{color:var(--accent);text-decoration:none}
 
       <!-- ===== Scene 3: Multi-signal Correlation ===== -->
       <div class="scene" id="scene3">
-        <div class="sec-lbl">三大信号关联（Trace + Metric + Log via TraceId）</div>
+        <div class="sec-lbl">多信号关联（日志关联 Trace；指标可用 Exemplar / 时间与资源属性关联）</div>
         <div class="sig-section">
           <div class="sig-row" id="sigTrace">
             <div class="sig-hdr"><span class="sig-badge sb-t">TRACE</span><span class="sig-name">分布式链路追踪</span></div>
@@ -259,7 +273,7 @@ a{color:var(--accent);text-decoration:none}
 /* Scene 0: Trace Propagation — 9 steps */
 const S0 = [
   {
-    msg:'三个微服务均已集成 OTel SDK（自动插桩）。无需修改业务代码——SDK 在框架层拦截 HTTP / gRPC 调用，自动采集 Trace、Metric 和 Log 三类遥测信号。',
+    msg:'三个微服务均已启用适配其框架的 OTel 自动插桩。自动插桩可捕获受支持的 HTTP / gRPC 等遥测，但覆盖范围因语言和组件而异；业务属性、自定义指标和应用日志通常仍需配置或手工插桩。',
     svcs:[{},{},{}], arrows:[false,false], lbls:['',''],
     hdr:null, wfc:0
   },
@@ -329,7 +343,7 @@ const S1 = [
    act:['psdk0','psdk1','psdk2','pd0','pRecv'], subs:{pRecv:'已接收 Trace + Metric + Log'}},
   {msg:'Processor 1 —— Batch 处理器：将数据积攒到 1000 条，或等待 5 秒后批量发送。显著减少网络连接数和下游背压，生产环境 Trace 吞吐从每秒几次降至批量发送。',
    act:['pRecv','pd1','pProc0'], subs:{pProc0:'批量中：已积攒 743/1000 条，剩余 3.2s…'}},
-  {msg:'Processor 2 —— Sampling 处理器：对 Trace 进行尾部采样，丢弃采样率 < 1% 的普通 Trace，保留 ERROR Trace（100%）和 p99 > 1s 的慢 Trace（100%）。',
+  {msg:'Processor 2 —— 本例的 Tail Sampling 策略：对 Trace 延迟决策，配置为保留命中 ERROR 或 latency > 1s 策略的 Trace，并对普通 Trace 做 0.5% 概率采样。这些比例和阈值都是示例配置，不是 OTel 默认值。',
    act:['pProc0','pd2','pProc1'], subs:{pProc1:'采样中：ERROR Trace 100% 保留 + 正常 Trace 0.5% 保留'}},
   {msg:'Processor 3 —— Attribute Enrichment：为每条遥测数据自动注入 Kubernetes 上下文（pod name、namespace）和 deployment.environment，无需任何业务代码修改，实现基础设施语义统一。',
    act:['pProc1','pd3','pProc2'], subs:{pProc2:'增强中：注入 k8s.pod="api-gw-7d9f"  env="prod"'}},
@@ -337,7 +351,7 @@ const S1 = [
    act:['pProc2','pd4','pExp0'], subs:{pExp0:'导出到 Jaeger :14250 / OTLP'}},
   {msg:'Exporter 2 —— Prometheus Remote Write：将 Metric 数据（Counter、Histogram、Gauge）写入 Prometheus 兼容后端（Prometheus / Thanos），供 Grafana Dashboard 展示和告警规则评估。',
    act:['pProc2','pd4','pExp1'], subs:{pExp1:'写入 Prometheus :9090/api/v1/write'}},
-  {msg:'三路 Exporter 同时工作，单一 Collector 将三类信号扇出到不同后端。这正是 OTel 核心价值：一次插桩，多后端自由切换，彻底解除对任何厂商（Datadog / New Relic）的锁定。',
+  {msg:'三路 Exporter 同时工作，Collector 将不同信号扇出到兼容后端。开放数据模型与协议可降低厂商绑定，但查询语言、存储特性、告警和后端专有能力仍可能产生迁移成本。',
    act:['pProc2','pd4','pExp0','pExp1','pExp2'], subs:{pExp0:'→ Jaeger ✓',pExp1:'→ Prometheus ✓',pExp2:'→ Loki :3100 ✓'}},
 ];
 
@@ -352,7 +366,7 @@ const S2 = [
    hd:{cls:'sd-drop',t:'随机 1% 采样 → Trace #3 ERROR 同样被丢弃！'},
    td:null,
    note:'Head Sampling 的致命缺陷：无法保证 ERROR Trace 被保留，排查问题时缺少关键证据。'},
-  {msg:'Tail Sampling 的关键：先在内存缓冲区中收集完整 Trace 的所有 Span（通常等待 30s），等全部到齐后，再根据规则（是否含 ERROR、延迟是否超阈值）决定保留还是丢弃。',
+  {msg:'Tail Sampling 的关键：Collector 在配置的 decision_wait 等待期内收集同一 Trace 的 Span，随后按状态、延迟或属性等策略决定是否导出。它不能保证所有 Span 一定已到齐，过晚到达的 Span 需要按具体处理器行为和配置评估。',
    ht:[],
    buf:'缓冲中（等待 30s 超时或所有 Span 到齐）：\n• Span 001a  api-gateway   2350ms  ✓\n• Span 002b  order-svc     2340ms  ✓\n• Span 003c  payment-svc   2300ms  ⏳',
    tt:[],
@@ -373,18 +387,18 @@ const S2 = [
    hd:null,
    td:{cls:'sd-drop',t:'决策：正常 Trace → 按 0.5% 概率保留，99.5% 丢弃'},
    note:''},
-  {msg:'对比总结：Tail Sampling 精确保留所有 ERROR 和慢 Trace，大幅节省正常 Trace 的存储成本。代价是需要额外内存缓冲（生产建议 ≥ 8GB）和有状态路由（同 TraceId 的 Span 必须到同一 Collector）。',
+  {msg:'对比总结：按本例策略，Tail Sampling 会优先保留观测到的 ERROR 和慢 Trace并减少普通 Trace。资源需求取决于吞吐、等待时间、Trace 大小和 expected_new_traces_per_sec；多 Collector 部署通常要确保同一 Trace 的 Span 到达同一采样实例。',
    ht:[{c:'ti-err ti-drop',l:'ERROR Trace → 随机丢弃（Head 的缺陷）'},{c:'ti-ok',l:'正常 Trace → 随机保留（浪费存储）'}],
    buf:'Tail Sampler 规则（优先级从高到低）：\n• status = ERROR  → 保留率 100%\n• p99 > 1s 慢 Trace → 保留率 100%\n• 正常 Trace      → 保留率 0.5%',
    tt:[{c:'ti-kept',l:'所有 ERROR Trace → 全部保留 ✓'},{c:'ti-ok',l:'正常 Trace → 按 0.5% 保留（成本可控）'}],
    hd:{cls:'sd-drop',t:'缺陷：可能随机丢失 ERROR Trace'},
    td:{cls:'sd-keep',t:'优势：精确保留异常，存储成本可控 ✓'},
-   note:'Tail Sampling 权衡：需要足够内存（缓冲 30s 的全量 Span），且 Collector 需要有状态路由——同一 TraceId 的 Span 必须路由到同一 Collector 实例，否则决策不完整。'},
+   note:'Tail Sampling 权衡：需要按吞吐、Trace 大小和 decision_wait 规划内存；横向扩展时通常要按 TraceId 做一致路由，使同一 Trace 的 Span 到达同一采样实例，否则决策可能不完整。'},
 ];
 
 /* Scene 3: Multi-signal Correlation — 7 steps */
 const S3 = [
-  {msg:'系统运行正常：API 每秒处理 1200 个请求，Trace / Metric / Log 均以正常频率产生。三类信号独立存储在 Jaeger / Prometheus / Loki，通过共同的 TraceId 可以互相关联。',
+  {msg:'系统运行正常：Trace / Metric / Log 分别写入后端。Span 与在其上下文中产生的日志可通过 TraceId/SpanId 关联；聚合指标通常没有单一 TraceId，可通过时间、共享资源属性或携带 Trace 上下文的 Exemplar 跳转到代表性 Trace。',
    tr:false, mr:false, lr:false, corr:false,
    tc:'TraceId: —  |  正常请求流  |  p99: 42ms  |  ERROR 率: 0%',
    bars:[3,4,3,5,4,4,3,5,4], alert:false,
@@ -412,21 +426,21 @@ const S3 = [
    mc:'<span class="sc-err">payment_latency_p99: 2300ms  ⚠️ 上涨 5381%</span>\n<span class="sc-warn">ALERT FIRING: PaymentLatencyHigh</span>\n告警阈值: p99 > 500ms 持续 5 分钟',
    lc:'[WARN] 14:32:07 payment-svc    Retrying DB connection (3/3)...',
    cb:''},
-  {msg:'Log 同时输出 ERROR：payment-service 打印"DB connection timeout"，日志中携带 trace_id=abc123ff 和 span_id=003c，与 Trace 数据精确对应。三类信号均指向同一个 TraceId。',
+  {msg:'Log 同时输出 ERROR：若日志桥接或日志库已配置上下文注入，该 LogRecord 可携带 trace_id=abc123ff 和 span_id=003c，从而与 Trace 精确对应；这不是所有日志自动具备的属性。聚合 Metric 本身不共享这个 TraceId。',
    tr:true, mr:true, lr:true, corr:false,
    tc:'TraceId: <span class="sc-hl">abc123ff…</span>\n<span class="sc-err">Span 003c  status=ERROR   2300ms</span>',
    bars:[3,4,3,5,4,4,3,5,18], alert:true,
    mc:'<span class="sc-err">payment_latency_p99: 2300ms  ⚠️</span>\n<span class="sc-warn">ALERT FIRING: PaymentLatencyHigh</span>',
    lc:'<span class="sc-err">[ERROR] 14:32:07 payment-svc  DB connection timeout</span>\n<span class="sc-hl">  trace_id=abc123ff…   span_id=003c</span>\n  db.host=10.0.1.5:5432  pool.size=10  pool.active=10',
    cb:''},
-  {msg:'OTel 统一三大支柱的价值：三类信号共享同一 TraceId（abc123ff）。在 Grafana 中，运维从 Metric 告警点 drill-down 到对应 Trace，再跳转到精确的 ERROR 日志——链路闭环。',
+  {msg:'OTel 的价值在于统一信号模型和上下文：日志可直接关联 Span，Metric 若记录 Exemplar 可携带 TraceId；否则可按时间和资源属性筛选 Trace。Grafana 的跳转还需要数据源关联与 Data Link 配置。',
    tr:true, mr:true, lr:true, corr:true,
    tc:'TraceId: <span class="sc-hl">abc123ff…</span>\n<span class="sc-err">Span 003c  status=ERROR   2300ms</span>\n→ <span class="sc-hl">点击 Span → 跳转关联 Log</span>',
    bars:[3,4,3,5,4,4,3,5,18], alert:true,
    mc:'<span class="sc-err">payment_latency_p99: 2300ms ⚠️</span>\n→ <span class="sc-hl">点击告警点 → Grafana Explore → 跳转 Jaeger</span>',
    lc:'<span class="sc-err">[ERROR] 14:32:07 payment-svc  DB connection timeout</span>\n<span class="sc-hl">  trace_id=abc123ff…   span_id=003c</span>\n<span class="sc-warn">  db.host=10.0.1.5:5432  pool.active=10/10</span>',
    cb:'🔗 TraceId abc123ff…  |  Trace（ERROR Span 2300ms）⟷ Metric（p99 突增 5381%）⟷ Log（DB pool 满载详情）'},
-  {msg:'根因定位完成：DB 连接池耗尽（pool.size=10，pool.active=10）导致 Payment 超时，引发 p99 指标告警。OTel 统一三大支柱，平均定位时间 < 2 分钟（对比传统手动关联 30+ 分钟）。',
+  {msg:'本示例通过 Trace、日志和指标共同支持“连接池耗尽导致 Payment 超时”的诊断假设。实际根因仍需结合连接池指标、数据库状态和事件验证；定位时间取决于插桩覆盖、数据质量、链接配置与团队流程。',
    tr:true, mr:true, lr:true, corr:true,
    tc:'TraceId: <span class="sc-hl">abc123ff…</span>\n<span class="sc-err">Span 003c  status=ERROR  2300ms</span>\n<span class="sc-warn">根因：DB 连接池耗尽（pool.active=10/10）</span>',
    bars:[3,4,3,5,4,4,3,5,18], alert:true,

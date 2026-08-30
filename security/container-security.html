@@ -72,13 +72,13 @@ tr:hover td{background:rgba(255,255,255,.02)}
 </style>
 </head>
 <body>
-<main class="content" data-page-type="B">
+<main class="content">
 
 <section class="hero">
   <div class="card">
-    <div class="eyebrow">Security / Container / B 类型</div>
+    <div class="eyebrow">Security / Container</div>
     <h1>容器安全</h1>
-    <p class="summary">容器共享宿主机内核，边界远比虚拟机薄。一旦容器以 root 运行、挂载特权、RBAC 过宽，攻击者突破容器即可控制整个集群。纵深防御：扫描镜像漏洞 → 加固运行时 → 最小权限 RBAC → 网络隔离，每一层都是独立防线。</p>
+    <p class="summary">容器共享宿主机内核，隔离边界不同于虚拟机。容器内 UID 0 不自动等于宿主机 root，但特权模式、危险 capabilities、host namespaces/挂载和过宽 RBAC 会显著扩大逃逸与横向移动风险。需要镜像、运行时、身份和网络的纵深防御。</p>
     <div class="tags"><span>Trivy</span><span>Grype</span><span>securityContext</span><span>Seccomp</span><span>AppArmor</span><span>RBAC</span><span>NetworkPolicy</span><span>distroless</span></div>
     <div class="callout"><strong>核心威胁模型：</strong>容器不等于虚拟机，共享内核意味着逃逸路径更短。攻击链通常是：镜像 CVE 入侵 → root 提权 → 挂载宿主机文件系统 → 横向移动。每个防御层都需要独立应对这条链路上的节点。</div>
   </div>
@@ -152,7 +152,7 @@ ENTRYPOINT ["/server"]</code></pre>
 
 <article class="section">
   <h2>运行时安全：securityContext</h2>
-  <p>容器默认以 <strong>root（UID 0）</strong> 运行，如果容器逃逸成功，攻击者在宿主机上也是 root，可以读取任意文件、加载内核模块、控制整台机器：</p>
+  <p>许多镜像未声明 <code>USER</code> 时以容器内 <strong>UID 0</strong> 运行。Namespaces、capabilities、seccomp、LSM 和 user namespace 等仍会限制它，因此不等同于宿主机 root；但一旦结合逃逸漏洞或危险配置，影响通常更大：</p>
   <pre><code># K8s Pod securityContext 最佳实践
 apiVersion: v1
 kind: Pod
@@ -190,7 +190,7 @@ spec:
   <h2>Seccomp 与 AppArmor</h2>
   <p>syscall 是容器与宿主机内核的唯一桥梁。限制可用 syscall 是阻断容器逃逸的最底层防御：</p>
   <ul>
-    <li><strong>Seccomp 默认 profile</strong>：Docker/containerd 默认启用，屏蔽约 44 个高危 syscall（如 <code>ptrace</code>、<code>kexec_load</code>、<code>mount</code>），阻止已知逃逸路径</li>
+    <li><strong>Seccomp RuntimeDefault</strong>：由容器运行时提供默认策略，允许/拒绝的 syscall 会随运行时与版本变化；Kubernetes 需通过 <code>seccompProfile.type: RuntimeDefault</code> 明确请求，不应依赖固定“屏蔽 44 个”清单</li>
     <li><strong>自定义 profile</strong>：最小化策略，只允许应用实际需要的 syscall（用 <code>strace</code> 采集后生成白名单）</li>
     <li><strong>AppArmor</strong>：Ubuntu/Debian 内核模块，基于路径的访问控制，限制容器可读写的文件路径、可执行的程序，比 Seccomp 更细粒度控制文件系统访问</li>
   </ul>
@@ -315,7 +315,7 @@ spec:
   <p>K8s 默认所有 Pod 可以互相通信，等同于一个完全开放的内网。NetworkPolicy 实现白名单模式的东西向流量控制：</p>
   <ul>
     <li><strong>默认策略问题</strong>：即使数据库 Pod 只应被 app Pod 访问，默认情况下任意 Pod 都可以直接连接数据库端口</li>
-    <li><strong>前提条件</strong>：需要支持 NetworkPolicy 的 CNI 插件（Calico、Cilium、Weave），flannel 不支持</li>
+    <li><strong>前提条件</strong>：集群网络实现必须支持并正确执行 NetworkPolicy；支持范围和功能随 CNI 版本/配置变化，部署后应以连通性测试验证，而不是只依据插件名称判断</li>
     <li><strong>Ingress/Egress</strong>：分别控制入流量（谁可以连我）和出流量（我可以连谁），可独立配置</li>
   </ul>
   <pre><code># 场景：数据库只允许来自 app Pod 的连接
@@ -392,7 +392,7 @@ spec:
   </div>
   <div class="qa-card" onclick="toggleQA(this)">
     <div class="qa-q">为什么说 privileged: true 等同于宿主机 root？<span class="qa-arrow">&#9654;</span></div>
-    <div class="qa-a">privileged 容器关闭了大部分 Namespace 和 Capability 限制，可以：1) 挂载宿主机文件系统（<code>mount /dev/sda1 /mnt</code>）；2) 加载内核模块（<code>insmod</code>）；3) 访问宿主机的网络命名空间；4) 读写 /proc/sysrq，触发内核崩溃或同步。攻击者只需运行 <code>nsenter --target 1 --mount --uts --ipc --net --pid</code> 就可以进入宿主机的 PID 1 命名空间，完全控制宿主机。在生产环境中，只有 daemonset（如 node exporter、网络插件）才有理由用 privileged，且需要严格审计。</div>
+    <div class="qa-a"><code>privileged: true</code> 给容器几乎全部 Linux capabilities，并调整设备与安全模块约束，因而接近宿主机 root 的风险级别，但并不自动加入宿主机的 PID/网络/挂载 namespace，也不保证示例 <code>nsenter</code> 在所有配置下成功。若再授予 hostPID、hostNetwork、hostPath 或宿主设备，控制宿主机的路径会显著增加。生产环境应按 Pod Security Standards 的 Restricted/Baseline 要求默认禁止，例外逐项审批。</div>
   </div>
   <div class="qa-card" onclick="toggleQA(this)">
     <div class="qa-q">K8s 中 RBAC 权限审计怎么做？如何发现过宽权限？<span class="qa-arrow">&#9654;</span></div>
@@ -538,13 +538,13 @@ containers:
 
 # 更进一步：使用 External Secrets Operator
 # 从 Vault / AWS SSM 动态获取 Secret
-# 不在 etcd 中明文存储
+# External Secrets 通常仍会同步为 Kubernetes Secret；是否进入 etcd 取决于模式
 # 支持自动轮换（rotation）
 
 # Vault Agent Sidecar Injector：
 # 挂载 tmpfs，Secret 不落磁盘
 # 支持 lease 自动续期和吊销</code></pre>
-        <p><strong>正确</strong>：挂载为只读文件，配合 External Secrets Operator 从 Vault 动态注入，避免 Secret 存储在 etcd 中。</p>
+        <p><strong>正确</strong>：挂载为只读文件可减少环境变量传播面，但有 Pod 读取权限的进程仍能读取。External Secrets Operator 的常见模式会创建 Kubernetes Secret，因此仍应启用 etcd 静态加密、限制 RBAC，并根据需求选用不落 Kubernetes Secret 的 CSI/Agent 模式。</p>
       </div>
     </div>
   </div>

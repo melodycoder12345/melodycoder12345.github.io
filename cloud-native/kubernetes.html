@@ -64,7 +64,7 @@ a{color:var(--accent);text-decoration:none}
 <main class="wrap">
   <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">云原生</a><span>/</span>K8s 控制面</div>
   <h1 class="page-title">K8s 控制面</h1>
-  <p class="subtitle">kubectl apply 后发生了什么？请求经过 API Server 认证鉴权、etcd 持久化、Controller 响应、Scheduler 调度，最终由 kubelet 拉起容器。所有组件通过 etcd Watch 解耦，没有任何组件直接调用另一个组件。</p>
+  <p class="subtitle">kubectl apply 后，请求经 API Server 的认证、鉴权和准入并持久化；Controller、Scheduler、kubelet 主要通过 API Server 观察和更新对象。etcd 通常只由 API Server 直接访问，但 API Server 仍会调用准入 Webhook、kubelet 等端点，不能概括为组件之间绝无直接通信。</p>
 
   <div class="layout">
     <div class="left-panel">
@@ -109,7 +109,7 @@ const STEPS = [
   {active:'admission',done:['kubectl','authn','authz'],msg:'Admission Controller：先经过 MutatingWebhook（可修改资源，如注入 sidecar）再经过 ValidatingWebhook（只读校验，拒绝不合规）。ResourceQuota 在此检查命名空间配额。',comp:'Admission Webhook',proto:'HTTPS（向外部 Webhook 调用）',event:'Modified Object / ACCEPT',mech:'MutatingWebhook 可注入 Envoy sidecar（Istio 原理）'},
   {active:'etcd',done:['kubectl','authn','authz','admission'],msg:'资源写入 etcd：API Server 将资源序列化为 protobuf，通过 Raft 协议在 etcd 集群（通常 3 或 5 节点）中形成多数派共识后持久化。返回分配的 resourceVersion（全局单调递增）。',comp:'etcd',proto:'gRPC（etcd client API）',event:'resourceVersion=1234 写入成功',mech:'etcd watch 机制：其他组件订阅 key 变更，实现事件驱动'},
   {active:'controller',done:['kubectl','authn','authz','admission','etcd'],msg:'ReplicaSet Controller 通过 Informer（带本地缓存的 Watch）收到 Deployment 变更事件，计算期望 ReplicaSet 状态，若 Pod 数不足则创建新 Pod 对象（Status.Phase=Pending）写入 etcd。',comp:'ReplicaSet Controller',proto:'etcd Watch / gRPC',event:'Pod{phase:Pending, nodeName:""}',mech:'Informer 有本地缓存（Lister），减少 etcd 读压力'},
-  {active:'scheduler',done:['kubectl','authn','authz','admission','etcd','controller'],msg:'Scheduler Watch 到 nodeName="" 的 Pending Pod，执行 Filter（排除资源不足/Taint 不匹配的节点）和 Score（LeastRequested/NodeAffinity 等插件打分），将得分最高节点写入 Pod.spec.nodeName。',comp:'kube-scheduler',proto:'etcd Watch / Bind API',event:'Pod.spec.nodeName="node-3"',mech:'调度框架支持插件扩展，CSI/CNI 通过 scheduler extender 扩展'},
+  {active:'scheduler',done:['kubectl','authn','authz','admission','etcd','controller'],msg:'Scheduler 经 API Server 观察到尚未绑定节点的 Pod，执行调度框架的 Filter、Score 等扩展点，再通过 Bind API 提交绑定；资源、亲和性、污点容忍和卷拓扑等均可能参与决策。',comp:'kube-scheduler',proto:'API Watch / Bind API',event:'Pod binding → node-3',mech:'CSI 存储拓扑可由 VolumeBinding 等调度插件参与；CNI 通常在节点上为已调度 Pod 配置网络，不等同于 scheduler extender'},
   {active:'kubelet',done:['kubectl','authn','authz','admission','etcd','controller','scheduler'],msg:'目标节点的 kubelet Watch 到本节点 Pod 变化，调用 CRI（containerd）拉取镜像，通过 CNI 插件配置网络（创建 veth pair、分配 IP），启动容器，定期上报 Pod Status 到 API Server → etcd。',comp:'kubelet + CRI + CNI',proto:'CRI gRPC / CNI exec',event:'Pod{phase:Running}',mech:'kubelet 不直接运行容器，通过 CRI 接口解耦（可换 containerd/CRI-O）'},
 ];
 

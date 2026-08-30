@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="开发者只需编写函数，平台负责容器创建、网络配置、弹性伸缩和销毁。无请求时实例数归零（scale-to-zero），请求到来时自动启动（冷启动）。">
+<meta name="description" content="FaaS 平台托管运行环境与弹性伸缩；scale-to-zero、冷启动、并发和计费行为取决于具体产品及配置。">
 <link rel="canonical" href="https://melodycoder12345.github.io/cloud-native/serverless.html">
 <meta property="og:title" content="Serverless / FaaS — 码海拾贝">
 <meta property="og:description" content="开发者只需编写函数，平台负责容器创建、网络配置、弹性伸缩和销毁。无请求时实例数归零，请求到来时自动冷启动。AWS Lambda / Google Cloud Functions / Knative。">
@@ -247,6 +247,21 @@ a{color:var(--accent);text-decoration:none}
 .info-note.blue{background:rgba(96,165,250,.06);border-color:rgba(96,165,250,.2)}
 .info-note.red{background:rgba(248,113,113,.06);border-color:rgba(248,113,113,.2)}
 .info-note.green{background:rgba(74,222,128,.06);border-color:rgba(74,222,128,.2)}
+@media (max-width:960px){
+  .wrap{padding:32px 22px 64px}
+  .layout{grid-template-columns:1fr}
+  .left-panel{position:static}
+  .trigger-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:640px){
+  .wrap{padding:24px 14px 52px}
+  .left-panel,.center-panel{padding:15px;border-radius:14px}
+  .cost-compare,.trigger-grid{grid-template-columns:1fr}
+  .timeline-row{align-items:flex-start;flex-wrap:wrap}
+  .tl-label{min-width:100%;text-align:left}
+  .tl-total{margin-left:auto}
+  .flow-row{overflow-x:auto}
+}
 </style>
 </head>
 <body>
@@ -257,7 +272,7 @@ a{color:var(--accent);text-decoration:none}
     <span>Serverless / FaaS</span>
   </div>
   <h1 class="page-title">Serverless / FaaS</h1>
-  <p class="subtitle">开发者只需编写函数，平台负责容器创建、网络配置、弹性伸缩和销毁。无请求时实例数归零（scale-to-zero），请求到来时自动启动（冷启动）。以 AWS Lambda / Google Cloud Functions / Knative 为代表，以事件驱动、按用量计费为核心特征。</p>
+  <p class="subtitle">FaaS 平台管理函数的运行环境、事件接入和弹性伸缩，但构建、网络与实例生命周期因产品而异。部分平台或配置可 scale-to-zero；计费维度、最小实例数、并发模型和冷启动行为也由提供方决定，不能作为所有 Serverless 产品的统一保证。</p>
 
   <div class="layout">
     <!-- Left Panel -->
@@ -383,7 +398,7 @@ const S2Z_STEPS = [
     insts:1, idle:10, zeroed:false, bills:{trad:100,sl:13}
   },
   {
-    msg:'空闲 15 分钟（默认超时阈值）：最后一个实例也被销毁。实例数归零（scale-to-zero）。内存全部释放，计费完全停止。',
+    msg:'示例假设平台在空闲 15 分钟后回收到零实例。真实回收时机通常不承诺，是否能 scale-to-zero、是否仍产生预置容量或其他资源费用取决于产品与配置。',
     insts:0, idle:15, zeroed:true, bills:{trad:100,sl:5}
   },
   {
@@ -449,7 +464,7 @@ const EVENT_STEPS = [
       {icon:'🔍',text:'幂等检查：SELECT processed WHERE message_id=abc123 → 已处理',status:'done',badge:'去重',badgeType:'ok'},
       {icon:'✅',text:'跳过重复处理，commitOffset → 消费成功，无重复副作用',status:'done',badge:'幂等 ✓',badgeType:'ok'},
     ],
-    note:'幂等 = 多次执行与执行一次效果相同。Serverless at-least-once 语义要求函数必须幂等。'
+    note:'幂等 = 多次执行与执行一次效果相同。许多异步事件源采用至少一次投递，因此应按所用触发器的交付语义设计幂等；Serverless 本身并不规定统一的投递语义。'
   },
 ];
 
@@ -641,7 +656,7 @@ function renderS2ZScene(s) {
     </div>
     ${showCost ? costHtml : `<div class="info-note ${zeroed ? 'green' : ''}">
       <span>${zeroed ? '✅' : 'ℹ️'}</span>
-      <span>${zeroed ? 'scale-to-zero 是 Serverless 最核心的成本优势——空闲期间真正零计费。下次请求到来时触发冷启动（300ms-2s 延迟）。' : '平台持续监控实例空闲时间，超过配置阈值后触发缩容。阈值可调（AWS Lambda 默认约 15 分钟）。'}</span>
+      <span>${zeroed ? '本示例已缩容到零实例；下次请求可能产生冷启动。计算费用可降为零，但存储、网络、预置容量或平台附加资源仍可能计费。' : '平台持续监控实例活动并按自身策略缩容；回收时间、最小实例数与是否承诺 scale-to-zero 均由具体产品和配置决定。'}</span>
     </div>`}
     ${showCost ? '' : ''}
   </div>`;

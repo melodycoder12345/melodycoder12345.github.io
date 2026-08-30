@@ -3,16 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="Quorum 模型：W+R>N 的数学保证，写 W 个副本、读 R 个，确保读到最新值。Cassandra/DynamoDB 的一致性调节旋钮，读修复原理。">
+<meta name="description" content="Quorum 模型：W+R>N 保证读写集合相交；新鲜度还取决于版本解析、并发写、故障与修复语义。">
 <link rel="canonical" href="https://melodycoder12345.github.io/distributed/quorum.html">
 <meta property="og:title" content="Quorum 读写模型 — 码海拾贝">
-<meta property="og:description" content="W+R>N 保证至少一个副本同时参与了最近写和当前读，确保读到最新值。Cassandra/DynamoDB 一致性调节。">
+<meta property="og:description" content="W+R>N 保证读写集合相交；新鲜度还取决于版本解析、并发写、故障与修复语义。">
 <meta property="og:url" content="https://melodycoder12345.github.io/distributed/quorum.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="码海拾贝">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Quorum 读写模型 — 码海拾贝">
-<meta name="twitter:description" content="W+R>N 保证至少一个副本同时参与了最近写和当前读，确保读到最新值。Cassandra/DynamoDB 一致性调节。">
+<meta name="twitter:description" content="W+R>N 保证读写集合相交；新鲜度还取决于版本解析、并发写、故障与修复语义。">
 <title>Quorum 读写模型 - 分布式可视化</title>
 <script src="../nav.js"></script>
 <script src="../concept.js"></script>
@@ -69,24 +69,24 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
 @media(max-width:1060px){.lab{grid-template-columns:1fr}.hero,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
 </style>
 <script>window.PAGE_CONCEPTS=[
-  {"title":"W+R>N","body":"写 W 个副本成功才返回，读 R 个副本再取最新——当 W+R>N 时，写和读的副本集合必有重叠，至少一个副本既在写集又在读集，确保读到最新值。","tag":"term"},
+  {"title":"W+R>N","body":"写 W 个副本、读 R 个副本时，W+R>N 保证两集合至少相交。它本身不等价于线性一致性，还需要版本解析、并发控制与故障模型等条件。","tag":"term"},
   {"title":"读修复（Read Repair）","body":"读到版本不一致的副本时，将最新值异步写回落后的副本，使其追平，无需额外的后台同步进程。","tag":"term"},
   {"title":"版本向量（Version Vector）","body":"用向量时钟或时间戳比较不同副本的新旧程度，Quorum 读到多个副本后需要确定哪个版本最新才能返回给客户端。","tag":"term"}
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">分布式 / Quorum / C 类型</div>
+      <div class="eyebrow">分布式 / Quorum</div>
       <h1>Quorum 读写模型</h1>
-      <p class="summary">W + R > N 的数学保证：写入 W 个副本、读取 R 个副本，当 W+R 超过总副本数 N 时，至少有一个副本同时参与了最近一次写和这次读，确保能读到最新值。Cassandra、DynamoDB 的一致性调节旋钮，强一致性和高可用性之间的精准调节。</p>
+      <p class="summary">W + R &gt; N 保证成功写集合与读取集合至少相交，因此读可能观察到已完成写的一个副本。要从“集合相交”推导新鲜读，还必须正确解析版本，并处理并发写、失败重试、sloppy quorum 与副本修复。</p>
       <div class="tags"><span>W+R>N</span><span>N=3</span><span>读修复</span><span>版本号</span><span>Cassandra</span><span>DynamoDB</span></div>
     </div>
     <div class="card">
       <div class="eyebrow">核心术语</div>
       <ul class="concept-list">
-        <li><strong>W+R>N（Quorum 条件）</strong><span>写 W 副本成功才确认，读 R 副本取最新值。W+R>N 时写集和读集有重叠，保证读到最新写。</span></li>
+        <li><strong>W+R>N（Quorum 条件）</strong><span>写 W 副本成功才确认，读 R 副本；W+R>N 只直接保证两集合有交集。</span></li>
         <li><strong>读修复（Read Repair）</strong><span>读到旧版本副本时，将最新值异步写回，使落后副本追平，Cassandra 的主要一致性补充机制。</span></li>
         <li><strong>版本号/时间戳</strong><span>每次写入时递增版本号，读取 R 个副本后比较版本号取最大，确定最新值并返回给客户端。</span></li>
         <li><strong>Hinted Handoff</strong><span>写目标副本不可用时暂存在代理节点，副本恢复后代理节点将数据补发，Cassandra 用于提高写可用性。</span></li>
@@ -130,7 +130,7 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
     <section>
       <h2>W+R>N 数学原理</h2>
       <p>N=3 是最常见配置。W+R>N 等价于写集合和读集合的交集非空（鸽巢原理）：<br><br>
-      — W=3,R=1：强写，每次写 3 个节点都成功。读任意 1 个节点必能读到最新值（不容忍写失败但读最快）<br>
+      — W=3,R=1：若读取的固定副本集与成功写集合遵循同一 N 个副本，读集合必与写集合相交；但超时写、并发写和替代副本仍需额外语义处理<br>
       — W=2,R=2：平衡，写 2 个成功，读 2 个取最大版本。容忍 1 个副本落后，也容忍 1 个节点不可用<br>
       — W=1,R=3：强读，写任意 1 个成功（最快），读所有节点取最大版本（读最慢但写可用性最高）<br>
       — W=1,R=2：W+R=3=N，不满足条件，不保证强一致，可能脏读<br><br>
@@ -139,7 +139,7 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
     <section>
       <h2>常见误区</h2>
       <ul>
-        <li>Quorum 保证的是"读到最近一次完成的写"，不保证线性一致性（Linearizability）。如果写正在进行（还没拿到 W 个 ACK），Quorum 读可能读到旧值。</li>
+        <li>Quorum 的集合交集性质本身不保证“读到最近一次完成的写”，更不保证线性一致性；版本选择、并发写、读写协调和故障恢复共同决定实际一致性。</li>
         <li>Cassandra 默认使用 Last-Write-Wins 时间戳而非版本向量，时钟不同步会导致正确的写被旧时间戳的写覆盖。</li>
         <li>W+R>N 只在写操作完全完成后才有保证。网络分区期间，写只成功了部分副本（< W），不保证后续 Quorum 读能读到这次写。</li>
         <li>读修复是异步的，读期间的修复不影响本次读的返回时间，但如果在修复完成前再次读，可能还会读到旧值。</li>
@@ -148,8 +148,8 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
     <section>
       <h2>工程场景</h2>
       <ul>
-        <li><strong>Cassandra</strong>：写 LOCAL_QUORUM（本地 DC 多数派），读 LOCAL_QUORUM，保证 DC 内强一致。跨 DC 用 EACH_QUORUM。</li>
-        <li><strong>DynamoDB</strong>：强一致读（ConsistentRead=true）内部等价于 Quorum=2/3，最终一致读（ConsistentRead=false）只读一个副本，可能读到旧值。</li>
+        <li><strong>Cassandra</strong>：LOCAL_QUORUM 约束本地数据中心的响应副本数；能否获得最新值还受拓扑、并发时间戳、sloppy quorum 与修复状态影响，不应概括为线性一致。</li>
+        <li><strong>DynamoDB</strong>：公开 API 提供最终一致读或特定表/索引上的强一致读；其内部副本数和 quorum 实现不是该 API 合约，不应断言为 2/3。</li>
         <li><strong>ZooKeeper</strong>：写操作必须多数派 follower 确认，读可以从任意节点（默认），启用 sync() 可强制从 leader 读。</li>
         <li><strong>etcd</strong>：写强制 Raft 多数派（W=⌊N/2⌋+1），线性读走 leader（强一致），串行读允许 stale。</li>
       </ul>
@@ -424,9 +424,9 @@ const TAB3=[
     draw(ctx,W,H){drawDirtyRead(ctx,W,H,2);}
   },
   {
-    title:'结论：W+R>N 是强一致性必要条件',
+    title:'结论：W+R>N 只保证集合相交',
     badge:'normal',
-    desc:'要避免脏读，必须保证 W+R>N。对于 N=3，安全配置是：W=2,R=2 (QUORUM) 或 W=3,R=1 (ALL写) 或 W=1,R=3 (ALL读)。W=1,R=2 或 W=2,R=1 均不安全。',
+    desc:'对于固定 N=3 副本集合，W+R>N 可排除成功写集与读集完全不相交；这只是新鲜读的一个基础条件，不能单独称为“强一致性配置”。',
     detail:'Cassandra 的 ONE 一致性级别（R=1 或 W=1）就是放弃了 Quorum 保证，换取最低延迟，适合可以容忍短暂不一致的场景（如访问计数）。',
     draw(ctx,W,H){drawDirtyRead(ctx,W,H,3);}
   }

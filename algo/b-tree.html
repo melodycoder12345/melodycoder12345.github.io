@@ -92,7 +92,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 <body>
 <nav>
   <a href="index.html" class="back-btn">← 返回</a>
-  <h1>B 树 B-Tree (阶数 t=2)</h1>
+  <h1>B 树 B-Tree（最小度数 t=2）</h1>
   <div class="complexity">
     <span class="badge time">查找/插入 O(log n)</span>
     <span class="badge time">每节点最多 3 个键</span>
@@ -152,7 +152,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 </div>
 <script>
 const CODE_LINES = [
-  {html:`<span class="cm">// B 树，阶数 t=2（最小度数）</span>`},
+  {html:`<span class="cm">// B 树，最小度数 t=2</span>`},
   {html:`<span class="cm">// 每个非根节点：t-1 ≤ keys ≤ 2t-1，即 1 ≤ keys ≤ 3</span>`},
   {html:`<span class="kw">const</span> T = <span class="num">2</span>`},
   {html:``},
@@ -179,7 +179,11 @@ const CODE_LINES = [
   {html:`&nbsp;&nbsp;&nbsp;&nbsp;full := parent.<span class="id">children</span>[i]`},
   {html:`&nbsp;&nbsp;&nbsp;&nbsp;mid := full.<span class="id">keys</span>[T<span class="op">-</span><span class="num">1</span>]         <span class="cm">// 中间键上升</span>`},
   {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 创建右半节点</span>`},
-  {html:`&nbsp;&nbsp;&nbsp;&nbsp;right := &amp;<span class="id">BNode</span>{keys: full.<span class="id">keys</span>[T:]}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;right := &amp;<span class="id">BNode</span>{keys: full.<span class="id">keys</span>[T:], isLeaf: full.<span class="id">isLeaf</span>}`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> !full.<span class="id">isLeaf</span> {`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;right.<span class="id">children</span> = full.<span class="id">children</span>[T:]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;full.<span class="id">children</span> = full.<span class="id">children</span>[:T]`},
+  {html:`&nbsp;&nbsp;&nbsp;&nbsp;}`},
   {html:`&nbsp;&nbsp;&nbsp;&nbsp;full.<span class="id">keys</span> = full.<span class="id">keys</span>[:<span class="id">T</span><span class="op">-</span><span class="num">1</span>]`},
   {html:`&nbsp;&nbsp;&nbsp;&nbsp;<span class="cm">// 将 mid 插入父节点</span>`},
   {html:`&nbsp;&nbsp;&nbsp;&nbsp;parent.<span class="id">keys</span> = <span class="fn">insertAt</span>(parent.<span class="id">keys</span>, i, mid)`},
@@ -358,7 +362,7 @@ function treeHeight(n) { return n ? 1 + (n.children.length ? Math.max(...n.child
 function splitChild(parent, i, steps, root) {
   const full = parent.children[i];
   const mid = full.keys[T - 1];
-  steps.push(mkStep(cloneNode(root), [full.id], [full.id], [], `节点 [${full.keys.join(',')}] 已满（3 键），中间键 ${mid} 上升到父节点`, [24, 25, 26, 27, 28, 29, 30, 31]));
+  steps.push(mkStep(cloneNode(root), [full.id], [full.id], [], `节点 [${full.keys.join(',')}] 已满（3 键），中间键 ${mid} 上升到父节点`, [24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35]));
   const right = new BNode(full.isLeaf);
   right.keys = full.keys.slice(T);
   right.children = full.children.slice(T);
@@ -368,7 +372,7 @@ function splitChild(parent, i, steps, root) {
   const insertPos = pos < 0 ? parent.keys.length : pos;
   parent.keys.splice(insertPos, 0, mid);
   parent.children.splice(insertPos + 1, 0, right);
-  steps.push(mkStep(cloneNode(root), [parent.id], [], [mid], `分裂完成：${mid} 上升，左 [${full.keys.join(',')}]，右 [${right.keys.join(',')}]`, [28, 29, 30, 31]));
+  steps.push(mkStep(cloneNode(root), [parent.id], [], [mid], `分裂完成：${mid} 上升，左 [${full.keys.join(',')}]，右 [${right.keys.join(',')}]`, [32, 33, 34, 35]));
 }
 
 function mkStep(root, highlight, splitting, settled, description, lines) {
@@ -381,19 +385,19 @@ function generateInsertSteps(val) {
   stepsArr.push(mkStep(root, [], [], [], `准备插入 ${val}`, [10]));
 
   function insertNonFull(node, k) {
-    stepsArr.push(mkStep(root, [node.id], [], [], `访问节点 [${node.keys.join(',')}]，${node.isLeaf ? '是叶节点' : '是内部节点'}`, [34]));
+    stepsArr.push(mkStep(root, [node.id], [], [], `访问节点 [${node.keys.join(',')}]，${node.isLeaf ? '是叶节点' : '是内部节点'}`, [39]));
     if (node.isLeaf) {
       const pos = node.keys.findIndex(x => x > k);
       node.keys.splice(pos < 0 ? node.keys.length : pos, 0, k);
-      stepsArr.push(mkStep(root, [node.id], [], [k], `叶节点直接插入 ${k}，现在为 [${node.keys.join(',')}]`, [35, 36, 37]));
+      stepsArr.push(mkStep(root, [node.id], [], [k], `叶节点直接插入 ${k}，现在为 [${node.keys.join(',')}]`, [40, 41, 42]));
       return;
     }
     let i = node.keys.findIndex(x => x > k);
     if (i < 0) i = node.keys.length;
     const child = node.children[i];
-    stepsArr.push(mkStep(root, [child.id], [], [], `向第 ${i} 个子节点下探：[${child.keys.join(',')}]`, [34]));
+    stepsArr.push(mkStep(root, [child.id], [], [], `向第 ${i} 个子节点下探：[${child.keys.join(',')}]`, [39]));
     if (child.keys.length === MAX_KEYS) {
-      stepsArr.push(mkStep(root, [child.id], [child.id], [], `子节点 [${child.keys.join(',')}] 已满，需要先分裂`, [40, 41]));
+      stepsArr.push(mkStep(root, [child.id], [child.id], [], `子节点 [${child.keys.join(',')}] 已满，需要先分裂`, [44, 45, 46]));
       splitChild(node, i, stepsArr, root);
       if (k > node.keys[i]) i++;
     }

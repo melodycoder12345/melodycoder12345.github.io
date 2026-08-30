@@ -45,10 +45,10 @@
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">数据库 / 事务 / C 类型</div>
+      <div class="eyebrow">数据库 / 事务</div>
       <h1>事务与死锁检测</h1>
       <p class="summary">两阶段锁（2PL）协议保证事务的可串行化隔离，但多个事务交叉加锁可能产生循环等待。数据库通过构建 Wait-for Graph 并运行 DFS 检测有向环来发现死锁，选择代价最小的事务回滚以恢复系统活性。</p>
       <div class="tags"><span>2PL</span><span>死锁</span><span>Wait-for Graph</span><span>行锁</span><span>Gap Lock</span></div>
@@ -160,9 +160,9 @@
     <section>
       <h2>Boundaries</h2>
       <ul>
-        <li><strong>检测开销：</strong>每次加锁失败触发检测，高并发时 O(n^2) 开销可观；MySQL 8.0.18 引入后台线程批量检测</li>
+        <li><strong>检测开销：</strong>InnoDB 在事务需要等待锁时进行死锁检测；高并发热点争用下遍历等待图会产生明显开销，可按场景评估 <code>innodb_deadlock_detect</code> 与超时策略</li>
         <li><strong>锁升级：</strong>行锁过多时 InnoDB 不会自动升级为表锁（与 SQL Server 不同），但会消耗大量内存</li>
-        <li><strong>分布式死锁：</strong>跨节点的等待图需要全局协调，XA 事务只能依赖超时</li>
+        <li><strong>分布式死锁：</strong>跨节点检测需要汇总全局等待关系；缺少全局检测器的系统通常只能依赖超时，但并非 XA 协议本身规定只能超时</li>
         <li><strong>Phantom 与 Gap Lock：</strong>RR 级别下 Gap Lock 有效防止幻读，但可能锁住比预期更大的范围，导致意外阻塞</li>
       </ul>
     </section>

@@ -3,25 +3,29 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="Multi-Paxos 是分布式一致性的理论原型，Raft 是其工程简化版。">
+<meta name="description" content="Paxos 让多个可能故障、消息延迟的节点仍然只选定一个值，并保证已选结果不会被后续提案推翻。">
 <link rel="canonical" href="https://melodycoder12345.github.io/distributed/paxos.html">
 <meta property="og:title" content="Paxos — 码海拾贝">
-<meta property="og:description" content="Multi-Paxos 是分布式一致性的理论原型，Raft 是其工程简化版。">
+<meta property="og:description" content="Paxos 让多个可能故障、消息延迟的节点仍然只选定一个值，并保证已选结果不会被后续提案推翻。">
 <meta property="og:url" content="https://melodycoder12345.github.io/distributed/paxos.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="码海拾贝">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Paxos — 码海拾贝">
-<meta name="twitter:description" content="Multi-Paxos 是分布式一致性的理论原型，Raft 是其工程简化版。">
+<meta name="twitter:description" content="Paxos 让多个可能故障、消息延迟的节点仍然只选定一个值，并保证已选结果不会被后续提案推翻。">
 <title>Paxos - 分布式</title>
 <script src="../nav.js"></script>
 <script src="../concept.js"></script>
 <style>
 :root{--bg:#0f172a;--panel:#111827;--panel2:#1e293b;--border:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#c084fc;--bad:#f87171;--ok:#4ade80;--warn:#fbbf24;}
 *{box-sizing:border-box;margin:0;padding:0}body{background:radial-gradient(circle at 18% 0%,color-mix(in srgb,var(--accent) 18%,transparent),transparent 34%),var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}a{color:inherit}.content{max-width:1220px;margin:0 auto;padding:42px clamp(20px,4vw,56px) 72px}.hero{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:stretch;margin-bottom:22px}.card{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.78);border-radius:22px;padding:24px;box-shadow:0 20px 70px rgba(0,0,0,.32)}.eyebrow{font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-bottom:12px}h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;margin-bottom:16px;background:linear-gradient(135deg,#f8fafc,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}.summary{font-size:1rem;color:var(--dim);line-height:1.85;max-width:760px}.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}.tags span{border:1px solid color-mix(in srgb,var(--accent) 35%,transparent);background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--text);border-radius:999px;padding:6px 10px;font-size:.76rem;font-family:monospace}.concept-list{display:flex;flex-direction:column;gap:10px;list-style:none}.concept-list li{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:13px 14px}.concept-list strong{display:block;color:var(--text);font-size:.88rem;margin-bottom:4px}.concept-list span{display:block;color:var(--dim);font-size:.82rem;line-height:1.65}
-.lab{display:grid;grid-template-columns:280px minmax(0,1fr) 300px;gap:16px;align-items:stretch;margin-bottom:20px}.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}.steps{padding:14px;display:flex;flex-direction:column;gap:9px;max-height:520px;overflow:auto}.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
-.viz{min-height:440px;display:flex;flex-direction:column;padding:18px}.stage{flex:1;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:radial-gradient(circle at 50% 20%,rgba(255,255,255,.05),transparent 50%),rgba(15,23,42,.64);overflow:hidden;display:flex;align-items:center;justify-content:center;}
-.pax-svg{width:100%;max-width:500px;height:auto;}
+.why-paxos{margin-bottom:22px;border:1px solid rgba(255,255,255,.08);background:linear-gradient(135deg,rgba(17,24,39,.88),rgba(30,41,59,.66));border-radius:22px;padding:24px}.why-head{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:18px}.why-head h2{font-size:clamp(1.25rem,2.2vw,1.8rem);margin-bottom:7px}.why-head p{color:var(--dim);font-size:.9rem;line-height:1.7}.safety-rule{flex:none;border:1px solid rgba(74,222,128,.32);background:rgba(74,222,128,.08);color:var(--ok);border-radius:12px;padding:9px 12px;font-size:.78rem;font-weight:800}.decision-story{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) 1.15fr;gap:10px;align-items:stretch}.replica-card,.decision-card{border:1px solid rgba(255,255,255,.08);border-radius:15px;padding:14px;background:rgba(255,255,255,.035)}.replica-card strong,.decision-card strong{display:block;font-size:.84rem;margin-bottom:6px}.replica-card span,.decision-card span{display:block;color:var(--dim);font-size:.78rem;line-height:1.55}.replica-card.voted{border-color:rgba(192,132,252,.35)}.replica-card.voted strong{color:#e9d5ff}.replica-card.offline{opacity:.58}.decision-card{border-color:rgba(74,222,128,.32);background:rgba(74,222,128,.07)}.decision-card strong{color:var(--ok)}.plain-rules{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}.plain-rule{padding:12px 14px;border-radius:13px;background:rgba(15,23,42,.55);color:var(--dim);font-size:.8rem;line-height:1.6}.plain-rule b{color:var(--text);margin-right:5px}.lab-guide{padding:4px 4px 2px}.lab-guide h2{font-size:1.25rem;margin-bottom:7px}.lab-guide p{color:var(--dim);font-size:.88rem;line-height:1.7}.role-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.role-legend span{border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.035);border-radius:999px;padding:6px 10px;color:var(--dim);font-size:.75rem}.role-legend b{color:var(--text)}
+.role-background,.use-cases{margin-bottom:22px;border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.68);border-radius:22px;padding:24px}.section-intro h2{font-size:clamp(1.2rem,2vw,1.65rem);margin-bottom:7px}.section-intro p{color:var(--dim);font-size:.9rem;line-height:1.75;max-width:900px}.role-flow{display:grid;grid-template-columns:1fr auto 1fr auto 1.2fr auto 1fr;align-items:stretch;gap:9px;margin-top:18px}.role-card{border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);border-radius:15px;padding:14px}.role-card strong{display:block;color:var(--text);font-size:.84rem;margin-bottom:6px}.role-card span{display:block;color:var(--dim);font-size:.77rem;line-height:1.6}.role-card em{display:inline-block;margin-bottom:7px;color:var(--accent);font-size:.68rem;font-style:normal;font-weight:800;text-transform:uppercase;letter-spacing:.08em}.role-arrow{align-self:center;color:var(--accent);font-size:1.15rem}.term-notes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}.term-note{border-radius:13px;background:rgba(15,23,42,.58);padding:12px 14px;color:var(--dim);font-size:.8rem;line-height:1.65}.term-note b{display:block;color:var(--text);margin-bottom:3px}.case-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:18px}.case-card{border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);border-radius:15px;padding:15px}.case-card strong{display:block;color:#e9d5ff;font-size:.86rem;margin-bottom:7px}.case-card p{color:var(--dim);font-size:.78rem;line-height:1.65}.case-note{margin-top:12px;border-left:3px solid var(--warn);background:rgba(251,191,36,.06);border-radius:0 12px 12px 0;padding:11px 14px;color:var(--dim);font-size:.8rem;line-height:1.65}.case-note b{color:var(--warn)}
+.lab{display:flex;flex-direction:column;gap:16px;margin-bottom:20px}.panel{border:1px solid rgba(255,255,255,.08);background:rgba(30,41,59,.58);border-radius:20px;overflow:hidden}.panel-hd{padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.07);font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;font-weight:800}.steps{padding:14px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;max-height:420px;overflow:auto}.steps[hidden]{display:none}.step-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);color:var(--dim);border-radius:12px;padding:10px 12px;cursor:pointer;font-family:inherit;transition:all .16s}.step-btn:hover{color:var(--text);border-color:rgba(255,255,255,.16)}.step-btn.active{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}.step-btn b{display:block;font-size:.76rem;color:var(--accent);margin-bottom:4px}
+.viz{min-height:540px;display:flex;flex-direction:column;padding:20px}.stage-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px;padding:0 4px}.stage-hint{color:var(--dim);font-size:.78rem;line-height:1.5}.stage-hint b{color:var(--text)}.stage{flex:1;min-height:460px;border:1px solid rgba(255,255,255,.08);border-radius:18px;background:radial-gradient(circle at 50% 20%,rgba(192,132,252,.09),transparent 46%),rgba(15,23,42,.72);overflow:hidden;display:flex;align-items:center;justify-content:center;}
+.pax-svg{width:min(100%,860px);height:100%;max-height:500px;}
+.quorum-meter{flex:none;display:flex;align-items:center;gap:9px;border:1px solid rgba(255,255,255,.1);background:rgba(15,23,42,.72);border-radius:999px;padding:7px 11px;color:var(--dim);font-size:.72rem;font-weight:800;letter-spacing:.04em}.quorum-meter::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--dim2);box-shadow:0 0 0 4px rgba(100,116,139,.12)}.quorum-meter.reached{color:var(--ok);border-color:rgba(74,222,128,.35);background:rgba(74,222,128,.06)}.quorum-meter.reached::before{background:var(--ok);box-shadow:0 0 12px rgba(74,222,128,.75)}
+.lane-line{stroke:rgba(148,163,184,.18);stroke-width:1.5;stroke-dasharray:5 7}.lane-caption{fill:#64748b;font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase}.sequence-note{fill:#64748b;font-size:10px;font-weight:700;letter-spacing:.08em}
 .pnode rect{fill:rgba(255,255,255,.055);stroke:rgba(255,255,255,.12);stroke-width:1.5;transition:all .3s;}
 .pnode text{fill:#94a3b8;transition:fill .3s;}
 .pnode.active rect{fill:color-mix(in srgb,var(--accent) 16%,transparent);stroke:var(--accent);stroke-width:2;}
@@ -32,16 +36,18 @@
 .pnode.recover text{fill:#4ade80;}
 .pnode.chosen rect{fill:color-mix(in srgb,#4ade80 18%,transparent);stroke:#4ade80;stroke-width:2.5;}
 .pnode.chosen text{fill:#4ade80;}
-.pedge{stroke:rgba(255,255,255,.15);stroke-width:1.5;fill:none;transition:all .3s;}
-.pedge.active{stroke:var(--accent);stroke-width:2.5;filter:drop-shadow(0 0 4px color-mix(in srgb,var(--accent) 50%,transparent));}
-.pedge.fail{stroke:#f87171;stroke-width:2;}
-.pedge.conflict{stroke:#fbbf24;stroke-width:2;}
-.pmsg{font-size:9px;fill:#94a3b8;transition:all .3s;}
-.pmsg.active{fill:var(--accent);}
-.pmsg.conflict{fill:#fbbf24;}
+.pedge{stroke:rgba(226,232,240,.32);stroke-width:2;fill:none;transition:all .3s;stroke-linecap:round;}
+.pedge.active{stroke:var(--accent);stroke-width:3.5;filter:drop-shadow(0 0 6px color-mix(in srgb,var(--accent) 70%,transparent));stroke-dasharray:9 5;animation:edge-flow .8s linear infinite;}
+.pedge.fail{stroke:#f87171;stroke-width:3;}
+.pedge.conflict{stroke:#fbbf24;stroke-width:3.25;filter:drop-shadow(0 0 5px rgba(251,191,36,.5));}
+.pmsg{font-size:11px;font-weight:700;fill:#cbd5e1;paint-order:stroke;stroke:#0f172a;stroke-width:4px;stroke-linejoin:round;transition:all .3s;}
+.pmsg.active{fill:#e9d5ff;}
+.pmsg.conflict{fill:#fde68a;}
+@keyframes edge-flow{to{stroke-dashoffset:-14}}
+@media(prefers-reduced-motion:reduce){.pedge.active{animation:none}.pedge,.pnode rect,.pnode text,.pmsg{transition:none}}
 
-.status{margin-top:14px;border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px;background:rgba(255,255,255,.035)}.status h2{font-size:1rem;margin-bottom:8px;color:var(--text)}.status p{color:var(--dim);font-size:.9rem;line-height:1.75}.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}.badge.failure{border-color:var(--bad);color:var(--bad)}.badge.recovery{border-color:var(--ok);color:var(--ok)}.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit}.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}.ctrl:disabled{opacity:.45;cursor:not-allowed}
-.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}.btn:hover{color:var(--text);border-color:var(--accent)}@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
+.current-step .panel-hd,.timeline-panel .panel-hd{display:flex;align-items:center;justify-content:space-between;gap:12px}.step-progress{color:var(--accent);font-family:monospace;letter-spacing:0;text-transform:none}.status{padding:18px 20px;background:linear-gradient(135deg,rgba(192,132,252,.08),rgba(255,255,255,.025))}.status h2{font-size:1.08rem;margin-bottom:8px;color:var(--text)}.status p{color:var(--dim);font-size:.92rem;line-height:1.75}.badge{display:inline-flex;margin-bottom:8px;border-radius:999px;padding:3px 8px;font-size:.68rem;font-family:monospace;border:1px solid var(--accent);color:var(--accent)}.badge.failure{border-color:var(--bad);color:var(--bad)}.badge.recovery{border-color:var(--ok);color:var(--ok)}.controls{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:16px}.ctrl{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:var(--text);border-radius:10px;padding:8px 12px;cursor:pointer;font-family:inherit}.ctrl.primary{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}.ctrl:disabled{opacity:.45;cursor:not-allowed}.timeline-toggle{border:0;background:none;color:var(--accent);font:inherit;font-weight:800;cursor:pointer;padding:4px 0}.timeline-toggle:hover{color:#e9d5ff}.timeline-toggle:focus-visible,.ctrl:focus-visible,.step-btn:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}.btn:hover{color:var(--text);border-color:var(--accent)}@media(max-width:1000px){.hero,.deep{grid-template-columns:1fr}.role-flow{grid-template-columns:1fr}.role-arrow{transform:rotate(90deg);justify-self:center}.term-notes{grid-template-columns:1fr 1fr}.case-grid,.decision-story{grid-template-columns:repeat(2,1fr)}.content{padding:28px 16px 56px}.viz{min-height:500px}.stage{min-height:420px}}@media(max-width:640px){.why-head{flex-direction:column}.case-grid,.term-notes,.decision-story,.plain-rules{grid-template-columns:1fr}.viz{min-height:410px;padding:12px}.stage-toolbar{align-items:flex-start}.stage-hint{max-width:190px}.stage{min-height:330px}.steps{grid-template-columns:1fr}.status{padding:16px}.pmsg{font-size:10px}.controls{margin-top:12px}}
 </style>
 <script>window.PAGE_CONCEPTS=[
   {"title":"Proposer","body":"提出带编号提案的角色，先发 Prepare 获得多数派承诺再发 Accept。","tag":"term"},
@@ -50,126 +56,81 @@
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
-    <div class="card"><div class="eyebrow">分布式 / paxos / C 类型</div><h1>Paxos</h1><p class="summary">Paxos 通过提案号和多数派交集，让多个节点即使并发提案也只能选择一个值。</p><div class="tags"><span>Prepare</span><span>Accept</span><span>Quorum</span></div></div>
-    <div class="card"><div class="eyebrow">核心术语</div><ul class="concept-list"><li><strong>Proposer</strong><span>提出带编号提案的角色，先发 Prepare 获得多数派承诺再发 Accept。</span></li><li><strong>Acceptor</strong><span>承诺和接受提案的角色，多数派接受即 chosen。</span></li><li><strong>Proposal Number</strong><span>单调递增编号，用来让新提案覆盖旧提案。</span></li></ul></div>
+    <div class="card"><div class="eyebrow">分布式 / paxos</div><h1>Paxos</h1><p class="summary">Paxos 要解决一个看似简单的问题：多个节点可能宕机、消息可能延迟、还可能有人同时提出不同答案，但系统最终只能确认同一个值。</p><div class="tags"><span>只选一个值</span><span>容忍少数故障</span><span>安全优先</span></div></div>
+    <div class="card"><div class="eyebrow">先记住三件事</div><ul class="concept-list"><li><strong>问题</strong><span>多个副本必须对同一个决定达成一致，不能一部分认 X、另一部分认 Y。</span></li><li><strong>目标</strong><span>一个值一旦被多数派选定，后来的竞争者也不能推翻它。</span></li><li><strong>代价</strong><span>网络不稳定时可以暂时做不出决定，但绝不能确认两个不同结果。</span></li></ul></div>
+  </section>
+  <section class="role-background" aria-labelledby="roleTitle">
+    <div class="section-intro"><div class="eyebrow">先补齐背景</div><h2 id="roleTitle">把 Paxos 放回一个真实的配置中心</h2><p>为了避免一台机器宕机就丢失配置，配置中心会让 A1、A2、A3 三台服务器保存同一份配置。这里的“副本”就是同一份数据在不同服务器上的拷贝；Paxos 用来决定这些副本共同认可哪个版本。</p></div>
+    <div class="role-flow"><div class="role-card"><em>请求方</em><strong>管理员：把配置改为 X</strong><span>这是业务请求，希望系统接受一个新的候选值。</span></div><div class="role-arrow">→</div><div class="role-card"><em>Proposer / 提案者</em><strong>配置中心 Leader：发起提案</strong><span>把“配置 X”和唯一提案号组合起来，向副本请求承诺和接受。</span></div><div class="role-arrow">→</div><div class="role-card"><em>Acceptor / 接受者</em><strong>A1、A2、A3：保存配置的副本</strong><span>它们记录见过的最大提案号和接受过的值，既是投票者，也是防止历史被遗忘的持久化节点。</span></div><div class="role-arrow">→</div><div class="role-card"><em>Learner / 学习者</em><strong>业务服务：读取最终配置</strong><span>当多数派接受 X 后，业务服务获知 X 已被选定并开始使用。</span></div></div>
+    <div class="term-notes"><div class="term-note"><b>提案是什么？</b>一个带唯一编号的候选值，例如“第 7 号提案：配置更新为 X”。</div><div class="term-note"><b>多数派是什么？</b>超过全部接受者的一半。本例共有 3 个副本，因此至少需要 2 个。</div><div class="term-note"><b>选定是什么？</b>某个值被多数派接受后成为不可被后续提案推翻的唯一结果。</div></div>
+  </section>
+  <section class="why-paxos" aria-labelledby="whyTitle">
+    <div class="why-head"><div><div class="eyebrow">为什么需要 Paxos</div><h2 id="whyTitle">三个配置副本，要决定下一版配置是 X 还是 Y</h2><p>节点可能失联，两个请求也可能同时到达。系统需要在这些不确定条件下仍然守住唯一结果。</p></div><div class="safety-rule">宁可暂时没有答案，也不能出现两个答案</div></div>
+    <div class="decision-story"><div class="replica-card voted"><strong>A1：接受 X</strong><span>记录提案号和候选值 X</span></div><div class="replica-card voted"><strong>A2：接受 X</strong><span>X 获得第二票，形成多数派</span></div><div class="replica-card offline"><strong>A3：暂时失联</strong><span>少数节点故障不妨碍形成决定</span></div><div class="decision-card"><strong>结果：X 被选定</strong><span>以后即使新提案者想选 Y，也必须先发现多数派留下的 X，并继续选择 X。</span></div></div>
+    <div class="plain-rules"><div class="plain-rule"><b>① 编号竞争</b>更新的提案用更大的编号抢占旧轮次。</div><div class="plain-rule"><b>② 多数派交集</b>任意两个多数派至少共享一个节点，因此历史不会完全丢失。</div><div class="plain-rule"><b>③ 继承旧值</b>发现已经接受过的值后，新提案必须继承编号最高的历史值。</div></div>
+  </section>
+  <section class="use-cases" aria-labelledby="caseTitle">
+    <div class="section-intro"><div class="eyebrow">它通常出现在哪里</div><h2 id="caseTitle">当多个节点必须共同决定一件不能冲突的事</h2><p>Paxos 通常不是业务代码直接调用的接口，而是藏在分布式协调系统、复制状态机和控制平面的底层。</p></div>
+    <div class="case-grid"><article class="case-card"><strong>元数据与配置一致性</strong><p>集群节点需要共同决定配置版本、分片归属、成员列表或主节点信息。</p></article><article class="case-card"><strong>复制日志与状态机</strong><p>多个副本必须按相同顺序确认操作，才能保持数据库或协调服务状态一致；工程中通常使用 Multi-Paxos。</p></article><article class="case-card"><strong>Leader 与控制平面决策</strong><p>在多个候选者之间确定一个有效任期或控制者，并让后续节点认可同一轮决策。</p></article><article class="case-card"><strong>分布式协调基础设施</strong><p>锁、租约、服务发现等能力需要可靠的一致性存储，其底层常由 Paxos、Raft 或同类共识协议实现。</p></article></div>
+    <div class="case-note"><b>边界：</b>实际项目很少手写单值 Paxos。通常使用成熟系统提供的 Raft、Multi-Paxos 或其他共识实现；应用层直接使用它们暴露的配置、锁、选主或一致性存储能力。</div>
   </section>
   <section class="lab">
-    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <header class="lab-guide"><div class="eyebrow">交互演示</div><h2>现在再看协议如何守住这个结果</h2><p>先看紫色消息从谁发给谁，再看下方的自然语言解释；Prepare、Promise、Accept 只是实现上面三条规则的消息名称。</p><div class="role-legend"><span><b>P / Proposer</b>：提案者</span><span><b>A / Acceptor</b>：投票并保存历史的副本</span><span><b>Learner</b>：读取最终结果</span><span><b>Quorum</b>：多数派，本例为 2/3</span></div></header>
     <section class="panel viz">
+      <div class="stage-toolbar" aria-label="演示状态">
+        <div class="stage-hint"><b>多数派进度</b> · 3 个接受者中至少 2 个接受，值才会被选定</div>
+        <div class="quorum-meter" id="quorumMeter"><span>QUORUM</span><strong id="quorumText">0 / 3</strong></div>
+      </div>
       <div class="stage" id="stage">
-        <!--
-          Layout (SVG 500x360):
-          P1  (left top)   x=60,  y=30
-          P2  (right top)  x=340, y=30
-          A1  (left mid)   x=60,  y=160
-          A2  (center mid) x=200, y=160
-          A3  (right mid)  x=340, y=160
-          Learner (bottom) x=200, y=290
-
-          Edges (Prepare phase): P1→A1, P1→A2, P1→A3
-          Edges (Promise phase): A1→P1, A2→P1
-          Edges (Accept phase):  P1→A1, P1→A2
-          Edges (Conflict):      P2→A1, P2→A2, P2→A3
-          Edge (Chosen→Learn):   A2→Learner
-        -->
-        <svg class="pax-svg" viewBox="0 0 500 360" id="paxSvg">
+        <!-- Six fixed role lanes; each step reveals only its active messages. -->
+        <svg class="pax-svg" viewBox="0 0 1000 520" id="paxSvg" role="img" aria-label="Paxos 消息时序泳道图">
           <defs>
-            <marker id="parrN" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
-              <path d="M0,0 L0,6 L7,3 z" fill="rgba(255,255,255,.2)"/>
+            <marker id="parrN" markerWidth="9" markerHeight="9" refX="8" refY="4" orient="auto">
+              <path d="M0,0 L0,8 L9,4 z" fill="rgba(255,255,255,.32)"/>
             </marker>
-            <marker id="parrA" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
-              <path d="M0,0 L0,6 L7,3 z" fill="#c084fc"/>
+            <marker id="parrA" markerWidth="9" markerHeight="9" refX="8" refY="4" orient="auto">
+              <path d="M0,0 L0,8 L9,4 z" fill="#c084fc"/>
             </marker>
-            <marker id="parrF" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
-              <path d="M0,0 L0,6 L7,3 z" fill="#f87171"/>
+            <marker id="parrF" markerWidth="9" markerHeight="9" refX="8" refY="4" orient="auto">
+              <path d="M0,0 L0,8 L9,4 z" fill="#f87171"/>
             </marker>
-            <marker id="parrC" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
-              <path d="M0,0 L0,6 L7,3 z" fill="#fbbf24"/>
+            <marker id="parrC" markerWidth="9" markerHeight="9" refX="8" refY="4" orient="auto">
+              <path d="M0,0 L0,8 L9,4 z" fill="#fbbf24"/>
             </marker>
-            <marker id="parrG" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
-              <path d="M0,0 L0,6 L7,3 z" fill="#4ade80"/>
+            <marker id="parrG" markerWidth="9" markerHeight="9" refX="8" refY="4" orient="auto">
+              <path d="M0,0 L0,8 L9,4 z" fill="#4ade80"/>
             </marker>
           </defs>
+          <text class="sequence-note" x="34" y="122">TIME ↓</text>
+          <g opacity=".9">
+            <line class="lane-line" x1="80" y1="104" x2="80" y2="482"/><line class="lane-line" x1="240" y1="104" x2="240" y2="482"/>
+            <line class="lane-line" x1="400" y1="104" x2="400" y2="482"/><line class="lane-line" x1="560" y1="104" x2="560" y2="482"/>
+            <line class="lane-line" x1="720" y1="104" x2="720" y2="482"/><line class="lane-line" x1="900" y1="104" x2="900" y2="482"/>
+          </g>
+          <g id="pn0" class="pnode"><rect x="20" y="24" width="120" height="66" rx="14"/><text x="80" y="49" text-anchor="middle" font-size="14" font-weight="800">P1</text><text class="lane-caption" x="80" y="70" text-anchor="middle">提案者</text></g>
+          <g id="pn1" class="pnode"><rect x="180" y="24" width="120" height="66" rx="14"/><text x="240" y="49" text-anchor="middle" font-size="14" font-weight="800">P2</text><text class="lane-caption" x="240" y="70" text-anchor="middle">提案者</text></g>
+          <g id="pn2" class="pnode"><rect x="340" y="24" width="120" height="66" rx="14"/><text x="400" y="47" text-anchor="middle" font-size="14" font-weight="800">A1</text><text x="400" y="69" text-anchor="middle" font-size="10" id="a1state">空闲</text></g>
+          <g id="pn3" class="pnode"><rect x="500" y="24" width="120" height="66" rx="14"/><text x="560" y="47" text-anchor="middle" font-size="14" font-weight="800">A2</text><text x="560" y="69" text-anchor="middle" font-size="10" id="a2state">空闲</text></g>
+          <g id="pn4" class="pnode"><rect x="660" y="24" width="120" height="66" rx="14"/><text x="720" y="47" text-anchor="middle" font-size="14" font-weight="800">A3</text><text x="720" y="69" text-anchor="middle" font-size="10" id="a3state">空闲</text></g>
+          <g id="pn5" class="pnode"><rect x="840" y="24" width="120" height="66" rx="14"/><text x="900" y="47" text-anchor="middle" font-size="14" font-weight="800">学习者</text><text x="900" y="69" text-anchor="middle" font-size="10" id="lstate">等待</text></g>
 
-          <!-- === Edges === -->
-          <!-- e0: P1→A1 (Prepare) -->
-          <line id="pe0" class="pedge" x1="88" y1="60" x2="88" y2="152" marker-end="url(#parrN)"/>
-          <!-- e1: P1→A2 (Prepare) -->
-          <line id="pe1" class="pedge" x1="100" y1="62" x2="218" y2="152" marker-end="url(#parrN)"/>
-          <!-- e2: P1→A3 (Prepare) -->
-          <line id="pe2" class="pedge" x1="112" y1="60" x2="352" y2="152" marker-end="url(#parrN)"/>
-          <!-- e3: A1→P1 (Promise) -->
-          <line id="pe3" class="pedge" x1="76" y1="152" x2="76" y2="62" marker-end="url(#parrN)" stroke-dasharray="4 3"/>
-          <!-- e4: A2→P1 (Promise) -->
-          <line id="pe4" class="pedge" x1="194" y1="154" x2="100" y2="62" marker-end="url(#parrN)" stroke-dasharray="4 3"/>
-          <!-- e5: P2→A1 (P2 Prepare/conflict) -->
-          <line id="pe5" class="pedge" x1="360" y1="62" x2="100" y2="154" marker-end="url(#parrN)" style="opacity:0"/>
-          <!-- e6: P2→A2 (P2 Prepare) -->
-          <line id="pe6" class="pedge" x1="368" y1="62" x2="238" y2="154" marker-end="url(#parrN)" style="opacity:0"/>
-          <!-- e7: P2→A3 (P2 Prepare) -->
-          <line id="pe7" class="pedge" x1="380" y1="62" x2="368" y2="154" marker-end="url(#parrN)" style="opacity:0"/>
-          <!-- e8: A2→Learner (Chosen notify) -->
-          <line id="pe8" class="pedge" x1="240" y1="204" x2="240" y2="282" marker-end="url(#parrN)" style="opacity:0"/>
-          <!-- e9: A1→Learner (Chosen notify) -->
-          <line id="pe9" class="pedge" x1="100" y1="204" x2="222" y2="284" marker-end="url(#parrN)" style="opacity:0"/>
+          <line id="pe0" class="pedge" x1="80" y1="220" x2="400" y2="220" marker-end="url(#parrN)"/><line id="pe1" class="pedge" x1="80" y1="260" x2="560" y2="260" marker-end="url(#parrN)"/><line id="pe2" class="pedge" x1="80" y1="300" x2="720" y2="300" marker-end="url(#parrN)"/>
+          <line id="pe3" class="pedge" x1="400" y1="240" x2="80" y2="240" marker-end="url(#parrN)"/><line id="pe4" class="pedge" x1="560" y1="285" x2="80" y2="285" marker-end="url(#parrN)"/>
+          <line id="pe5" class="pedge" x1="240" y1="220" x2="400" y2="220" marker-end="url(#parrN)"/><line id="pe6" class="pedge" x1="240" y1="260" x2="560" y2="260" marker-end="url(#parrN)"/><line id="pe7" class="pedge" x1="240" y1="300" x2="720" y2="300" marker-end="url(#parrN)"/>
+          <line id="pe8" class="pedge" x1="560" y1="245" x2="900" y2="245" marker-end="url(#parrN)"/><line id="pe9" class="pedge" x1="400" y1="290" x2="900" y2="290" marker-end="url(#parrN)"/>
 
-          <!-- === Message labels === -->
-          <text id="msg0" class="pmsg" x="50" y="110" text-anchor="middle" style="opacity:0">Prepare(n=1)</text>
-          <text id="msg1" class="pmsg" x="168" y="100" text-anchor="middle" style="opacity:0">Prepare(n=1)</text>
-          <text id="msg2" class="pmsg" x="246" y="92" text-anchor="middle" style="opacity:0">Prepare(n=1)</text>
-          <text id="msg3" class="pmsg" x="50" y="110" text-anchor="middle" style="opacity:0">Promise(n=1)</text>
-          <text id="msg4" class="pmsg" x="148" y="104" text-anchor="middle" style="opacity:0">Promise(n=1)</text>
-          <text id="msg5" class="pmsg" x="50" y="110" text-anchor="middle" style="opacity:0">Accept(n=1,v=X)</text>
-          <text id="msg6" class="pmsg" x="148" y="104" text-anchor="middle" style="opacity:0">Accept(n=1,v=X)</text>
-          <text id="msg7" class="pmsg" x="254" y="100" text-anchor="middle" style="opacity:0">Prepare(n=2)</text>
-
-          <!-- === Nodes === -->
-          <!-- P1: Proposer 1 -->
-          <g id="pn0" class="pnode">
-            <rect x="28" y="18" width="112" height="46" rx="10"/>
-            <text x="84" y="37" text-anchor="middle" font-size="11" font-weight="700">P1</text>
-            <text x="84" y="53" text-anchor="middle" font-size="9.5" fill="#64748b">Proposer</text>
-          </g>
-          <!-- P2: Proposer 2 -->
-          <g id="pn1" class="pnode">
-            <rect x="316" y="18" width="112" height="46" rx="10"/>
-            <text x="372" y="37" text-anchor="middle" font-size="11" font-weight="700">P2</text>
-            <text x="372" y="53" text-anchor="middle" font-size="9.5" fill="#64748b">Proposer</text>
-          </g>
-          <!-- A1: Acceptor 1 -->
-          <g id="pn2" class="pnode">
-            <rect x="28" y="152" width="104" height="52" rx="10"/>
-            <text x="80" y="172" text-anchor="middle" font-size="11" font-weight="700">A1</text>
-            <text x="80" y="188" text-anchor="middle" font-size="9" fill="#64748b" id="a1state">空闲</text>
-          </g>
-          <!-- A2: Acceptor 2 -->
-          <g id="pn3" class="pnode">
-            <rect x="172" y="152" width="104" height="52" rx="10"/>
-            <text x="224" y="172" text-anchor="middle" font-size="11" font-weight="700">A2</text>
-            <text x="224" y="188" text-anchor="middle" font-size="9" fill="#64748b" id="a2state">空闲</text>
-          </g>
-          <!-- A3: Acceptor 3 -->
-          <g id="pn4" class="pnode">
-            <rect x="316" y="152" width="104" height="52" rx="10"/>
-            <text x="368" y="172" text-anchor="middle" font-size="11" font-weight="700">A3</text>
-            <text x="368" y="188" text-anchor="middle" font-size="9" fill="#64748b" id="a3state">空闲</text>
-          </g>
-          <!-- Learner -->
-          <g id="pn5" class="pnode">
-            <rect x="172" y="284" width="104" height="46" rx="10"/>
-            <text x="224" y="303" text-anchor="middle" font-size="11" font-weight="700">Learner</text>
-            <text x="224" y="319" text-anchor="middle" font-size="9" fill="#64748b" id="lstate">等待</text>
-          </g>
-
-          <!-- value indicator -->
-          <text id="valueLabel" x="250" y="348" text-anchor="middle" font-size="10" fill="#64748b"></text>
+          <text id="msg0" class="pmsg" x="240" y="212" text-anchor="middle" style="opacity:0">Prepare(n=1) → A1</text><text id="msg1" class="pmsg" x="320" y="252" text-anchor="middle" style="opacity:0">Prepare(n=1) → A2</text><text id="msg2" class="pmsg" x="400" y="292" text-anchor="middle" style="opacity:0">Prepare(n=1) → A3</text>
+          <text id="msg3" class="pmsg" x="240" y="232" text-anchor="middle" style="opacity:0">A1 Promise(n=1)</text><text id="msg4" class="pmsg" x="320" y="277" text-anchor="middle" style="opacity:0">A2 Promise(n=1) · quorum</text>
+          <text id="msg5" class="pmsg" x="240" y="212" text-anchor="middle" style="opacity:0">Accept(n=1, v=X) → A1</text><text id="msg6" class="pmsg" x="320" y="252" text-anchor="middle" style="opacity:0">Accept(n=1, v=X) → A2</text><text id="msg7" class="pmsg" x="400" y="252" text-anchor="middle" style="opacity:0">P2 Prepare(n=2) · higher ballot</text>
+          <text id="valueLabel" x="500" y="512" text-anchor="middle" font-size="12" font-weight="800" fill="#94a3b8"></text>
         </svg>
       </div>
       <div class="controls"><button class="ctrl" id="btnReset">重置</button><button class="ctrl" id="btnPrev">上一步</button><button class="ctrl primary" id="btnPlay">播放</button><button class="ctrl" id="btnNext">下一步</button></div>
     </section>
-    <aside class="panel"><div class="panel-hd">当前状态</div><div class="status"><span class="badge" id="stateBadge">normal</span><h2 id="stepTitle"></h2><p id="stepDesc"></p><p id="stepDetail" style="margin-top:8px;font-size:.82rem;"></p></div></aside>
+    <section class="panel current-step" aria-live="polite"><div class="panel-hd"><span>当前步骤</span><span class="step-progress" id="stepProgress">1 / 7</span></div><div class="status"><span class="badge" id="stateBadge">normal</span><h2 id="stepTitle"></h2><p id="stepDesc"></p><p id="stepDetail" style="margin-top:8px;font-size:.82rem;"></p></div></section>
+    <section class="panel timeline-panel"><div class="panel-hd"><span>Step Timeline</span><button class="timeline-toggle" id="timelineToggle" type="button" aria-expanded="false" aria-controls="stepList">展开全部步骤</button></div><div class="steps" id="stepList" hidden></div></section>
   </section>
   <section class="deep">
     <section><h2>背景与机制</h2><p>Paxos 解决的是在不可靠网络中选择同一个值的问题。它难懂的地方在于安全性优先：宁可暂时没有进展，也不能让两个不同值都被选中。</p></section>
@@ -304,6 +265,7 @@ const STEPS = [
 const NODE_IDS = ['pn0','pn1','pn2','pn3','pn4','pn5'];
 const EDGE_IDS = ['pe0','pe1','pe2','pe3','pe4','pe5','pe6','pe7','pe8','pe9'];
 const A_STATE_IDS = ['a1state','a2state','a3state'];
+const QUORUM_COUNTS = [0,2,2,2,3,2,3];
 let idx = 0, timer = null;
 const list      = document.getElementById('stepList');
 const titleEl   = document.getElementById('stepTitle');
@@ -311,6 +273,10 @@ const descEl    = document.getElementById('stepDesc');
 const detailEl  = document.getElementById('stepDetail');
 const badge     = document.getElementById('stateBadge');
 const play      = document.getElementById('btnPlay');
+const progress  = document.getElementById('stepProgress');
+const timelineToggle = document.getElementById('timelineToggle');
+const quorumMeter = document.getElementById('quorumMeter');
+const quorumText = document.getElementById('quorumText');
 
 function render() {
   const s = STEPS[idx];
@@ -319,6 +285,9 @@ function render() {
   detailEl.textContent = s.detail;
   badge.textContent = s.kind;
   badge.className = 'badge ' + s.kind;
+  progress.textContent = `${idx + 1} / ${STEPS.length}`;
+  quorumText.textContent = `${QUORUM_COUNTS[idx]} / 3`;
+  quorumMeter.classList.toggle('reached', QUORUM_COUNTS[idx] >= 2);
 
   document.getElementById('valueLabel').textContent = s.valueLabel;
   if (s.lState) document.getElementById('lstate').textContent = s.lState;
@@ -392,6 +361,12 @@ document.getElementById('btnNext').onclick  = next;
 document.getElementById('btnPrev').onclick  = prev;
 document.getElementById('btnReset').onclick = reset;
 play.onclick = toggle;
+timelineToggle.onclick = () => {
+  const expanded = timelineToggle.getAttribute('aria-expanded') === 'true';
+  timelineToggle.setAttribute('aria-expanded', String(!expanded));
+  timelineToggle.textContent = expanded ? '展开全部步骤' : '收起全部步骤';
+  list.hidden = expanded;
+};
 drawList();
 render();
 </script>

@@ -60,7 +60,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
 .nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;margin-bottom:0;}
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;}
 .back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{margin:0;font-size:1.06rem;font-weight:700;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .table-wrap{overflow-x:auto;margin:10px 0;}
@@ -74,7 +74,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
 <body>
 <div class="nav-bar">
   <a href="index.html" class="back">← 返回</a>
-  <span class="nav-title">🔷 类型系统</span>
+  <h1 class="nav-title">🔷 类型系统</h1>
   <div class="nav-tags">
     <span class="ntag">types</span>
     <span class="ntag">zero-value</span>
@@ -196,10 +196,11 @@ tr:hover td{background:rgba(255,255,255,.02);}
           <p><strong>unsafe.Pointer</strong>：绕过类型系统的"逃生舱"，可以将任意指针转换为 unsafe.Pointer 再转换为其他类型，但这是不安全操作，仅在极特殊场景使用（如与 C 互操作、零拷贝优化）。</p>
           <pre><span class="kw">import</span> <span class="st">"unsafe"</span>
 
-<span class="cm">// 零拷贝 string → []byte（不推荐生产使用）</span>
+<span class="cm">// Go 1.20+：零拷贝只读视图；绝不能修改返回切片</span>
 <span class="kw">func</span> <span class="fn">unsafeBytes</span>(<span class="id">s</span> <span class="pkg">string</span>) []<span class="pkg">byte</span> {
-    <span class="kw">return</span> *(*[]<span class="pkg">byte</span>)(<span class="id">unsafe</span>.<span class="fn">Pointer</span>(&amp;<span class="id">s</span>))
+    <span class="kw">return</span> <span class="id">unsafe</span>.<span class="fn">Slice</span>(<span class="id">unsafe</span>.<span class="fn">StringData</span>(<span class="id">s</span>), <span class="fn">len</span>(<span class="id">s</span>))
 }</pre>
+          <p>不能把字符串头直接重解释为切片头：二者布局不同，伪造的切片容量无定义。即使使用官方 unsafe API，修改由字符串支撑的内存仍属未定义行为；普通业务代码应使用安全转换。</p>
         </div>
       </div>
     </div>

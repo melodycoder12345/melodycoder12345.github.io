@@ -18,16 +18,16 @@
 <script src="../concept.js"></script>
 <link rel="stylesheet" href="ai.css">
 <script>window.PAGE_CONCEPTS=[
-  {"title":"SFT","body":"Supervised Fine-Tuning，用人工标注的指令-回答对训练模型，把预训练模型从"续写"能力转变为"指令跟随"能力。","tag":"term"},
-  {"title":"LoRA","body":"Low-Rank Adaptation，在原始权重矩阵旁插入低秩矩阵 A×B，只训练 A 和 B，参数量仅为原来的 0.1%-1%。","tag":"term"},
-  {"title":"PEFT","body":"参数高效微调，包含 LoRA、Prefix Tuning、P-Tuning 等方法，用小量可训练参数达到接近全量微调的效果。","tag":"term"}
+  {"title":"SFT","body":"Supervised Fine-Tuning，用示范样本继续训练模型，使输出分布更贴近目标任务和指令格式。","tag":"term"},
+  {"title":"LoRA","body":"Low-Rank Adaptation，冻结原权重并训练低秩增量；可训练参数量由 rank 和目标层共同决定。","tag":"term"},
+  {"title":"PEFT","body":"参数高效微调包含 LoRA、Prefix Tuning、P-Tuning 等方法，只调整一部分参数；效果需相对全量微调和提示基线评测。","tag":"term"}
 ];</script>
 </head>
 <body>
-<main class="shell" data-page-type="C">
+<main class="shell">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">AI / Fine-tuning / C 类型</div>
+      <div class="eyebrow">AI / Fine-tuning</div>
       <h1>微调（Fine-tuning）</h1>
       <p class="summary">微调让预训练模型适应特定任务或领域，而不是从头训练。SFT 用高质量指令数据对齐任务格式，LoRA 通过低秩分解只更新少量参数，大幅降低计算成本。</p>
       <div class="tags"><span>SFT</span><span>LoRA</span><span>PEFT</span><span>指令数据</span></div>
@@ -35,7 +35,7 @@
     <div class="card map">
       <div class="eyebrow">核心术语</div>
       <div class="term"><strong>SFT（Supervised Fine-Tuning）</strong><span>用人工标注的指令-回答对训练模型，把预训练模型从"续写"能力转变为"指令跟随"能力。训练时只计算 output 部分的 loss，系统提示和指令部分的 loss 被 mask 掉。</span></div>
-      <div class="term"><strong>LoRA（Low-Rank Adaptation）</strong><span>在原始权重矩阵 W 旁边插入低秩矩阵 A×B，只训练 A 和 B，参数量仅为原来的 0.1%-1%。推理时合并为 W_new = W + α×B×A，零额外延迟。</span></div>
+      <div class="term"><strong>LoRA（Low-Rank Adaptation）</strong><span>冻结原权重并训练低秩增量 B×A；可训练参数比例由 rank 和目标层决定。合并权重后不再执行独立适配器分支，但实际延迟仍由实现和量化格式决定。</span></div>
       <div class="term"><strong>PEFT（参数高效微调）</strong><span>包含 LoRA、Prefix Tuning、P-Tuning 等方法，用小量可训练参数达到接近全量微调的效果，核心思想是"冻结大部分权重，只调整少量参数"。</span></div>
     </div>
   </section>
@@ -49,12 +49,12 @@
   <section class="grid">
     <article class="section">
       <h2>全量微调 vs LoRA</h2>
-      <p>全量微调更新模型所有参数，对 7B 模型需要约 40-80 GB GPU 显存（FP32 梯度+优化器状态），大多数团队无法承担。LoRA 只需训练 0.1%-1% 的参数，显存降低 4-8 倍，同时效果接近全量微调。</p>
+      <p>全量微调更新全部参数，还要存储梯度、优化器状态和激活；显存取决于精度、优化器、序列长度、batch、并行与重计算策略。LoRA 减少可训练参数和相关状态，但基础权重与激活仍占显存，效果也需按任务评测。</p>
       <ul>
         <li><strong>参数量对比</strong>：7B 全量 = 7×10⁹ 参数；LoRA rank=8 ≈ 400万参数</li>
-        <li><strong>显存对比</strong>：全量 7B 需要 ≥56GB；LoRA 可在 16GB 单卡运行</li>
-        <li><strong>效果对比</strong>：大多数任务 LoRA ≈ 全量，特殊领域适配略差</li>
-        <li><strong>QLoRA</strong>：用 4-bit 量化加载基础权重 + LoRA，进一步降低到 6-8GB</li>
+        <li><strong>显存对比</strong>：不能只由参数量推导；应对指定模型、上下文、batch 和训练栈实测峰值</li>
+        <li><strong>效果对比</strong>：LoRA 与全量微调没有普遍优劣保证，应使用留出集和业务评测比较</li>
+        <li><strong>QLoRA</strong>：用 4-bit NormalFloat 存储冻结基座并训练 LoRA，可进一步降低权重相关显存，但不消除激活和运行时开销</li>
       </ul>
     </article>
     <article class="section">
@@ -77,7 +77,7 @@ model = get_peft_model(base_model, config)</pre>
     </article>
     <article class="section">
       <h2>数据质量 &gt; 数据数量</h2>
-      <p>SFT 的核心原则：用 1000 条高质量指令数据往往优于 100万条低质量数据。数据构造的关键原则：</p>
+      <p>SFT 的数据质量、覆盖范围和数量共同影响结果；不存在“若干高质量样本必然胜过某个更大数据集”的通用阈值。数据构造的关键原则：</p>
       <ul>
         <li><strong>多样性</strong>：覆盖目标任务的各种子类型、难度和风格，避免分布偏差。</li>
         <li><strong>格式一致性</strong>：系统提示、指令、输出的格式要统一，模型会学习模板本身。</li>
@@ -122,7 +122,7 @@ window.AI_DEMO = {
   steps: [
     {kicker:'data',    title:'准备指令数据集',         badge:'ingest',
      nodes:['dataset'],
-     desc:'以 {"instruction": ..., "output": ...} 格式组织训练数据。数据质量比数量更重要，1000 条高质量数据优于 10万条低质量数据。',
+     desc:'以 {"instruction": ..., "output": ...} 等与模型聊天模板一致的格式组织数据，并同时检查质量、覆盖范围、重复和泄漏。',
      metrics:[{label:'格式',value:'instruction-output'},{label:'质量优先',value:'✓'}]},
 
     {kicker:'tokenize', title:'数据 Tokenize',          badge:'preprocess',
@@ -132,15 +132,15 @@ window.AI_DEMO = {
 
     {kicker:'sft',     title:'SFT 训练循环开始',        badge:'training',
      nodes:['tokenizer','base'], edges:['e2','e3'],
-     desc:'全量微调：更新模型所有参数。7B 模型需要约 56GB+ GPU 显存（含梯度和优化器状态），大多数团队无法承担这个成本。',
-     metrics:[{label:'7B 全量显存',value:'≥ 56 GB'},{label:'参数量',value:'7×10⁹'}]},
+     desc:'全量微调更新所有参数；峰值显存还取决于精度、优化器、激活、序列长度、batch、并行和重计算，不能用“7B”单独给出固定值。',
+     metrics:[{label:'显存',value:'按配置测量'},{label:'参数量',value:'7×10⁹'}]},
 
     {kicker:'problem',  title:'全量微调的显存瓶颈',      badge:'bottleneck', tone:'warn',
      nodes:['base'],
      warnNodes:['base'],
-     desc:'FP16 权重 14GB + FP32 梯度 28GB + Adam 优化器状态 56GB = 约 98GB 峰值显存。即使 A100 80GB 也不够，需要多卡。',
-     detail:'解决方案：用 LoRA 只训练低秩矩阵，显存降低到 16GB 以内。',
-     metrics:[{label:'峰值显存',value:'~98 GB'},{label:'方案',value:'→ LoRA'}]},
+     desc:'权重、梯度和 Adam 状态只是静态账目的一部分，混合精度主副本、激活和框架临时缓冲也会改变峰值；分片和重计算又能降低单卡占用。',
+     detail:'LoRA、量化基座、梯度检查点和分片是不同手段，应按目标训练配置组合并实测。',
+     metrics:[{label:'峰值显存',value:'配置相关'},{label:'方案',value:'LoRA / 分片'}]},
 
     {kicker:'lora-insert', title:'LoRA 插入结构',        badge:'PEFT',
      nodes:['base','lora'], edges:['e3'],
@@ -150,14 +150,14 @@ window.AI_DEMO = {
 
     {kicker:'train-lora', title:'只训练 A 和 B',         badge:'training',
      nodes:['lora','optim'], edges:['e4'],
-     desc:'Adam 优化器只维护 A 和 B 的梯度和动量，显存从 98GB 降到约 16GB。学习率通常比全量微调高 2-5 倍。',
-     metrics:[{label:'显存',value:'~16 GB'},{label:'学习率',value:'2e-4'}]},
+     desc:'优化器只为可训练适配器维护状态，通常降低训练显存；学习率和可运行 batch 必须按模型、数据与目标层调优。',
+     metrics:[{label:'显存',value:'需实测'},{label:'学习率',value:'需调优'}]},
 
     {kicker:'merge',   title:'推理时合并权重',           badge:'inference',
      nodes:['lora','finetuned'], edges:['e6','e5'],
      desc:'微调完成后，执行 merge_and_unload()，将 LoRA 矩阵合并回原始权重：W_new = W + α/r × B×A。推理时无额外延迟。',
      code:'# 合并权重（无推理开销）\nW_new = W_orig + (alpha/r) * B @ A\n# shape 与原始 W 完全相同',
-     metrics:[{label:'推理延迟',value:'0 额外开销'},{label:'文件大小',value:'等同原模型'}]},
+     metrics:[{label:'适配器分支',value:'已合并'},{label:'文件大小',value:'取决于保存格式'}]},
 
     {kicker:'monitor', title:'损失下降，验证集评估',       badge:'monitoring',
      goodNodes:['optim'],

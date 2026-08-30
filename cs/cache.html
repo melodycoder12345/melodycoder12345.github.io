@@ -23,7 +23,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
 .nav{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);flex-shrink:0;position:sticky;top:var(--snav-h,44px);z-index:10;}
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;display:flex;align-items:center;gap:5px;}
 .back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{font-size:1.06rem;font-weight:700;margin:0;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .main-area{display:flex;flex:none;height:calc(100vh - var(--snav-h,44px) - 88px);min-height:300px;overflow:hidden;}
@@ -103,7 +103,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
 
 <div class="nav">
   <a href="index.html" class="back">← 返回</a>
-  <span class="nav-title">Cache 层次</span>
+  <h1 class="nav-title">Cache 层次</h1>
   <div class="nav-tags">
     <span class="ntag">L1</span>
     <span class="ntag">L2</span>
@@ -153,7 +153,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
       </div>
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q">MESI 协议中 M→S 状态转换会发生什么？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a">当 Core0 持有 M（Modified，脏数据）状态的 cache line，而另一个 Core1 发出读请求时，会触发 <strong>write-back + share</strong> 流程：<br>1. Core0 通过总线嗅探（bus snooping）感知到 Core1 的读请求；<br>2. Core0 将脏数据写回（write-back）到内存；<br>3. Core0 的状态从 M 降为 S；<br>4. Core1 从内存读取数据，状态也设为 S。<br>最终两个核都持有干净的共享副本。</div>
+        <div class="qa-a">当一个核心持有 M 状态缓存行而另一核心请求读取时，所有者必须提供或促使系统提供最新数据，状态通常降级为共享状态。数据可能通过缓存间传输或由一致性控制器转发；主存是否在此刻更新、最终状态名称及目录/嗅探流程取决于 MESI 变体和微架构，不能固定为“先写回内存、再由请求者读取”。</div>
       </div>
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q">False Sharing 如何检测和修复？<span class="qa-arrow">▶</span></div>
@@ -161,7 +161,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
       </div>
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q">为什么顺序遍历数组比随机访问快得多？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a">两个核心原因：<br><strong>1. 空间局部性（Spatial Locality）</strong>：CPU 以 64B cache line 为单位加载数据，顺序访问时每次 cache miss 会预加载后续元素，命中率极高（L1 hit ~4 周期）。随机访问每个元素大概率触发新的 miss（L3 miss ~200 周期）。<br><strong>2. 硬件预取（Hardware Prefetcher）</strong>：现代 CPU 检测到步长规律的访问模式后，会提前将数据从内存预取到 cache，顺序访问完美触发预取器。随机访问无规律，预取器失效。<br>典型差距：顺序访问带宽可达 40-100 GB/s，随机访问可能只有 1-5 GB/s。</div>
+        <div class="qa-a">两个核心原因：<br><strong>1. 空间局部性</strong>：缓存按缓存行传输，顺序访问可利用同行中的相邻元素；具体缓存行大小和命中成本依处理器而异。<br><strong>2. 硬件预取</strong>：规律访问更容易被预取器识别，随机访问通常更难预取。<br>实际差距受数据规模、步长、缓存层级、内存并行度和处理器影响，应通过目标平台基准测试判断。</div>
       </div>
     </div>
   </div>

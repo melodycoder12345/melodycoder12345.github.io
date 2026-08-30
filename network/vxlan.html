@@ -74,10 +74,10 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">网络 / VXLAN / C 类型</div>
+      <div class="eyebrow">网络 / VXLAN</div>
       <h1>VXLAN Overlay 网络</h1>
       <p class="summary">Virtual Extensible LAN，将二层以太网帧封装在 UDP 包中，在三层网络上模拟二层广播域。K8s 跨主机 Pod 通信、云上多租户隔离的核心技术。VTEP 负责封包/解包，VNI 区分不同租户，外层 IP 是主机地址，内层是 Pod/VM 地址。</p>
       <div class="tags"><span>VTEP</span><span>VNI</span><span>UDP 封装</span><span>Overlay</span><span>EVPN</span><span>K8s 网络</span></div>
@@ -128,8 +128,8 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
   <section class="deep">
     <section>
       <h2>背景与封包格式</h2>
-      <p>VXLAN 协议（RFC 7348）在 UDP 8472 端口传输，封包格式（外→内）：<br><br>
-      <strong>外层以太网帧</strong> → 外层 IP（主机IP）→ 外层 UDP（dport=4789/8472）→ <strong>VXLAN 头（8字节，含 24 位 VNI）</strong> → 内层以太网帧 → 内层 IP（Pod IP）→ 内层 TCP/UDP → 数据<br><br>
+      <p>VXLAN 的 IANA 标准 UDP 目的端口是 4789（RFC 7348）；Linux 历史实现曾使用 8472，只有在双方明确配置兼容端口时才应使用。封包格式（外→内）：<br><br>
+      <strong>外层以太网帧</strong> → 外层 IP（主机IP）→ 外层 UDP（通常 dport=4789）→ <strong>VXLAN 头（8字节，含 24 位 VNI）</strong> → 内层以太网帧 → 内层 IP（Pod IP）→ 内层 TCP/UDP → 数据<br><br>
       封装开销约 50 字节（以太网帧 14 + IP头 20 + UDP头 8 + VXLAN头 8），MTU 需要相应调整（通常内层 MTU=1450 而非 1500）。<br><br>
       Linux 内核从 3.7 版本原生支持 VXLAN，flannel/Calico/Cilium 等 CNI 均可基于内核 VXLAN 实现跨主机 Pod 通信。</p>
     </section>
@@ -137,9 +137,9 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
       <h2>常见误区</h2>
       <ul>
         <li>VXLAN 不是加密隧道，内层数据仍为明文。加密需要额外的 WireGuard/IPSec 封装（如 Cilium 支持 WireGuard 加密 VXLAN）。</li>
-        <li>VTEP 失败后不会自动切换——需要 EVPN 撤回路由通知其他 VTEP 更新转发表，否则流量会黑洞。</li>
+        <li>VTEP 故障后的收敛取决于控制平面和冗余设计；EVPN 可撤回相关路由并更新远端转发表，但静态配置或纯数据平面学习环境需要各自的检测与恢复机制。</li>
         <li>VXLAN 是 L2-over-L3，同一 VNI 内的 Pod 能互相 ARP（二层可达），但不同 VNI 的 Pod 需要 L3 路由（不同 overlay 网络）。</li>
-        <li>大规模集群（1000+ 节点）时 BUM 泛洪会产生大量无效流量，必须用 EVPN 或静态 MAC 表代替泛洪学习。</li>
+        <li>规模增大时 BUM 泛洪成本通常上升，可采用 EVPN、组播、静态/集中式映射或缩小泛洪域等方案；不存在适用于所有部署的固定“1000 节点”门槛。</li>
       </ul>
     </section>
     <section>
@@ -156,7 +156,7 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
       <ul>
         <li><strong>VXLAN vs GRE</strong>：GRE 封装更简单（无 VNI），但不支持多租户隔离，不支持 UDP ECMP 负载均衡。</li>
         <li><strong>VXLAN vs WireGuard</strong>：WireGuard 提供加密，但无 VNI 隔离，通常在 VXLAN 外层叠加 WireGuard。</li>
-        <li><strong>VXLAN vs Geneve</strong>：Geneve（RFC 8926）是 VXLAN 的后继，支持可变长度元数据头，被 OVN/Cilium 采用。</li>
+        <li><strong>VXLAN vs Geneve</strong>：Geneve（RFC 8926）是另一种可扩展隧道封装，支持可变长度 option 元数据；它不是在协议层面废弃或替代 VXLAN，具体采用取决于数据平面和生态。</li>
       </ul>
     </section>
   </section>

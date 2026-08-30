@@ -54,10 +54,10 @@
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">Redis / cluster / C 类型</div>
+      <div class="eyebrow">Redis / cluster</div>
       <h1>Redis 集群原理</h1>
       <p class="summary">Redis Cluster 通过 16384 个哈希槽将数据分片到多个主节点，配合 Gossip 协议感知集群拓扑变化，主从自动故障转移保证高可用，实现水平扩展的分布式缓存方案。</p>
       <div class="tags"><span>Hash Slot</span><span>Gossip</span><span>MOVED</span><span>Failover</span><span>CRC16</span></div>
@@ -116,7 +116,7 @@
         <li><strong>Slot 不等于分区</strong>：slot 是逻辑概念，不是物理隔离；同节点的多个 slot 共享内存和线程。</li>
         <li><strong>MOVED 是正常行为</strong>：首次连接或 slot 迁移后收到 MOVED 是预期内的，Smart Client 只需更新路由表。</li>
         <li><strong>不保证强一致</strong>：主从异步复制，极端情况下故障转移会丢失最后几笔写入（可开 WAIT 命令等待 N 个副本确认）。</li>
-        <li><strong>多 key 操作必须同 slot</strong>：MGET/MSET/Pipeline 跨 slot 会报错，需用 hash tag <code>{}</code> 约束。</li>
+        <li><strong>多 key 原子操作必须同 slot</strong>：MGET/MSET、事务和 Lua 等单条/原子多 key 操作通常要求同 slot，可用 hash tag <code>{}</code> 约束；普通 Pipeline 是否能跨 slot 取决于客户端是否按节点拆分和聚合，协议本身不赋予跨 slot 原子性。</li>
       </ul>
     </section>
     <section>
@@ -134,7 +134,7 @@
         <li><strong>最大节点数</strong>：官方建议不超过 1000 节点，Gossip 消息量随节点数平方增长。</li>
         <li><strong>跨 slot 限制</strong>：不支持跨 slot 的 MULTI/EXEC 事务；Lua 脚本所有 key 必须属于同一 slot。</li>
         <li><strong>脑裂保护</strong>：少数派分区的主节点在 cluster-node-timeout 后拒绝写入（变为 FAIL 状态）。</li>
-        <li><strong>手动故障转移</strong>：<code>CLUSTER FAILOVER</code> 支持运维场景下的平滑主从切换，不丢数据。</li>
+        <li><strong>手动故障转移</strong>：<code>CLUSTER FAILOVER</code> 可先尝试让副本追平再切换，降低计划切换的数据丢失风险，但超时、网络或节点故障下不能给出绝对零丢失承诺。</li>
       </ul>
     </section>
   </section>
@@ -207,7 +207,7 @@ const STEPS = [
   },
   {
     title: "Gossip 心跳传播",
-    desc: "每个节点每秒随机选择节点发送 PING，携带自身已知的集群状态（节点列表、slot 分配、epoch）。",
+    desc: "节点按内部心跳调度选择其他节点发送 PING，携带已知的集群状态；频率与目标选择受 cluster-node-timeout 和实现策略影响。",
     detail: "收到 PING 的节点回复 PONG 并更新本地视图。消息含发送者已知的其他节点状态，实现最终一致传播。",
     kind: "normal",
     nodeStates: {M1:'master',M2:'master',M3:'master',S1:'slave',S2:'slave',S3:'slave'},
@@ -217,7 +217,7 @@ const STEPS = [
   },
   {
     title: "M2 超时 - PFAIL",
-    desc: "M2 停止响应心跳，M1 在 cluster-node-timeout(15s) 后将 M2 标记为 PFAIL（疑似下线）。",
+    desc: "M2 超过配置的 cluster-node-timeout 未响应后，观察节点可将其标记为 PFAIL（疑似下线）。",
     detail: "PFAIL 是单个节点的主观判断，还需要其他主节点确认。M1 通过 Gossip 将 PFAIL 信息传播给 M3。",
     kind: "failure",
     nodeStates: {M1:'master',M2:'fail',M3:'master',S1:'slave',S2:'slave',S3:'slave'},

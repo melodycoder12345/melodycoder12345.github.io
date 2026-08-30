@@ -4,6 +4,77 @@
   const d = document;
   if (d.getElementById('__snav')) return;
 
+  const embeddedDemo = new URLSearchParams(window.location.search).get('embed') === '1';
+  const consolidatedPages = {
+    '/algo/bubble-sort.html': 'sorting.html#bubble-sort',
+    '/algo/selection-sort.html': 'sorting.html#selection-sort',
+    '/algo/insertion-sort.html': 'sorting.html#insertion-sort',
+    '/algo/merge-sort.html': 'sorting.html#merge-sort',
+    '/algo/quick-sort.html': 'sorting.html#quick-sort',
+    '/algo/heap-sort.html': 'sorting.html#heap-sort',
+    '/algo/counting-sort.html': 'sorting.html#counting-sort',
+    '/algo/radix-sort.html': 'sorting.html#radix-sort',
+    '/distributed/raft.html': 'consensus.html#raft',
+    '/distributed/paxos.html': 'consensus.html#paxos',
+    '/distributed/2pc.html': 'transactions.html#2pc',
+    '/distributed/saga.html': 'transactions.html#saga',
+    '/distributed/3pc.html': 'transactions.html#3pc',
+    '/observability/opentelemetry.html': 'tracing-platform.html#otel',
+    '/observability/tracing.html': 'tracing-platform.html#trace-waterfall',
+    '/distributed/distributed-tracing.html': '../observability/tracing-platform.html#distributed-context',
+    '/system-design/search-engine.html': 'search-platform.html#engine',
+    '/system-design/search-suggest.html': 'search-platform.html#suggest',
+    '/system-design/video-streaming.html': 'media-platform.html#vod',
+    '/system-design/live-streaming.html': 'media-platform.html#live',
+    '/ai/llm-overview.html': 'training-alignment.html#llm-overview',
+    '/ai/training-pipeline.html': 'training-alignment.html#training-pipeline',
+    '/ai/fine-tuning.html': 'training-alignment.html#fine-tuning',
+    '/ai/rlhf.html': 'training-alignment.html#rlhf',
+    '/ai/llm-serving.html': 'inference-serving.html#llm-serving',
+    '/ai/mixture-of-experts.html': 'inference-serving.html#mixture-of-experts',
+    '/ai/inference-optimization.html': 'inference-serving.html#inference-optimization',
+    '/ai/speculative-decoding.html': 'inference-serving.html#speculative-decoding',
+    '/ai/multimodal.html': 'multimodal-generation.html#multimodal',
+    '/ai/diffusion.html': 'multimodal-generation.html#diffusion',
+    '/algo/binary-search-tree.html': 'search-trees.html#binary-search-tree',
+    '/algo/avl-tree.html': 'search-trees.html#avl-tree',
+    '/algo/red-black-tree.html': 'search-trees.html#red-black-tree',
+    '/algo/b-tree.html': 'search-trees.html#b-tree',
+    '/algo/dijkstra.html': 'shortest-paths.html#dijkstra',
+    '/algo/bellman-ford.html': 'shortest-paths.html#bellman-ford',
+    '/algo/floyd-warshall.html': 'shortest-paths.html#floyd-warshall',
+    '/algo/kruskal.html': 'minimum-spanning-trees.html#kruskal',
+    '/algo/prim.html': 'minimum-spanning-trees.html#prim',
+    '/algo/knapsack.html': 'dynamic-programming.html#knapsack',
+    '/algo/lcs.html': 'dynamic-programming.html#lcs',
+    '/algo/edit-distance.html': 'dynamic-programming.html#edit-distance',
+    '/algo/lis.html': 'dynamic-programming.html#lis',
+    '/algo/interval-dp.html': 'dynamic-programming.html#interval-dp',
+    '/distributed/cap-theorem.html': 'consistency-tradeoffs.html#cap',
+    '/distributed/base.html': 'consistency-tradeoffs.html#base',
+    '/distributed/vector-clock.html': 'conflict-convergence.html#vector-clock',
+    '/distributed/crdt.html': 'conflict-convergence.html#crdt',
+    '/algo/greedy.html': 'problem-solving-strategies.html#greedy',
+    '/algo/backtracking.html': 'problem-solving-strategies.html#backtracking',
+    '/algo/divide-conquer.html': 'sorting.html#divide-conquer',
+    '/algo/bit-manipulation.html': '../cs/number-computing.html#bit-manipulation',
+    '/cs/number.html': 'number-computing.html#number-representation'
+  };
+  const consolidatedEntry = Object.entries(consolidatedPages).find(function (entry) {
+    return window.location.pathname.endsWith(entry[0]);
+  });
+  if (!embeddedDemo && consolidatedEntry) {
+    window.location.replace(consolidatedEntry[1]);
+    return;
+  }
+  if (embeddedDemo) {
+    d.documentElement.classList.add('sn-demo-embed');
+    const embedStyle = d.createElement('style');
+    embedStyle.textContent = 'body{padding-top:0!important}.back-btn,.back-row,.page-back,.sn-hide-local-back{display:none!important}';
+    d.head.appendChild(embedStyle);
+    return;
+  }
+
   const H = 44;
   const RKEY = 'recentPages_v2';
   const MODULE_RE = '(algo|db|kafka|redis|linux|network|cs|golang|distributed|ai|system-design|cloud-native|observability|security|testing)';
@@ -133,6 +204,7 @@
     syncNavHeight();
     scrollHashIntoView();
     ensureAutoConceptPanel();
+    loadKnowledgePanel();
     d.getElementById('snBtn').addEventListener('click', toggle);
     d.getElementById('snClear').addEventListener('click', function () { saveR([]); renderList(); });
     d.addEventListener('click', function (e) {
@@ -144,12 +216,73 @@
     autoTrackCurrentPage();
   }
 
+  function loadKnowledgePanel() {
+    if (isHomePage() || isModuleIndexPage() || /\/graph\.html$/.test(window.location.pathname)) return;
+    loadScript(ROOT + 'knowledge-data.js', function () {
+      loadScript(ROOT + 'page-blocks.js', function () {
+        loadScript(ROOT + 'knowledge-panel.js', function () {
+          loadScript(ROOT + 'page-framework.js');
+        });
+      });
+    });
+  }
+
+  function loadScript(src, done) {
+    var existing = Array.from(d.scripts).find(function (script) {
+      return script.src && script.src.split('?')[0].endsWith('/' + src.replace(/^\.\//, ''));
+    });
+    if (existing) {
+      if (done) {
+        if (existing.dataset.loaded === 'true' || existing.readyState === 'complete') done();
+        else existing.addEventListener('load', done, { once: true });
+      }
+      return;
+    }
+    var script = d.createElement('script');
+    script.src = src;
+    script.addEventListener('load', function () {
+      script.dataset.loaded = 'true';
+      if (done) done();
+    }, { once: true });
+    d.head.appendChild(script);
+  }
+
   function applyBodyClasses() {
     d.body.classList.toggle('sn-home-body', isHomePage());
     d.body.classList.toggle('sn-subpage-body', !isHomePage());
     d.body.classList.toggle('sn-module-index-body', isModuleIndexPage());
     d.body.classList.toggle('sn-detail-body', !isHomePage() && !isModuleIndexPage() && !/\/graph\.html$/.test(window.location.pathname));
     d.body.classList.toggle('sn-graph-body', /\/graph\.html$/.test(window.location.pathname));
+    refreshFullscreenLabClass();
+  }
+
+  function refreshFullscreenLabClass() {
+    var main = d.querySelector('body > .main');
+    var hasViz = main && Array.from(main.children).some(function (child) {
+      return child.classList.contains('viz-panel');
+    });
+    var hasCode = main && Array.from(main.children).some(function (child) {
+      return child.classList.contains('code-panel');
+    });
+    var isFullscreenLab = Boolean(main && hasViz && hasCode && d.querySelector('body > .controls'));
+    d.body.classList.toggle('sn-fullscreen-lab', isFullscreenLab);
+    refreshReadingPageClass();
+  }
+
+  function refreshReadingPageClass() {
+    var explicitShell = d.querySelector('.page-wrap .main-content');
+    var prose = d.querySelector('main.prose, article.prose, .article-content');
+    var article = d.querySelector('main > article');
+    var articleHeadings = article ? article.querySelectorAll('h2, h3').length : 0;
+    var hasArticleStructure = Boolean(explicitShell || prose || (article && articleHeadings >= 3));
+    var hasProtocolOrLabLayout = Boolean(d.querySelector('.hero, .lab, .viz-panel, .code-panel'));
+    var isReadingPage = Boolean(
+      d.body.classList.contains('sn-detail-body') &&
+      !d.body.classList.contains('sn-fullscreen-lab') &&
+      hasArticleStructure &&
+      !hasProtocolOrLabLayout
+    );
+    d.body.classList.toggle('sn-reading-page', isReadingPage);
   }
 
   function syncNavHeight() {
@@ -192,14 +325,16 @@
       var main = d.querySelector('.main');
       if (main && main.querySelector('.viz-panel') && main.querySelector('.code-panel')) {
         main.insertBefore(panel, main.firstChild);
+        refreshFullscreenLabClass();
         return;
       }
-      if (adaptLegacyFlex(panel)) return;
-      if (adaptLegacyGrid(panel)) return;
-      if (adaptLegacyTopo(panel)) return;
-      adaptLegacyStacked(panel);
+      if (!adaptLegacyFlex(panel) && !adaptLegacyGrid(panel) && !adaptLegacyTopo(panel)) {
+        adaptLegacyStacked(panel);
+      }
+      refreshFullscreenLabClass();
     }, 120);
     setTimeout(moveMiddleTextToLeft, 180);
+    setTimeout(refreshFullscreenLabClass, 200);
   }
 
   function buildAutoConceptPanel() {
@@ -304,7 +439,12 @@
       security: { label: '安全基础', href: 'index.html' },
       testing: { label: '测试工程', href: 'index.html' }
     };
-    return match ? map[match[1]] : null;
+    var moduleKey = match ? match[1] : d.documentElement.dataset.siteModule;
+    if (!moduleKey || !map[moduleKey]) return null;
+    return {
+      label: map[moduleKey].label,
+      href: match ? map[moduleKey].href : moduleKey + '/index.html'
+    };
   }
 
   function isModuleIndexPage() {

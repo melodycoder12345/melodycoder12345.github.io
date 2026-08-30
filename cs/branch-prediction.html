@@ -93,17 +93,17 @@ h1{font-size:clamp(2rem,4vw,3.6rem);line-height:1.04;letter-spacing:-.05em;margi
 .sat-bit.curr{box-shadow:0 0 0 2px rgba(255,255,255,.3);}
 </style>
 <script>window.PAGE_CONCEPTS=[
-  {"title":"流水线（Pipeline）","body":"CPU 将指令执行分为多个阶段（IF→ID→EX→MEM→WB），同时处理多条指令的不同阶段，类似流水线工厂。5 级流水线理论上可以 5× 加速，但数据相关、控制相关（分支）会导致停顿。","tag":"term"},
-  {"title":"分支预测（Branch Prediction）","body":"遇到条件分支时，CPU 不等分支结果，猜测一条路径继续取指执行（投机执行）。预测正确时无开销，预测错误时需要 flush 流水线（清除已投机执行的指令），代价是约 10–20 个时钟周期。","tag":"term"},
+  {"title":"流水线（Pipeline）","body":"CPU 将指令处理拆成阶段并重叠多条指令。IF→ID→EX→MEM→WB 是经典教学模型，现代处理器的实际管线更复杂；理想吞吐提升也不等于单条指令延迟按级数缩短。","tag":"term"},
+  {"title":"分支预测（Branch Prediction）","body":"遇到条件分支时，CPU 可预测路径并继续取指执行。预测正确仍消耗硬件资源；预测错误需丢弃错误路径工作并重定向前端，代价依微架构和分支解析位置而异。","tag":"term"},
   {"title":"2-bit 饱和计数器","body":"每个分支有一个 2-bit 状态（00=强不跳/01=弱不跳/10=弱跳/11=强跳）。预测跳转则执行 taken 路径，预测不跳则执行 fall-through 路径。正确时向当前方向饱和，错误时反向移动。一次预测失败不足以改变预测方向（需要连续两次）。","tag":"term"},
-  {"title":"分支预测误判代价","body":"现代 CPU 流水线深度 10–20 级，误判需要 flush 后续阶段所有指令（约等于流水线深度的周期数浪费）。Intel/AMD 现代 CPU 分支预测准确率可达 95–99%，但对误判敏感的热路径代码仍需关注（如排序循环的分支结构）。","tag":"term"}
+  {"title":"分支预测误判代价","body":"误判代价由前端重定向、分支解析位置、流水线和在途工作共同决定，不能简单等同于流水线深度。预测准确率也依程序、输入与处理器而变，应以硬件计数器测量。","tag":"term"}
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">计算机科学 / CPU / C 类型</div>
+      <div class="eyebrow">计算机科学 / CPU</div>
       <h1>分支预测</h1>
       <p class="summary">CPU 流水线不等分支结果，预测一条路径继续取指（投机执行，虚线框）。预测正确时虚线框变实；预测错误时虚线框变红并 flush，重新从正确路径取指。2-bit 饱和计数器记录历史：连续预测错误两次才改变预测方向，避免一次误判就翻转。动画展示流水线停顿和 flush 的真实代价。</p>
       <div class="tags"><span>流水线</span><span>投机执行</span><span>2-bit预测器</span><span>Pipeline Flush</span><span>分支惩罚</span></div>
@@ -112,9 +112,9 @@ h1{font-size:clamp(2rem,4vw,3.6rem);line-height:1.04;letter-spacing:-.05em;margi
       <div class="eyebrow">核心术语</div>
       <ul class="concept-list">
         <li><strong>流水线（Pipeline）</strong><span>5 级并行执行（IF/ID/EX/MEM/WB），分支引入控制相关。</span></li>
-        <li><strong>投机执行</strong><span>预测一条路径先执行，错了再 flush，对了无代价。</span></li>
+        <li><strong>投机执行</strong><span>预测一条路径先执行，错了丢弃错误路径；预测正确也会占用硬件资源。</span></li>
         <li><strong>2-bit 饱和计数器</strong><span>4 个状态，需连续两次错误才改变预测方向。</span></li>
-        <li><strong>分支惩罚</strong><span>误判代价 ≈ 流水线深度 × 时钟周期，现代 CPU 约 10–20 周期。</span></li>
+        <li><strong>分支惩罚</strong><span>由具体微架构、分支类型和解析位置决定，需在目标平台测量。</span></li>
       </ul>
     </div>
   </section>
@@ -173,8 +173,8 @@ h1{font-size:clamp(2rem,4vw,3.6rem);line-height:1.04;letter-spacing:-.05em;margi
     <section>
       <h2>分支预测器的演化</h2>
       <ul>
-        <li><strong>静态预测：</strong>总是预测不跳（simplest），命中率约 50–65%</li>
-        <li><strong>1-bit 预测器：</strong>记录上次结果，命中率约 85%，但循环末尾（taken→not taken）每次循环都误判</li>
+        <li><strong>静态预测：</strong>可采用预测不跳、按方向预测或编译器提示等策略，准确率取决于工作负载</li>
+        <li><strong>1-bit 预测器：</strong>记录上次结果；对重复循环常在退出及下一次进入边界发生误判，不能给出通用命中率</li>
         <li><strong>2-bit 饱和计数器：</strong>需要连续两次错误才改变方向，解决了 1-bit 在循环边界的问题</li>
         <li><strong>局部历史预测器（PHT）：</strong>每个分支独立记录 k 位历史，查表预测，命中率 90%+</li>
         <li><strong>TAGE 预测器（现代）：</strong>结合多长度全局历史，Intel/AMD 旗舰 CPU 使用，准确率 97–99%</li>
@@ -357,7 +357,7 @@ function renderPredictor(satState,prediction,correct,stats){
   });
 
   const dec=document.getElementById('predDecision');
-  dec.innerHTML=`当前状态: <span style="color:${satState>=2?'var(--ok)':'var(--bad)'};">${['00强不跳','01弱不跳','10弱跳','11强跳'][satState]}</span><br>预测方向: <span style="color:${prediction==='taken'?'var(--ok)':'var(--bad)'};">${prediction==='taken'?'Taken（跳）':'Not Taken（不跳）'}</span>${correct===true?'<br><span style="color:var(--ok);">✓ 预测正确，无代价</span>':correct===false?'<br><span style="color:var(--bad);">✗ 预测错误！Flush '+（''||'3')+' 条投机指令</span>':''}`;
+  dec.innerHTML=`当前状态: <span style="color:${satState>=2?'var(--ok)':'var(--bad)'};">${['00强不跳','01弱不跳','10弱跳','11强跳'][satState]}</span><br>预测方向: <span style="color:${prediction==='taken'?'var(--ok)':'var(--bad)'};">${prediction==='taken'?'Taken（跳）':'Not Taken（不跳）'}</span>${correct===true?'<br><span style="color:var(--ok);">✓ 预测正确，无代价</span>':correct===false?'<br><span style="color:var(--bad);">✗ 预测错误！Flush '+(stats.penalty||3)+' 条投机指令</span>':''}`;
 
   const ps=document.getElementById('predStats');
   ps.innerHTML=`正确: <span style="color:var(--ok);">${stats.correct}</span> | 错误: <span style="color:var(--bad);">${stats.wrong}</span>${stats.penalty?' | 浪费周期: <span style="color:var(--warn);">'+stats.penalty+'</span>':''}`;

@@ -62,7 +62,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
 .nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;margin-bottom:0;}
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;}
 .back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{margin:0;font-size:1.06rem;font-weight:700;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .table-wrap{overflow-x:auto;margin:10px 0;}
@@ -97,7 +97,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
 <body>
 <div class="nav-bar">
   <a href="index.html" class="back">← 返回</a>
-  <span class="nav-title">⎈ Helm 包管理</span>
+  <h1 class="nav-title">⎈ Helm 包管理</h1>
   <div class="nav-tags">
     <span class="ntag">helm</span>
     <span class="ntag">chart</span>
@@ -613,7 +613,7 @@ helm template myapp ./mychart | conftest test -</pre>
     <span class="cm"># 3. 验证（可选）</span>
     <span class="op">-</span> <span class="id">helm test myapp --namespace prod</span></pre>
           <div class="callout">
-            <p><strong>最佳实践：</strong>始终用 Git SHA（而非 <code>latest</code>）作为镜像 tag，确保每次部署可追溯、可回滚到精确版本。结合 <code>--atomic</code> 保证集群状态一致性。</p>
+            <p><strong>最佳实践：</strong>使用不可变镜像引用（优先 digest，也可用受保护的唯一 tag）提升可追溯性。<code>--atomic</code> 会启用等待，并在操作失败时尝试回滚/删除此次 release，但无法保证外部系统、Hook 副作用或所有控制器状态的事务一致性。</p>
           </div>
         </div>
       </div>
@@ -732,7 +732,7 @@ helm push mychart-1.0.0.tgz oci://harbor.example.com/library</pre>
         <div class="qa-q">Helm v2 和 v3 的核心区别是什么？<span class="qa-arrow">▶</span></div>
         <div class="qa-a">最核心区别是 <strong>去掉了 Tiller</strong>（v2 的服务端组件）。<br><br>
         Helm v2：客户端 helm CLI + 服务端 Tiller（运行在 K8s 中，拥有 cluster-admin 权限），所有操作通过 gRPC 调用 Tiller。Release 历史存在 ConfigMap 中。<br><br>
-        Helm v3：纯客户端，直接调用 K8s API Server，权限与 kubectl 用户权限相同（RBAC 约束）。Release 历史改存在 Secret 中（数据加密更安全）。三路合并策略也是 v3 引入的改进。<br><br>
+        Helm v3：不再需要 Tiller，客户端使用 kubeconfig 身份调用 K8s API Server并受 RBAC 约束。Release 历史默认存于 Secret，但 Secret 默认只是 base64 编码；是否静态加密取决于 API Server 的 encryption-at-rest 配置，不能直接等同为“数据已加密更安全”。三路合并策略也是 v3 引入的改进。<br><br>
         工程意义：v3 不再有 RBAC 漏洞（Tiller 过于强大的权限问题），多租户集群更安全。</div>
       </div>
 

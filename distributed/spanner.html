@@ -66,12 +66,12 @@ td.mid{color:var(--warn)}
 </style>
 </head>
 <body>
-<main class="content" data-page-type="B">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">分布式 / Spanner / B 类型</div>
+      <div class="eyebrow">分布式 / Spanner</div>
       <h1>Google Spanner<br>与 TrueTime</h1>
-      <p class="summary">Google Spanner 是首个在全球范围内提供外部一致性（External Consistency）的分布式数据库，其核心是 TrueTime API——通过 GPS 天线和铯原子钟构建的有界误差时间系统。Commit-wait 机制确保事务时间戳的全球唯一性，Paxos 分组保障高可用，是 NewSQL 时代的里程碑。</p>
+      <p class="summary">Google Spanner 是全球分布、同步复制并支持外部一致事务的数据库。TrueTime 暴露有界时钟不确定性，commit-wait 使提交时间戳顺序遵守真实时间先后；Paxos 组负责副本复制与可用性。</p>
       <div class="tags"><span>TrueTime</span><span>External Consistency</span><span>Commit-Wait</span><span>Paxos 分组</span><span>NewSQL</span><span>全球分布</span></div>
     </div>
     <div class="card">
@@ -79,7 +79,7 @@ td.mid{color:var(--warn)}
       <ul class="concept-list">
         <li>
           <strong>TrueTime API</strong>
-          <span>通过 GPS 天线+铯原子钟构建的分布式时钟。<code>TT.Now()</code> 返回 <code>[earliest, latest]</code> 区间而非精确时间点，误差通常在 1–7ms 以内。不确定性是有界的。</span>
+          <span>原始论文实现以 GPS 与原子钟时间源维持有界不确定性。<code>TT.Now()</code> 返回 <code>[earliest, latest]</code> 区间；误差大小是部署与运行状态指标，不是固定的 1–7ms API 保证。</span>
         </li>
         <li>
           <strong>外部一致性（External Consistency）</strong>
@@ -103,8 +103,8 @@ td.mid{color:var(--warn)}
       <ul>
         <li>在全球分布的数据中心上提供 <strong>ACID 事务</strong>（含跨行、跨表、跨数据中心）</li>
         <li>保证 <strong>外部一致性</strong>——比串行化更强的一致性模型</li>
-        <li>支持 <strong>SQL 查询</strong>，与 NoSQL 的 BigTable 形成互补</li>
-        <li>引入 <strong>NewSQL</strong> 概念：同时拥有 SQL 接口和 NoSQL 的水平扩展能力</li>
+        <li>提供类 SQL 查询语言；2012 年论文同时指出当时接口并非完整 SQL</li>
+        <li>兼顾关系数据模型、事务语义与水平扩展；“NewSQL”是后来的产品分类，不是 Spanner 论文引入的协议概念</li>
       </ul>
       <p>Spanner 的成功推动了整个业界重新思考「强一致性与可扩展性是否必然矛盾」，直接催生了 CockroachDB、YugabyteDB 等开源 NewSQL 数据库。</p>
     </article>
@@ -159,10 +159,10 @@ td.mid{color:var(--warn)}
     <!-- Card 4: Paxos Group Architecture -->
     <article class="article-card">
       <h2>Paxos 分组架构</h2>
-      <p>Spanner 将数据水平分片（Shard），每个分片称为 <strong>Spanserver</strong>，并组织成独立的 <strong>Paxos 组</strong>：</p>
+      <p>Spanner 的 <strong>spanserver</strong> 是管理多个 tablet 的存储进程，不是分片本身；tablet 保存键范围数据并由 Paxos 状态机复制：</p>
       <ul>
         <li><strong>分片（Tablet）</strong>：数据按键范围分片，每片包含一个或多个目录（Directory），是数据局部性的管理单元。</li>
-        <li><strong>Paxos 组</strong>：每个 Tablet 维护一个跨数据中心的 Paxos 副本组（通常 5 副本），确保高可用。Leader 处理所有写事务，Follower 可服务读操作。</li>
+        <li><strong>Paxos 组</strong>：tablet 的副本通过 Paxos 维护一致状态；副本数和放置策略由配置决定，不固定为 5。Leader 处理写事务，副本可在满足时间戳安全条件时服务快照读。</li>
         <li><strong>全球分布</strong>：副本分布在多个地理区域，通过 Paxos 保证数据一致性。Leader 可在不同副本间切换（Leader 选举）。</li>
         <li><strong>目录迁移</strong>：Spanner 可以在不停服务的情况下迁移 Directory（数据目录），实现负载均衡和地域亲和性。</li>
       </ul>
@@ -215,7 +215,7 @@ td.mid{color:var(--warn)}
       <h2>与 2PC 的关系：Spanner 的分层协议</h2>
       <p>Spanner 并没有「替代」2PC，而是在其之上叠加了 Paxos 层解决高可用问题，形成双层协议架构：</p>
       <div class="flow-box"><div class="flow-box-title">跨 Paxos 组写事务 → 使用 2PC 协调</div><div class="flow-box-body">当写事务涉及多个 Paxos 组（不同 Tablet）时，Spanner 使用 2PC 协调跨组提交，协调者为某一 Paxos 组的 Leader。</div></div>
-      <div class="flow-box"><div class="flow-box-title">单个 Paxos 组内 → 使用 Paxos 保证可用性</div><div class="flow-box-body">每个参与 2PC 的节点本身是一个 Paxos 组（5 副本），即使某台机器宕机，Paxos 仍能继续服务，2PC 的参与者不会因单点故障崩溃。</div></div>
+      <div class="flow-box"><div class="flow-box-title">单个 Paxos 组内 → 使用 Paxos 复制状态</div><div class="flow-box-body">每个 2PC 参与者的状态由一个 Paxos 组持久化；只要该组仍能形成多数派，就可恢复参与者或协调者状态，而不是依赖单台机器。</div></div>
       <p><strong>如何解决 2PC 阻塞问题？</strong>：在 Spanner 中，2PC 的协调者是 Paxos 组 Leader，Paxos 提供了 Leader 故障后的自动重新选举。因此虽然使用 2PC，但协调者单点问题被 Paxos 高可用所缓解——协调者故障后，新 Leader 会基于 Paxos 日志继续处理。</p>
       <p><strong>TrueTime 的作用</strong>：不是替换 2PC，而是为提交时间戳的全球唯一排序提供基础，实现外部一致性——这是单纯 2PC 无法做到的。</p>
     </article>
@@ -223,7 +223,7 @@ td.mid{color:var(--warn)}
     <!-- Card 7: Limitations & Practice -->
     <article class="article-card">
       <h2>局限与工程实践</h2>
-      <p><strong>Commit-Wait 延迟开销</strong>：每个读写事务必须等待约 2×epsilon（epsilon 是 TrueTime 误差的一半），通常额外增加 <strong>10–14ms</strong>。对于单数据中心场景，这个开销相对于 NTP 方案偏高。</p>
+      <p><strong>Commit-Wait 延迟开销</strong>：事务要等待到 <code>TT.after(s)</code> 成立，等待上界与选择时间戳时的 TrueTime 不确定区间相关，并可与复制通信重叠；它不是固定的 2×epsilon 或 10–14ms，实际开销随时钟质量和执行时序变化。</p>
       <p><strong>跨洲际延迟</strong>：全球分布的 Paxos 组写事务，多数派确认需要跨洲际光速传输（中美约 120ms），使得某些写操作延迟极高，不适合所有业务场景。</p>
       <p><strong>硬件依赖</strong>：TrueTime 依赖专用 GPS 接收器和铯原子钟，无法在普通数据中心复现。</p>
       <p><strong>开源替代方案对比</strong>：</p>

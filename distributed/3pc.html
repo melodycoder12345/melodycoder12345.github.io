@@ -3,16 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="在2PC基础上增加 CanCommit 预备阶段，引入超时机制，协调者故障后参与者可通过超时自行决策，消除阻塞但无法解决网络分区。">
+<meta name="description" content="3PC 增加 CanCommit/PreCommit 阶段，在同步网络与受限故障假设下避免 2PC 的阻塞，但不适用于任意网络分区。">
 <link rel="canonical" href="https://melodycoder12345.github.io/distributed/3pc.html">
 <meta property="og:title" content="三阶段提交（3PC）— 码海拾贝">
-<meta property="og:description" content="在2PC基础上增加 CanCommit 预备阶段，引入超时机制，协调者故障后参与者可通过超时自行决策，消除阻塞但无法解决网络分区。">
+<meta property="og:description" content="3PC 在同步网络与受限故障假设下避免 2PC 的阻塞，但不是任意分区下的通用非阻塞方案。">
 <meta property="og:url" content="https://melodycoder12345.github.io/distributed/3pc.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="码海拾贝">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="三阶段提交（3PC）— 码海拾贝">
-<meta name="twitter:description" content="在2PC基础上增加 CanCommit 预备阶段，引入超时机制，协调者故障后参与者可通过超时自行决策，消除阻塞但无法解决网络分区。">
+<meta name="twitter:description" content="3PC 在同步网络与受限故障假设下避免 2PC 的阻塞，但不是任意分区下的通用非阻塞方案。">
 <title>三阶段提交（3PC）- 分布式</title>
 <script src="../nav.js"></script>
 <style>
@@ -111,12 +111,12 @@ td.mid{color:var(--warn)}
 </style>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">分布式 / 3PC / C 类型</div>
+      <div class="eyebrow">分布式 / 3PC</div>
       <h1>三阶段提交<br>（3PC）</h1>
-      <p class="summary">3PC 在 2PC 的 Prepare/Commit 两阶段之前插入 CanCommit 探测阶段，并为每个阶段引入超时机制，使协调者故障后参与者能通过 Termination Protocol 自行决策，消除了无限阻塞问题——但仍无法处理网络分区。</p>
+      <p class="summary">3PC 增加 CanCommit 与 PreCommit 状态，使参与者在同步网络、超时可靠且故障模式受限的模型下能够终止；它不是异步网络中的通用非阻塞方案，网络分区下仍可能等待或失去安全性。</p>
       <div class="tags"><span>CanCommit</span><span>PreCommit</span><span>DoCommit</span><span>超时自决策</span><span>Termination Protocol</span></div>
     </div>
     <div class="card">
@@ -245,7 +245,7 @@ td.mid{color:var(--warn)}
                 <th>3PC</th>
               </tr>
               <tr class="cmp-tbl-row" id="tr_msg"><td>消息轮次</td><td class="good">4 轮（2×2）</td><td class="mid">6 轮（3×2）</td></tr>
-              <tr class="cmp-tbl-row" id="tr_block"><td>协调者故障后</td><td class="bad">无限阻塞</td><td class="good">超时自决策（非阻塞）</td></tr>
+              <tr class="cmp-tbl-row" id="tr_block"><td>协调者故障后</td><td class="bad">可能阻塞至恢复</td><td class="good">在协议故障假设内可终止</td></tr>
               <tr class="cmp-tbl-row" id="tr_partition"><td>网络分区安全</td><td class="bad">不安全</td><td class="bad">不安全（脑裂风险）</td></tr>
               <tr class="cmp-tbl-row" id="tr_complex"><td>协议复杂度</td><td class="good">较简单</td><td class="bad">较复杂</td></tr>
               <tr class="cmp-tbl-row" id="tr_usage"><td>工业使用</td><td class="mid">少量（MySQL XA）</td><td class="bad">极少（Paxos/Raft 替代）</td></tr>
@@ -274,7 +274,7 @@ td.mid{color:var(--warn)}
   <section class="deep">
     <section>
       <h2>机制解析</h2>
-      <p>3PC 通过三个阶段解决 2PC 的阻塞问题：<strong>CanCommit</strong>（轻量探测，不加锁）→ <strong>PreCommit</strong>（加锁写日志，进入 PRE_COMMITTED）→ <strong>DoCommit</strong>（最终提交）。关键在于 PRE_COMMITTED 状态——协调者故障后，参与者通过 Termination Protocol 查询彼此状态：若全员 PRE_COMMITTED 则提交，若有人 UNCERTAIN（未收到 PreCommit）则中止。</p>
+      <p>3PC 通过 <strong>CanCommit</strong> → <strong>PreCommit</strong> → <strong>DoCommit</strong> 分离可能提交与最终决定。PRE_COMMITTED 状态为终止协议提供额外信息；能否安全自行终止取决于同步网络、可区分超时与故障等协议假设，不能仅凭本地超时任意决定。</p>
     </section>
     <section>
       <h2>超时处理策略</h2>
@@ -289,7 +289,7 @@ td.mid{color:var(--warn)}
       <h2>3PC 的局限</h2>
       <ul>
         <li>网络分区时：分区两侧各自执行 Termination Protocol 可能做出不同决策（脑裂）——这是 3PC 无法解决的根本问题。</li>
-        <li>消息轮次增加 50%（6 vs 4 轮），延迟更高，吞吐量更低。</li>
+        <li>正常路径多一个请求/响应阶段；具体报文数、延迟和吞吐取决于确认与批处理实现，不能固定概括为增加 50%。</li>
         <li>协议实现复杂，状态机更难维护，工业界几乎不直接使用。</li>
         <li>Paxos / Raft 等共识算法在多副本场景下更优，Saga / TCC 在微服务场景下更实用。</li>
       </ul>
@@ -511,7 +511,7 @@ const STEPS_S4 = [
     title: "2PC vs 3PC 综合对比概览",
     desc: "3PC 在 2PC 基础上增加 CanCommit 阶段，以更多消息轮次换取协调者故障后的非阻塞恢复能力。",
     kind: "normal",
-    detail: "核心权衡：2PC 简单高效但存在阻塞问题；3PC 复杂但非阻塞。工业界因网络分区问题仍无法解决，通常选择 Paxos/Raft 等更完善的方案。",
+    detail: "核心权衡：2PC 能保证原子提交，但在参与者已投 YES、最终决议未知时可能阻塞，无法在异步网络与故障下保证终止；3PC 只在有界延迟等更强假设下缓解阻塞，分区时仍不安全。",
     hl2pc: [], hl3pc: [], hlRows: []
   },
   {
@@ -523,9 +523,9 @@ const STEPS_S4 = [
   },
   {
     title: "协调者故障处理：阻塞 vs 非阻塞",
-    desc: "协调者在第二阶段前崩溃时：2PC 参与者永久阻塞持锁；3PC 参与者超时后通过 Termination Protocol 自行决策完成事务。",
+    desc: "协调者在关键窗口故障且参与者无法获知最终决议时：2PC 可能阻塞持锁；3PC 在有界延迟、无分区等假设下可通过 Termination Protocol 推进。",
     kind: "failure",
-    detail: "这是 3PC 最核心的改进。2PC 协调者故障后系统必须等待协调者恢复（可能很长时间），期间所有相关资源持锁不可用；3PC 通过有限等待 + 协商自决解除了这个阻塞。",
+    detail: "2PC 的问题是无法保证终止，并非已提交结果会失去原子性；参与者可等待协调者恢复或从其他参与者获知已持久化决议。3PC 的超时自决依赖同步性假设，不能在任意网络分区下宣称非阻塞。",
     hl2pc: ["c2_fault"], hl3pc: ["c3_fault"], hlRows: ["tr_block"]
   },
   {

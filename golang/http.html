@@ -21,7 +21,7 @@
 body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
 .nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:44px;z-index:10;}
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;}.back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{margin:0;font-size:1.06rem;font-weight:700;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
@@ -70,7 +70,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
 <body>
 <div class="nav-bar">
   <a href="index.html" class="back">← 返回</a>
-  <span class="nav-title">🌐 HTTP 标准库</span>
+  <h1 class="nav-title">🌐 HTTP 标准库</h1>
   <div class="nav-tags">
     <span class="ntag">handler</span>
     <span class="ntag">middleware</span>
@@ -188,7 +188,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
       <div class="card">
         <div class="card-hd"><h3>复用连接与超时设置</h3><span class="badge badge-adv">[进阶]</span></div>
         <div class="card-body">
-          <p>http.Client 内含 Transport，负责 TCP 连接管理和复用。生产环境必须配置超时，不能用默认 Client。</p>
+          <p>http.Client 通过 Transport 管理连接与复用。生产服务应根据调用预算设置请求 context 或 Client/Transport 超时；默认 Client 的整体 Timeout 为零，不能提供端到端截止时间。</p>
           <ul>
             <li><code>http.DefaultClient</code> 无超时，可能永久挂起</li>
             <li><code>Client.Timeout</code> 是端到端超时（含连接、等待、读取 Body）</li>
@@ -216,7 +216,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
       <div class="section-title"><div class="title-bar"></div><h2>面试问答</h2></div>
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q">为什么不要用默认的 http.DefaultClient 做生产请求？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a">http.DefaultClient 的 Timeout 为零，表示无超时。在生产环境中，若目标服务响应缓慢或挂起，goroutine 会永久阻塞，最终耗尽资源。此外 DefaultTransport 的连接池参数（MaxIdleConns=100、MaxIdleConnsPerHost=默认2）可能不适合高并发场景。生产环境应创建自定义 http.Client，明确设置所有超时参数。</div>
+        <div class="qa-a">http.DefaultClient 的整体 Timeout 为零，不提供端到端截止时间；底层网络仍可能因错误或部分 Transport 超时返回，所以不应表述为必然永久阻塞。生产代码应按请求预算使用 context deadline，并按需配置 Client/Transport；客户端和 Transport 应复用。</div>
       </div>
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q">Handler 是否并发安全？如何保证？<span class="qa-arrow">▶</span></div>
@@ -232,7 +232,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
       </div>
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q">http.Transport 为什么不能在每次请求时重新创建？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a">Transport 内部维护连接池（idle connections），复用已建立的 TCP 连接，避免每次 DNS 解析、TCP 握手、TLS 握手。若每次请求重新创建 Transport，连接池丢失，每次都要重新建连，延迟增加 10-100 倍（尤其 TLS）。Transport 应作为包级变量或结构体字段，全局共享。同样，http.Client 也应全局复用，不要在 handler 内部创建。</div>
+        <div class="qa-a">Transport 内部维护空闲连接池，复用连接可避免重复 DNS、TCP 与 TLS 建连。每次请求新建 Transport 会丢失复用机会并增加延迟与资源消耗，但没有固定倍数。Transport 和 Client 应长期复用；不必要求必须是全局变量，也可由应用组件持有并注入。</div>
       </div>
     </div>
 
@@ -277,7 +277,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
 
 <span class="cm">// http.Get 等价于：</span>
 <span class="cm">// http.DefaultClient.Get(url)</span></pre>
-            <p>生产环境绝不能用 http.DefaultClient 或 http.Get/Post 包级函数。</p>
+            <p>默认 Client 没有整体超时。生产调用若使用它，至少应为每个请求设置 context deadline；需要统一连接池和分阶段超时时，使用复用的自定义 Client。</p>
           </div>
           <div class="pitfall-col">
             <pre><span class="kw">var</span> <span class="id">client</span> = &amp;<span class="pkg">http</span>.<span class="id">Client</span>{

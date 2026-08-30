@@ -37,7 +37,7 @@ body{
 }
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;display:flex;align-items:center;gap:5px;}
 .back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{margin:0;font-size:1.06rem;font-weight:700;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 
@@ -179,7 +179,7 @@ body{
 
 <div class="nav">
   <a href="index.html" class="back">← 返回</a>
-  <span class="nav-title">GMP 调度器</span>
+  <h1 class="nav-title">GMP 调度器</h1>
   <div class="nav-tags">
     <span class="ntag">goroutine</span>
     <span class="ntag">scheduler</span>
@@ -245,7 +245,7 @@ body{
     <div class="qa-grid">
       <div class="qa-card">
         <div class="qa-q" onclick="toggleQA(this)">GMP 中 G、M、P 各自的职责是什么？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a"><strong style="color:var(--text)">G（Goroutine）</strong>：用户态执行单元，包含函数栈（初始 2KB）和调度状态。<br><strong style="color:var(--text)">M（Machine）</strong>：OS 线程，与内核直接交互，执行 G 的代码，数量上限默认 10000。<br><strong style="color:var(--text)">P（Processor）</strong>：逻辑处理器，持有本地 runq（最多 256 个 G）和内存缓存（mcache）。M 必须持有 P 才能执行 G。P 的数量默认等于 CPU 核数（<code>GOMAXPROCS</code>）。</div>
+        <div class="qa-a"><strong style="color:var(--text)">G（Goroutine）</strong>：用户态执行单元，包含可增长栈和调度状态。<br><strong style="color:var(--text)">M（Machine）</strong>：OS 线程，执行 G 的代码；线程上限和初始栈大小属于可变化的实现细节。<br><strong style="color:var(--text)">P（Processor）</strong>：运行 Go 代码所需的调度资源，持有本地 runq 和 mcache。Go 1.25+ 在 Linux 容器中默认还会考虑 cgroup CPU 带宽限制来设置和更新 <code>GOMAXPROCS</code>。</div>
       </div>
       <div class="qa-card">
         <div class="qa-q" onclick="toggleQA(this)">什么是 work-stealing？为什么需要它？<span class="qa-arrow">▶</span></div>
@@ -329,12 +329,12 @@ body{
 runtime.<span class="fn">GOMAXPROCS</span>(runtime.<span class="fn">NumCPU</span>())</pre>
           </div>
           <div class="pitfall-col">
-            <pre><span class="cm">// 用 automaxprocs 自动读取</span>
-<span class="cm">// cgroup 中的 CPU 配额</span>
+            <pre><span class="cm">// Go 1.24 及更早版本可用 automaxprocs</span>
+<span class="cm">// Go 1.25+ 默认已感知 cgroup CPU 配额</span>
 <span class="kw">import</span> (
     _ <span class="st">"go.uber.org/automaxprocs"</span>
 )</pre>
-            <p><strong>原因：</strong><code>runtime.NumCPU()</code> 读宿主机 CPU 数，容器内不准确。</p>
+            <p><strong>说明：</strong><code>runtime.NumCPU()</code> 不等于容器 CPU 配额。Go 1.25+ 默认由运行时结合逻辑 CPU、亲和性和 cgroup CPU 限制设置 <code>GOMAXPROCS</code>；旧版才通常需要 automaxprocs。</p>
           </div>
         </div>
       </div>

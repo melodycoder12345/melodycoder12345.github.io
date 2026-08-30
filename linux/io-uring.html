@@ -3,16 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="io_uring：Linux 5.1 引入的高性能异步 I/O。用 SQ/CQ 双环形队列在用户态和内核态共享，批量提交减少系统调用，比 epoll 高 30-50% 吞吐。">
+<meta name="description" content="io_uring：Linux 5.1 引入的异步 I/O 接口。用 SQ/CQ 环形队列共享提交与完成状态，并支持批量提交以减少系统调用。">
 <link rel="canonical" href="https://melodycoder12345.github.io/linux/io-uring.html">
 <meta property="og:title" content="io_uring：Linux 异步 I/O — 码海拾贝">
-<meta property="og:description" content="io_uring 用 SQ/CQ 双环形队列批量提交 I/O 请求，一次系统调用处理多个操作，性能比 epoll 高 30-50%。">
+<meta property="og:description" content="io_uring 用 SQ/CQ 环形队列批量提交 I/O 请求，减少提交和完成路径上的系统调用。">
 <meta property="og:url" content="https://melodycoder12345.github.io/linux/io-uring.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="码海拾贝">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="io_uring：Linux 异步 I/O — 码海拾贝">
-<meta name="twitter:description" content="io_uring 用 SQ/CQ 双环形队列批量提交 I/O 请求，一次系统调用处理多个操作，性能比 epoll 高 30-50%。">
+<meta name="twitter:description" content="io_uring 用 SQ/CQ 环形队列批量提交 I/O 请求，减少提交和完成路径上的系统调用。">
 <title>io_uring：Linux 异步 I/O - 可视化</title>
 <script src="../nav.js"></script>
 <script src="../concept.js"></script>
@@ -74,12 +74,12 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">Linux / io_uring / C 类型</div>
+      <div class="eyebrow">Linux / io_uring</div>
       <h1>io_uring：Linux 异步 I/O</h1>
-      <p class="summary">Linux 5.1 引入的高性能异步 I/O 接口。用两个环形队列（SQ + CQ）在用户态和内核态共享，批量提交 I/O 请求只需一次系统调用（SQPOLL 模式甚至零系统调用），大幅减少用户态/内核态切换开销，吞吐量比 epoll 高 30–50%。</p>
+      <p class="summary">Linux 5.1 引入的异步 I/O 接口。用提交队列（SQ）和完成队列（CQ）在用户态与内核态共享状态，支持一次系统调用批量提交请求；SQPOLL 在轮询线程活跃时可避免多数提交通知调用。实际收益取决于负载、批量大小、设备和内核版本，不能用固定比例概括。</p>
       <div class="tags"><span>SQ/CQ 环形队列</span><span>零系统调用</span><span>SQPOLL</span><span>固定缓冲区</span><span>批量 I/O</span></div>
     </div>
     <div class="card">
@@ -129,14 +129,14 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
     <section>
       <h2>背景：为什么需要 io_uring</h2>
       <p>传统异步 I/O 方案的问题：<br><br>
-      <strong>epoll（事件驱动）</strong>：每次 I/O 就绪后仍需调用 read/write，每次都是一次系统调用 + 数据拷贝。1000 并发连接 = 至少 1000 次系统调用/读事件。<br><br>
+      <strong>epoll（事件驱动）</strong>：就绪通知与实际 read/write 分离；处理每批就绪 fd 通常还需相应 I/O 调用，但系统调用数由就绪数量、批处理方式及 read/writev 等接口决定，不能由连接总数直接推导。<br><br>
       <strong>POSIX AIO（aio_read/aio_write）</strong>：仅支持直接 I/O（O_DIRECT），不支持 socket、pipe 等，局限性大，内核实现粗糙（用线程模拟）。<br><br>
       <strong>io_uring 的解法</strong>：共享内存环形队列消除系统调用开销，批量提交让 N 个 I/O 只需 1 次 syscall，SQPOLL 模式甚至做到 0 次 syscall，适合超高并发 I/O 场景。</p>
     </section>
     <section>
       <h2>常见误区</h2>
       <ul>
-        <li>io_uring 不是零拷贝——数据仍需在内核和用户缓冲区间搬运，除非使用 IORING_OP_READ/WRITE 配合 registered buffers（固定缓冲区），才能减少部分拷贝。</li>
+        <li>io_uring 本身不等于零拷贝。registered buffers 主要省去每次映射、固定用户页的开销，并不自动消除 page cache 与用户缓冲区之间的数据复制；零拷贝还要结合特定操作、设备能力或 O_DIRECT 等路径判断。</li>
         <li>SQPOLL 模式消耗 100% CPU（内核线程轮询），与 DPDK PMD 类似。只有 I/O 非常密集时才值得，否则用普通模式。</li>
         <li>io_uring 不替代 epoll——两者可以共存，io_uring 更适合文件 I/O 和批量网络 I/O，epoll 仍然适合单个连接的事件通知场景。</li>
         <li>链式 SQE（IOSQE_IO_LINK）允许将多个操作串联，前一个失败时后续操作自动取消，适合"先写再关闭"等顺序依赖场景。</li>
@@ -145,20 +145,15 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
     <section>
       <h2>工程场景</h2>
       <ul>
-        <li><strong>高并发 HTTP 服务器（Nginx/Envoy）</strong>：io_uring 在连接数超过 10K 时，系统调用开销占比明显，使用 io_uring 可减少 50% 以上的 syscall 次数。</li>
-        <li><strong>数据库 WAL 写入（RocksDB/MySQL）</strong>：批量 WAL fsync 用 io_uring 批量提交，将多个 SQE 合并为一次 io_uring_enter，WAL 写延迟降低 20–40%。</li>
+        <li><strong>高并发 HTTP 服务器</strong>：当大量就绪事件伴随 read/write 调用时，批量提交可能减少系统调用；是否优于 epoll 必须用目标连接模型和内核版本压测。</li>
+        <li><strong>数据库与 WAL</strong>：可把多项读写、同步操作异步提交或建立顺序依赖，但持久化延迟仍受文件系统、设备缓存和同步语义约束。</li>
         <li><strong>存储引擎（ScyllaDB）</strong>：ScyllaDB 的 Seastar 框架已全面迁移到 io_uring，替换原有的 Linux AIO，实现更好的 NVMe 并发利用率。</li>
-        <li><strong>网络代理（Envoy/io_uring 实验性支持）</strong>：用 io_uring 替换 epoll+read/write，在长连接代理场景实测延迟降低 15–30%。</li>
+        <li><strong>网络代理</strong>：io_uring 可统一异步网络与文件操作，但成熟度、内存占用和尾延迟应与 epoll 路径分别测量。</li>
       </ul>
     </section>
     <section>
-      <h2>性能对比</h2>
-      <p>基准测试（NVMe SSD，随机 4K 读，队列深度 128）：<br><br>
-      <strong>blocking read</strong>：~30K IOPS，每次 read() 独立系统调用<br>
-      <strong>Linux AIO</strong>：~200K IOPS，仅支持 O_DIRECT<br>
-      <strong>io_uring（普通模式）</strong>：~350K IOPS，批量提交，支持 buffered I/O<br>
-      <strong>io_uring（SQPOLL）</strong>：~450K IOPS，零系统调用，内核线程轮询<br><br>
-      网络 I/O 场景：Nginx（io_uring）vs Nginx（epoll），10K 并发短连接，io_uring 吞吐高约 40%，CPU 使用低约 20%。</p>
+      <h2>性能评估</h2>
+      <p>不要直接套用固定 IOPS 或百分比。至少固定内核与 liburing 版本、设备和文件系统、direct/buffered I/O、块大小、队列深度、批量大小与 SQPOLL 设置；同时比较吞吐、CPU、平均延迟和尾延迟。io_uring 的主要机制优势是异步提交、批处理和较广的操作覆盖面，并不保证每种负载都快于同步 I/O、Linux AIO 或 epoll。</p>
     </section>
   </section>
 </main>
@@ -359,8 +354,8 @@ const TAB2=[
   {
     title:'注册固定缓冲区（IORING_OP_REGISTER_BUFFERS）',
     badge:'normal',
-    desc:'调用 io_uring_register 注册一块用户态内存为"固定缓冲区"。内核将这块内存的物理页 pin（固定），避免 page fault 和 page swap。后续 I/O 直接使用这块内存，避免额外拷贝。',
-    detail:'注册缓冲区的开销是一次性的（注册时 pin 内存）。注册后的 IORING_OP_READ_FIXED 比普通 read 快约 10–20%，因为内核不需要每次重新锁定内存页。',
+    desc:'调用 io_uring_register 注册用户缓冲区，内核预先映射并固定相关页面，从而避免每次 I/O 重复完成这类准备工作；注册缓冲区本身不保证消除数据复制。',
+    detail:'注册时会产生固定和记账成本，后续请求可复用映射；实际收益取决于 I/O 频率、缓冲区规模、内核与设备，不能用固定比例概括。',
     draw(ctx,W,H){drawZeroCopy(ctx,W,H,1);}
   },
   {

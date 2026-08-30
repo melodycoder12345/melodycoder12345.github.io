@@ -144,13 +144,28 @@ a{color:var(--accent);text-decoration:none}
 .action-box h5{color:var(--blue);font-size:.77rem;margin-bottom:6px}
 .action-item{display:flex;gap:6px;margin-bottom:2px}
 .action-item::before{content:'→';color:var(--blue)}
+@media (max-width:920px){
+  .wrap{padding:32px 22px 64px}
+  .layout{grid-template-columns:1fr}
+  .left-panel{position:static}
+  .gd-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:640px){
+  .wrap{padding:24px 14px 52px}
+  .left-panel,.center-panel{padding:15px;border-radius:14px}
+  .dc-wrap,.gd-grid{grid-template-columns:1fr}
+  .dc-divider{height:6px;min-height:6px}
+  .mttr-row{align-items:flex-start;flex-wrap:wrap}
+  .mttr-name{min-width:100%}
+  .mttr-time{margin-left:auto}
+}
 </style>
 </head>
 <body>
 <main class="wrap">
   <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">可观测性</a><span>/</span>混沌工程</div>
   <h1 class="page-title">混沌工程</h1>
-  <p class="subtitle">主动在生产环境注入故障，通过实验验证系统在真实异常条件下的行为。混沌工程的核心是：先定义「稳态假说」（系统应在什么范围内工作），然后注入压力，观察偏差，发现薄弱点并修复，以提高系统可靠性。</p>
+  <p class="subtitle">混沌工程通过受控实验验证系统面对异常时的行为，可在测试、预生产或具备充分防护的生产环境执行。先定义可观测的稳态假说，再逐步注入故障、限制爆炸半径并准备中止与恢复机制，以发现可靠性薄弱点。</p>
 
   <div class="layout">
     <div class="left-panel">
@@ -303,7 +318,7 @@ const S0 = [
     hyp:{s:'active', t:'假说：即使一个 order-service Pod 宕机，错误率仍 < 0.1%（即将验证）'},
     n:{k8s:'ok',p1:'ok',p2:'ok',cli:'ok',db:'ok'}, inj:null },
   { label:'注入故障',
-    msg:'⚡ Chaos Mesh PodChaos 执行：随机 Kill order-pod-1。Pod 被强制终止，K8s 立即探测到 Not Ready 状态，开始重启流程。少量路由到 pod-1 的请求出现瞬时连接失败，错误率小幅上升。',
+    msg:'⚡ 本示例用 Chaos Mesh PodChaos 终止 order-pod-1 的容器。kubelet 与工作负载控制器会依据容器重启策略和期望副本数推动恢复；端点摘除速度取决于状态传播、探针和代理实现，期间可能出现瞬时失败。',
     pts:'45,98 96,97 147,98 198,97 249,95 300,90 351,84 402,79 453,75 504,73',
     exc:false, injPt:true,
     hyp:{s:'active', t:'假说验证中：错误率开始上升，监控观察中...'},
@@ -317,7 +332,7 @@ const S0 = [
     n:{k8s:'warn',p1:'stop',p2:'ok',cli:'ok',db:'ok'},
     inj:{cls:'inj-fault', t:'⚡ order-pod-1 宕机，K8s 重启中（ContainerCreating）'} },
   { label:'观察恢复过程',
-    msg:'K8s Controller 重启 order-pod-1：ContainerCreating → Running → Ready（耗时 ~38s）。错误率在 Pod Ready 后开始回落。可以看到「峰值-恢复」曲线：0.02% → 0.05% → 0.02%，系统展现出弹性自愈能力。',
+    msg:'示例观测结果：容器或替代 Pod 经约 38 秒恢复到 Ready，错误率随后回落。这个时长和曲线是本次假想实验数据，不是 Kubernetes 保证；恢复主体取决于注入动作和工作负载配置。',
     pts:'45,98 96,97 147,97 198,96 249,93 300,86 351,79 402,74 453,79 504,86',
     exc:false, injPt:true,
     hyp:{s:'active', t:'假说验证中：峰值 0.05% < 0.1%，Pod 正在恢复，曲线下降中...'},
@@ -353,21 +368,21 @@ const S1 = [
     n:{gw:'ok',cart:'warn',redis:'warn',cache:false}, cc:false,
     inj:{cls:'inj-fault', t:'⚡ NetworkChaos：Redis Pod 注入 100ms 固定网络延迟'} },
   { label:'监控：响应时间飙升',
-    msg:'🚨 API 响应时间从 50ms 飙升至 3000ms！购物车服务对 Redis 发起 5 次串行调用，每次 100ms 延迟，合计 500ms 串行阻塞。加上 Go goroutine 调度、网络重传等额外开销，P99 达到 3000ms。假说证伪。',
+    msg:'🚨 示例中 API P99 升至 3000ms。5 次串行 Redis 往返至少会叠加约 500ms 注入延迟，但剩余耗时不能仅归因于 goroutine 调度或网络重传，应从 Trace、排队、连接池和重试等数据继续验证。',
     pts:'45,100 96,97 147,90 198,75 249,50 300,24 351,15 402,12 453,14 504,13',
     exc:true, injPt:true,
     hyp:{s:'exceeded', t:'🚨 假说证伪！响应时间 3000ms，远超 200ms 阈值'},
     n:{gw:'warn',cart:'fault',redis:'warn',cache:false}, cc:true,
     inj:{cls:'inj-fault', t:'🚨 购物车 P99 响应时间 3000ms，超阈值 15 倍！假说证伪'} },
   { label:'发现薄弱点',
-    msg:'根因分析：① 无 Redis 超时配置（redis.SetTimeout 未设置），请求会无限期等待；② 购物车服务对 Redis 采用串行调用模式（5 个商品依次查询），延迟线性叠加；③ 没有本地缓存或降级策略。这三个问题共同导致了雪崩效应。',
+    msg:'诊断假设：① 应用没有设置符合请求预算的 Redis 超时，实际等待仍可能受客户端、Context、TCP 或代理超时限制，不能称为必然无限等待；② 串行调用叠加延迟；③ 缺少适用的降级路径。需用配置与遥测逐项证实。',
     pts:'45,92 96,75 147,38 198,14 249,12 300,12 351,13 402,14 453,13 504,12',
     exc:true, injPt:true,
     hyp:{s:'failed', t:'❌ 假说证伪：发现薄弱点 — 无超时 + 串行调用 + 无降级'},
     n:{gw:'warn',cart:'fault',redis:'warn',cache:false}, cc:true,
     inj:{cls:'inj-fault', t:'❌ 根因：5 次串行 Redis 调用，每次 100ms → 总延迟 500ms+'} },
   { label:'自动停止实验',
-    msg:'爆炸半径（Blast Radius）控制生效：当 P99 > 1000ms 持续超过 30s，Chaos Mesh 自动回滚实验，移除 Redis 延迟注入。这是混沌工程的重要安全机制，防止实验演变成真实故障，避免影响真实用户。',
+    msg:'本实验编排器检测到 P99 > 1000ms 持续 30s 后执行预先配置的中止步骤，删除 Chaos Mesh 故障对象。指标触发的自动中止需要额外编排或工作流配置，不能理解为所有 Chaos Mesh 实验的内置默认行为。',
     pts:'45,14 96,24 147,42 198,60 249,73 300,83 351,90 402,95 453,99 504,100',
     exc:false, injPt:true,
     hyp:{s:'failed', t:'⏸ 实验已自动停止（爆炸半径控制）：响应时间逐渐恢复'},
@@ -381,17 +396,17 @@ const S1 = [
     n:{gw:'ok',cart:'ok',redis:'ok',cache:true}, cc:false,
     inj:{cls:'inj-ok', t:'✅ 修复已部署：超时 50ms + goroutine 并发 + 本地降级缓存'} },
   { label:'重新实验验证',
-    msg:'重新注入 100ms Redis 延迟后，API 响应时间保持在 < 80ms。并发调用使延迟不再叠加，50ms 超时配置在延迟 100ms 时触发，本地缓存提供降级返回。假说重新验证通过。系统对 Redis 延迟的容忍能力从 0ms 提升至 200ms+。',
+    msg:'本示例重新注入 100ms 延迟后，请求在 50ms 依赖超时触发并返回本地降级数据，因此观测到 API P99 < 80ms。该结果只验证这组负载与缓存条件；不能据此宣称系统可容忍任意 200ms+ Redis 延迟。',
     pts:'45,100 96,99 147,100 198,100 249,99 300,99 351,100 402,100 453,99 504,100',
     exc:false, injPt:true,
     hyp:{s:'verified', t:'✅ 修复后假说成立：响应时间 < 80ms，远低于 200ms 阈值'},
     n:{gw:'ok',cart:'ok',redis:'ok',cache:true}, cc:false,
     inj:{cls:'inj-ok', t:'✅ 重新实验通过：响应时间 < 80ms，具备 Redis 延迟容忍能力'} },
   { label:'记录与改进',
-    msg:'实验报告：发现并修复 3 个问题（无超时 / 串行调用 / 无降级），系统对 Redis 延迟的容忍度从 0ms 提升到 200ms+。更新 Engineering Runbook：所有外部依赖调用强制配置超时 + 降级策略。将此实验加入 CI，每次发版自动回归。',
+    msg:'实验报告：发现并修复 3 个问题（缺少明确超时 / 串行调用 / 无降级），并验证当前系统在本例 100ms 注入下仍能通过缓存降级满足稳态。更新 Runbook，并在隔离环境或受控流水线中回归；是否每次发版执行取决于成本和安全边界。',
     pts:'45,100 96,100 147,99 198,100 249,100 300,100 351,99 402,100 453,100 504,100',
     exc:false, injPt:false,
-    hyp:{s:'verified', t:'✅ 弹性提升：Redis 容忍 0ms → 200ms+，串行 → 并发，无超时 → 50ms'},
+    hyp:{s:'verified', t:'✅ 本例验证：100ms 注入下可降级，串行 → 并发，依赖超时 → 50ms'},
     n:{gw:'ok',cart:'ok',redis:'ok',cache:true}, cc:false, inj:null },
 ];
 
@@ -410,7 +425,7 @@ const S2 = [
     part:false, nA:{a1:'ok',a2:'ok'}, nB:{b1:'ok',b2:'ok'}, rA:{r:false,w:false}, rB:false, inj:null, act:false },
   { label:'注入网络分区',
     hyp:{s:'exceeded', t:'假说验证中：网络已断开（双向），观察两机房独立服务能力...'},
-    msg:'⚡ Chaos Mesh NetworkChaos：在机房 A 和机房 B 的 Pod CIDR 之间注入网络分区（双向不可达）。底层通过 iptables DROP 规则实现精确的流量屏蔽。这是经典的「脑裂」（Split-Brain）测试场景。',
+    msg:'⚡ Chaos Mesh NetworkChaos 在选定工作负载间模拟双向网络分区。具体实现依赖 Chaos Mesh 版本、运行时和网络配置，不应固定描述为 Pod CIDR 上的 iptables DROP；分区会暴露可用性与一致性权衡，但不必然形成双主写入式“脑裂”。',
     part:true, nA:{a1:'ok',a2:'ok'}, nB:{b1:'ok',b2:'ok'}, rA:{r:false,w:false}, rB:false,
     inj:{cls:'inj-fault', t:'⚡ NetworkChaos：机房 A ↔ 机房 B 网络分区（双向 iptables 屏蔽）'}, act:false },
   { label:'机房A：读请求正常',
@@ -420,12 +435,12 @@ const S2 = [
     inj:{cls:'inj-warn', t:'⚠ 机房 A 读请求：✓ 正常（本地副本）| 写请求：待测'}, act:false },
   { label:'机房A：写请求失败',
     hyp:{s:'failed', t:'❌ 假说证伪：写请求失败，无降级策略，用户直接看到 500 错误'},
-    msg:'🚨 机房 A 的写请求需要写入 primary-db-b（在机房 B），但网络已断开，连接超时（默认 30s）后返回 500 Internal Server Error。系统没有实现写操作降级，用户无友好提示。假说在写操作部分证伪。',
+    msg:'🚨 机房 A 的写请求依赖机房 B 主库，分区后在本示例配置的 30 秒连接超时到期并返回 500。数据库驱动通常没有跨产品统一的“默认 30s”，实验前应记录实际连接、查询和请求期限。',
     part:true, nA:{a1:'ok',a2:'warn'}, nB:{b1:'ok',b2:'ok'}, rA:{r:true,w:true}, rB:false,
     inj:{cls:'inj-fault', t:'🚨 机房 A 写请求：✗ 连接超时 30s → 500 Error（primary-db-b 不可达）'}, act:false },
   { label:'发现薄弱点：无写降级',
     hyp:{s:'failed', t:'❌ 假说证伪：发现薄弱点 — 写请求 30s 超时 + 无降级 + 无友好提示'},
-    msg:'根因分析：① 数据库连接超时未设置（默认 30s），写操作占用线程 30s；② 没有为写操作实现降级策略（如返回友好错误、写入本地队列）；③ 用户直接看到 500 错误。这是网络分区场景中最常见的薄弱点。',
+    msg:'根因分析：① 本例实际连接超时为 30s，超过请求体验预算；② 没有适用的写失败处理策略。将写入本地队列只在业务允许异步、具备幂等和持久性设计时才安全；③ 错误直接暴露为 500。',
     part:true, nA:{a1:'fault',a2:'fault'}, nB:{b1:'ok',b2:'ok'}, rA:{r:true,w:true}, rB:false,
     inj:{cls:'inj-fault', t:'❌ 发现薄弱点：写请求超时 30s + 无降级 + 500 Error 直接暴露给用户'}, act:false },
   { label:'恢复网络，一致性检查',

@@ -21,7 +21,7 @@
 body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
 .nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:44px;z-index:10;}
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;}.back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{margin:0;font-size:1.06rem;font-weight:700;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
@@ -87,7 +87,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
 <body>
 <div class="nav-bar">
   <a href="index.html" class="back">← 返回</a>
-  <span class="nav-title">🔺 测试金字塔</span>
+  <h1 class="nav-title">🔺 测试金字塔</h1>
   <div class="nav-tags">
     <span class="ntag">unit</span>
     <span class="ntag">integration</span>
@@ -141,7 +141,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
             <li><strong>目标</strong>：验证单个函数的业务逻辑正确性</li>
             <li><strong>速度</strong>：毫秒级，可在提交时全量运行</li>
             <li><strong>隔离方式</strong>：用 Mock/Stub 替代真实依赖</li>
-            <li><strong>比例建议</strong>：占所有测试的 70%+</li>
+            <li><strong>数量原则</strong>：通常多于更高层测试，但不存在适用于所有项目的固定比例</li>
           </ul>
 <pre><span class="cm">// Go 单元测试示例：隔离 DB 依赖</span>
 <span class="kw">func</span> <span class="fn">TestCalculateTotal</span>(t *testing.T) {
@@ -174,7 +174,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
             <li><strong>目标</strong>：验证组件边界和集成点是否正确连接</li>
             <li><strong>速度</strong>：秒级，通常在 CI 中运行</li>
             <li><strong>工具</strong>：testcontainers（Docker 启动真实 PostgreSQL/Redis）、httptest</li>
-            <li><strong>比例建议</strong>：占所有测试的 20%</li>
+            <li><strong>数量原则</strong>：覆盖重要组件边界，按风险和反馈成本取舍</li>
           </ul>
 <pre><span class="cm">// 使用 testcontainers 启动真实 Postgres 做集成测试</span>
 <span class="kw">func</span> <span class="fn">TestUserRepository_Create</span>(t *testing.T) {
@@ -204,7 +204,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
             <li><strong>目标</strong>：验证关键业务路径端到端可用</li>
             <li><strong>速度</strong>：分钟级，通常在发布前/夜间运行</li>
             <li><strong>工具</strong>：Playwright、Cypress（浏览器）、Newman（API）</li>
-            <li><strong>比例建议</strong>：占所有测试的 10%，只覆盖关键路径</li>
+            <li><strong>数量原则</strong>：保持少而关键，具体数量由业务风险决定</li>
             <li><strong>注意</strong>：E2E 测试脆弱，依赖环境稳定性，不要用它覆盖所有业务逻辑</li>
           </ul>
         </div>
@@ -218,9 +218,9 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
             <tr><td>执行速度</td><td><span class="tag-good">毫秒级</span></td><td>秒级</td><td><span class="tag-bad">分钟级</span></td></tr>
             <tr><td>维护成本</td><td><span class="tag-good">低</span></td><td>中</td><td><span class="tag-bad">高</span></td></tr>
             <tr><td>测试范围</td><td>单函数</td><td>组件间连接</td><td>全链路业务</td></tr>
-            <tr><td>依赖隔离</td><td>完全 Mock</td><td>真实基础设施</td><td>完整部署</td></tr>
+            <tr><td>依赖隔离</td><td>尽量隔离；不要求全部 Mock</td><td>一个或多个真实组件</td><td>接近生产的完整链路</td></tr>
             <tr><td>失败定位</td><td><span class="tag-good">精准</span></td><td>较精准</td><td><span class="tag-bad">模糊</span></td></tr>
-            <tr><td>推荐比例</td><td>70%+</td><td>~20%</td><td>~10%</td></tr>
+            <tr><td>启发式分布</td><td>通常最多</td><td>按边界风险配置</td><td>覆盖关键旅程；无固定比例</td></tr>
           </table>
         </div>
       </div>
@@ -255,7 +255,7 @@ coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | tr
           <ul>
             <li><strong>高覆盖率 ≠ 高质量</strong>：测试可以执行代码但不做任何断言，100% 覆盖率的测试可以完全没有价值</li>
             <li><strong>追求覆盖率导致测试膨胀</strong>：为覆盖而写的测试通常验证实现细节而非行为，重构时大量失败</li>
-            <li><strong>80% 是经验阈值而非规律</strong>：核心业务逻辑要接近 100%，工具类代码可以宽松</li>
+            <li><strong>覆盖率阈值不是质量规律</strong>：即使核心逻辑也应优先覆盖重要行为、风险与边界，而非机械追求接近 100%</li>
             <li><strong>不覆盖的代码同样重要</strong>：错误处理路径、边界条件往往更容易有 Bug，却也最难被覆盖</li>
           </ul>
         </div>
@@ -270,7 +270,7 @@ coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | tr
           <p>微服务架构下，服务边界将集成测试拆散，传统的"集成测试验连接"变成了跨服务的 API 契约问题。</p>
           <ul>
             <li><strong>服务内</strong>：仍然适用金字塔，单元测试覆盖业务逻辑，集成测试验证 DB 访问</li>
-            <li><strong>服务间</strong>：契约测试（Consumer-Driven Contract）替代依赖真实下游的集成测试</li>
+            <li><strong>服务间</strong>：契约测试可减少部分依赖真实下游的兼容性检查，但不能替代网络、认证、配置和数据层面的集成测试</li>
             <li><strong>全链路</strong>：E2E 测试数量应更少，测试的是关键业务路径，而非排列组合</li>
             <li><strong>混沌工程</strong>：在生产级别注入故障，验证系统在真实故障场景下的行为（超出传统金字塔）</li>
           </ul>
@@ -344,7 +344,7 @@ coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | tr
       </div>
       <div class="qa-card">
         <div class="qa-q" onclick="toggleQA(this)">80% 测试覆盖率是否足够？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a">80% 是一个经验参考值，但并不绝对。更重要的是：核心业务逻辑和关键路径要接近 100% 覆盖；错误处理路径（通常最容易有 Bug）必须覆盖；边界条件（空输入、最大值、并发）要专门测试。纯粹追求覆盖率数字会导致写无断言的空测试，反而有害。应该关注"有价值的覆盖"而非数字。</div>
+        <div class="qa-a">无法仅凭 80% 判断是否足够。覆盖率只能说明哪些代码被执行，不能证明断言质量或需求覆盖。应按风险检查关键行为、错误路径和边界条件，并把阈值作为发现异常变化的信号，而不是正确性的证明。</div>
       </div>
       <div class="qa-card">
         <div class="qa-q" onclick="toggleQA(this)">集成测试和 E2E 测试的边界在哪里？<span class="qa-arrow">▶</span></div>
@@ -352,7 +352,7 @@ coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | tr
       </div>
       <div class="qa-card">
         <div class="qa-q" onclick="toggleQA(this)">微服务架构下测试金字塔如何调整？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a">微服务引入了服务边界，传统集成测试的"验连接"需要拆分：服务内部仍然适用金字塔；服务间的 API 兼容性用契约测试（Consumer-Driven Contract / Pact）替代跨服务集成测试；全链路 E2E 只覆盖最关键的业务路径，数量极少。这样可以避免需要维护一个共享的集成测试环境，各服务独立测试独立发布。</div>
+        <div class="qa-a">微服务引入了服务边界：服务内仍需单元与组件集成测试；服务间可用契约测试尽早检查已声明的交互兼容性；认证、网络、配置、序列化基础设施及关键业务流程仍需适量集成或 E2E 验证。各层互补，Pact 不是跨服务测试的完全替代品。</div>
       </div>
     </div>
 

@@ -79,15 +79,15 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;font-size:.82em;color:va
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="B">
+<main class="content">
 
 <section class="hero">
   <div class="card">
-    <div class="eyebrow">Redis / lru-lfu / B 类型</div>
+    <div class="eyebrow">Redis / lru-lfu</div>
     <h1>LRU / LFU</h1>
     <p class="summary">LRU/LFU 在容量有限时决定保留哪些数据，连接 Redis 淘汰、Buffer Pool 和多级缓存。</p>
     <div class="tags"><span>Cache</span><span>LRU</span><span>LFU</span></div>
-    <div class="callout">缓存淘汰策略是面试高频考点（LeetCode 146/460），掌握经典实现和 Redis 的近似优化即可覆盖 90% 场景。</div>
+    <div class="callout">经典 LRU/LFU 与 Redis 的近似采样实现解决的是不同工程约束；选择策略前还要观察真实访问分布、命中率和延迟。</div>
   </div>
   <div class="card map">
     <div class="eyebrow">核心术语</div>
@@ -109,7 +109,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;font-size:.82em;color:va
     <li>Redis 同时支持两种策略，通过 <code>maxmemory-policy</code> 配置选择</li>
     <li>常用配置：<code>allkeys-lru</code>（所有 key 中 LRU 淘汰）、<code>volatile-lfu</code>（有过期时间的 key 中 LFU 淘汰）</li>
     <li>扩展策略：MySQL Buffer Pool 使用 young/old 分代 LRU 抵抗全表扫描；ARC（Adaptive Replacement Cache）自动在 LRU 和 LFU 之间切换</li>
-    <li>Redis 8 种 maxmemory-policy：noeviction、allkeys-lru、allkeys-lfu、allkeys-random、volatile-lru、volatile-lfu、volatile-random、volatile-ttl</li>
+    <li>长期常见的 maxmemory-policy 包括 noeviction、allkeys/volatile 的 LRU、LFU、random，以及 volatile-ttl；较新版本还可能增加策略，应以目标版本的官方配置和 <code>CONFIG GET maxmemory-policy</code> 为准</li>
   </ul>
 </article>
 
@@ -210,7 +210,7 @@ INFO stats | grep evicted_keys   # 总淘汰 key 数</code></pre>
   <h2>面试问答</h2>
   <div class="qa-card" onclick="toggleQA(this)">
     <div class="qa-q">Redis 的 LRU 和经典 LRU 有什么区别？<span class="qa-arrow">&#9654;</span></div>
-    <div class="qa-a">经典 LRU 用双向链表维护全局访问顺序，精确但每个 key 需要前后指针（16 字节开销）。Redis 采用近似 LRU：每个 key 对象头记录 24-bit 上次访问时钟，淘汰时随机采样 maxmemory-samples 个 key，比较时钟选出最旧的淘汰。采样数为 10 时精度已非常接近精确 LRU，且无额外内存开销。这种设计让 Redis 在百万 key 规模下仍能保持低内存占用。</div>
+    <div class="qa-a">经典 LRU 常用双向链表维护全局访问顺序，Redis 则在对象元数据中维护近似访问时间，并结合随机采样与候选池选择淘汰对象。提高 <code>maxmemory-samples</code> 通常能改善近似程度，但会增加 CPU 工作；效果应根据实际访问分布和命中率验证。</div>
   </div>
   <div class="qa-card" onclick="toggleQA(this)">
     <div class="qa-q">LFU 的 Morris counter 是如何工作的？<span class="qa-arrow">&#9654;</span></div>
@@ -256,8 +256,7 @@ INFO stats | grep evicted_keys   # 总淘汰 key 数</code></pre>
 // maxmemory-policy allkeys-lru
 
 // 采样数对比精度：
-// 5: ~91% 接近精确 LRU
-// 10: ~97% 接近精确 LRU</pre>
+// 更高采样数通常提高近似程度，但结果依赖访问分布</pre>
         <p><strong>正确</strong>：Redis 用采样+时钟近似 LRU，在精度和资源消耗之间取得工程平衡。</p>
       </div>
     </div>

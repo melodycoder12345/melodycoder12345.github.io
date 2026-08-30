@@ -226,9 +226,9 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 </div>
 <script>
 window.PAGE_CONCEPTS = [
-  { title: 'Poll 拉取模型', body: `Consumer 主动调用 poll() 向 Broker 拉取消息，避免服务端推送导致消费方过载。poll() 同时驱动心跳、Rebalance 等后台逻辑。` },
+  { title: 'Poll 拉取模型', body: `Consumer 主动调用 poll() 拉取消息。现代 Java Consumer 的心跳由后台线程发送，但应用仍必须在 max.poll.interval.ms 内继续 poll；否则即使心跳尚存，也可能被判定为处理失活并触发重新分配。` },
   { title: 'Offset 消费位移', body: `Offset 标记 Consumer 在 Partition 中的读取位置，存储在内部 Topic __consumer_offsets。Broker 宕机重启后 Consumer 可从上次位置继续消费。` },
-  { title: '手动提交 vs 自动提交', body: `enable.auto.commit=true：每隔 auto.commit.interval.ms 自动提交（简单但可能重复消费）。手动 commitSync/commitAsync 可精确控制提交时机，适合 At-Least-Once 保障。` },
+  { title: '手动提交 vs 自动提交', body: `enable.auto.commit=true 会周期性提交 poll 返回记录的位点；若处理与提交边界不匹配，既可能重复，也可能在处理完成前提交而造成业务结果缺失。处理成功后手动提交常用于构造 at-least-once，但业务副作用仍需幂等。` },
   { title: 'max.poll.records', body: `单次 poll() 返回的最大消息条数（默认 500）。需与 max.poll.interval.ms 配合：处理时间过长会触发 Rebalance。` },
   { title: 'Lag 监控', body: `Lag = LEO（末尾位移）− CommittedOffset。Lag 持续增大说明消费跟不上生产速度，需扩容 Consumer 或优化消费逻辑。`, tag: '运维指标' }
 ];
@@ -280,8 +280,8 @@ const STEPS = [
   { highlightLines:[30,31,32], hlJs:[21,22,23,24,25,26], hlPy:[24,25,26,27,28], description:"Step 4: Offset 写入 Kafka 内部 Topic __consumer_offsets，stored offset 更新为 3" },
   { highlightLines:[17,18], hlJs:[8,9,10], hlPy:[5,6,7,8,9,10,11,12], description:"Step 5: auto-commit 模式 (CommitInterval > 0)：定时自动提交，简单但可能重复消费" },
   { highlightLines:[22,23,24], hlJs:[14,15,16], hlPy:[14,15,16,17], description:"Step 6: 消费者崩溃/下线 → 心跳超时 (session.timeout.ms) → 触发 Rebalance" },
-  { highlightLines:[33,34,35], hlJs:[26,27,28,29,30,31], hlPy:[23,24,25,26,27,28,29,30,31], description:"Step 7: Rebalance 期间所有消费者暂停 (Stop-The-World)，Coordinator 重新分配分区" },
-  { highlightLines:[11,12,13,14,15,16,17,18,19], hlJs:[2,3,4,5,6,7,8,9], hlPy:[3,4,5,6,7,8,9,10,11], description:"Step 8: Rebalance 完成，消费者重新从已提交的 Offset 开始消费，保证 at-least-once 语义" },
+  { highlightLines:[33,34,35], hlJs:[26,27,28,29,30,31], hlPy:[23,24,25,26,27,28,29,30,31], description:"Step 7: 经典 eager Rebalance 会先撤销全部分区；cooperative 策略及 Kafka 4.0 GA 的新 consumer protocol 可减少全局停顿" },
+  { highlightLines:[11,12,13,14,15,16,17,18,19], hlJs:[2,3,4,5,6,7,8,9], hlPy:[3,4,5,6,7,8,9,10,11], description:"Step 8: Rebalance 完成后从已提交 Offset 恢复；是否达到 at-least-once 取决于处理成功后提交及副作用幂等等完整策略" },
 ];
 
 let cur = 0, playing = false, timer = null;

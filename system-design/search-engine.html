@@ -27,7 +27,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
 .steps-panel{background:rgba(17,24,39,.92);border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;overflow:hidden}
 .sp-head{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,.06)}
 .sp-eyebrow{font-size:.65rem;color:var(--accent);text-transform:uppercase;letter-spacing:.14em;font-weight:700;margin-bottom:6px}
-.sp-title{font-size:1rem;font-weight:700;margin-bottom:4px}
+.sp-title{font-size:1rem;font-weight:700;margin:0 0 4px}
 .sp-sub{font-size:.75rem;color:var(--dim);line-height:1.5}
 .scene-tabs{display:flex;flex-direction:column;gap:4px;padding:12px 10px;border-bottom:1px solid rgba(255,255,255,.06)}
 .scene-tab{padding:8px 12px;border-radius:8px;font-size:.78rem;cursor:pointer;border:1px solid transparent;color:var(--dim);transition:all .15s;text-align:left;background:none}
@@ -73,7 +73,7 @@ svg.arch{width:100%;height:100%}
   <aside class="steps-panel">
     <div class="sp-head">
       <div class="sp-eyebrow">System Design</div>
-      <div class="sp-title">搜索引擎</div>
+      <h1 class="sp-title">搜索引擎</h1>
       <div class="sp-sub">倒排索引 · BM25 · 分布式检索</div>
     </div>
     <div class="scene-tabs" id="sceneTabs">
@@ -109,7 +109,7 @@ svg.arch{width:100%;height:100%}
       <div class="algo-compare">
         <div class="algo-item">
           <div class="ai-name">📋 倒排索引</div>
-          <div class="ai-desc">词 → Posting List（文档 ID + 词频 + 位置）。是全文检索的核心数据结构。查询复杂度 O(1) 词典查找 + O(k) Posting 遍历。</div>
+          <div class="ai-desc">词 → Posting List（文档 ID + 词频 + 位置）。词典查找成本取决于 FST/哈希/树等实现与词长，之后还要解码和遍历 Posting List。</div>
         </div>
         <div class="algo-item">
           <div class="ai-name">📊 BM25 算法</div>
@@ -267,10 +267,10 @@ const QUERY_COMPS = {
 const QUERY_STEPS = [
   { desc:'用户输入查询词 "机器学习"，搜索引擎首先对查询进行预处理：分词（"机器学习" 本身是词）、停用词过滤（的/了/是）、同义词扩展（"人工智能"）、拼写纠错。', from:'user', to:'tokenize', color:'#38bdf8' },
   { desc:'查询分词结果：["机器学习"]（单词查询）。若输入 "机器学习模型"，则分词为 ["机器学习", "模型"]，生成布尔查询：机器学习 AND 模型，要求两个词都出现。', from:'tokenize', to:'lookup', color:'#a78bfa', msg:'query: ["机器学习"]\nmode: AND/OR' },
-  { desc:'查倒排索引：词典 FST 中查找 "机器学习" 的 Posting List → [(doc2,tf=3,pos=[5,18,42]), (doc5,tf=1,pos=[12]), (doc8,tf=2,pos=[3,77])]。词典查找 O(1)。', from:'lookup', to:'score', color:'#f59e0b', msg:'"机器学习" → posting:\n[doc2(3), doc5(1), doc8(2)]' },
+  { desc:'查倒排索引：词典 FST 中沿查询词字符/字节路径查找 Posting List → [(doc2,tf=3,pos=[5,18,42]), (doc5,tf=1,pos=[12]), (doc8,tf=2,pos=[3,77])]。成本与词长、缓存和索引实现有关，并非 O(1) 的通用保证。', from:'lookup', to:'score', color:'#f59e0b', msg:'"机器学习" → posting:\n[doc2(3), doc5(1), doc8(2)]' },
   { desc:'BM25 打分计算：IDF("机器学习") = log((N-df+0.5)/(df+0.5))，其中 N=总文档数，df=含该词的文档数。对每个候选文档计算 BM25 分数。', from:'score', to:'result', color:'#4ade80' },
   { desc:'多词查询时合并 Posting Lists：对 "机器学习" 和 "模型" 的 Posting Lists 做交集（AND）或归并（OR）。交集用双指针算法 O(m+n)，效率极高。', from:'lookup', to:'result', color:'#f59e0b', msg:'AND合并:\n[doc2, doc8] ∩ [doc1, doc2, doc5]\n→ [doc2]' },
-  { desc:'Top-K 堆排序：使用最小堆维护 Top-K 结果，扫描完所有候选后输出分数最高的 K 个文档。K 通常取 100-200，再截取前 10 条展示给用户。', from:'score', to:'user', color:'#4ade80', msg:'Top-10 结果\n< 50ms' },
+  { desc:'Top-K 收集：可用最小堆或引擎的跳跃/剪枝算法维护高分结果。候选规模、K 和延迟预算均需按业务与基准测试确定。', from:'score', to:'user', color:'#4ade80', msg:'Top-10 结果\n延迟受查询与索引规模影响' },
 ];
 
 // ====== 场景4：PageRank ======

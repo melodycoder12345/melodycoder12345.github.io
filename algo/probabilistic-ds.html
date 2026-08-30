@@ -43,8 +43,8 @@ pre{background:var(--panel2);border:1px solid var(--border);border-radius:10px;p
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="B">
-<section class="hero"><div class="card"><div class="eyebrow">算法 / probabilistic-ds / B 类型</div><h1>近似数据结构</h1><p class="summary">近似数据结构用可控误差换内存和吞吐，适合海量判重、基数估计和频率估计。</p><div class="tags"><span>Bloom</span><span>HLL</span><span>Count-Min</span></div></div><div class="card map"><div class="eyebrow">核心术语</div><div class="term"><strong>Bloom Filter</strong><span>集合存在性判断，允许假阳性，不允许假阴性。</span></div><div class="term"><strong>HyperLogLog</strong><span>估计不同元素数量（基数），仅需 12KB 状态即可估计 10^9 基数。</span></div><div class="term"><strong>Count-Min Sketch</strong><span>估计元素频率，可能高估但不会低估（单方向误差）。</span></div></div></section>
+<main class="content">
+<section class="hero"><div class="card"><div class="eyebrow">算法 / probabilistic-ds</div><h1>近似数据结构</h1><p class="summary">近似数据结构用可控误差换内存和吞吐，适合海量判重、基数估计和频率估计。</p><div class="tags"><span>Bloom</span><span>HLL</span><span>Count-Min</span></div></div><div class="card map"><div class="eyebrow">核心术语</div><div class="term"><strong>Bloom Filter</strong><span>标准、只插入版本允许假阳性但不产生假阴性。</span></div><div class="term"><strong>HyperLogLog</strong><span>用固定数量的寄存器估计不同元素数量（基数），结果带统计误差。</span></div><div class="term"><strong>Count-Min Sketch</strong><span>在非负更新模型中估计频率，点查询可能高估但不会低估。</span></div></div></section>
 
 <section class="grid">
 
@@ -52,11 +52,11 @@ pre{background:var(--panel2);border:1px solid var(--border);border-radius:10px;p
 <h2>背景</h2>
 <p>当数据规模大到精确存储所有元素不可行时（10 亿 URL 的去重、百亿级 UV 统计），工程系统选择概率数据结构：</p>
 <ul>
-<li><strong>精确方案</strong>：HashSet 存 10 亿 URL 约需 60GB 内存</li>
+<li><strong>精确方案</strong>：HashSet 必须保存每个键及索引元数据，实际内存取决于 URL 长度和具体实现</li>
 <li><strong>Bloom Filter</strong>：同等规模仅需 ~1.2GB，代价是 1% 假阳性</li>
-<li><strong>HyperLogLog</strong>：统计 UV 仅需 12KB，标准误差 0.81%</li>
+<li><strong>HyperLogLog</strong>：以 Redis 的稠密 HLL（p=14）为例约 12KB、标准误差约 0.81%；其他实现与精度参数会占用不同空间</li>
 </ul>
-<p>核心权衡：<strong>用可量化的误差换取数量级的内存节省</strong>。误差不是随机的，而是有数学保证的上界。</p>
+<p>核心权衡：<strong>用可量化的统计误差换取数量级的内存节省</strong>。不同结构给出的保证不同：Bloom 给出假阳性概率，HLL 通常描述标准误差，CMS 在规定哈希假设下给出高概率误差界，不能都理解为确定性的硬上界。</p>
 </article>
 
 <article class="section">
@@ -86,7 +86,7 @@ pre{background:var(--panel2);border:1px solid var(--border);border-radius:10px;p
 <ul>
 <li>d 行 w 列的二维计数数组，配 d 个独立哈希函数。</li>
 <li><strong>增加</strong>：对元素用每个哈希函数映射到一列，该位置计数 +1。</li>
-<li><strong>查询</strong>：取 d 个位置的最小值作为频率估计（取 min 是因为碰撞只会高估不会低估）。</li>
+<li><strong>查询</strong>：在只做非负增量更新的模型中，取 d 个位置的最小值作为频率估计；碰撞只会高估。允许任意负更新时需采用相应模型与分析，不能沿用这条单向保证。</li>
 <li>误差保证：以概率 1-delta，估计值不超过真实值 + epsilon*N（N 为总插入次数）。w = e/epsilon，d = ln(1/delta)。</li>
 <li><strong>可合并性</strong>：两个 CMS 逐位相加即可合并统计（分布式友好）。</li>
 </ul>

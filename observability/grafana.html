@@ -105,7 +105,7 @@ pre code{color:inherit;font-size:inherit}
 </style>
 </head>
 <body>
-<main class="content" data-page-type="B">
+<main class="content">
 
 <div class="breadcrumb">
   <a href="../index.html">首页</a>
@@ -117,7 +117,7 @@ pre code{color:inherit;font-size:inherit}
 
 <section class="hero">
   <div class="card">
-    <div class="eyebrow">Observability / Grafana / B 类型</div>
+    <div class="eyebrow">Observability / Grafana</div>
     <h1>Grafana 与告警体系</h1>
     <p class="summary">Grafana 是指标可视化和告警的统一入口。结合 Prometheus 数据源，构建 Dashboard 监控系统健康度，配置 Alerting 规则触发告警，经 Alertmanager 路由、分组、静默、抑制后送达 Slack/PagerDuty。理解告警的信噪比设计是 SRE 的核心能力。</p>
     <div class="tags">
@@ -139,19 +139,19 @@ pre code{color:inherit;font-size:inherit}
 
 <article class="section">
   <h2>为什么需要 Grafana</h2>
-  <p>Prometheus 本身只提供 /graph 查询 UI，功能极为简陋：</p>
+  <p>Prometheus 自带表达式浏览器，适合临时查询和调试；Grafana 更适合团队化、多数据源的可视化工作流：</p>
   <ul>
-    <li><strong>无法分享</strong>：每次查询都要手写 PromQL，不能持久化为可分享链接</li>
-    <li><strong>无法组合</strong>：不支持多指标并排对比，也无法在一个视图中展示不同数据源</li>
-    <li><strong>无法下钻</strong>：静态图表，点击无法跳转到相关告警或日志</li>
+    <li><strong>持久化与协作</strong>：Dashboard、权限和配置即代码能力更适合共享与维护</li>
+    <li><strong>组合数据源</strong>：可在统一界面查询和展示指标、日志、追踪等不同后端</li>
+    <li><strong>导航与关联</strong>：Dashboard Link、Data Link 和 Explore 支持跨信号下钻</li>
   </ul>
   <p>Grafana 作为统一可视化层，解决了这三个问题：</p>
   <ul>
-    <li><strong>40+ 数据源</strong>：Prometheus、Loki、Elasticsearch、ClickHouse、CloudWatch、Tempo 等一站接入</li>
+    <li><strong>多种数据源</strong>：通过内置或插件数据源接入 Prometheus、Loki、Elasticsearch、CloudWatch、Tempo 等系统</li>
     <li><strong>告警闭环</strong>：从 Dashboard 直接配置告警规则，状态变化可视化</li>
     <li><strong>团队协作</strong>：Dashboard 版本管理（JSON model）、文件夹权限、Annotation 标注发布事件</li>
   </ul>
-  <div class="callout">Grafana 不存储数据，它是查询层 + 展示层 + 告警入口的三合一，本身无状态可水平扩展。</div>
+  <div class="callout">Grafana 通常不保存被观测的指标、日志和 Trace，而是查询数据源；但它会在 SQLite（默认）或 MySQL/PostgreSQL 中持久化用户、Dashboard、配置和部分告警状态。高可用需要共享数据库及相应告警 HA 配置，不能简单视为无状态服务。</div>
 </article>
 
 <article class="section">
@@ -222,7 +222,7 @@ sum(rate(http_requests_total{
 
 <article class="section grid-full">
   <h2>告警规则与状态机</h2>
-  <p>Grafana Alerting 对 PromQL 表达式周期性求值（默认 1m），结果驱动状态机：</p>
+  <p>Grafana Alerting 按规则组配置的评估间隔执行数据源查询与表达式，结果驱动告警状态；1 分钟只是常见示例值，并非所有规则固定使用：</p>
   <div class="state-flow">
     <div class="state-box state-normal">Normal</div>
     <div class="state-arrow">→ 超阈值 →</div>
@@ -233,7 +233,7 @@ sum(rate(http_requests_total{
     <div class="state-box state-resolved">Resolved</div>
   </div>
   <p style="margin-top:12px"><strong>Pending 期</strong>：指标超阈值但 <code>for: 5m</code> 未到，告警不发送通知。避免毛刺（短暂抖动）导致误报。</p>
-  <pre><code><span class="comment"># 告警规则示例（Grafana Alerting / Prometheus rules 格式均支持）</span>
+  <pre><code><span class="comment"># Prometheus 规则文件示例；Grafana-managed rules 使用其 UI、API 或 provisioning 格式</span>
 <span class="kw">groups</span>:
   - <span class="kw">name</span>: api-slo
     <span class="kw">rules</span>:
@@ -255,7 +255,7 @@ sum(rate(http_requests_total{
       - <span class="kw">alert</span>: HighP99Latency
         <span class="kw">expr</span>: |
           histogram_quantile(<span class="num">0.99</span>,
-            rate(http_request_duration_seconds_bucket[5m])
+            sum by (le) (rate(http_request_duration_seconds_bucket[5m]))
           ) > <span class="num">0.5</span>
         <span class="kw">for</span>: <span class="num">5m</span>
         <span class="kw">labels</span>:
@@ -268,7 +268,7 @@ sum(rate(http_requests_total{
       <span class="comment"># 基于 Error Budget Burn Rate 的 SLO 告警</span>
       - <span class="kw">alert</span>: SLOBurnRateCritical
         <span class="kw">expr</span>: |
-          <span class="comment"># 1h 短窗口 burn rate > 14.4 倍（1h 内耗尽 30d budget）</span>
+          <span class="comment"># 1h 窗口 burn rate > 14.4：该窗口约消耗 30d budget 的 2%</span>
           sum(rate(http_requests_total{status=~<span class="str">"5.."</span>}[1h]))
           /
           sum(rate(http_requests_total[1h]))
@@ -364,21 +364,22 @@ amtool silence expire &lt;silence-id&gt;</code></pre>
 
 <span class="comment"># Burn Rate = 实际错误消耗速率 / 正常消耗速率
 # Burn Rate = 1 → 恰好在 30d 用完 budget（不告警）
-# Burn Rate = 14.4 → 1h 内消耗 1/30d 的 budget（即 1h 耗尽！）</span>
+# Burn Rate = 14.4 → 若持续约 50h 耗尽预算；在 1h 窗口约消耗预算的 2%</span>
 
-<span class="comment"># 多窗口告警（Google SRE Book 推荐）：</span>
-<span class="comment"># 快窗口（敏感）：5m Burn Rate > 14.4  → 立刻叫人</span>
-<span class="comment"># 慢窗口（稳健）：1h Burn Rate > 1     → 工单处理</span>
+<span class="comment"># 多窗口多燃烧率的一个推荐起点：</span>
+<span class="comment"># 1h 与 5m 均 > 14.4，或 6h 与 30m 均 > 6 → Page</span>
+<span class="comment"># 长短窗口配对可兼顾检测与恢复速度，参数仍需按服务调整</span>
 
-<span class="comment"># 5 分钟快速告警（P0）</span>
-sum(rate(http_requests_total{status=~<span class="str">"5.."</span>}[5m]))
-/ sum(rate(http_requests_total[5m]))
-> (<span class="num">1</span> - <span class="num">0.999</span>) * <span class="num">14.4</span>
-
-<span class="comment"># 1 小时慢速告警（P1）</span>
-sum(rate(http_requests_total{status=~<span class="str">"5.."</span>}[1h]))
-/ sum(rate(http_requests_total[1h]))
-> (<span class="num">1</span> - <span class="num">0.999</span>) * <span class="num">1</span></code></pre>
+<span class="comment"># Page：长、短窗口必须同时仍在快速燃烧</span>
+(
+  error_ratio_1h > (<span class="num">1</span> - <span class="num">0.999</span>) * <span class="num">14.4</span>
+  and error_ratio_5m > (<span class="num">1</span> - <span class="num">0.999</span>) * <span class="num">14.4</span>
+)
+or
+(
+  error_ratio_6h > (<span class="num">1</span> - <span class="num">0.999</span>) * <span class="num">6</span>
+  and error_ratio_30m > (<span class="num">1</span> - <span class="num">0.999</span>) * <span class="num">6</span>
+)</code></pre>
   <div class="callout">Burn Rate 告警的优势：<strong>自动适配不同 SLO 级别的服务</strong>，99.9% 和 99.99% 的服务使用相同规则表达式，只需修改 SLO 参数。</div>
 </article>
 
@@ -442,7 +443,7 @@ sum(rate(http_requests_total{status=~<span class="str">"5.."</span>}[1h]))
   </div>
   <div class="qa-card" onclick="toggleQA(this)">
     <div class="qa-q">SLO Burn Rate 告警相比固定阈值告警有什么优势？<span class="qa-arrow">&#9654;</span></div>
-    <div class="qa-a">固定阈值（Error Rate > 1%）的问题：1) 低流量时，10 个请求 1 个错误就告警，而实际用户感知轻微；2) 高流量时，1% 错误代表巨大用户影响，但阈值一样。Burn Rate 的优势：1) 与 Error Budget 直接挂钩，Burn Rate = 14.4 意味着按这个速率 1h 就会耗尽 30 天 budget，直接量化影响；2) 自动适配流量波动，高峰期流量大，同样错误率的 Burn Rate 更高，告警更敏感；3) 支持多窗口（5m 快速 + 1h 稳健）组合，减少误报同时保证漏报率低。关键：SLO-based 告警要求你先明确定义 SLO，这是推动团队建立 SLO 文化的好方式。</div>
+    <div class="qa-a">固定阈值未必对应用户 SLO。Burn Rate 把坏事件率除以 SLO 允许错误率：14.4x 若持续约 50 小时会耗尽 30 天预算，而在 1 小时窗口内约消耗预算的 2%。推荐做法把 1h/5m 的 14.4x 条件配对，并用 6h/30m 的 6x 条件覆盖较慢事故。Burn Rate 由错误比例决定，同一错误率不会因流量高就自动变大；低流量还可能因少数失败而产生噪声，需要合成流量、聚合或其他策略。</div>
   </div>
 </article>
 

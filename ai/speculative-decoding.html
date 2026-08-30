@@ -3,40 +3,40 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="投机解码：Draft Model 快速生成候选，Target Model 并行验证，不降低输出质量的前提下加速推理 2–5x。">
+<meta name="description" content="投机解码：Draft Model 生成候选，Target Model 并行验证，并在适用采样算法下保持目标分布。">
 <link rel="canonical" href="https://melodycoder12345.github.io/ai/speculative-decoding.html">
 <meta property="og:title" content="投机解码 — 码海拾贝">
-<meta property="og:description" content="投机解码：Draft Model 快速生成候选，Target Model 并行验证，不降低输出质量的前提下加速推理 2–5x。">
+<meta property="og:description" content="投机解码：Draft Model 生成候选，Target Model 并行验证，并在适用采样算法下保持目标分布。">
 <meta property="og:url" content="https://melodycoder12345.github.io/ai/speculative-decoding.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="码海拾贝">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="投机解码 — 码海拾贝">
-<meta name="twitter:description" content="投机解码：Draft Model 快速生成候选，Target Model 并行验证，不降低输出质量的前提下加速推理 2–5x。">
+<meta name="twitter:description" content="投机解码：Draft Model 生成候选，Target Model 并行验证，并在适用采样算法下保持目标分布。">
 <title>投机解码 - AI</title>
 <script src="../nav.js"></script>
 <script src="../concept.js"></script>
 <link rel="stylesheet" href="ai.css">
 <script>window.PAGE_CONCEPTS=[
-  {"title":"投机解码","body":"Draft Model 快速生成多个候选 token，Target Model 并行验证；期望可接受的 token 数为 α/(1−α)，α 是平均接受率，理论加速比可达 3–5x。","tag":"term"},
-  {"title":"接受率（α）","body":"Target 接受 Draft 采样 token 的概率，取决于两个模型分布的相似程度。α 越高加速比越大；使用同族蒸馏小模型作 Draft 时 α 通常 ≥ 0.8。","tag":"term"},
+  {"title":"投机解码","body":"Draft Model 自回归提出至多 γ 个候选，Target Model 在一次批量前向中验证这些位置。若把各位置接受率近似为 α，候选接受数的期望为 Σᵢ₌₁^γ αⁱ，而不是不受 γ 限制的固定公式。","tag":"term"},
+  {"title":"接受率（α）","body":"候选被 Target 接受的概率取决于两个分布、上下文和采样设置；接受率必须对目标工作负载测量。","tag":"term"},
   {"title":"并行验证","body":"Target Model 将 Draft 生成的所有候选 token 拼接为 prefix，一次 forward pass 同时验证，而非逐个顺序处理，计算量不变但等效产出多个 token。","tag":"term"}
 ];</script>
 </head>
 <body>
-<main class="shell" data-page-type="C">
+<main class="shell">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">AI / Inference / C 类型</div>
+      <div class="eyebrow">AI / Inference</div>
       <h1>投机解码</h1>
-      <p class="summary">Draft Model 快速生成多个候选 token，Target Model 用一次 forward pass 并行验证，通过拒绝采样保持输出分布与 Target 完全等价。接受则保留全部候选，拒绝则截断并从 Target 重采样，实现 2–5x 推理加速而不损失质量。</p>
+      <p class="summary">Draft Model 自回归提出多个候选，Target Model 批量验证。论文中的修正拒绝采样可保持与指定 Target 采样器相同的分布；实际加速取决于接受率、草稿成本、硬件、batch 和实现，并非固定倍数。</p>
       <div class="tags"><span>Speculative Decoding</span><span>Draft Model</span><span>Parallel Verify</span><span>Accept/Reject Sampling</span></div>
     </div>
     <div class="card map">
       <div class="eyebrow">核心观察</div>
-      <div class="term"><strong>一次前向，多个 token</strong><span>Target 验证 k 个候选只需 1 次 forward pass，等效将 decode 吞吐放大 k 倍。</span></div>
-      <div class="term"><strong>分布等价保证</strong><span>拒绝采样机制确保最终输出分布等价于 Target 独立采样，不降低任何质量。</span></div>
-      <div class="term"><strong>接受率决定收益</strong><span>α 是关键指标，同族蒸馏小模型作 Draft 时 α 通常 ≥ 0.8，加速最明显。</span></div>
+      <div class="term"><strong>一次验证，多个位置</strong><span>Target 可在一次批量前向中计算候选各位置的 logits，但计算量、内存访问和墙钟时间不等同于一次单 token decode。</span></div>
+      <div class="term"><strong>分布等价的条件</strong><span>使用论文规定的接受与修正采样、且数值实现正确时，可保持指定 Target 采样分布；其他启发式变体未必具有该保证。</span></div>
+      <div class="term"><strong>接受率决定收益</strong><span>接受率是关键指标，但还需计入 Draft 生成、Target 验证、同步和回退成本。</span></div>
     </div>
   </section>
   <section class="lab">
@@ -95,7 +95,7 @@ window.AI_DEMO = {
       badge:'drafting',
       nodes:['draft','t1','t2','t3','t4'], edges:['e1','e2','e3','e4'],
       desc:'小模型（Draft Model）以极低延迟连续生成 4 个候选 token，等待 Target 并行验证。',
-      detail:'Draft Model 通常是 Target 1/10 参数量，单步延迟可忽略不计，生成 4 个候选仅需几毫秒。',
+      detail:'Draft 必须足够便宜且与 Target 分布接近；参数比例和延迟没有通用阈值，应在目标硬件上测量。',
       metrics:[{label:'draft tokens',value:'4'},{label:'draft latency',value:'~1 ms/token'}]
     },
     {
@@ -106,13 +106,13 @@ window.AI_DEMO = {
       metrics:[{label:'forward pass',value:'1 次'},{label:'验证 tokens',value:'4 个并行'}]
     },
     {
-      kicker:'full-accept', title:'全部接受，吞吐 3–5x 提升',
+      kicker:'full-accept', title:'全部接受，减少 Target 解码轮次',
       badge:'accepted', tone:'ok',
       goodNodes:['t1','t2','t3','t4','output','accept'],
       nodes:['verify'], edges:['e8','e10'],
       desc:'若 Target 分布与 Draft 分布足够接近，则接受全部 4 个 token，等效用 1 次 forward pass 产出 4 个有效 token。',
-      detail:'加速比 ≈ α/(1−α) + 1，α=0.8 时理论加速约 5x，实测（含调度开销）通常达 2–3x。',
-      metrics:[{label:'accepted',value:'4 / 4'},{label:'实测加速',value:'~3–5x'}]
+      detail:'有限 γ 下，连续接受候选数受上限限制；端到端加速还取决于 Draft 与 Target 的相对成本，不能只由 α 推导。',
+      metrics:[{label:'accepted',value:'4 / 4'},{label:'加速',value:'需基准测试'}]
     },
     {
       kicker:'partial-draft', title:'Scenario 2：Draft 生成新一批候选',
@@ -159,8 +159,8 @@ window.AI_DEMO = {
       badge:'comparison', tone:'ok',
       goodNodes:['draft','verify','accept'],
       nodes:['target'], edges:['e7','e8'],
-      desc:'当平均接受率 α ≥ 0.7 时，Speculative Decoding 吞吐约为自回归的 2–3x；使用同族蒸馏模型作 Draft（α ≥ 0.85）实测可达 3–5x，且输出质量与 Target 独立采样完全等价。',
-      detail:'数学上可以证明：无论接受还是拒绝，最终的 token 序列分布与 Target Model 逐步自回归采样完全相同。',
+      desc:'接受率较高通常更有利，但同一 α 在不同 Draft 成本、γ、batch 和硬件下可能得到不同收益，甚至负收益。',
+      detail:'分布等价结论只适用于采用论文所定义修正采样的算法；贪心或树式等变体需要分别说明其保证。',
       metrics:[{label:'α = 0.5',value:'~2x'},{label:'α = 0.8',value:'~5x'},{label:'α = 0.9',value:'~10x'}]
     }
   ]

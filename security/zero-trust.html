@@ -54,7 +54,7 @@ a{color:var(--accent);text-decoration:none}
     零信任网络
   </div>
   <h1 class="page-title">零信任网络</h1>
-  <p class="subtitle">Never Trust, Always Verify。传统边界安全模型假设内网可信，零信任则假设内外网均不可信，每次访问都需要身份认证、设备健康检查和最小权限授权。以 BeyondCorp（Google）为代表，mTLS 和身份感知代理是核心技术。</p>
+  <p class="subtitle">零信任不依据网络位置或资产归属授予隐式信任，而是围绕资源执行动态认证与授权。设备态势、最小权限、遥测、策略执行点和持续评估是常见能力；mTLS、IAP 或 BeyondCorp 是实现选择，不是零信任定义本身。</p>
   <div class="layout">
     <div class="left-panel">
       <div class="tab-group">
@@ -277,7 +277,7 @@ function gate(x,y,title,sub,state){
 
 const ZT_STEPS = [
   { label:'发起访问请求',
-    msg:'员工尝试访问内部 HR 系统。\n\n零信任架构关键：HR 系统不直接暴露在网络上，没有公网 IP，员工无法直接访问。\n\n所有请求必须先经过身份感知代理（Identity-Aware Proxy，IAP）。IAP 是零信任的核心执行点。',
+    msg:'本示例选择身份感知代理（IAP）作为策略执行点。零信任并不强制资源没有公网 IP，也不强制使用某一产品；关键是所有访问路径均受策略执行点控制，并基于主体、设备、资源、环境和风险信号做决策。',
     draw(){
       let s='';
       s+=node(75,210,82,36,'Employee','John Doe','rgba(74,222,128,0.1)','rgba(74,222,128,0.4)');
@@ -515,7 +515,7 @@ const MTLS_STEPS = [
     }
   },
   { label:'B 发送自己的证书',
-    msg:'mTLS 关键区别：服务端也必须向客户端提交证书。\n\nService B 发送自己的证书给 Service A，完成双向身份认证。\n\n对比单向 TLS（普通 HTTPS）：\n• 单向 TLS：只有客户端验证服务端证书\n• mTLS：双方都需验证对方证书\n\nmTLS 无需 API Key、无需共享 Secret，身份完全由证书承载。',
+    msg:'mTLS 中服务端请求并验证客户端证书，客户端仍验证服务端证书，从而提供双向传输层认证。证书身份可取代某些共享 API Key，但 mTLS 不自动完成业务授权、最终用户身份传递或重放防护；服务仍需按已认证身份执行授权策略。',
     draw(){
       let s='';
       s+=node(130,210,100,44,'Service A','← 收到 B 证书','rgba(17,24,39,0.85)','rgba(255,255,255,0.2)');
@@ -552,7 +552,7 @@ const MTLS_STEPS = [
     }
   },
   { label:'mTLS 通道建立',
-    msg:'双向验证完成，建立 mTLS 加密通道！\n\n通道属性：\n• 双向身份认证（无需 API Key / Secret）\n• TLS 1.3 加密（AES-256-GCM）\n• 证书通常有效期 1-24h，自动轮换（SPIRE）\n• 基于 SPIFFE 标准，可跨集群、跨云使用\n• Envoy Sidecar 可透明处理 mTLS（Service Mesh）',
+    msg:'双向验证完成后建立 TLS 通道。TLS 版本和 AEAD 套件由双方配置与协商决定，并非固定 TLS 1.3/AES-256-GCM。SPIFFE/SPIRE 可签发并轮换短期工作负载身份，但 TTL、轮换、跨信任域联邦和授权策略都需要显式配置。',
     draw(){
       let s='';
       s+=node(130,210,100,44,'Service A','身份已验证','rgba(74,222,128,0.12)','rgba(74,222,128,0.6)',2);
@@ -567,8 +567,8 @@ const MTLS_STEPS = [
       s+=P(`M 432 103 L 625 188`,'rgba(251,191,36,0.25)','ah-warn',1,'7,4');
       s+=R(155,290,490,120,10,'rgba(74,222,128,0.04)','rgba(74,222,128,0.2)');
       s+=T(400,310,'mTLS 通道属性','#4ade80',10,'middle','font-weight="600"');
-      s+=T(400,330,'双向身份认证（无需 API Key）  |  AES-256-GCM 加密','#94a3b8',9,'middle');
-      s+=T(400,350,'证书自动轮换（SPIRE）  |  跨集群 SPIFFE 标准','#94a3b8',9,'middle');
+      s+=T(400,330,'双向传输层身份认证  |  版本与 AEAD 套件由双方协商','#94a3b8',9,'middle');
+      s+=T(400,350,'SPIRE 可自动轮换  |  跨信任域需配置联邦与策略','#94a3b8',9,'middle');
       s+=T(400,370,'Envoy/Istio 可在 Sidecar 层透明处理，服务无感知','#94a3b8',9,'middle');
       s+=T(400,390,'证书有效期通常 1-24h，比 API Key 安全得多','#64748b',8,'middle');
       return svgWrap(s);
@@ -602,7 +602,7 @@ const MTLS_STEPS = [
       s+=Ci(595,144,10,'rgba(74,222,128,0.15)','#4ade80',1.5);
       s+=T(595,144,'🔒','#4ade80',9);
       s+=R(440,180,310,60,6,'rgba(74,222,128,0.07)','rgba(74,222,128,0.25)');
-      s+=T(595,200,'证书即身份，无需额外鉴权','#4ade80',9,'middle');
+      s+=T(595,200,'证书认证工作负载，业务仍需授权','#4ade80',9,'middle');
       s+=T(595,218,'SPIFFE ID = 服务身份标识符','#94a3b8',8,'middle','font-family="\'Courier New\',monospace"');
       s+=T(595,260,'✓ 双向身份认证','#4ade80',10,'middle');
       s+=T(595,282,'✓ 无需 API Key / Token','#4ade80',10,'middle');
@@ -735,7 +735,7 @@ const ANOMALY_STEPS = [
     }
   },
   { label:'对比传统 VPN',
-    msg:'终极对比：同样的账号被盗场景，两种模型的结果完全不同。\n\n传统 VPN 模型：密码 = 通行证，攻击者进入内网后自由横移，可能数周甚至数月未被发现。\n\n零信任模型：即使第一道防线（密码）失守，设备检查、持续验证、实时告警依然阻止了攻击，且响应时间 < 15 分钟。',
+    msg:'示例对比：零信任控制可以限制被盗账号的可达范围并提高检测机会，但不保证阻断每次攻击。攻击者若同时控制受管设备、会话或策略执行点仍可能成功；检测与响应时间取决于组织能力，不存在通用的 <15 分钟承诺。',
     draw(){
       let s='';
       s+=R(10,25,375,385,12,'rgba(248,113,113,0.05)','rgba(248,113,113,0.3)',2);

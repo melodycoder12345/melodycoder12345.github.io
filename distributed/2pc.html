@@ -88,10 +88,10 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">分布式 / 2PC / C 类型</div>
+      <div class="eyebrow">分布式 / 2PC</div>
       <h1>两阶段提交<br>（2PC）</h1>
       <p class="summary">两阶段提交通过协调者广播 Prepare/Commit，让多个参与者原子性地完成分布式事务，但协调者单点和阻塞问题是其核心局限。</p>
       <div class="tags"><span>Prepare</span><span>Commit</span><span>协调者</span><span>阻塞</span></div>
@@ -205,7 +205,7 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
       <h2>常见误区</h2>
       <ul>
         <li>2PC 不是高可用协议——协调者崩溃后参与者会无限期持锁阻塞，直到协调者恢复。</li>
-        <li>网络分区下 2PC 无法保证可用性（CA 而非 AP），这是其最大局限。</li>
+        <li>网络分区或协调者故障时，已投 Yes 的参与者可能无法获知最终决定而阻塞；不要把事务提交协议简单贴成“CA”标签。</li>
         <li>参与者投 Yes 之后就失去了决策权，只能等待协调者的最终指令。</li>
         <li>3PC 试图解决阻塞但引入了新复杂性，工业界更多采用 Saga/TCC 替代。</li>
       </ul>
@@ -221,7 +221,7 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
     </section>
     <section>
       <h2>边界与恢复</h2>
-      <p>动画覆盖四个场景：① 正常全票 Yes 提交路径；② 一票 No 触发全局回滚；③ 协调者在 Phase 2 前崩溃，参与者无限阻塞；④ 参与者超时后尝试互联查询（3PC 方向）。排查时关注协调者日志状态——已写 commit 则参与者应提交，未写则应回滚。</p>
+      <p>动画覆盖四个场景：① 正常全票 Yes 提交路径；② 一票 No 触发全局回滚；③ 协调者在 Phase 2 前崩溃，参与者阻塞等待恢复；④ 参与者超时后尝试互联查询。恢复必须依据协调者和参与者的持久化日志执行：已有最终决定就重放；仅凭“没有 commit 记录”不能让已进入 prepared 的参与者自行回滚。</p>
     </section>
   </section>
 </main>
@@ -265,7 +265,7 @@ const STEPS = [
     title: "P2 加锁资源，回复 Yes",
     desc: "P2 同样验证通过，锁定资源，回复 Yes。",
     kind: "normal",
-    detail: "P1/P2 都已持锁等待，系统的"阻塞窗口"开始形成。",
+    detail: "P1/P2 都已持锁等待，系统的“阻塞窗口”开始形成。",
     phase: "Phase 1: 投票中",
     coordSub: "等待投票", logStatus: "记录中", logDecision: "PREPARE",
     subs: ["已回复 Yes", "回复 Yes ✓", "投票中…"],

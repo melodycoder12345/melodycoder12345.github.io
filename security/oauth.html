@@ -59,7 +59,7 @@ a{color:var(--accent);text-decoration:none}
 <main class="wrap">
   <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">安全</a><span>/</span>OAuth 2.0</div>
   <h1 class="page-title">OAuth 2.0 授权码流程</h1>
-  <p class="subtitle">OAuth 2.0 的核心是"授权码换 Token"：浏览器通过前端渠道获取一次性授权码（Code），Client 后端通过后端渠道（携带 client_secret）将 Code 换成 Access Token。Code 只能用一次，Token 有过期时间。</p>
+  <p class="subtitle">OAuth 2.0 是授权框架，不直接定义“登录”；登录通常由 OpenID Connect 在 OAuth 2.0 之上提供。授权码流程中，客户端以一次性 Code 换取 Access Token；当前最佳实践要求公共客户端使用 PKCE，并建议机密客户端也使用 PKCE。</p>
 
   <div class="layout">
     <div class="left-panel">
@@ -93,12 +93,12 @@ a{color:var(--accent);text-decoration:none}
 const STEPS = [
   {
     rows:[],state:{},
-    msg:'场景：用户要用 GitHub 账号登录第三方应用（Client App）。OAuth 2.0 的四个角色：User（用户）/ Client App（第三方应用）/ Auth Server（GitHub）/ Resource Server（GitHub API）。'
+    msg:'场景：第三方应用（Client）请求访问用户在 GitHub API 上的资源。OAuth 2.0 的四个角色是 Resource Owner / Client / Authorization Server / Resource Server。若目标是身份登录，还需要 OpenID Connect 等身份层，不能仅凭 OAuth Access Token 推断用户身份。'
   },
   {
     rows:[{lane:0,text:'点击"用 GitHub 登录"',cls:'fwd'},{lane:1,text:'',cls:''},{lane:2,text:'',cls:''},{lane:3,text:'',cls:''}],
     state:{},
-    msg:'Step 1：用户点击"用 GitHub 登录"按钮，浏览器重定向到 GitHub Auth Server：\nhttps://github.com/login/oauth/authorize?client_id=xxx&redirect_uri=...&state=abc&scope=read:user'
+    msg:'Step 1：浏览器重定向到授权端点。redirect_uri 必须与预注册值精确匹配；请求携带随机、绑定当前浏览器会话的 state，以及 PKCE 的 code_challenge（推荐 S256）：\n.../authorize?client_id=xxx&redirect_uri=...&state=random&code_challenge=...&code_challenge_method=S256&scope=read:user'
   },
   {
     rows:[
@@ -115,8 +115,8 @@ const STEPS = [
       {lane:0,text:'用户点击授权 ✓',cls:'fwd'},{lane:1,text:'',cls:''},{lane:2,text:'',cls:''},{lane:3,text:'',cls:''},
       {lane:0,text:'',cls:''},{lane:1,text:'',cls:''},{lane:2,text:'→ 回调 code=xyz123',cls:'fwd'},{lane:3,text:'',cls:''},
     ],
-    state:{code:'xyz123（一次性，30s 有效）'},
-    msg:'Step 3：用户授权后，Auth Server 将浏览器重定向到 redirect_uri，携带一次性授权码（Code）：\nhttps://myapp.com/callback?code=xyz123&state=abc\n注意：Code 通过前端浏览器传递，安全性较低，所以不直接是 Token。'
+    state:{code:'xyz123（一次性、短期有效）'},
+    msg:'Step 3：用户授权后，Authorization Server 重定向到预注册 redirect_uri，携带 Code 和 state。客户端必须校验 state（或使用满足 RFC 9700 条件的 PKCE/OIDC nonce 防护）并拒绝不匹配响应。Code 的具体有效期由服务端决定，不是固定 30 秒。'
   },
   {
     rows:[
@@ -124,11 +124,11 @@ const STEPS = [
       {lane:0,text:'',cls:''},{lane:1,text:'',cls:''},{lane:2,text:'显示授权页面',cls:'fwd'},{lane:3,text:'',cls:''},
       {lane:0,text:'用户点击授权 ✓',cls:'fwd'},{lane:1,text:'',cls:''},{lane:2,text:'',cls:''},{lane:3,text:'',cls:''},
       {lane:0,text:'',cls:''},{lane:1,text:'',cls:''},{lane:2,text:'→ 回调 code=xyz123',cls:'fwd'},{lane:3,text:'',cls:''},
-      {lane:0,text:'',cls:''},{lane:1,text:'后端：POST code+secret',cls:'fwd'},{lane:2,text:'',cls:''},{lane:3,text:'',cls:''},
+      {lane:0,text:'',cls:''},{lane:1,text:'POST code+verifier（按客户端类型认证）',cls:'fwd'},{lane:2,text:'',cls:''},{lane:3,text:'',cls:''},
       {lane:0,text:'',cls:''},{lane:1,text:'',cls:''},{lane:2,text:'← access_token',cls:'token'},{lane:3,text:'',cls:''},
     ],
     state:{code:'xyz123（已使用，失效）',token:'gho_xxxxxxxxxxxxxxx（expires_in: 3600s）'},
-    msg:'Step 4：关键！Client App 后端（不通过浏览器）向 Auth Server 发起服务器到服务器请求，携带 code + client_secret，换取 access_token。后端渠道传输，更安全。Code 使用后立即失效。'
+    msg:'Step 4：客户端通过 TLS 调用 Token Endpoint，提交 code、相同 redirect_uri 和 PKCE code_verifier，并按客户端类型进行认证；公共客户端没有可保密的 client_secret。Authorization Server 校验绑定关系并使 Code 首次兑换后失效。'
   },
   {
     rows:[
@@ -140,7 +140,7 @@ const STEPS = [
       {lane:0,text:'',cls:''},{lane:1,text:'',cls:''},{lane:2,text:'',cls:''},{lane:3,text:'← user profile',cls:'token'},
     ],
     state:{code:'xyz123（已使用，失效）',token:'gho_xxxxxxxxxxxxxxx（expires_in: 3600s）',resource:'✓ 成功获取用户信息'},
-    msg:'Step 5：Client App 用 access_token 调用 Resource Server（GitHub API），获取用户信息。Token 在 Authorization: Bearer 头中传递。Token 有过期时间（通常 1 小时），过期后需要 refresh_token 刷新。'
+    msg:'Step 5：Client 用 Access Token 调用 Resource Server。Bearer Token 通常放在 Authorization 头中，必须经 TLS 保护；有效期和是否签发 Refresh Token 均由授权服务器策略决定，不能假设固定 1 小时或一定支持刷新。高风险场景可使用 mTLS/DPoP 约束 Token 的发送方，降低泄漏后的重放风险。'
   },
 ];
 

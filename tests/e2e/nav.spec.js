@@ -70,6 +70,20 @@ test.describe('nav.js — breadcrumbs', () => {
     const crumbs = await page.locator('#snCrumbs').textContent();
     expect(crumbs).toMatch(/CS|组成/);
   });
+
+  test('root-level modern topics retain their owning module breadcrumb', async ({ page }) => {
+    await page.goto('/modern-topic.html?id=tls-ech');
+    await page.waitForSelector('#__snav');
+    await expect(page.locator('#snCrumbs')).toContainText('网络');
+    await expect(page.locator('#snCrumbs a').filter({ hasText: '网络' })).toHaveAttribute('href', 'network/index.html');
+  });
+
+  test('the obsolete BBR placeholder redirects to the meaningful congestion animation', async ({ page }) => {
+    await page.goto('/modern-topic.html?id=bbr-v2');
+    await page.waitForURL(/\/network\/tcp-congestion\.html#bbr$/);
+    await expect(page.locator('#snCrumbs')).toContainText('网络');
+    await expect(page.locator('#snCrumbs')).toContainText('TCP 拥塞控制');
+  });
 });
 
 test.describe('nav.js — back link hiding', () => {

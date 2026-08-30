@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="metrics-server 提供 CPU 指标，HPA 公式计算目标副本数，冷却期防频繁伸缩。">
+<meta name="description" content="HPA 从指标 API 获取指标并计算目标副本数，通过容差、稳定窗口和伸缩策略控制扩缩容。">
 <link rel="canonical" href="https://melodycoder12345.github.io/cloud-native/k8s-hpa.html">
 <meta property="og:title" content="HPA 弹性伸缩 — 码海拾贝">
 <meta property="og:description" content="metrics-server 提供 CPU 指标，HPA 公式计算目标副本数，冷却期防频繁伸缩。">
@@ -67,7 +67,7 @@ canvas{width:100%;height:100%}
 <main class="wrap">
   <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">云原生</a><span>/</span>弹性伸缩 HPA</div>
   <h1 class="page-title">弹性伸缩 HPA</h1>
-  <p class="subtitle">HPA（Horizontal Pod Autoscaler）每 15s 从 metrics-server 抓取 CPU/内存，用公式 desiredReplicas = ceil(currentReplicas × currentMetric / targetMetric) 计算目标副本数，扩容后进入冷却期防止频繁伸缩。</p>
+  <p class="subtitle">HPA（Horizontal Pod Autoscaler）以控制循环从资源、自定义或外部指标 API 取值；默认同步周期通常为 15 秒，可由集群配置。基础公式为 desiredReplicas = ceil(currentReplicas × currentMetric / targetMetric)，随后还会考虑容差、缺失指标、Pod 就绪状态、稳定窗口和伸缩策略。autoscaling/v2 默认扩容稳定窗口为 0、缩容为 300 秒，均可配置。</p>
 
   <div class="layout">
     <div class="left-panel">
@@ -129,10 +129,10 @@ const STEPS = [
    msg:'CPU 利用率跳升到 85%，超过 70% 阈值！HPA 计算：ceil(2 × 85% / 70%) = 3，触发扩容，向 Deployment 发出 replicas=3 的 patch。',cpuHigh:true,cooldownActive:false},
   {cpu:85,replicas:3,desired:3,cooldown:20,newPods:['pod-3'],terminatingPods:[],
    formula:'ceil(2 × 85% / 70%) = 2.43 → desiredReplicas = 3 ✓',
-   msg:'新 Pod（pod-3）已启动加入负载。扩容完成后进入冷却期（Scale-Up Cooldown = 3 分钟），冷却期内即使 CPU 仍高也不再扩容，防止抖动。',cpuHigh:true,cooldownActive:true},
+   msg:'新 Pod（pod-3）启动并逐渐加入指标计算。本示例假设显式配置了 3 分钟 scaleUp.stabilizationWindowSeconds；Kubernetes 默认扩容稳定窗口为 0，并不存在固定的“扩容后冷却 3 分钟”。',cpuHigh:true,cooldownActive:true},
   {cpu:92,replicas:3,desired:4,cooldown:80,newPods:['pod-3'],terminatingPods:[],
    formula:'ceil(3 × 92% / 70%) = 3.94 → 冷却期中，抑制扩容到 4',
-   msg:'CPU 继续升高到 92%，理论上应扩到 4 个副本，但 HPA 仍在冷却期（进度 80%），扩容被抑制。这是防止指标波动导致频繁扩缩容的机制。',cpuHigh:true,cooldownActive:true},
+   msg:'CPU 继续升高到 92%，理论建议为 4 个副本；在本示例自定义的扩容稳定窗口内，该建议被暂时抑制。若使用默认 behavior（扩容稳定窗口为 0），HPA 会再结合默认扩容速率策略决定本轮允许的副本变化。',cpuHigh:true,cooldownActive:true},
   {cpu:68,replicas:3,desired:3,cooldown:100,newPods:['pod-3'],terminatingPods:[],
    formula:'ceil(3 × 68% / 70%) = 2.91 → 接近阈值，保持 3',
    msg:'冷却期结束，同时 CPU 也回落到 68%（接近阈值），目标副本数保持 3，不缩容。缩容有更长的稳定窗口（5 分钟），避免流量恢复时需要重新扩容。',cpuHigh:false,cooldownActive:false},

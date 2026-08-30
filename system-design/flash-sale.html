@@ -27,7 +27,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
 .steps-panel{background:rgba(17,24,39,.92);border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;overflow:hidden}
 .sp-head{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,.06)}
 .sp-eyebrow{font-size:.65rem;color:var(--accent);text-transform:uppercase;letter-spacing:.14em;font-weight:700;margin-bottom:6px}
-.sp-title{font-size:1rem;font-weight:700;margin-bottom:4px}
+.sp-title{font-size:1rem;font-weight:700;margin:0 0 4px}
 .sp-sub{font-size:.75rem;color:var(--dim);line-height:1.5}
 .scene-tabs{display:flex;flex-direction:column;gap:4px;padding:12px 10px;border-bottom:1px solid rgba(255,255,255,.06)}
 .scene-tab{padding:8px 12px;border-radius:8px;font-size:.78rem;cursor:pointer;border:1px solid transparent;color:var(--dim);transition:all .15s;text-align:left;background:none}
@@ -64,7 +64,7 @@ svg.arch{width:100%;height:100%}
   <aside class="steps-panel">
     <div class="sp-head">
       <div class="sp-eyebrow">System Design</div>
-      <div class="sp-title">秒杀系统</div>
+      <h1 class="sp-title">秒杀系统</h1>
       <div class="sp-sub">流量漏斗 · 预扣库存 · 异步下单 · 降级</div>
     </div>
     <div class="scene-tabs" id="sceneTabs">
@@ -95,7 +95,7 @@ svg.arch{width:100%;height:100%}
       <div class="dp-title">流量漏斗</div>
       <div class="dp-block">
         <h4>多级过滤</h4>
-        <p>秒杀流量的核心是把 99% 的请求挡在真正的库存操作之外：CDN 静态页 → Nginx 限流 → 黑名单过滤 → 验证码 → Redis 预检 → 业务层处理。</p>
+      <p>秒杀流量治理的核心是尽量在低成本层过滤无效或超额请求：CDN 静态页 → 网关限流 → 风控/验证码 → 库存预检 → 业务层处理。过滤比例取决于活动与攻击流量，需容量测试验证。</p>
       </div>
       <div class="highlight-note">关键原则：越靠前的过滤成本越低，越靠后的节点处理的请求越少。让数据库只看到 1% 的真实流量。</div>
     </div>
@@ -176,7 +176,7 @@ const SCENES = [
   {
     comps: COMPS_NORMAL,
     steps: [
-      { from:'users',    to:'cdn',     color:'#64748b', msg:'GET 活动页(静态)',          desc:'活动页是纯静态的，部署在 CDN。100万用户刷新活动页时，请求完全由 CDN 响应，不消耗后端资源。' },
+      { from:'users',    to:'cdn',     color:'#64748b', msg:'GET 活动页(静态)',          desc:'静态活动页可由 CDN 缓存以降低回源；缓存未命中、动态鉴权、日志与回源保护仍会消耗平台或后端资源。' },
       { from:'users',    to:'nginx',   color:'#a78bfa', msg:'POST /buy\n(限流+黑名单)',  desc:'用户点击购买，请求先经过 Nginx，进行 IP 限流（每 IP 每秒限 5 次）和黑名单过滤，抹掉刷单流量。' },
       { from:'nginx',    to:'redis',   color:'#f87171', msg:'EVAL lua_script\nstock:1001 DECR 1', desc:'通过限流后，App 执行 Redis Lua 脚本原子扣减库存。整个 check-decr 操作是原子的，无超卖风险。' },
       { from:'redis',    to:'nginx',   color:'#4ade80', msg:'stock=3, allowed=true',     desc:'Redis 库存扣减成功（stock: 4→3），返回购买资格。此时订单还未真正创建。' },
@@ -193,7 +193,7 @@ const SCENES = [
       { from:'req3', to:'appBad', color:'#f87171', msg:'GET stock=1 (读)',   desc:'3 个请求同时看到 stock=1，同时认为可以抢到最后一件。接下来都会执行 DECR。' },
       { from:'appBad',to:'redis', color:'#f87171', msg:'DECR × 3 → stock=-2', desc:'3 个请求都执行 DECR，stock 从 1 变成 -2，严重超卖！这就是不用原子操作的后果。' },
       { from:'req1', to:'appGood',color:'#4ade80', msg:'EVAL lua_script',    desc:'正确方案：使用 Lua 脚本将"检查+扣减"变成原子操作。3 个请求顺序执行 Lua 脚本。' },
-      { from:'appGood',to:'redis',color:'#4ade80', msg:'原子: check→decr\nstock: 1→0→拒绝×2', desc:'Lua 脚本保证原子性：第 1 个请求 stock=1→0 成功，第 2、3 个请求 stock=0 时直接拒绝。无超卖！' },
+      { from:'appGood',to:'redis',color:'#4ade80', msg:'原子: check→decr\nstock: 1→0→拒绝×2', desc:'Lua 脚本在单个 Redis 主节点上原子执行检查与扣减，可防止该库存键并发超扣；故障切换、持久化和 Redis 与订单库之间的一致性仍需预扣记录、幂等消费与对账处理。' },
     ]
   },
   {

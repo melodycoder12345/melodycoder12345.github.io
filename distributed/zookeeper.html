@@ -3,16 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="ZAB 协议驱动的分布式协调服务，提供强一致的 znode 树和 Watch 通知。">
+<meta name="description" content="ZAB 协议驱动的分布式协调服务，提供线性化写、顺序一致读和 Watch 通知。">
 <link rel="canonical" href="https://melodycoder12345.github.io/distributed/zookeeper.html">
 <meta property="og:title" content="ZooKeeper — 码海拾贝">
-<meta property="og:description" content="ZAB 协议驱动的分布式协调服务，提供强一致的 znode 树和 Watch 通知。">
+<meta property="og:description" content="ZAB 协议驱动的分布式协调服务，提供线性化写、顺序一致读和 Watch 通知。">
 <meta property="og:url" content="https://melodycoder12345.github.io/distributed/zookeeper.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="码海拾贝">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="ZooKeeper — 码海拾贝">
-<meta name="twitter:description" content="ZAB 协议驱动的分布式协调服务，提供强一致的 znode 树和 Watch 通知。">
+<meta name="twitter:description" content="ZAB 协议驱动的分布式协调服务，提供线性化写、顺序一致读和 Watch 通知。">
 <title>ZooKeeper - 分布式</title>
 <script src="../nav.js"></script>
 <script src="../concept.js"></script>
@@ -96,12 +96,12 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">分布式 / ZooKeeper / C 类型</div>
+      <div class="eyebrow">分布式 / ZooKeeper</div>
       <h1>ZooKeeper</h1>
-      <p class="summary">ZooKeeper 用 ZAB 协议维护分布式一致性，提供强一致的 znodes 树形数据结构，适合配置管理、服务发现和分布式锁。Watch 机制让客户端能监听节点变化。</p>
+      <p class="summary">ZooKeeper 用 ZAB 复制 znode 更新，提供线性化写与满足客户端顺序的读；Follower 本地读可能陈旧。它适合协调元数据、成员关系和分布式锁，Watch 用于变化通知。</p>
       <div class="tags"><span>ZAB</span><span>Watch</span><span>znode</span><span>Leader选举</span></div>
     </div>
     <div class="card">
@@ -221,9 +221,9 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
       <h2>常见误区</h2>
       <ul>
         <li>Watch 是一次性的——触发后自动失效，需要在回调中重新注册，否则会漏事件。</li>
-        <li>从 Follower 读数据可能不是最新的——如需强一致读，必须用 sync() 先同步。</li>
-        <li>ZooKeeper 不适合存储大量数据，每个 znode 最大 1MB，设计用于元数据管理。</li>
-        <li>临时节点（ephemeral）在会话断开后自动删除，这是分布式锁和服务发现的基础。</li>
+        <li>从 Follower 本地读可能不是最新值。<code>sync()</code> 是常用的刷新屏障，但官方一致性说明并不把它等同于任意场景下的线性化读；需要严格线性化时应使用会经过 quorum 的操作或在应用协议中建立屏障。</li>
+        <li>ZooKeeper 不适合存储大量数据：默认单个请求/序列化记录上限约 1 MiB（由 <code>jute.maxbuffer</code> 等配置约束，不宜把它当作鼓励使用的容量），设计目标是保存小型协调元数据。</li>
+        <li>znode 可分为持久、临时以及各自的顺序节点；临时节点在会话过期时删除（短暂断连并不等同于会话立即过期），且不能拥有子节点。</li>
       </ul>
     </section>
     <section>
@@ -262,7 +262,7 @@ const STEPS = [
     title: "Client 发送写请求 → Leader",
     desc: "所有写请求必须路由到 Leader，客户端直接连接 Leader 或通过 Follower 转发。",
     kind: "normal",
-    detail: "ZooKeeper 的强一致性保证来自于：所有写都经过 Leader，Leader 通过 ZAB 广播到多数派才提交。",
+    detail: "ZooKeeper 的写操作经 Leader/ZAB 排序并在 quorum 确认后提交；普通读通常由所连接服务器本地处理，因此可能看到稍旧快照。",
     status: "写请求到达 Leader",
     clientSub: "写请求", leaderSub: "处理写请求", f1Sub: "Follower", f2Sub: "Follower",
     watchPay: false, watchTrigger: false,
@@ -320,9 +320,9 @@ const STEPS = [
   },
   {
     title: "⚡ Leader 宕机 → F1/F2 通过 ZAB 选出新 Leader",
-    desc: "原 Leader 宕机，F1/F2 在 election timeout 后启动 ZAB 选举，选出 zxid 最大的节点作为新 Leader。",
+    desc: "原 Leader 宕机，剩余服务器启动选举，按 epoch、zxid 和 server id 等比较规则选择获得法定票数的候选者。",
     kind: "recovery",
-    detail: "ZAB 选举：每个 Follower 投票给 zxid 最大的候选人（zxid 最大意味着数据最新）。第一个获得多数票的节点成为新 Leader，随后完成 recovery phase 同步其余节点。",
+    detail: "FastLeaderElection 比较候选投票中的 leader epoch、zxid，必要时再比较 server id，并要求法定票数；不能简化成只选 zxid 最大节点。随后集群在 recovery phase 对齐历史。",
     status: "新 Leader 选举完成",
     clientSub: "等待重连", leaderSub: "宕机", f1Sub: "新 Leader ✓", f2Sub: "Follower",
     watchPay: false, watchTrigger: false,

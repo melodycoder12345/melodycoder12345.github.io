@@ -77,10 +77,10 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">网络 / IP 协议 / C 类型</div>
+      <div class="eyebrow">网络 / IP 协议</div>
       <h1>IP 协议基础</h1>
       <p class="summary">网络层协议，负责主机间数据包的寻址和路由。IP 地址标识主机，子网掩码划分网络边界，路由表决定下一跳。ARP 将 IP 地址解析为 MAC 地址，TTL 防止包无限转发，ICMP 用于网络诊断。</p>
       <div class="tags"><span>IP / CIDR</span><span>ARP</span><span>路由表</span><span>TTL</span><span>ICMP</span><span>Traceroute</span></div>
@@ -91,7 +91,7 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
         <li><strong>ARP（地址解析协议）</strong><span>广播询问"Who has IP X?"，目标主机单播回复自己的 MAC，结果缓存在 ARP 表。</span></li>
         <li><strong>路由表 / 最长前缀匹配</strong><span>路由器对目标 IP 做最长前缀匹配找下一跳，默认路由 0.0.0.0/0 是最后兜底。</span></li>
         <li><strong>TTL（生存时间）</strong><span>每路由器减 1，到 0 时丢包并返回 ICMP Time Exceeded，Traceroute 原理。</span></li>
-        <li><strong>CIDR 子网划分</strong><span>/24 可拆为两个 /25，每个子网独立广播域，不同子网通信必须经路由器。</span></li>
+        <li><strong>CIDR 子网划分</strong><span>/24 可拆为两个 /25；按常规配置，不同前缀间通信需要三层转发。</span></li>
       </ul>
     </div>
   </section>
@@ -141,7 +141,7 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
       <ul>
         <li>ARP 只在同子网内有效。跨子网通信时，源主机的 ARP 请求是找"默认网关"的 MAC，而不是目标主机的 MAC。目标主机 MAC 只在最后一跳路由器的局域网段才需要。</li>
         <li>TTL 减到 0 时，路由器会丢包并向<strong>源主机</strong>发 ICMP Time Exceeded，不是向目标主机。Traceroute 正是利用这一点逐跳探测路径。</li>
-        <li>CIDR 拆分后的子网<strong>必须经路由器转发</strong>才能互通，同一物理交换机下的两个 /25 子网，主机也无法直接二层通信。</li>
+        <li>按常规 IP 配置，两个不同前缀的子网需要三层转发才能通信；同一物理交换机只提供二层可达性，不会替主机完成跨前缀路由。特殊的 on-link 路由、代理 ARP 等配置可能改变具体路径。</li>
         <li>IP 头的 Checksum 只校验头部，不校验数据负载。数据完整性由上层 TCP/UDP Checksum 负责。</li>
       </ul>
     </section>
@@ -151,7 +151,7 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
         <li><strong>ARP 缓存投毒（ARP Spoofing）</strong>：攻击者发送伪造 ARP 回复将网关 IP 映射到自己的 MAC，实现中间人攻击。防御：Dynamic ARP Inspection (DAI)、静态 ARP 绑定。</li>
         <li><strong>Traceroute 诊断网络路径</strong>：逐 TTL 探测，结合响应延迟可识别网络抖动点，<code>mtr</code> 命令提供连续 ping+traceroute。</li>
         <li><strong>云 VPC 子网规划</strong>：/16 VPC 划分多个 /24 子网（不同可用区），跨 AZ 通信走 VPC 路由，不同子网间用 Security Group + NACL 控制访问。</li>
-        <li><strong>BGP/OSPF 路由协议</strong>：大型网络中路由表由动态路由协议维护，而不是手动配置，路由变更可以毫秒级收敛。</li>
+        <li><strong>BGP/OSPF 路由协议</strong>：大型网络通常由动态路由协议维护路由。收敛时间取决于协议、定时器、拓扑和 BFD/快速重路由等机制，可能从毫秒级快速切换到数分钟，不能一概而论。</li>
       </ul>
     </section>
     <section>
@@ -455,7 +455,7 @@ const TAB3 = [
     title: '拆分为两个 /25',
     badge: 'normal',
     desc: '将 /24 对半拆分为两个 /25。子网 A：192.168.1.0/25（0–127）；子网 B：192.168.1.128/25（128–255）。每个子网 128 个地址，可用主机各 126 台。',
-    detail: '/25 = 25 位网络位，每个子网 2^7=128 个地址。拆分后产生两个独立广播域，通信必须经路由器。',
+    detail: '/25 = 25 位网络位，每个子网 2^7=128 个地址。按常规配置，不同前缀间通信需要三层转发；特殊 on-link 路由或代理 ARP 配置可能改变路径。',
     draw(ctx,W,H){ drawCIDR(ctx,W,H,1); }
   },
   {

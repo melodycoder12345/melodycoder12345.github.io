@@ -21,7 +21,7 @@
 body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
 .topnav{display:flex;align-items:center;gap:14px;padding:11px 22px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;}
 .back-link{color:var(--dim);text-decoration:none;font-size:.88rem;}.back-link:hover{color:var(--text);}
-.topnav-title{font-size:1.05rem;font-weight:700;}
+.topnav-title{font-size:1.05rem;font-weight:700;margin:0;}
 .ntags{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .main{display:flex;flex:1;overflow:hidden;}
@@ -91,7 +91,7 @@ svg.main-svg{width:100%;height:100%;}
 <body>
 <div class="topnav">
   <a class="back-link" href="index.html">← Linux</a>
-  <span class="topnav-title">信号（Signal）</span>
+  <h1 class="topnav-title">信号（Signal）</h1>
   <div class="ntags">
     <span class="ntag">SIGTERM</span><span class="ntag">SIGSEGV</span><span class="ntag">SIGCHLD</span><span class="ntag">signal handler</span><span class="ntag">async-signal-safe</span>
   </div>
@@ -262,7 +262,7 @@ const SCENARIOS=[
   <span class="kw">go func</span>() {
     sig := <-sigs
     log.<span class="fn">Printf</span>(<span class="st">"FATAL: %v, writing crashlog"</span>, sig)
-    os.<span class="fn">Exit</span>(<span class="num">11</span>) <span class="cm">// 128 + SIGSEGV(11)</span>
+    os.<span class="fn">Exit</span>(<span class="num">139</span>) <span class="cm">// shell 常见约定：128 + SIGSEGV(11)</span>
   }()
 
   <span class="cm">// 触发 nil pointer dereference</span>
@@ -275,12 +275,12 @@ const SCENARIOS=[
 <span class="cm">// → panic: invalid memory address</span>
 <span class="cm">// → goroutine stack trace</span>
 <span class="cm">// → core dump (GOTRACEBACK=crash)</span>
-<span class="cm">// exit code: 2 (panic) 或 11 (raw signal)</span>`,
+<span class="cm">// shell 常见状态：Go panic 通常为 2；被 SIGSEGV 终止通常显示 139</span>`,
   steps:[
     {title:"进程访问非法地址",desc:"程序执行 *nil 或访问越界内存，CPU MMU 查页表时发现虚拟地址无合法映射。",kind:"normal",src:"进程自身",srcState:"非法访问",proc:"Running",procState:"Running",handler:"Default Handler",handlerState:"SIG_DFL",kernel:"idle",kernelState2:"pending: none",arrows:[]},
     {title:"CPU 触发 Page Fault → 内核",desc:"CPU 触发 #PF（Page Fault）硬件异常，自动跳入内核的 do_page_fault() 异常处理例程。",kind:"failure",src:"CPU #PF",srcState:"exception",proc:"Faulting",procState:"Page Fault",handler:"Default Handler",handlerState:"SIG_DFL",kernel:"do_page_fault()",kernelState2:"checking VMA...",arrows:[0,1]},
     {title:"内核判断无权限 → 发送 SIGSEGV",desc:"内核检查进程的 VMA（虚拟内存区域），发现该地址无读写权限（not mapped），决定发送 SIGSEGV 给进程。",kind:"failure",src:"CPU #PF",srcState:"exception",proc:"Faulting",procState:"Faulting",handler:"Default Handler",handlerState:"SIG_DFL",kernel:"force_sig(SIGSEGV)",kernelState2:"pending: SIGSEGV",arrows:[1]},
-    {title:"默认动作：core dump + 进程终止",desc:"SIGSEGV 默认动作是 Core+Terminate：写 core dump 文件（包含内存快照和寄存器状态），进程以退出码 11 终止。",kind:"failure",src:"CPU #PF",srcState:"done",proc:"Terminated",procState:"exit(11)",handler:"core dump",handlerState:"written",kernel:"idle",kernelState2:"pending: none",arrows:[2,3]}
+    {title:"默认动作：终止（可能生成 core）",desc:"SIGSEGV 的默认动作是 Core+Terminate；是否实际写出 core 文件还取决于 RLIMIT_CORE、core_pattern、权限与容器配置。wait 状态记录终止信号 11，shell 通常显示 128+11=139。",kind:"failure",src:"CPU #PF",srcState:"done",proc:"Terminated",procState:"signal 11",handler:"core dump",handlerState:"policy dependent",kernel:"idle",kernelState2:"pending: none",arrows:[2,3]}
   ]
 },{
   name:"SIGCHLD 子进程回收",
@@ -341,7 +341,7 @@ function applyState(s){
   set('kernelState',s.kernelState||'');set('kernelState2',s.kernelState2||'');
   // proc box state
   const bProc=document.getElementById('bProc');
-  if(bProc){bProc.classList.remove('active','fail');if(s.procState&&s.procState!=='idle'){if(s.kind==='failure'||s.procState==='Terminated'||s.procState==='Faulting'||s.procState==='exit(11)')bProc.classList.add('fail');else bProc.classList.add('active');}}
+  if(bProc){bProc.classList.remove('active','fail');if(s.procState&&s.procState!=='idle'){if(s.kind==='failure'||s.procState==='Terminated'||s.procState==='Faulting'||s.procState==='signal 11')bProc.classList.add('fail');else bProc.classList.add('active');}}
   const bKernel=document.getElementById('bKernel');
   if(bKernel){bKernel.classList.remove('active');if(s.kernelState&&s.kernelState!=='idle')bKernel.classList.add('active');}
   const bHandler=document.getElementById('bHandler');

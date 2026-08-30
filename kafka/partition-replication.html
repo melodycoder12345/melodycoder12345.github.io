@@ -146,6 +146,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
   <button class="btn" id="btnPrev" onclick="prev()">◀ 上一步</button>
   <button class="btn primary" id="btnPlay" onclick="togglePlay()">▶ 播放</button>
   <button class="btn" id="btnNext" onclick="next()">下一步 ▶</button>
+  <div class="desc-box"><span id="descText">点击播放查看分区复制与故障转移流程</span><span class="step-counter" id="stepCounter">0 / 0</span></div>
   <div class="speed-wrap">
     <span class="speed-label">速度</span>
     <span class="speed-label" style="font-weight:400;color:var(--dim)">慢</span>
@@ -157,10 +158,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 <script>
 window.PAGE_CONCEPTS = [
   { title: '副本机制', body: `每个 Partition 有一个 Leader 和若干 Follower 副本。所有读写流经 Leader，Follower 异步从 Leader 拉取同步。副本数通常设置为 3。` },
-  { title: 'ISR (In-Sync Replicas)', body: `与 Leader 保持同步的副本集合。判断标准：在 replica.lag.time.max.ms 内有过拉取心跳且落后不超过阈值。落后的副本被踢出 ISR。`, tag: '高可靠' },
-  { title: 'HW & LEO', body: `LEO（Log End Offset）：当前分区写入的最大位移+1。HW（High Watermark）：ISR 中最小的 LEO。Consumer 最多只能读到 HW，保证已复制数据才可见。` },
-  { title: 'Leader 选举', body: `Leader 宕机时，Controller 从 ISR 中选取第一个可用副本为新 Leader。若 ISR 为空且 unclean.leader.election.enable=false，分区暂时不可用。` },
-  { title: 'min.insync.replicas', body: `结合 acks=all 使用：要求至少 N 个副本在 ISR 中才允许写入，防止 ISR 缩减为 1 时的数据丢失风险。`, tag: '数据安全' }
+  { title: 'ISR (In-Sync Replicas)', body: `ISR 是当前与 Leader 保持同步的副本集合（包含 Leader）。Follower 若在 replica.lag.time.max.ms 内没有取得 fetch 进展，会被移出 ISR；现代 Kafka 不再同时使用固定的消息数落后阈值。`, tag: '高可靠' },
+  { title: 'HW & LEO', body: `LEO（Log End Offset）是日志下一条记录的位移。HW（High Watermark）表示已复制到当前 ISR、可向普通消费者暴露的边界；使用 read_committed 时还受 Last Stable Offset 限制。` },
+  { title: 'Leader 选举', body: `Leader 宕机时，Controller 通常从 ISR 中选择可用副本成为新 Leader；不要依赖具体成员顺序。若没有合格副本且禁用不洁选举，分区会保持不可用；启用不洁选举则可能丢数据。` },
+  { title: 'min.insync.replicas', body: `仅在生产者使用 acks=all（-1）时生效：若 ISR 数量低于该阈值，Broker 拒绝写入。它约束可用性与已确认写入的副本下限，但仍需正确配置副本数、选举和重试。`, tag: '数据安全' }
 ];
 
 const CODE_LINES=[
@@ -207,7 +208,7 @@ const STEPS=[
   {highlightLines:[24,25,26,27,28,29],hlJs:[14,15,16,17,18],hlPy:[1,2,3],description:'Producer 写入消息 — 消息先写入 Leader 副本的 Log 文件（顺序追加）'},
   {highlightLines:[30,31,32],hlJs:[16],hlPy:[5],description:'Follower 异步拉取 — B2 和 B3 的 Follower 通过 FetchRequest 向 B1 Leader 同步数据'},
   {highlightLines:[30,31,32],hlJs:[16],hlPy:[5],description:'ISR 列表更新 — Follower 追上 Leader 后加入 ISR (In-Sync Replicas)，否则移出'},
-  {highlightLines:[18,19],hlJs:[9,10],hlPy:[10,11],description:'HW (High Watermark) = 所有 ISR 副本都已确认的最大 offset — Consumer 只能读到 HW 之前的消息'},
+  {highlightLines:[18,19],hlJs:[9,10],hlPy:[10,11],description:'HW (High Watermark) 是已复制到当前 ISR 的可见边界；read_committed 消费还会受 Last Stable Offset 限制'},
   {highlightLines:[16,17,18,19],hlJs:[7,8,9,10],hlPy:[7,8,9,10],description:'Broker 1 宕机 — P0 的 Leader 不可用，触发 Leader 选举'},
   {highlightLines:[25,26,27,28],hlJs:[14,15],hlPy:[7,8,9],description:'ISR 内选举 — 从 B2/B3 的 Follower 中选出新 Leader (优先 ISR 内成员)'},
   {highlightLines:[25,26,27,28],hlJs:[14,15],hlPy:[7,8,9],description:'B2 成为 P0 新 Leader — 服务恢复，Client 更新 metadata 后重新发送'},

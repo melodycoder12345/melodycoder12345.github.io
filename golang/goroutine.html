@@ -23,7 +23,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
 .nav{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);flex-shrink:0;position:sticky;top:var(--snav-h,44px);z-index:10;}
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;display:flex;align-items:center;gap:5px;}
 .back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{margin:0;font-size:1.06rem;font-weight:700;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .main-area{display:flex;flex:none;height:calc(100vh - var(--snav-h,44px) - 88px);min-height:300px;overflow:hidden;}
@@ -99,7 +99,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
 
 <div class="nav">
   <a href="index.html" class="back">← 返回</a>
-  <span class="nav-title">Goroutine 生命周期</span>
+  <h1 class="nav-title">Goroutine 生命周期</h1>
   <div class="nav-tags">
     <span class="ntag">goroutine</span>
     <span class="ntag">leak</span>
@@ -143,7 +143,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
     <div class="qa-grid">
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q">goroutine 和 OS 线程的区别？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a">goroutine 是用户态轻量线程：初始栈 2KB（线程 ~2MB），可按需增长到 1GB；调度由 Go runtime 管理，不需要系统调用；切换代价 ~100ns（线程 ~1μs）。单个 Go 程序可轻松运行百万 goroutine。</div>
+        <div class="qa-a">goroutine 是由 Go runtime 管理的轻量执行单元，使用可动态扩缩的小栈，并以 M:N 方式复用 OS 线程。栈边界、切换耗时和可承载数量取决于 Go 版本、平台与工作负载，不应写成固定常数。</div>
       </div>
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q">goroutine 泄漏的常见原因有哪些？<span class="qa-arrow">▶</span></div>
@@ -155,7 +155,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
       </div>
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q">goroutine 的栈如何增长和收缩？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a">初始栈 2KB，编译器在每个函数调用处插入栈检查代码。栈不够时申请 2 倍大的新栈，将旧栈内容复制过去（"栈拷贝"策略，已替换旧的"分段栈"）。GC 时栈会检查是否可以缩减至 1/4 大小（若实际使用远小于当前大小）。</div>
+        <div class="qa-a">编译器与运行时协作检查栈空间，空间不足时可分配更大的连续栈并搬迁内容；运行时也可能收缩低利用率的栈。初始大小、增长倍率和收缩阈值均属于版本相关实现细节。</div>
       </div>
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q">context.WithCancel 和 context.WithTimeout 的区别？<span class="qa-arrow">▶</span></div>
@@ -163,7 +163,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
       </div>
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q">GOMAXPROCS 是什么？如何设置？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a">GOMAXPROCS 控制同时执行 Go 代码的 OS 线程数（即 P 的数量）。默认等于 CPU 核心数。设置方式：<code>runtime.GOMAXPROCS(n)</code> 或环境变量 <code>GOMAXPROCS=n</code>。对于 CPU 密集型任务，等于核数最优；IO 密集型任务，可以适当调大；容器环境下需注意 cgroup CPU 限制与物理核心数的差异（推荐 <code>automaxprocs</code> 库）。</div>
+        <div class="qa-a">GOMAXPROCS 决定 P 的数量，也就是可同时执行 Go 代码的最大并行度。可通过 <code>runtime.GOMAXPROCS(n)</code> 或环境变量设置。Go 1.25 起，Linux 默认值会综合逻辑 CPU、affinity 与 cgroup CPU 限额并周期更新；更早版本的容器部署可考虑显式配置或 automaxprocs。最优值应通过基准与生产指标验证。</div>
       </div>
     </div>
   </div>

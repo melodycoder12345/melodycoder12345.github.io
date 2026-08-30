@@ -82,10 +82,10 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
 </style>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">系统设计 / Chat System / C 类型</div>
+      <div class="eyebrow">系统设计 / Chat System</div>
       <h1>即时通讯系统</h1>
       <p class="summary">IM 系统的核心挑战是长连接管理、消息顺序和未读计数。理解连接层、存储层和消息路由的设计，是构建低延迟、高可靠聊天系统的基础。</p>
       <div class="tags"><span>WebSocket</span><span>长连接</span><span>消息顺序</span><span>未读计数</span></div>
@@ -150,7 +150,7 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
       <h2>常见误区</h2>
       <ul>
         <li>WebSocket 不等于可靠投递，网络丢包或进程崩溃会导致消息丢失，必须有客户端 ACK + 服务端重试。</li>
-        <li>消息 ID 只用 DB 自增主键不够，分布式场景下 Snowflake 才能保证全局有序。</li>
+        <li>消息 ID 应服务于唯一性、去重与排序需求；Snowflake 通常只提供趋势递增，严格会话顺序应使用会话级序号或由单一排序点分配。</li>
         <li>群消息不能同步扇出到所有成员，需要 Kafka 异步写各成员收件箱。</li>
         <li>离线推送（APNs/FCM）到达率不保证 100%，用户重新上线需拉取未读消息。</li>
       </ul>
@@ -158,7 +158,7 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
     <section>
       <h2>工程场景</h2>
       <ul>
-        <li>Netty 长连接网关：一台机器可维持 10万+ WebSocket 连接，心跳 30s</li>
+        <li>Netty 长连接网关：单机连接数与文件描述符、内存、TLS、消息频率和内核参数有关，需压测确定；心跳周期也应结合网络与移动端功耗配置</li>
         <li>Redis：HSET online:{userId} connId gateway_ip，快速查找目标用户在哪台 GW</li>
         <li>HBase：按 conversation_id + msg_id 存消息历史，支持范围查询</li>
         <li>MySQL：inbox 表存 userId、convId、lastMsgId、unreadCount</li>
@@ -180,12 +180,12 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
 const STEPS=[
   {title:"UserA 建立 WebSocket 连接",desc:"Client A 与 WS GW 建立长连接，GW 维护 connId→userId 映射并写入 Redis，标记用户在线。",kind:"normal",active:[0,1],fail:[],recover:[],edges:[0],detail:"Redis: HSET online:{userId} connId=xxx gateway=gw-1。每台 GW 独立维护连接池，Redis 存路由信息。"},
   {title:"UserA 发送消息",desc:"Client A 通过 WebSocket 帧发送消息，WS GW 接收后转发到 Msg Router 处理。",kind:"normal",active:[0,1,2],fail:[],recover:[],edges:[0,1],detail:"消息携带 clientMsgId（客户端生成的唯一 ID）用于去重，以及 toUserId 目标用户 ID。"},
-  {title:"分配消息 ID",desc:"Msg Router 调用 ID 生成器（Snowflake 或 Redis INCR）分配全局单调递增消息 ID，保证排序。",kind:"normal",active:[2],fail:[],recover:[],edges:[],detail:"Snowflake：64bit = 时间戳(41) + 机器ID(10) + 序列号(12)，每毫秒可生成 4096 个 ID，趋势递增。"},
-  {title:"持久化到 MsgDB",desc:"Msg Router 将消息写入 HBase/MySQL 消息存储，按 conversation_id 分片，保证同会话消息有序。",kind:"normal",active:[2,3],fail:[],recover:[],edges:[2],detail:"写入成功后才执行后续投递，保证消息不丢。分片键用 conversation_id，确保同对话路由到同 DB 分片。"},
+  {title:"分配消息 ID",desc:"Msg Router 分配唯一消息 ID 用于幂等与追踪；另用会话级序号定义同一会话的展示顺序。",kind:"normal",active:[2],fail:[],recover:[],edges:[],detail:"Snowflake 类 ID 在正常时钟下趋势递增，但跨节点不严格全局有序；Redis INCR 可提供单键线性序号，却会引入集中式可用性与吞吐边界。"},
+  {title:"持久化到 MsgDB",desc:"Msg Router 将消息写入 HBase/MySQL 消息存储，按 conversation_id 分片，并以会话序号排序。",kind:"normal",active:[2,3],fail:[],recover:[],edges:[2],detail:"持久化成功后再投递可缩小丢失窗口，但超时结果不明、复制故障和灾难恢复仍需幂等重试、提交确认与备份策略。"},
   {title:"路由到 UserB（在线）",desc:"Msg Router 查询 Redis 获取 UserB 的 connId 和 GW 地址，通过对应 WS GW 推送消息给 Client B。",kind:"normal",active:[2,4,5],fail:[],recover:[],edges:[3,5],detail:"若 UserB 在不同 GW，Msg Router 通过 RPC 调用目标 GW 推送消息，GW 找到 connId 发送 WS 帧。"},
   {title:"UserB 接收并发送 ACK",desc:"Client B 收到消息后发送 ACK 帧，服务端更新投递状态，Inbox 更新已读游标。",kind:"normal",active:[2,4,5],fail:[],recover:[],edges:[3,5,6],detail:"ACK 机制：客户端回复 ack:{msgId}，服务端标记该消息为已投递，不再重推。"},
   {title:"UserB 离线（投递失败）",desc:"查询 Redis 发现 UserB 无活跃连接，转交 Push Service 发送 APNs/FCM 离线推送通知。",kind:"failure",active:[2,5,6],fail:[4],recover:[],edges:[4,7],detail:"离线推送只发通知（title、badge），完整消息内容等用户重新上线后从 Inbox 拉取。"},
-  {title:"APNs/FCM 推送（不保证到达）",desc:"Push Service 调用 APNs（iOS）或 FCM（Android）发送推送，到达率约 95%~99%，不保证 100%。",kind:"failure",active:[6],fail:[6],recover:[],edges:[7],detail:"弥补措施：用户上线时强制拉取 lastSyncId 后的所有消息，确保消息最终一致性。"},
+  {title:"APNs/FCM 推送（不保证到达）",desc:"Push Service 调用 APNs（iOS）或 FCM（Android）发送通知；第三方推送不提供端到端必达承诺。",kind:"failure",active:[6],fail:[6],recover:[],edges:[7],detail:"用户上线后按 lastSyncId 补拉持久化消息，并处理游标推进、过期和数据保留边界；这能收敛状态，但不等于无条件最终必达。"},
   {title:"群消息扇出",desc:"一条群消息发给 1000 人的群，Msg Router 发布到 Kafka，消费者异步扇出写入每个成员的 Inbox。",kind:"normal",active:[2,3,5],fail:[],recover:[],edges:[2,4],detail:"大群（> 500 成员）改用读扩散：只写一份消息，成员读时从群消息表拉取，避免 Kafka 消息量爆炸。"},
   {title:"未读计数更新",desc:"Inbox Service 维护 Redis unread:{userId} 计数器，每次写入收件箱时 INCR，已读时 DECL 归零。",kind:"recovery",active:[2,5],fail:[],recover:[2,5],edges:[4,5],detail:"跨设备同步：客户端上报已读 lastMsgId，服务端广播给用户其他在线设备，清除各设备未读计数。"}
 ];

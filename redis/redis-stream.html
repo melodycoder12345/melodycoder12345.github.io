@@ -105,10 +105,10 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">Redis / Stream / C 类型</div>
+      <div class="eyebrow">Redis / Stream</div>
       <h1>Redis Stream</h1>
       <p class="summary">Redis Stream 是一种只追加的日志式数据结构，每条消息有唯一的时间戳序号 ID。
       消费者组（Consumer Group）维护 <code style="color:var(--warn);background:rgba(251,191,36,.1);padding:1px 5px;border-radius:3px">last-delivered-id</code> 游标，
@@ -180,7 +180,7 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
       <div style="padding:12px;border-top:1px solid rgba(255,255,255,.07);">
         <div style="font-size:.72rem;color:var(--dim2);margin-bottom:6px;">📌 Stream vs Kafka</div>
         <div style="font-size:.78rem;color:var(--dim);line-height:1.7;">
-          Stream 是单节点结构，<br>
+          Stream 是一个 Redis key，可由 Cluster 分片到某个节点，<br>
           offset 嵌入 ID 而非独立维护，<br>
           PEL 替代 Kafka 的 __consumer_offsets，<br>
           消费失败后可 XCLAIM 转移。
@@ -193,8 +193,8 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
     <section>
       <h2>Stream 与 Kafka 对比</h2>
       <ul>
-        <li>Redis Stream 是单节点内存结构，Kafka 是分布式磁盘日志</li>
-        <li>Stream 的 Entry ID 即为 offset，包含时间戳，可按时间范围查询</li>
+        <li>每个 Stream key 归属于一个 Redis 节点/分片；Kafka 原生将主题划分为多个持久化分区</li>
+        <li>Stream Entry ID 是有序消息标识；消费者组另行维护 last-delivered-id 与 PEL，不能简单等同 Kafka offset</li>
         <li>PEL 对应 Kafka 消费者的未提交 offset，但粒度是单条消息</li>
         <li>XCLAIM 允许将超时未 ACK 的消息转移给其他消费者，Kafka 无此机制</li>
         <li>Stream 适合单机低延迟场景，Kafka 适合高吞吐分布式场景</li>
@@ -204,7 +204,7 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
       <h2>常见工程场景</h2>
       <ul>
         <li>替代简单队列：XADD 写入，XREADGROUP 消费，XACK 确认</li>
-        <li>事件溯源：Stream 不删除历史，可从任意 ID 重放</li>
+        <li>有限保留的事件日志：在条目尚未裁剪或删除时，可按 ID 范围读取和重放</li>
         <li>多消费者分工：不同 Consumer Group 独立消费同一 Stream</li>
         <li>延迟检测：XPENDING 查出长时间未 ACK 的消息并重试</li>
         <li><code>XADD events * action login user_id 42</code> — 写入一条事件</li>
@@ -213,11 +213,11 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
     </section>
     <section>
       <h2>At-Least-Once 保证机制</h2>
-      <p>消息被 XREADGROUP 读取后立即进入 PEL，不论消费者是否处理完毕。进程崩溃后，下次启动可通过 XPENDING 获取 PEL 中的消息重新处理。XACK 后消息从 PEL 永久移除，确保不会重复计费或重复操作。结合消费端幂等设计，可实现 Exactly-Once 语义。</p>
+      <p>消息被 <code>XREADGROUP</code> 读取后进入该消费者组的 PEL。进程崩溃后，可用 <code>XPENDING</code> 配合 <code>XCLAIM</code>，或 Redis 6.2 起使用 <code>XAUTOCLAIM</code> 转移超时消息。<code>XACK</code> 只从该组 PEL 删除待确认记录，不删除 Stream 条目，也不阻止消息在确认前后重复处理；消费端必须以业务幂等键、去重记录或下游事务处理重复，不能仅凭 ACK 宣称 Exactly-Once。</p>
     </section>
     <section>
       <h2>内存与消息保留</h2>
-      <p>XADD 时通过 <code>MAXLEN ~ N</code> 参数限制 Stream 长度（~ 表示近似裁剪，性能更好）。Stream 不会因消费者消费而删除条目，不同消费者组各自维护游标，互不干扰。消息只有在显式调用 XDEL 或触发 MAXLEN 裁剪时才被移除。</p>
+      <p>XADD 时可通过 <code>MAXLEN ~ N</code> 限制近似长度，也可按最小 ID 裁剪。消费不会自动删除条目，不同消费者组各自维护状态。裁剪可能发生在消息仍位于 PEL 时，因此保留窗口必须覆盖最大处理与重试时间；Redis 8.2 还提供 ACKED/DELREF 等引用处理选项。</p>
     </section>
   </section>
 

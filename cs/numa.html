@@ -47,25 +47,25 @@ h1{font-size:clamp(2rem,4vw,3.4rem);line-height:1.05;letter-spacing:-.05em;margi
 @media(max-width:900px){.hero,.body{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
 </style>
 <script>window.PAGE_CONCEPTS=[
-  {"title":"NUMA Node","body":"Non-Uniform Memory Access 节点，包含一组 CPU 核心和直连到这组 CPU 的本地内存。访问本地内存延迟约 70ns，访问远端节点内存需要经过 QPI/UPI 总线，延迟约 100-150ns，带宽也更低。","tag":"term"},
+  {"title":"NUMA Node","body":"Non-Uniform Memory Access 节点通常包含一组处理器与更接近它们的内存。远端访问一般要经过处理器互联，延迟与可用带宽受平台拓扑、内存代际和负载影响，应使用 numactl、hwloc 与基准测试确认。","tag":"term"},
   {"title":"NUMA Affinity","body":"将进程/线程绑定到特定 NUMA 节点，同时保证内存从同一节点分配，避免跨节点内存访问。Linux 工具：numactl --cpunodebind=0 --membind=0 ./program","tag":"term"},
   {"title":"False Sharing","body":"不同 CPU 核心修改同一 cache line（64 字节）中的不同变量，导致 cache line 频繁失效和跨核同步，性能急剧下降。解决：用 alignas(64) 或 padding 将热变量隔离到不同 cache line。","tag":"term"},
   {"title":"NUMA Balancing","body":"Linux 内核自动 NUMA 平衡：定期扫描进程内存访问模式，将频繁远端访问的内存页迁移到访问它的 CPU 所在节点（NUMA page migration），或将进程迁移到内存所在节点。","tag":"term"}
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="B">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">计算机原理 / NUMA / B 类型</div>
+      <div class="eyebrow">计算机原理 / NUMA</div>
       <h1>NUMA</h1>
-      <p class="summary">Non-Uniform Memory Access（非一致性内存访问）是现代多路服务器的内存架构。多个 CPU socket 各自有直连的本地内存，跨 socket 访问内存需要经过 QPI/UPI 互联，延迟高 2-3 倍、带宽更低。错误的 NUMA 配置是高性能服务（数据库/消息队列/机器学习）性能下降的常见原因，理解 NUMA 对性能调优至关重要。</p>
+      <p class="summary">Non-Uniform Memory Access（非一致性内存访问）常见于多路服务器。处理器访问本地与远端内存的延迟和带宽不同，但差距不是固定倍数，取决于平台拓扑、互联、内存配置和并发负载。理解实际拓扑与测量结果是性能调优的前提。</p>
       <div class="tags"><span>NUMA</span><span>numactl</span><span>QPI/UPI</span><span>cache line</span><span>false sharing</span><span>NUMA balancing</span></div>
     </div>
     <div class="card">
       <div class="eyebrow">核心术语</div>
       <ul class="concept-list">
-        <li><strong>NUMA Node</strong><span>一组 CPU+本地内存，本地访问约 70ns，跨节点约 150ns。</span></li>
+        <li><strong>NUMA Node</strong><span>一组处理器和相对本地的内存；本地/远端成本需按目标机器测量。</span></li>
         <li><strong>NUMA Affinity</strong><span>绑定进程到节点，确保内存从同一节点分配。</span></li>
         <li><strong>False Sharing</strong><span>不同核修改同一 cache line，引发跨核失效风暴。</span></li>
         <li><strong>NUMA Balancing</strong><span>内核自动迁移页/进程减少远端访问。</span></li>

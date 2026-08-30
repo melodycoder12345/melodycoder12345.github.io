@@ -21,7 +21,7 @@
 body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
 .nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:44px;z-index:10;}
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;}.back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{margin:0;font-size:1.06rem;font-weight:700;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
@@ -87,7 +87,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
 <body>
 <div class="nav-bar">
   <a href="index.html" class="back">← 返回</a>
-  <span class="nav-title">🔗 CGO：Go 调用 C</span>
+  <h1 class="nav-title">🔗 CGO：Go 调用 C</h1>
   <div class="nav-tags">
     <span class="ntag">cgo</span>
     <span class="ntag">memory-boundary</span>
@@ -190,11 +190,11 @@ char* greet(const char* name) {
               <h4 class="go">Go Heap（GC 管理）</h4>
               <div class="mem-block">
                 <div class="mb-label go">Go 对象</div>
-                GC 可以移动对象（GC compaction）。C 代码持有 Go 指针时，GC 移动对象会导致 C 指针悬空。
+                当前 Go GC 不移动堆对象，但 Go 指针仍受运行时指针传递与 pinning 规则约束。
               </div>
               <div class="mem-block">
                 <div class="mb-label red">❌ 禁止</div>
-                C 代码不能在调用返回后持久保存 Go 指针（只能在 CGO 调用期间使用）。
+                默认情况下，C 代码不能在调用返回后继续持有 Go 指针；确有需要时必须满足指针内容限制并使用 <code>runtime.Pinner</code> 显式 pin，且不能 pin string、slice、interface 等值的内部表示。
               </div>
             </div>
             <div class="mem-side">
@@ -211,7 +211,7 @@ char* greet(const char* name) {
           </div>
           <pre><span class="cm">// ❌ 错误：将 Go slice 传给 C 并让 C 持久保存指针</span>
 <span class="id">data</span> := []<span class="tp">byte</span>{<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>}
-<span class="cm">// 危险：GC 可能在 C 函数返回后移动 data 底层数组</span>
+<span class="cm">// 危险：调用返回后指针不再由隐式 pin 保证有效</span>
 <span class="id">C</span>.<span class="fn">store_pointer</span>((<span class="id">*C</span>.<span class="tp">uchar</span>)(<span class="id">unsafe</span>.<span class="id">Pointer</span>(&amp;<span class="id">data</span>[<span class="num">0</span>])))
 
 <span class="cm">// ✅ 正确：用 cgo.Handle 传递 Go 对象引用给 C</span>
@@ -232,9 +232,9 @@ char* greet(const char* name) {
       <div class="card">
         <div class="card-hd"><h3>CGO 调用开销</h3><span class="badge badge-adv">[性能]</span></div>
         <div class="card-body">
-          <p>每次 CGO 调用需要进行栈切换：从 goroutine 的可增长 Go 栈切换到固定大小的 OS 线程栈（约 1MB）。这个过程涉及寄存器保存/恢复、栈指针更新和调度器通知，约有 <strong>100–200ns 额外开销</strong>。</p>
+          <p>CGO 调用需要跨越 Go/C 调用边界，并让运行时协调栈、线程与调度状态，因此通常比普通 Go 函数调用昂贵。具体开销依赖平台、工具链版本、调用方向和参数，应通过目标环境 benchmark 测量。</p>
           <div class="highlight-box">
-            相比之下，普通 Go 函数调用约 1–5ns，syscall 约 50–100ns。CGO 调用开销是普通函数调用的 50–100 倍。
+            不要把固定纳秒数或固定倍数当作 CGO 合同；稳定的优化原则是减少边界往返，并批量处理数据。
           </div>
           <p><strong>优化策略：批量合并调用</strong></p>
           <pre><span class="cm">// ❌ 性能差：每个元素一次 CGO 调用（N 次开销）</span>
@@ -297,7 +297,7 @@ char* greet(const char* name) {
 $ GOOS=linux GOARCH=amd64 CGO_ENABLED=1 \
   CC=x86_64-linux-musl-gcc go build ./...
 
-<span class="cm"># 禁用 CGO：生成静态二进制，可在任意平台运行</span>
+<span class="cm"># 禁用 CGO：为指定目标平台构建纯 Go 二进制</span>
 $ CGO_ENABLED=0 GOOS=linux go build -o app ./...
 
 <span class="cm"># 常用于 Docker 多阶段构建：</span>
@@ -306,7 +306,7 @@ $ CGO_ENABLED=0 GOOS=linux go build -o app ./...
 <span class="cm"># FROM scratch</span>
 <span class="cm"># COPY --from=builder /app /app</span></pre>
           <div class="highlight-box">
-            在 CI/CD 环境中，<code>CGO_ENABLED=0</code> 是 Docker 镜像构建的最佳实践——生成的静态二进制无需任何依赖，可以直接在 <code>scratch</code> 镜像中运行。
+            <code>CGO_ENABLED=0</code> 可简化纯 Go 程序的交叉构建，但二进制仍只适用于指定的 GOOS/GOARCH；能否放入 <code>scratch</code> 还取决于证书、时区、用户数据库、动态链接以及应用所需资源，需用 <code>file</code>/<code>ldd</code> 和容器测试确认。
           </div>
         </div>
       </div>

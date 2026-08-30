@@ -23,7 +23,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
 .nav{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);flex-shrink:0;position:sticky;top:var(--snav-h,44px);z-index:10;}
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;display:flex;align-items:center;gap:5px;}
 .back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{font-size:1.06rem;font-weight:700;margin:0;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .main-area{display:flex;flex:none;height:calc(100vh - var(--snav-h,44px) - 88px);min-height:300px;overflow:hidden;}
@@ -102,7 +102,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
 
 <div class="nav">
   <a href="index.html" class="back">← 返回</a>
-  <span class="nav-title">内存屏障 — CS 基础</span>
+  <h1 class="nav-title">内存屏障 — CS 基础</h1>
   <div class="nav-tags">
     <span class="ntag">memory-barrier</span>
     <span class="ntag">reorder</span>
@@ -147,7 +147,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
     <div class="qa-grid">
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q">x86 和 ARM 的内存一致性模型有什么不同？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a">x86 采用 TSO（Total Store Order）模型：store 操作通过 Store Buffer 异步写入，但所有 load 都能看到最新的 store（acquire 语义）。store 之间的顺序对其他核可见，只有 store-load 顺序可能被打乱。<br><br>ARM 采用弱内存模型（Weakly Ordered）：store-store、load-load、load-store、store-load 四种顺序都可能被重排。需要显式 <code>dmb</code>（Data Memory Barrier）指令保序。因此在 ARM 上更容易触发并发 bug，同时也给了编译器/CPU 更大的优化空间。</div>
+        <div class="qa-a">x86-TSO 对普通写入维持较强的顺序，但写后读可能因 store buffer 表现出不同顺序；“所有 load 都看到最新 store”并不成立。ARM 的模型更弱，允许更多观察顺序，并提供 acquire/release 指令及 <code>DMB</code> 等屏障建立所需顺序。应用应依据语言内存模型和同步原语编程，而不是把某种 ISA 的直觉当作跨平台保证。</div>
       </div>
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q">Go 的 sync/atomic 操作能替代所有 mutex 使用吗？<span class="qa-arrow">▶</span></div>
@@ -159,7 +159,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
       </div>
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q">Go 内存模型中的 happens-before 如何通过 channel 建立？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a">Go 内存模型规定：<br>• <strong>无缓冲 channel：</strong>第 n 次接收 happens-before 第 n 次发送完成。即接收方解阻塞意味着发送方已完成写入。<br>• <strong>有缓冲 channel：</strong>第 n 次发送 happens-before 第 n 次接收完成。缓冲区容量 c，第 n 次接收 happens-before 第 n+c 次发送。<br>• <strong>close 操作：</strong>channel 关闭 happens-before 接收到零值。<br><br>实践：通过 channel 传递数据，发送前的所有写操作都 happens-before 接收后的所有读操作，无需额外 mutex/atomic。这是 Go 推荐的同步方式。</div>
+        <div class="qa-a">Go 内存模型规定：<br>• <strong>所有 channel：</strong>一次发送在对应接收完成之前同步；<br>• <strong>无缓冲 channel：</strong>对应接收在发送完成之前同步；<br>• <strong>容量 C 的 channel：</strong>第 k 次接收在第 k+C 次发送完成之前同步；<br>• <strong>close：</strong>关闭在因关闭而返回零值的接收之前同步。<br><br>这些规则能传递同步点之前的写入；不相关的共享状态仍需独立同步。</div>
       </div>
     </div>
   </div>

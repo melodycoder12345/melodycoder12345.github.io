@@ -23,7 +23,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
 .nav{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);flex-shrink:0;position:sticky;top:var(--snav-h,44px);z-index:10;}
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;display:flex;align-items:center;gap:5px;}
 .back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{margin:0;font-size:1.06rem;font-weight:700;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .main-area{display:flex;flex:none;height:calc(100vh - var(--snav-h,44px) - 88px);min-height:300px;overflow:hidden;}
@@ -95,7 +95,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
 
 <div class="nav">
   <a href="index.html" class="back">← 返回</a>
-  <span class="nav-title">内存分配器</span>
+  <h1 class="nav-title">内存分配器</h1>
   <div class="nav-tags">
     <span class="ntag">mcache</span>
     <span class="ntag">mcentral</span>
@@ -153,7 +153,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
       </div>
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q">栈分配和堆分配的区别？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a">栈分配：函数调用时移动栈指针，函数返回时自动回收，零 GC 压力，速度极快（~1ns）。<br>堆分配：通过 mallocgc 分配，需要 GC 追踪和回收，速度较慢（~100ns）。<br>Go 编译器通过逃逸分析决定：不逃逸的变量分配在栈上，逃逸的变量分配在堆上。用 <code>go build -gcflags=-m</code> 查看逃逸信息。</div>
+        <div class="qa-a">栈分配通常只需调整栈指针，并随栈帧生命周期回收；堆分配要经过运行时分配器，并可能增加 GC 标记与回收工作。具体纳秒数取决于平台、对象大小、缓存命中和 Go 版本，不应写成固定常数。编译器通过逃逸分析决定存储位置，可用 <code>go build -gcflags=-m</code> 查看诊断。</div>
       </div>
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q">如何减少 Go 程序的 GC 压力？<span class="qa-arrow">▶</span></div>
@@ -246,7 +246,7 @@ function box(x,y,w,h,label,sub,color,active,rx=10){
   const filt=active?' filter="url(#glow)"':'';
   const lc=active?color:'#94a3b8';
   return`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${fill}" stroke="${stroke}" stroke-width="${active?2:1}"${filt}/>
-<text x="${x+w/2}" y="${y+h/2+4}" text-anchor="middle" fill="${lc}" font-size="11" font-weight="700" font-family="monospace">${label}</text>`+
+<text x="${x+w/2}" y="${y+h/2+4}" text-anchor="middle" fill="${lc}" font-size="11" font-weight="700" font-family="monospace">${label}</text>`;
 }
 function arr(x1,y1,x2,y2,color,dashed,anim){
   const cls=anim?'class="flow-arrow" ':'';
@@ -299,9 +299,9 @@ x := new(MyStruct)   // mallocgc 请求
     if(step>=2){
       s+=box(400,150,100,40,'内存 slot',null,'#4ade80',true,8);
       s+=arr(342,170,398,170,'#00add8',false,true);
-      s+=lbl(410,206,'零锁分配 ~1ns','#4ade80',9);
+      s+=lbl(410,206,'P 本地快速路径','#4ade80',9);
     }
-    s+=`<text x="310" y="300" text-anchor="middle" fill="#64748b" font-size="10" font-family="monospace">${['mallocgc 调用，确定 size class','P.mcache freelist 弹出，无锁','分配完成，~1-5ns ✓'][step]}</text>`;
+    s+=`<text x="310" y="300" text-anchor="middle" fill="#64748b" font-size="10" font-family="monospace">${['mallocgc 调用，确定 size class','P.mcache freelist 弹出，无锁','分配完成；耗时以基准测试为准 ✓'][step]}</text>`;
     document.getElementById('svg').innerHTML=s;
   }
 },

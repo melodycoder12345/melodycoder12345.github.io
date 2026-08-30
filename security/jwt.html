@@ -65,13 +65,25 @@ a{color:var(--accent);text-decoration:none}
 .expire-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:9px;font-size:.8rem}
 .expire-row.ok{background:rgba(74,222,128,.06);border:1px solid rgba(74,222,128,.2)}
 .expire-row.expired{background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.2);color:var(--err)}
+@media (max-width:860px){
+  .wrap{padding:32px 22px 64px}
+  .layout{grid-template-columns:1fr}
+  .left-panel{position:static}
+}
+@media (max-width:600px){
+  .wrap{padding:24px 14px 52px}
+  .left-panel,.center-panel{padding:15px;border-radius:14px}
+  .parts-grid{grid-template-columns:1fr}
+  .verify-flow{align-items:stretch}
+  .v-box{flex:1;min-width:120px}
+}
 </style>
 </head>
 <body>
 <main class="wrap">
   <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">安全</a><span>/</span>JWT</div>
   <h1 class="page-title">JWT</h1>
-  <p class="subtitle">JWT（JSON Web Token）是无状态的身份令牌，由 Header.Payload.Signature 三部分组成，用 Base64URL 编码。服务端用密钥签名，验证时只需重新计算签名对比，不需要查数据库。理解结构和签名验证是安全使用 JWT 的基础。</p>
+  <p class="subtitle">JWT（JSON Web Token）是承载 Claims 的紧凑格式；本页展示的是三段式 JWS 签名 JWT。签名只证明完整性和签发密钥身份，不代表内容加密，也不自动证明令牌适用于当前接口。验证时还必须固定算法并校验 issuer、audience、时间和应用约束。</p>
 
   <div class="layout">
     <div class="left-panel">
@@ -104,9 +116,9 @@ const STEPS = [
   {type:'signature',
    msg:'Signature（红色）：HMAC_SHA256(Base64URL(Header) + "." + Base64URL(Payload), SECRET_KEY)。只有服务端知道 SECRET_KEY，任何篡改 Header 或 Payload 都会导致签名验证失败。'},
   {type:'verify',
-   msg:'签名验证：服务端收到 JWT 后，取出 Header+Payload，用同一密钥重新计算签名，与 JWT 中的 Signature 对比。相同则验证通过，不同则拒绝（可能被篡改）。'},
+   msg:'签名验证：HS256 用共享密钥重新计算 MAC；RS256/ES256 等则用签发者公钥验签。应用必须按配置固定允许的算法，不能让 token 的 alg 自行决定密钥解释方式。签名通过后仍需验证 iss、aud、exp、nbf 及业务所需声明。'},
   {type:'expire',
-   msg:'过期验证：服务端还要检查 exp（过期时间戳）是否大于当前时间。过期的 JWT 即使签名有效也应被拒绝，返回 401。这是 JWT 无状态的代价：无法主动吊销，只能等待过期。'},
+   msg:'时效验证：若存在 exp，当前时间达到或超过它时必须拒绝；还应处理 nbf，并只允许很小的时钟偏差。JWT 格式本身不提供吊销协议，但系统可通过短期令牌、会话状态、撤销列表或密钥轮换实现主动失效。'},
   {type:'alg-none',
    msg:'⚠ 安全漏洞：alg:none 攻击。某些早期实现允许 alg="none"（无签名），攻击者修改 alg 为 none 并删除签名，服务端跳过签名验证。防御：服务端必须强制指定允许的算法列表，拒绝 alg:none。'},
 ];
@@ -188,7 +200,7 @@ const TEMPLATES = {
       <span style="font-size:1.2rem">⛔</span>
       <div>exp = 1749996400（2025-06-15 07:00）<br>now = 1750010000（2025-06-15 11:00）<br>now &gt; exp → <strong>Token 已过期，返回 401</strong></div>
     </div>
-    <div style="font-size:.74rem;color:var(--dim);margin-top:10px">JWT 无法主动吊销（无状态），只能等 exp 到期。需要立即吊销时：维护 token blacklist（失去无状态优势），或使用短过期时间（5min）+ refresh_token 机制。</div>`,
+    <div style="font-size:.74rem;color:var(--dim);margin-top:10px">JWT 标准本身不定义吊销；系统仍可维护会话/撤销状态、使用短期 Access Token 配合受保护且可轮换的 Refresh Token，或在事件响应中轮换签名密钥。具体有效期应按威胁模型确定。</div>`,
   'alg-none': `
     <div style="font-size:.72rem;color:var(--err);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;font-weight:700">⚠ 安全漏洞：alg:none 攻击</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -198,7 +210,7 @@ const TEMPLATES = {
         .<br>
         <span style="color:#34d399">{"sub":"admin","role":"superuser"}</span><br>
         .<br>
-        <span style="color:var(--dim2">（删除 Signature）</span>
+        <span style="color:var(--dim2)">（删除 Signature）</span>
       </div>
       <div style="border:1px solid rgba(74,222,128,.3);background:rgba(74,222,128,.05);border-radius:10px;padding:12px;font-size:.78rem;line-height:1.9">
         <div style="color:var(--ok);margin-bottom:6px;font-weight:600">正确防御：</div>

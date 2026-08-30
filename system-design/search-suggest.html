@@ -3,16 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="前缀 Trie/Redis sorted set、候选词排分和实时热词聚合，100ms 内返回补全结果。">
+<meta name="description" content="前缀索引、候选词排序和实时热词聚合，以及可度量的搜索补全延迟目标。">
 <link rel="canonical" href="https://melodycoder12345.github.io/system-design/search-suggest.html">
 <meta property="og:title" content="搜索自动补全 — 码海拾贝">
-<meta property="og:description" content="前缀 Trie/Redis sorted set、候选词排分和实时热词聚合，100ms 内返回补全结果。">
+<meta property="og:description" content="前缀索引、候选词排序和实时热词聚合，以及可度量的搜索补全延迟目标。">
 <meta property="og:url" content="https://melodycoder12345.github.io/system-design/search-suggest.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="码海拾贝">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="搜索自动补全 — 码海拾贝">
-<meta name="twitter:description" content="前缀 Trie/Redis sorted set、候选词排分和实时热词聚合，100ms 内返回补全结果。">
+<meta name="twitter:description" content="前缀索引、候选词排序和实时热词聚合，以及可度量的搜索补全延迟目标。">
 <title>搜索自动补全 - 系统设计</title>
 <script src="../nav.js"></script>
 <script src="../concept.js"></script>
@@ -81,12 +81,12 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
 </style>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">系统设计 / Search Suggest / C 类型</div>
+      <div class="eyebrow">系统设计 / Search Suggest</div>
       <h1>搜索自动补全</h1>
-      <p class="summary">搜索自动补全需要在 100ms 内返回相关候选词。理解前缀索引、排名策略和实时更新，是构建低延迟补全系统的核心。</p>
+      <p class="summary">搜索自动补全通常需要严格的端到端延迟预算；具体 SLO 应依据产品体验、网络和容量压测确定。理解前缀索引、排名策略和实时更新，是构建低延迟补全系统的核心。</p>
       <div class="tags"><span>Trie</span><span>前缀匹配</span><span>Redis</span><span>实时更新</span></div>
     </div>
     <div class="card">
@@ -142,12 +142,12 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
   <section class="deep">
     <section>
       <h2>背景与机制</h2>
-      <p>Google、百度、淘宝每次击键都触发补全请求，要求 P99 &lt; 100ms。核心路径是：前缀命中 CDN 边缘缓存 → 透传到 Suggest 服务 → 查询 Redis sorted set（用 ZRANGEBYLEX 做前缀匹配） → Ranking 服务综合打分 → 返回 Top-10 候选词。后台异步路径：搜索日志 → Kafka → Flink 实时聚合 → 周期更新 Redis。</p>
+      <p>补全通常随输入变化触发请求，并为端到端 P99 设置产品级 SLO（例如示例中的 100ms）。核心路径可由边缘缓存、Suggest 服务、前缀索引与 Ranking 服务组成；后台异步路径聚合搜索日志并更新候选。具体存储、阈值与候选数应通过数据分布和压测选择。</p>
     </section>
     <section>
       <h2>常见误区</h2>
       <ul>
-        <li>Trie 树不一定比 Redis sorted set 快，Redis ZRANGEBYLEX 在内存中做前缀匹配，延迟 &lt; 1ms。</li>
+        <li>Trie 与 Redis sorted set 的性能取决于数据规模、编码、网络往返和并发；ZRANGEBYLEX 只按字典序范围查询，不提供固定的亚毫秒保证。</li>
         <li>候选词排序不能只按频率，CTR（点击率）和时效性（近 7 天权重 &gt; 历史总量）同样重要。</li>
         <li>多语言补全需要单独处理分词边界，中文按字前缀，日文按假名，不能统一用 ASCII 前缀逻辑。</li>
         <li>CDN 缓存补全结果时，缓存键应包含用户语言和地区，避免中英文补全结果混用。</li>
@@ -177,7 +177,7 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
 <script>
 const STEPS=[
   {title:"用户输入 'go'",desc:"每次 keystroke 触发 XHR 请求，前端防抖 100ms，连续输入时取消上一次请求，避免乱序。",kind:"normal",active:[0],fail:[],recover:[],edges:[],detail:"防抖实现：clearTimeout + setTimeout，100ms 内无新输入才发请求。移动端延迟可调至 150ms。"},
-  {title:"边缘缓存命中",desc:"CDN 节点缓存了 'go' 前缀的补全结果（TTL=60s），直接返回缓存响应，延迟 < 5ms。",kind:"normal",active:[0,1],fail:[],recover:[],edges:[0],detail:"CDN 缓存键：prefix=go&locale=zh-CN，命中率通常 70%~85%（高频前缀），节省后端大量请求。"},
+  {title:"边缘缓存命中",desc:"CDN 节点缓存了 'go' 前缀的补全结果（示例 TTL=60s），可减少回源延迟。",kind:"normal",active:[0,1],fail:[],recover:[],edges:[0],detail:"缓存键可包含 prefix 与 locale；命中率和延迟取决于流量分布、PoP 距离、TTL 与缓存容量，应以线上指标验证。"},
   {title:"SuggestService 接收请求",desc:"CDN 未命中时请求透传到 Suggest 服务，解析前缀字符串，准备查询 Trie/Redis 前缀索引。",kind:"normal",active:[1,2],fail:[],recover:[],edges:[1],detail:"Suggest 服务是无状态的，多实例部署，LB 轮询分流。解析前缀、做标准化（小写、去空格）后查询。"},
   {title:"Redis 前缀查询",desc:"ZRANGEBYLEX suggest:zh '[go' '[go\\xff'，返回所有 'go' 开头的候选词，复杂度 O(log N + M)。",kind:"normal",active:[2,3],fail:[],recover:[],edges:[3],detail:"Redis ZSet 编码：score=0，member='golang:1234'（词:频次），ZRANGEBYLEX 按字典序范围扫描，速度极快。"},
   {title:"RankingService 排分",desc:"对候选词按搜索频率（40%）+ CTR（40%）+ 时效性（20%）综合打分，选出 Top-10 返回。",kind:"normal",active:[3,4],fail:[],recover:[],edges:[2,4],detail:"时效权重：近 24h 搜索记录权重×2，近 7 天×1.5，更早数据权重×1。CTR 来自上次点击日志聚合结果。"},

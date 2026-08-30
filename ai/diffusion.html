@@ -24,10 +24,10 @@
 ];</script>
 </head>
 <body>
-<main class="shell" data-page-type="C">
+<main class="shell">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">AI / 扩散模型 / C 类型</div>
+      <div class="eyebrow">AI / 扩散模型</div>
       <h1>扩散模型</h1>
       <p class="summary">扩散模型通过逐步加噪（前向过程）和学习去噪（逆向过程）来生成图像。DDPM 奠定理论基础，DDIM 加速采样，Stable Diffusion 结合 CLIP 文本引导实现文生图。</p>
       <div class="tags"><span>DDPM</span><span>前向扩散</span><span>去噪</span><span>Classifier-Free Guidance</span></div>
@@ -49,11 +49,11 @@
   <section class="grid">
     <article class="section">
       <h2>DDPM vs DDIM</h2>
-      <p>DDIM 是对 DDPM 采样过程的重要改进，将采样步数从 1000 步降低到 50 步甚至更少，同时保持生成质量。</p>
+      <p>DDIM 允许使用原训练扩散过程的子序列采样，并在 η=0 时采用确定性生成路径；所需步数和质量取决于模型、调度器与任务，不能由算法名称单独保证。</p>
       <ul>
-        <li><strong>DDPM</strong>：随机采样，每步加入随机噪声，需要完整 T=1000 步，不可复现。每次生成结果不同。</li>
-        <li><strong>DDIM</strong>：确定性采样（η=0），跳过大量中间步，50 步即可达到接近 DDPM 的质量，相同种子可复现。</li>
-        <li><strong>速度对比</strong>：DDIM 50 步 ≈ DDPM 1000 步质量，速度快 20 倍。</li>
+        <li><strong>DDPM</strong>：原论文常用 T=1000 的随机反向过程，但 T 是实验配置，不是算法固定要求；固定随机源与实现仍可复现实验。</li>
+        <li><strong>DDIM</strong>：可以选取更短的时间步子序列；η=0 时采样路径是确定性的，但端到端复现还取决于随机种子、硬件和算子。</li>
+        <li><strong>速度与质量</strong>：减少网络评估次数通常会加速采样，但实际倍率和质量差异必须在目标模型与硬件上测量。</li>
         <li><strong>图像插值</strong>：DDIM 的确定性编码让图像空间插值成为可能：encode A → encode B → 插值 latent → decode。</li>
       </ul>
     </article>
@@ -64,7 +64,7 @@
         <li><strong>VAE 编码器</strong>：将 512×512×3 图像压缩到 64×64×4 的 latent（压缩比 48×），大幅减少 UNet 的计算量。</li>
         <li><strong>在 Latent 空间扩散</strong>：前向加噪和逆向去噪都在 64×64×4 空间进行，而非原图空间。</li>
         <li><strong>VAE 解码器</strong>：生成完成后，用 VAE 解码器将 latent 还原为完整像素图像。</li>
-        <li><strong>效果</strong>：计算成本降低 48 倍，同时生成质量几乎不损失，是大规模文生图的基础。</li>
+        <li><strong>效果</strong>：示例 latent 的元素数约为像素张量的 1/48，但这不等于端到端计算必然降低 48 倍；压缩也可能带来重建损失。</li>
       </ul>
     </article>
     <article class="section">
@@ -93,7 +93,7 @@ image = vae_decoder(latent)               # 解码为像素</pre>
         <li><strong>Euler/Euler a</strong>：最简单快速，30-40 步，适合快速预览；Euler a（ancestral，随机）每次结果不同，Euler 确定性。</li>
         <li><strong>LCM/SDXL-Turbo</strong>：蒸馏后的超快采样，1-4 步即可生成，代价是细节和一致性略差。</li>
       </ul>
-      <div class="callout">没有绝对最好的采样器。DPM-Solver++ 2M 在速度和质量的综合表现上目前最均衡，建议从它开始调试。</div>
+      <div class="callout">没有绝对最好的采样器。应按模型发布方推荐配置起步，再用目标数据比较质量、延迟、随机性和显存。</div>
     </article>
   </section>
 </main>
@@ -171,7 +171,7 @@ window.AI_DEMO = {
     {kicker:'latent-sd', title:'Latent Diffusion 的优势',  badge:'LDM insight',
      goodNodes:['unet','text'],
      nodes:['unet','text'],
-     desc:'Stable Diffusion 将扩散过程移到 VAE 压缩的潜在空间，64×64×4 比像素空间（512×512×3）小 48 倍，使高分辨率文生图在消费级 GPU 上成为可能。',
+     desc:'Stable Diffusion 将扩散过程移到 VAE 压缩的潜在空间；示例中 64×64×4 的元素数是 512×512×3 的约 1/48，但实际算力与质量收益还取决于网络结构和 VAE。',
      metrics:[{label:'Latent 尺寸',value:'64×64×4'},{label:'压缩比',value:'48×'}]}
   ]
 };

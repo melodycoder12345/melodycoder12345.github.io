@@ -60,7 +60,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
 .nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;}
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;}
 .back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{margin:0;font-size:1.06rem;font-weight:700;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .table-wrap{overflow-x:auto;margin:10px 0;}
@@ -74,7 +74,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
 <body>
 <div class="nav-bar">
   <a href="index.html" class="back">← 返回</a>
-  <span class="nav-title">📦 JSON 处理</span>
+  <h1 class="nav-title">📦 JSON 处理</h1>
   <div class="nav-tags">
     <span class="ntag">json</span>
     <span class="ntag">encoding</span>
@@ -241,7 +241,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
       <div class="card">
         <div class="card-hd"><h3>UseNumber 避免 float64 精度损失</h3><span class="badge badge-adv">进阶</span></div>
         <div class="card-body">
-          <p>JSON 解码到 <code>interface{}</code> 时，数字默认被解析为 <code>float64</code>，大整数（超过 2^53）会丢失精度。<code>UseNumber()</code> 让数字保持为 <code>json.Number</code> 字符串类型，按需转换。</p>
+          <p>JSON 解码到 <code>interface{}</code> 时，数字默认被解析为 <code>float64</code>；绝对值超过 2^53 的整数不能保证逐个整数都可精确表示（2^53 本身仍可精确表示）。<code>UseNumber()</code> 让数字保持为 <code>json.Number</code> 文本形式，按需转换。</p>
           <pre><span class="id">data</span> := []<span class="kw">byte</span>(<span class="st">`{"id": 9007199254740993}`</span>)  <span class="cm">// 超过 float64 精度</span>
 
 <span class="cm">// 默认方式：精度丢失</span>
@@ -372,7 +372,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
         <div class="qa-q">为什么大数字通过 interface{} 反序列化会精度损失？如何解决？<span class="qa-arrow">▶</span></div>
         <div class="qa-a">
           JSON 规范不区分整数和浮点数，Go 标准库在解码到 <code>interface{}</code> 时统一使用 <code>float64</code> 存储数字。<br>
-          IEEE 754 double 只有 53 位尾数，能精确表示的最大整数为 2^53 = 9007199254740992。超过此范围的整数（如雪花ID、数据库 bigint）会丢失低位精度。<br><br>
+          IEEE 754 binary64 有 53 位有效精度，安全整数范围是 −(2^53−1) 到 2^53−1；2^53 = 9007199254740992 本身可精确表示，但从该量级开始相邻整数不再都能表示，雪花 ID、数据库 bigint 等可能丢失低位精度。<br><br>
           <strong>解决方案：</strong><br>
           1. <code>json.Decoder.UseNumber()</code>：数字保存为 <code>json.Number</code>（字符串），按需调用 <code>.Int64()</code> 或 <code>.Float64()</code><br>
           2. 使用强类型 struct，将字段声明为 <code>int64</code>（而非 interface{}），标准库会正确解析<br>

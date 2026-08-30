@@ -5,7 +5,7 @@
 ## 同步目标目录
 
 ```
-/Users/hudan/Documents/Obsidian Vault/blog/
+/Users/hudan/Documents/obsidian-vault/blog/
 ```
 
 ---
@@ -41,7 +41,7 @@
 | 实质性内容修改（新增章节、修改核心解释） | **必须**同步更新笔记 |
 | 纯样式修改 | 不需要 |
 | 动画 bug 修复 | 不需要 |
-| 更新 graph-data.js / nav.js 等基础设施 | 不需要 |
+| 更新 knowledge 数据 / nav.js 等基础设施 | 不需要 |
 
 ---
 
@@ -89,7 +89,7 @@
 - **标题行**：H1 标题即文件名，两者保持完全一致。
 - **一句话说明**：紧跟 H1，不加任何标题，直接一段文字，说清楚「是什么、为什么存在」。
 - **核心概念**：拆分为若干 `###` 子节，每节聚焦一个关键术语或机制。
-- **关键流程**：算法/协议/系统流程页（A/C 类型）必须有此节；纯概念页（B 类型）可省略。
+- **关键流程**：页面画像包含 `animation`、`diagram` 或 `lab` 时必须有此节；纯 `article` 页面可省略。
 - **工程场景**：说明在真实系统或面试中如何用到，不写泛泛的「广泛应用于」。
 - **常见误区**：至少列一条，优先写容易混淆的对比点（如「Raft 和 Paxos 的区别」）。
 - **关联**：只写 Vault 内已存在的笔记，使用 `[[]]` wiki 链接，不创建悬空链接。
@@ -137,7 +137,7 @@ Obsidian 笔记是**检索和快速回顾**工具，不是完整教程，内容�
 
 新增博客 module（如 `cloud-native`）后，除创建对应 Obsidian 子目录外，还需要：
 
-1. 在 Vault 根目录 `/Users/hudan/Documents/Obsidian Vault/blog/README.md` 中补充新目录入口行。
+1. 在 Vault 根目录 `/Users/hudan/Documents/obsidian-vault/blog/README.md` 中补充新目录入口行。
 2. 在新目录下创建 `README.md`，说明该模块的学习范围和已有笔记列表（可随新增笔记逐步补全）。
 3. 在映射表（本文档）中更新对应行的状态为「已存在」。
 

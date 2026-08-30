@@ -332,13 +332,13 @@ const STEPS = [
   { desc:"CPU L3 Cache: 8MB, ~30ns。热点数据库代码路径会被CPU自动缓存", line:1, hl:[2], boxes:[], extra:['<span class="info-badge yellow">L3: ~30ns，数据库热路径自动缓存</span>'] },
   { desc:"DRAM 内存: 64GB, ~100ns。所有数据库缓存最终都在这里", line:1, hl:[3], boxes:[], extra:['<span class="info-badge green">DRAM: ~100ns，所有上层缓存的物理存储</span>'] },
   { desc:"Buffer Pool: InnoDB最重要的缓存！缓存16KB的数据页和索引页", line:12, hl:[4], boxes:['boxBP'], extra:['<span class="info-badge blue">Buffer Pool: InnoDB 核心缓存，16KB 页</span>'] },
-  { desc:"Buffer Pool 命中：~200ns（内存读取）。Buffer Pool 未命中→SSD: ~0.1ms（慢500倍！）", line:16, hl:[4,5], boxes:['boxBP'], extra:['<span class="info-badge blue">命中: ~200ns</span>','<span class="info-badge red">未命中→SSD: ~0.1ms（慢500x）</span>'] },
+  { desc:"Buffer Pool 命中可避免存储读取；未命中可能触发文件系统与设备 I/O。两者延迟受锁争用、页缓存、设备和负载影响，应以监控数据衡量。", line:16, hl:[4,5], boxes:['boxBP'], extra:['<span class="info-badge blue">命中：避免设备 I/O</span>','<span class="info-badge red">未命中：可能触发存储读取</span>'] },
   { desc:"Buffer Pool 使用改良LRU：分 Young(5/8) 和 Old(3/8) 两个链表，防止全表扫描污染热缓存", line:28, hl:[4], boxes:['boxBP'], extra:['<span class="info-badge blue">Young(5/8): 热数据</span>','<span class="info-badge yellow">Old(3/8): 新载入页，防污染</span>'] },
   { desc:"自适应哈希索引(AHI)：InnoDB 自动检测高频点查，在 B+树之上建哈希层，O(log n)→O(1)", line:1, hl:[4], boxes:['boxAHI'], extra:['<span class="info-badge yellow">AHI: O(log n) → O(1)</span>'] },
-  { desc:"Redis 作为应用层缓存：在数据库前挡住 90% 读请求，延迟<1ms，极大降低 DB 压力", line:5, hl:[3], boxes:['boxRedis'], extra:['<span class="info-badge purple">Redis: &lt;1ms，拦截90%读请求</span>'] },
+  { desc:"Redis 可作为应用层缓存降低数据库读负载；命中率和延迟取决于数据局部性、网络、序列化、容量与淘汰策略。", line:5, hl:[3], boxes:['boxRedis'], extra:['<span class="info-badge purple">以命中率和端到端延迟验证收益</span>'] },
   { desc:"缓存击穿：热点 key 过期，大量请求直接打到数据库。解决：锁+单线程重建缓存", line:5, hl:[4,5], boxes:['boxRedis','boxBP'], extra:['<span class="info-badge red">击穿：热点key过期 → 大量请求穿透到DB</span>','<span class="info-badge green">解决：分布式锁+单线程重建</span>'] },
   { desc:"缓存穿透：查询不存在的 key，缓存无法命中。解决：布隆过滤器(Bloom Filter)预判", line:5, hl:[], boxes:['boxRedis'], extra:['<span class="info-badge red">穿透：查不存在的key，缓存永远miss</span>','<span class="info-badge green">解决：Bloom Filter 预判</span>'] },
-  { desc:"典型生产架构：客户端 → Redis → MySQL Buffer Pool → SSD。99% 请求在前两层解决", line:1, hl:[3,4], boxes:['boxRedis','boxBP'], extra:['<span class="info-badge purple">Redis: ~0.5ms</span>','<span class="info-badge blue">Buffer Pool: ~0.2ms</span>','<span class="info-badge green">99% 请求在此两层解决</span>'] },
+  { desc:"常见读取路径：客户端 → Redis（若采用）→ MySQL Buffer Pool → 存储。各层命中率必须独立观测，不能预设固定比例或延迟。", line:1, hl:[3,4], boxes:['boxRedis','boxBP'], extra:['<span class="info-badge purple">应用缓存命中率</span>','<span class="info-badge blue">Buffer Pool 命中率</span>','<span class="info-badge green">结合尾延迟评估</span>'] },
 ];
 
 const SPEEDS = [1500,1000,600,350,180];

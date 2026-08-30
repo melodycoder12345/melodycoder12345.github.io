@@ -37,23 +37,14 @@ h1{font-size:2rem;line-height:1.1;margin-bottom:12px;letter-spacing:-.04em;}
 .search{width:100%;height:42px;border:1px solid var(--border);background:rgba(15,23,42,.82);color:var(--text);border-radius:10px;padding:0 12px;font-size:.9rem;outline:none;}
 .search:focus{border-color:var(--algo);box-shadow:0 0 0 3px rgba(56,189,248,.12);}
 .filters{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 20px;}
+.relation-filters{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 18px;}
+.relation-filters .chip{font-size:.7rem;padding:5px 8px;}
 .chip{border:1px solid var(--border);background:rgba(255,255,255,.04);color:var(--dim);border-radius:999px;padding:6px 10px;font-size:.76rem;cursor:pointer;transition:all .15s;}
 .chip.active,.chip:hover{color:var(--text);border-color:var(--chip-color);background:color-mix(in srgb,var(--chip-color) 18%,transparent);}
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:18px 0;}
 .stat{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:12px;}
 .stat strong{display:block;font-size:1.35rem;color:var(--text);}
 .stat span{font-size:.72rem;color:var(--dim);}
-.filter-insight{border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.035);border-radius:14px;padding:14px;margin:0 0 18px;}
-.filter-insight h3{font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px;}
-.insight-summary{font-size:.82rem;color:var(--dim);line-height:1.7;margin-bottom:10px;}
-
-.insight-group{padding-top:10px;border-top:1px solid rgba(255,255,255,.06);margin-top:10px;}
-.insight-group:first-of-type{border-top:0;margin-top:0;padding-top:0;}
-.insight-module{display:flex;align-items:center;gap:7px;font-size:.82rem;font-weight:700;margin-bottom:7px;}
-.insight-edge{font-size:.76rem;color:var(--dim);line-height:1.55;margin:5px 0;padding-left:17px;}
-.insight-edge strong{color:var(--text);font-weight:600;}
-.insight-edge span{display:block;margin-top:3px;}
-.insight-edge em{color:var(--text);font-style:normal;font-weight:600;}
 .legend{margin-top:18px;}
 .legend h3,.detail h2{font-size:.78rem;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px;}
 .legend-row{display:flex;align-items:center;justify-content:space-between;font-size:.82rem;color:var(--dim);padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);}
@@ -76,6 +67,8 @@ h1{font-size:2rem;line-height:1.1;margin-bottom:12px;letter-spacing:-.04em;}
 .rel-item{display:block;text-decoration:none;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.04);border-radius:10px;padding:10px 12px;color:var(--text);font-size:.84rem;transition:all .15s;}
 .rel-item:hover{border-color:var(--rel-color);background:color-mix(in srgb,var(--rel-color) 12%,transparent);}
 .rel-item span{display:block;color:var(--dim2);font-size:.72rem;margin-top:3px;}
+.rel-item small{display:block;color:var(--dim);font-size:.72rem;line-height:1.5;margin-top:6px;}
+.rel-type{display:inline-flex;border-radius:999px;padding:2px 6px;background:rgba(56,189,248,.12);color:#7dd3fc;font-size:.62rem;margin-top:6px;}
 .empty{color:var(--dim);font-size:.86rem;line-height:1.7;}
 @media(max-width:980px){
   body{overflow:auto;}
@@ -95,12 +88,12 @@ h1{font-size:2rem;line-height:1.1;margin-bottom:12px;letter-spacing:-.04em;}
     <p class="intro">像 Obsidian 双链一样，把算法、组成原理、Golang、数据库、Redis、Linux、网络、Kafka、分布式系统与 AI 系统连起来。点击节点可查看关联页面，拖动画布可探索全局结构。</p>
     <input id="search" class="search" placeholder="搜索：B+ 树、Raft、RAG、KV Cache、Agent...">
     <div class="filters" id="filters"></div>
+    <div class="relation-filters" id="relationFilters"></div>
     <div class="stats">
       <div class="stat"><strong id="nodeCount">0</strong><span>图谱节点</span></div>
       <div class="stat"><strong id="edgeCount">0</strong><span>关联边</span></div>
     </div>
 
-    <div class="filter-insight" id="filterInsight"></div>
     <div class="legend">
       <h3>模块颜色</h3>
       <div class="legend-row"><span><i class="dot" style="background:var(--algo)"></i>算法</span><span>基础结构</span></div>
@@ -120,7 +113,7 @@ h1{font-size:2rem;line-height:1.1;margin-bottom:12px;letter-spacing:-.04em;}
 
   <main class="canvas-wrap">
     <canvas id="graph"></canvas>
-    <div class="hint">拖动画布 · 点击节点聚焦 · 双击页面节点跳转</div>
+    <div class="hint">拖动画布 · 点击节点聚焦 · 按关系类型筛选</div>
     <div class="tooltip" id="tooltip"></div>
   </main>
 
@@ -130,26 +123,28 @@ h1{font-size:2rem;line-height:1.1;margin-bottom:12px;letter-spacing:-.04em;}
   </aside>
 </div>
 
-<script src="graph-data.js"></script>
+<script src="knowledge-data.js"></script>
 <script>
 const MODULES = window.GRAPH_MODULES;
 
 const NODES = window.GRAPH_NODES;
 
-const EDGES = window.GRAPH_EDGES;
+const RELATIONS = window.KNOWLEDGE_RELATIONS;
+const RELATION_TYPES = window.KNOWLEDGE_RELATION_TYPES;
 
 const canvas = document.getElementById('graph');
 const ctx = canvas.getContext('2d');
 const detail = document.getElementById('detail');
 const search = document.getElementById('search');
 const filters = document.getElementById('filters');
+const relationFilters = document.getElementById('relationFilters');
 const tooltip = document.getElementById('tooltip');
-const filterInsight = document.getElementById('filterInsight');
 function esc(s) {
   return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
 let activeModule = 'all';
+let activeRelation = 'all';
 let currentVisibleSet = null;
 let currentPrimarySet = null;
 let selected = null;
@@ -168,14 +163,10 @@ const nodes = NODES.map((n, i) => ({
   r: n.type === 'module' ? 18 : 10
 }));
 const nodeMap = Object.fromEntries(nodes.map(n => [n.id, n]));
-const edgeSeen = new Set();
-const edges = EDGES
-  .map(([a,b]) => ({a:nodeMap[a], b:nodeMap[b]}))
+const edges = RELATIONS
+  .map(relation => ({...relation, a:nodeMap[relation.source], b:nodeMap[relation.target]}))
   .filter(e => {
     if (!e.a || !e.b || e.a.id === e.b.id) return false;
-    const key = [e.a.id, e.b.id].sort().join('::');
-    if (edgeSeen.has(key)) return false;
-    edgeSeen.add(key);
     return true;
   });
 
@@ -198,6 +189,26 @@ function buildFilters() {
   });
 }
 
+function buildRelationFilters() {
+  [{id:'all',label:'全部关系'}, ...Object.entries(RELATION_TYPES).map(([id,type]) => ({id,label:type.label}))].forEach(f => {
+    const btn = document.createElement('button');
+    btn.className = 'chip' + (f.id === 'all' ? ' active' : '');
+    btn.textContent = f.label;
+    btn.style.setProperty('--chip-color', '#c084fc');
+    btn.addEventListener('click', () => {
+      activeRelation = f.id;
+      relationFilters.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      draw();
+    });
+    relationFilters.appendChild(btn);
+  });
+}
+
+function relationVisible(edge) {
+  return activeRelation === 'all' || edge.type === activeRelation;
+}
+
 function resize() {
   const rect = canvas.parentElement.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
@@ -216,166 +227,6 @@ function visible(n) {
   const moduleOk = activeModule === 'all' || n.module === activeModule;
   const searchOk = !q || n.label.toLowerCase().includes(q) || (n.desc || '').toLowerCase().includes(q);
   return moduleOk && searchOk;
-}
-
-function edgeKey(a, b) {
-  return [a, b].sort().join('::');
-}
-
-const RELATION_NOTES = {
-  [edgeKey('bplus','algo-bplus')]: 'B+ 树本身属于数据结构；在数据库里，它进一步落到磁盘页和叶子链表上，成为索引的主要存储形式。',
-  [edgeKey('bplus','binary-search')]: 'B+ 树节点内部的 key 有序，查找时会在节点内定位分支，思想上和二分查找的有序边界定位相通。',
-  [edgeKey('bplus','storage-layout')]: '数据库 B+ 树不是抽象节点，而是由页组成；页分裂、页链表和范围扫描都依赖存储布局。',
-  [edgeKey('buffer','lru-lfu')]: 'Buffer Pool 缓存数据页，需要淘汰冷页；LRU/LFU 是理解缓存页替换策略的算法基础。',
-  [edgeKey('buffer','cache-layers')]: 'Buffer Pool 是数据库内部缓存层，和应用缓存、Redis、CDN 一起构成多级缓存体系。',
-  [edgeKey('wal','sequential-io')]: 'WAL 依赖追加写，把随机数据页更新转化为顺序日志写，降低磁盘写入成本。',
-  [edgeKey('wal','fs')]: 'WAL 最终是文件系统上的日志文件，fsync、Page Cache 和文件系统语义会影响可靠性与性能。',
-  [edgeKey('mvcc','locks')]: 'MVCC 负责快照读，锁负责当前读和写冲突控制；两者共同决定事务隔离表现。',
-  [edgeKey('locks','dfs')]: '死锁检测可以抽象成等待图上的环检测，DFS 是判断是否存在环的基础算法。',
-  [edgeKey('join','hash')]: 'Hash Join 用哈希表把一侧表构造成内存结构，再用另一侧探测匹配，是哈希算法在 SQL 执行中的典型应用。',
-  [edgeKey('sort','heap')]: '外部排序的 K 路归并常用堆维护每个 run 的最小元素，避免反复全量扫描。',
-  [edgeKey('distributed-db','consistent-hash')]: '分布式数据库分片需要把 key 映射到节点；一致性哈希能减少扩缩容时的数据迁移。',
-  [edgeKey('distributed-db','union-find')]: '网络分区和副本连通性可以抽象成连通分量问题，并查集是理解这类关系的基础模型。',
-  [edgeKey('distributed-db','topo')]: '分布式任务、复制链路和数据管道常有依赖顺序，拓扑排序用于解释 DAG 依赖执行。',
-  [edgeKey('cache-layers','lru-lfu')]: '多级缓存都面临容量有限的问题，LRU/LFU 解释了缓存如何决定保留热点、淘汰冷数据。',
-  [edgeKey('cache-layers','consistent-hash')]: '缓存集群扩缩容时，一致性哈希用于让 key 尽量少迁移。',
-  [edgeKey('redis-eviction','lru-lfu')]: 'Redis 淘汰策略直接使用 LRU/LFU 思想，区别在于 Redis 采用近似采样实现。',
-  [edgeKey('redis-cluster','consistent-hash')]: 'Redis Cluster 用槽位分片；它和一致性哈希都解决 key 到节点的映射与迁移问题。',
-  [edgeKey('kafka-producer','consistent-hash')]: 'Kafka Producer 需要把消息分配到分区；一致性哈希是理解稳定分区映射的一种算法模型。',
-  [edgeKey('kafka-consumer','sliding-window')]: '流式消费常按时间窗口或数量窗口聚合，滑动窗口解释了如何增量维护窗口状态。',
-  [edgeKey('kafka-consumer','heavy-hitters')]: 'Kafka 消费日志流时常要找热 key、热点用户或高频错误，Top-K/Heavy Hitters 是核心算法。',
-  [edgeKey('kafka-overview','sequential-io')]: 'Kafka 的高吞吐来自日志段追加写、批量写和 Page Cache，核心是顺序 I/O。',
-  [edgeKey('tcp','sliding-window')]: 'TCP 发送窗口和拥塞窗口都体现了窗口控制思想，和算法里的滑动窗口有共同抽象。',
-  [edgeKey('dijkstra','network')]: '路由选择可以抽象成图上的最短路径问题，Dijkstra 是理解路径代价计算的基础。',
-  [edgeKey('trie','dns')]: 'DNS 域名天然是层级前缀结构，Trie 可帮助理解前缀匹配和层级查找。',
-  [edgeKey('lb','consistent-hash')]: '负载均衡在有状态请求或缓存场景中常用一致性哈希减少后端变化带来的迁移。',
-  [edgeKey('linux-commands','kmp')]: 'grep/日志检索背后是字符串匹配问题，KMP 是理解高效匹配的经典算法。',
-  [edgeKey('ai-rag','vector')]: 'RAG 的低延迟语义召回依赖向量索引；HNSW、IVF、PQ 决定召回质量、延迟和内存成本。',
-  [edgeKey('ai-kv-cache','cache-hierarchy')]: 'KV Cache 是 LLM 推理里的关键缓存，和硬件缓存一样都用局部性换取更低重复计算成本。',
-  [edgeKey('ai-agent','go-web')]: 'Agent 工具调用最终需要稳定的服务边界、超时、权限和错误处理，Go Web 服务是典型承载方式。',
-  [edgeKey('ai-eval-deploy','kafka-consumer')]: 'AI 线上评测和监控常从日志流中消费样本、反馈和错误事件，Kafka 消费链路是常见基础设施。'
-};
-
-const RELATION_PROBLEMS = {
-  [edgeKey('bplus','algo-bplus')]: '解决数据库海量数据下的快速点查、范围扫描和磁盘 I/O 控制问题。',
-  [edgeKey('bplus','binary-search')]: '解决有序 key 中快速定位分支和边界的问题。',
-  [edgeKey('bplus','storage-layout')]: '解决索引结构如何落到磁盘页、如何分页读取和分裂的问题。',
-  [edgeKey('buffer','lru-lfu')]: '解决内存有限时哪些页应该保留、哪些页应该淘汰的问题。',
-  [edgeKey('wal','sequential-io')]: '解决随机写成本高、崩溃后需要恢复数据的问题。',
-  [edgeKey('locks','dfs')]: '解决事务互相等待时如何检测死锁环的问题。',
-  [edgeKey('join','hash')]: '解决两张表连接时如何避免全量嵌套扫描的问题。',
-  [edgeKey('sort','heap')]: '解决内存放不下全量数据时如何高效归并多个有序块的问题。',
-  [edgeKey('distributed-db','consistent-hash')]: '解决扩缩容时 key 到节点的映射变化过大、迁移成本过高的问题。',
-  [edgeKey('redis-eviction','lru-lfu')]: '解决 Redis 内存达到上限后如何选择淘汰对象的问题。',
-  [edgeKey('redis-cluster','consistent-hash')]: '解决数据在多个 Redis 节点之间如何分片与迁移的问题。',
-  [edgeKey('kafka-producer','consistent-hash')]: '解决消息 key 如何稳定映射到分区、保持局部顺序的问题。',
-  [edgeKey('kafka-consumer','sliding-window')]: '解决流式数据按时间或数量窗口聚合统计的问题。',
-  [edgeKey('kafka-consumer','heavy-hitters')]: '解决日志流里如何发现热 key、高频错误和异常热点的问题。',
-  [edgeKey('kafka-overview','sequential-io')]: '解决消息系统高吞吐写入和批量刷盘的问题。',
-  [edgeKey('tcp','sliding-window')]: '解决网络发送速率控制、拥塞避免和接收方处理能力匹配的问题。',
-  [edgeKey('dijkstra','network')]: '解决网络中按代价选择更优路径的问题。',
-  [edgeKey('trie','dns')]: '解决层级域名、前缀路由和字符串前缀快速匹配的问题。',
-  [edgeKey('lb','consistent-hash')]: '解决后端节点变化时请求或缓存 key 大量迁移的问题。',
-  [edgeKey('linux-commands','kmp')]: '解决日志和文本中快速查找关键字的问题。',
-  [edgeKey('ai-rag','vector')]: '解决外部知识如何被毫秒级召回并放入模型上下文的问题。',
-  [edgeKey('ai-kv-cache','cache-hierarchy')]: '解决长上下文推理中重复计算过多、首 token 和逐 token 延迟过高的问题。',
-  [edgeKey('ai-agent','go-web')]: '解决模型规划如何安全落到真实 API、数据库或业务工具的问题。',
-  [edgeKey('ai-eval-deploy','kafka-consumer')]: '解决 AI 应用上线后如何持续收集质量、成本、延迟和错误信号的问题。'
-};
-
-const RELATION_CONCEPTS = {
-  [edgeKey('bplus','algo-bplus')]: 'B+ 树属于数据结构中的多路平衡树。',
-  [edgeKey('bplus','binary-search')]: '二分查找属于有序集合上的边界定位算法。',
-  [edgeKey('bplus','storage-layout')]: '存储布局描述数据结构如何落到磁盘页、区和段。',
-  [edgeKey('buffer','lru-lfu')]: 'LRU/LFU 属于缓存淘汰算法。',
-  [edgeKey('wal','sequential-io')]: '顺序写是磁盘和 Page Cache 友好的写入模式。',
-  [edgeKey('locks','dfs')]: 'DFS 属于图遍历算法，可用来发现环。',
-  [edgeKey('join','hash')]: '哈希表是 key 到 bucket 的快速映射结构。',
-  [edgeKey('sort','heap')]: '堆是维护动态最小值或最大值的优先队列结构。',
-  [edgeKey('distributed-db','consistent-hash')]: '一致性哈希属于分布式 key 映射算法。',
-  [edgeKey('redis-eviction','lru-lfu')]: 'LRU/LFU 是缓存系统常见的热度判断模型。',
-  [edgeKey('kafka-consumer','sliding-window')]: '滑动窗口是连续时间或连续数据上的增量统计模型。',
-  [edgeKey('kafka-consumer','heavy-hitters')]: 'Top-K/Heavy Hitters 是流式热点发现算法。',
-  [edgeKey('tcp','sliding-window')]: '滑动窗口是发送方和接收方之间的流量控制抽象。',
-  [edgeKey('dijkstra','network')]: 'Dijkstra 是带权图上的最短路径算法。',
-  [edgeKey('trie','dns')]: 'Trie 是按前缀逐层匹配的树形结构。',
-  [edgeKey('lb','consistent-hash')]: '一致性哈希是稳定路由到节点的分布式算法。',
-  [edgeKey('linux-commands','kmp')]: 'KMP 是字符串匹配算法。',
-  [edgeKey('ai-rag','vector')]: '向量索引是 RAG 检索层的核心数据结构。',
-  [edgeKey('ai-kv-cache','cache-hierarchy')]: 'KV Cache 属于推理服务中的多级缓存和内存带宽问题。',
-  [edgeKey('ai-agent','go-web')]: '工具调用是 LLM 与后端服务边界之间的协议。',
-  [edgeKey('ai-eval-deploy','kafka-consumer')]: '日志消费是在线评测和观测系统的数据入口。'
-};
-
-function relationNote(inside, outside) {
-  return RELATION_NOTES[edgeKey(inside.id, outside.id)] || `${inside.label} 与 ${outside.label} 共享同一个工程抽象：一个偏模块内实现，一个解释它背后的结构、算法或系统约束。`;
-}
-
-function relationProblem(inside, outside) {
-  return RELATION_PROBLEMS[edgeKey(inside.id, outside.id)] || `解决 ${inside.label} 所在场景中的性能、规模、可靠性或可维护性约束问题。`;
-}
-
-function relationConcept(inside, outside) {
-  return RELATION_CONCEPTS[edgeKey(inside.id, outside.id)] || `${outside.label} 属于 ${MODULES[outside.module].label} 中的${outside.type === 'page' ? '页面知识点' : outside.type === 'module' ? '模块入口' : '关联节点'}。`;
-}
-
-function renderFilterInsight() {
-  if (activeModule === 'all') {
-    filterInsight.innerHTML = `
-      <h3>关联说明</h3>
-      <p class="insight-summary">选择某个模块后，图中只保留该模块节点，并带出它们的一跳关联。比如筛选 AI 系统时，会看到 RAG、KV Cache、Agent 和评测部署如何连接向量索引、缓存、Go Web、Kafka 与 Linux 观测链路。</p>
-    `;
-    return;
-  }
-
-  const module = MODULES[activeModule];
-  const byInside = new Map();
-  edges.forEach(e => {
-    if (e.a.module === activeModule && e.b.module !== activeModule) {
-      if (!byInside.has(e.a.id)) byInside.set(e.a.id, { node:e.a, rels:[] });
-      byInside.get(e.a.id).rels.push(e.b);
-    }
-    if (e.b.module === activeModule && e.a.module !== activeModule) {
-      if (!byInside.has(e.b.id)) byInside.set(e.b.id, { node:e.b, rels:[] });
-      byInside.get(e.b.id).rels.push(e.a);
-    }
-  });
-
-  const groupHtml = [...byInside.values()]
-    .sort((a, b) => a.node.label.localeCompare(b.node.label, 'zh-CN'))
-    .map(({ node, rels }) => {
-      const unique = [];
-      const seen = new Set();
-      rels.forEach(outside => {
-        const key = outside.id;
-        if (!seen.has(key)) {
-          seen.add(key);
-          unique.push(outside);
-        }
-      });
-      return `
-        <div class="insight-group">
-          <div class="insight-module" style="color:${module.color}">
-            <i class="dot" style="background:${module.color}"></i>${node.label}
-          </div>
-          ${unique.slice(0, 4).map(outside => `
-            <div class="insight-edge">
-              <strong>${MODULES[outside.module].label} · ${outside.label}</strong>
-              <span><em>基础概念：</em>${relationConcept(node, outside)}</span>
-              <span><em>解决的问题：</em>${relationProblem(node, outside)}</span>
-              <span><em>关联方式：</em>${relationNote(node, outside)}</span>
-            </div>
-          `).join('')}
-          ${unique.length > 4 ? `<div class="insight-edge">还有 ${unique.length - 4} 条关联，点击节点后可在右侧继续展开。</div>` : ''}
-        </div>
-      `;
-    }).join('');
-
-  filterInsight.innerHTML = `
-    <h3>${module.label} 关联说明</h3>
-    <p class="insight-summary">当前图中只显示 ${module.label} 节点；下面解释这些节点为什么会和其他模块发生关联。</p>
-    ${groupHtml || '<p class="insight-summary">暂无跨模块关联说明。</p>'}
-  `;
 }
 
 function simulate() {
@@ -420,14 +271,13 @@ function toScreen(n) {
 }
 
 function draw() {
-  renderFilterInsight();
   const w = canvas.clientWidth, h = canvas.clientHeight;
   ctx.clearRect(0, 0, w, h);
 
   const primarySet = new Set(nodes.filter(visible).map(n => n.id));
   const visibleSet = new Set(primarySet);
   if (activeModule !== 'all') {
-    edges.forEach(e => {
+    edges.filter(relationVisible).forEach(e => {
       if (primarySet.has(e.a.id)) visibleSet.add(e.b.id);
       if (primarySet.has(e.b.id)) visibleSet.add(e.a.id);
     });
@@ -435,9 +285,9 @@ function draw() {
   currentPrimarySet = primarySet;
   currentVisibleSet = visibleSet;
 
-  const related = selected ? new Set(edges.flatMap(e => e.a.id === selected.id ? [e.b.id] : e.b.id === selected.id ? [e.a.id] : [])) : null;
+  const related = selected ? new Set(edges.filter(relationVisible).flatMap(e => e.a.id === selected.id ? [e.b.id] : e.b.id === selected.id ? [e.a.id] : [])) : null;
 
-  edges.forEach(e => {
+  edges.filter(relationVisible).forEach(e => {
     if (!visibleSet.has(e.a.id) || !visibleSet.has(e.b.id)) return;
     const a = toScreen(e.a), b = toScreen(e.b);
     const hot = selected && (e.a.id === selected.id || e.b.id === selected.id);
@@ -450,7 +300,10 @@ function draw() {
       : selected ? 'rgba(148,163,184,.10)'
       : 'rgba(148,163,184,.28)';
     ctx.lineWidth = hot ? 2.2 : 1.25;
+    ctx.setLineDash((RELATION_TYPES[e.type] || {}).dash || []);
     ctx.stroke();
+    ctx.setLineDash([]);
+    if (hot && (RELATION_TYPES[e.type] || {}).directed) drawArrow(a, b, e.b.r * scale + 5);
   });
 
   nodes.forEach(n => {
@@ -499,21 +352,34 @@ function draw() {
   });
 }
 
+function drawArrow(a, b, targetRadius) {
+  const angle = Math.atan2(b.y - a.y, b.x - a.x);
+  const x = b.x - Math.cos(angle) * targetRadius;
+  const y = b.y - Math.sin(angle) * targetRadius;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x - Math.cos(angle - Math.PI / 6) * 8, y - Math.sin(angle - Math.PI / 6) * 8);
+  ctx.lineTo(x - Math.cos(angle + Math.PI / 6) * 8, y - Math.sin(angle + Math.PI / 6) * 8);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(226,232,240,.82)';
+  ctx.fill();
+}
+
 function renderDetail(n) {
   selected = n;
   const module = MODULES[n.module];
-  const rels = edges
+  const rels = edges.filter(relationVisible)
     .filter(e => e.a.id === n.id || e.b.id === n.id)
-    .map(e => e.a.id === n.id ? e.b : e.a);
+    .map(e => ({ edge:e, node:e.a.id === n.id ? e.b : e.a }));
   detail.innerHTML = `
     <h2>当前节点</h2>
     <div class="node-title">${esc(n.label)}</div>
     <div class="node-meta" style="border-color:${esc(module.color)};color:${esc(module.color)}">${esc(module.label)} · ${n.type === 'module' ? '模块' : '页面'}</div>
     <p class="node-desc">${esc(n.desc)}</p>
     ${n.href ? `<a class="open-link" href="${esc(withGraphSource(n.href, n.id))}">打开页面 ↗</a>` : ''}
-    <h2>双链关联</h2>
+    <h2>语义关联</h2>
     <div class="related">
-      ${rels.length ? rels.map(r => `<a class="rel-item" style="--rel-color:${esc(MODULES[r.module].color)}" href="#" data-id="${esc(r.id)}">${esc(r.label)}<span>${esc(MODULES[r.module].label)} · ${r.type === 'module' ? '模块' : '页面'}</span></a>`).join('') : '<p class="empty">暂无关联节点</p>'}
+      ${rels.length ? rels.map(({edge,node:r}) => `<a class="rel-item" style="--rel-color:${esc(MODULES[r.module].color)}" href="#" data-id="${esc(r.id)}">${esc(r.label)}<span>${esc(MODULES[r.module].label)} · ${r.type === 'module' ? '模块' : '页面'}</span><i class="rel-type">${esc(RELATION_TYPES[edge.type].label)}</i><small>${esc(edge.summary)}</small></a>`).join('') : '<p class="empty">当前筛选下暂无关联节点</p>'}
     </div>
   `;
   detail.querySelectorAll('.rel-item').forEach(a => {
@@ -640,6 +506,11 @@ window.addEventListener('resize', resize);
 
 function initFromQuery() {
   const params = new URLSearchParams(window.location.search);
+  const nodeId = params.get('node');
+  if (nodeId && nodeMap[nodeId]) {
+    renderDetail(nodeMap[nodeId]);
+    return;
+  }
   const q = params.get('q');
   if (!q) return;
   search.value = q;
@@ -653,6 +524,7 @@ function initFromQuery() {
 }
 
 buildFilters();
+buildRelationFilters();
 resize();
 renderDetail(nodeMap.db);
 initFromQuery();

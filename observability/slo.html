@@ -3,16 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="SLO 目标定义月故障预算，Error Budget 耗尽冻结发布，Burn Rate 预警。">
+<meta name="description" content="SLO 为选定 SLI 定义目标，Error Budget Policy 决定预算消耗后的工程行动，Burn Rate 用于衡量预算消耗速度。">
 <link rel="canonical" href="https://melodycoder12345.github.io/observability/slo.html">
 <meta property="og:title" content="SLO & Error Budget — 码海拾贝">
-<meta property="og:description" content="SLO 目标定义月故障预算，Error Budget 耗尽冻结发布，Burn Rate 预警。">
+<meta property="og:description" content="SLO 为选定 SLI 定义目标，Error Budget Policy 决定预算消耗后的行动，Burn Rate 衡量预算消耗速度。">
 <meta property="og:url" content="https://melodycoder12345.github.io/observability/slo.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="码海拾贝">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="SLO & Error Budget — 码海拾贝">
-<meta name="twitter:description" content="SLO 目标定义月故障预算，Error Budget 耗尽冻结发布，Burn Rate 预警。">
+<meta name="twitter:description" content="SLO 为选定 SLI 定义目标，Error Budget Policy 决定预算消耗后的行动，Burn Rate 衡量预算消耗速度。">
 <title>SLO & Error Budget - 可观测性</title>
 <script src="../nav.js"></script>
 <style>
@@ -63,7 +63,7 @@ canvas{width:100%;height:100%}
 <main class="wrap">
   <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">可观测性</a><span>/</span>SLO & Error Budget</div>
   <h1 class="page-title">SLO & Error Budget</h1>
-  <p class="subtitle">SLO（服务级别目标）定义了服务质量承诺（如 99.9% 月可用性），对应的 Error Budget 是允许的最大故障时间（约 43 分钟/月）。每次故障消耗预算，预算耗尽时冻结发布，强制工程团队优先修复可靠性问题。</p>
+  <p class="subtitle">SLO（服务级别目标）为选定 SLI 定义目标（如 30 天窗口内 99.9% 的请求成功），剩余 0.1% 是 Error Budget。只有当 SLI 可等价为持续时间可用性时，预算才可近似换算成约 43.2 分钟；冻结发布是团队事先约定的 Error Budget Policy，而非 SLO 自动执行的规则。</p>
 
   <div class="layout">
     <div class="left-panel">
@@ -118,18 +118,18 @@ canvas{width:100%;height:100%}
 </main>
 <script>
 const STEPS = [
-  {day:1,avail:100.0,budget:43,burn:0,events:[],deployEnabled:true,
+  {day:1,avail:100.0,budget:43.2,burn:0,events:[],deployEnabled:true,
    msg:'月初：SLO = 99.9%，允许的月故障时间 = 43分钟（30天×24h×60min×0.1%）。Error Budget 满额，所有发布正常进行。'},
-  {day:8,avail:99.95,budget:35,burn:1,events:['Day 3: 发布 v1.2，耗时 3min 部署停机（-3min）','Day 6: 发布 v1.3，成功，0 故障'],deployEnabled:true,
-   msg:'第 8 天：经过两次发布，累计消耗约 8 分钟 Error Budget（3min 发布停机 + 5min 告警响应延迟），剩余 35 分钟。Burn Rate = 1x（刚好在正常消耗速度）。'},
-  {day:15,avail:99.92,budget:14,burn:3,events:['Day 3: 发布 v1.2，3min 停机','Day 6: 发布 v1.3，成功','Day 12: 🔴 数据库故障，停机 21min'],deployEnabled:true,
-   msg:'第 12 天：数据库主从切换失败，停机 21 分钟！Error Budget 从 35min 急剧降至 14min。Burn Rate 升至 3x（消耗速度是预算分配速度的 3 倍），需要告警。'},
-  {day:20,avail:99.89,budget:2,burn:6,events:['Day 3: 发布 v1.2，3min 停机','Day 6: 发布 v1.3，成功','Day 12: 🔴 数据库故障，21min','Day 18: 🔴 CDN 故障，12min'],deployEnabled:false,
-   msg:'⚠ 第 18 天：CDN 配置错误，再次停机 12 分钟，Error Budget 几乎耗尽（仅剩 2 分钟）。发布冻结！本月剩余 10 天不允许发布新版本，工程资源转向可靠性改善。'},
-  {day:25,avail:99.89,budget:2,burn:0,events:['Day 3: 发布 v1.2，3min 停机','Day 6: 发布 v1.3，成功','Day 12: 🔴 数据库故障，21min','Day 18: 🔴 CDN 故障，12min','Day 19-25: ✅ 稳定运行，修复数据库 HA 配置'],deployEnabled:false,
-   msg:'发布冻结期间（Day 19-25）：工程团队专注修复数据库高可用配置、CDN 变更流程管控。服务稳定运行，不再消耗 Budget。下月 Budget 将重置为 43 分钟。'},
-  {day:30,avail:99.89,budget:2,burn:0,events:['Day 3: 发布 v1.2，3min 停机','Day 12: 🔴 数据库故障，21min','Day 18: 🔴 CDN 故障，12min','Day 19-30: ✅ 稳定，改善可靠性'],deployEnabled:false,
-   msg:'月底：实际可用性 99.89%，低于 SLO 目标 99.9%。本月违反 SLO，SRE 团队需要复盘（Postmortem），改善监控告警、自动化故障转移，下月争取消耗在合理范围内。'},
+  {day:8,avail:99.97,budget:40.2,burn:1,events:['Day 3: 发布 v1.2，耗时 3min 部署停机（-3min）','Day 6: 发布 v1.3，成功，0 故障'],deployEnabled:true,
+   msg:'第 8 天：累计 3 分钟不可用，30 天预算约剩 40.2 分钟。这里的 Burn Rate 应按选定观测窗口内的坏事件率除以允许错误率计算，不能仅由累计分钟数直接得出。'},
+  {day:15,avail:99.89,budget:19.2,burn:3,events:['Day 3: 发布 v1.2，3min 停机','Day 6: 发布 v1.3，成功','Day 12: 🔴 数据库故障，停机 21min'],deployEnabled:true,
+   msg:'第 12 天：数据库故障新增 21 分钟不可用，累计消耗 24 分钟，30 天预算约剩 19.2 分钟。页面中的 3x 是示例观测窗口计算结果，实际告警需由 SLI 查询计算。'},
+  {day:20,avail:99.88,budget:7.2,burn:6,events:['Day 3: 发布 v1.2，3min 停机','Day 6: 发布 v1.3，成功','Day 12: 🔴 数据库故障，21min','Day 18: 🔴 CDN 故障，12min'],deployEnabled:false,
+   msg:'⚠ 第 18 天：CDN 配置错误新增 12 分钟不可用，累计消耗 36 分钟，30 天预算约剩 7.2 分钟。根据本例预先约定的 Error Budget Policy，团队暂停高风险发布并优先改善可靠性。'},
+  {day:25,avail:99.90,budget:7.2,burn:0,events:['Day 3: 发布 v1.2，3min 停机','Day 6: 发布 v1.3，成功','Day 12: 🔴 数据库故障，21min','Day 18: 🔴 CDN 故障，12min','Day 19-25: ✅ 稳定运行，修复数据库 HA 配置'],deployEnabled:false,
+   msg:'策略执行期间（Day 19-25）：团队修复高可用配置和变更流程。没有新的坏事件时累计预算不再减少；采用滚动窗口时，旧事件会随时间移出窗口，并非固定在自然月自动重置。'},
+  {day:30,avail:99.92,budget:7.2,burn:0,events:['Day 3: 发布 v1.2，3min 停机','Day 12: 🔴 数据库故障，21min','Day 18: 🔴 CDN 故障，12min','Day 19-30: ✅ 稳定，改善可靠性'],deployEnabled:false,
+   msg:'月底：36 分钟不可用对应 30 天可用性约 99.917%，仍满足 99.9% 目标，但预算已大量消耗。团队仍应按既定政策复盘并改善可靠性；是否冻结发布取决于政策阈值。'},
 ];
 
 let cur = -1, timer = null;

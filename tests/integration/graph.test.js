@@ -7,12 +7,20 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '../..');
 
 function loadGraphData() {
-  // NODES and EDGES now live in graph-data.js; read them from there directly.
-  const dataSrc = readFileSync(join(ROOT, 'graph-data.js'), 'utf8');
+  const dataSrc = readFileSync(join(ROOT, 'knowledge-data.js'), 'utf8');
   const win = {};
   const fn = new Function('window', dataSrc);
   fn(win);
-  return { nodes: win.GRAPH_NODES ?? null, edges: win.GRAPH_EDGES ?? null };
+  return {
+    nodes: win.GRAPH_NODES ?? null,
+    edges: win.GRAPH_EDGES ?? null,
+    relations: win.KNOWLEDGE_RELATIONS ?? null,
+    types: win.KNOWLEDGE_RELATION_TYPES ?? null,
+  };
+}
+
+function loadKnowledgeRelations() {
+  return loadGraphData();
 }
 
 describe('graph.html — NODES integrity', () => {
@@ -89,5 +97,40 @@ describe('graph.html — EDGES integrity', () => {
     if (!edges) return;
     const selfLoops = edges.filter(([src, dst]) => src === dst);
     expect(selfLoops, `Self-loop edges: ${selfLoops.map(e => e[0]).join(', ')}`).toHaveLength(0);
+  });
+});
+
+describe('semantic knowledge relations', () => {
+  it('classifies every valid unique edge into one of seven relation types', () => {
+    const { relations, types } = loadKnowledgeRelations();
+    expect(Object.keys(types)).toEqual([
+      'prerequisite', 'mechanism', 'causal', 'composition',
+      'application', 'contrast', 'analogy'
+    ]);
+    expect(relations.length).toBeGreaterThan(0);
+    for (const relation of relations) {
+      expect(types[relation.type], `unknown relation type: ${relation.type}`).toBeTruthy();
+      expect(relation.summary.trim().length, `missing summary: ${relation.id}`).toBeGreaterThan(0);
+    }
+  });
+
+  it('has no dangling or duplicate semantic relations', () => {
+    const { relations, nodes } = loadKnowledgeRelations();
+    const ids = new Set(nodes.map(node => node.id));
+    const relationIds = relations.map(relation => relation.id);
+    expect(new Set(relationIds).size).toBe(relationIds.length);
+    for (const relation of relations) {
+      expect(ids.has(relation.source), `unknown source: ${relation.source}`).toBe(true);
+      expect(ids.has(relation.target), `unknown target: ${relation.target}`).toBe(true);
+    }
+  });
+
+  it('reviewed analogies state their boundary', () => {
+    const { relations } = loadKnowledgeRelations();
+    const reviewedAnalogies = relations.filter(relation => relation.type === 'analogy' && relation.status === 'reviewed');
+    expect(reviewedAnalogies.length).toBeGreaterThan(0);
+    for (const relation of reviewedAnalogies) {
+      expect(relation.details.boundary, `missing analogy boundary: ${relation.id}`).toBeTruthy();
+    }
   });
 });

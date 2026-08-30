@@ -49,9 +49,9 @@
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
-    <div class="card"><div class="eyebrow">DB / MySQL / C 类型</div><h1>MySQL 日志体系</h1><p class="summary">Redo Log、Undo Log、Binlog 三日志协同工作，通过 WAL 原则和两阶段提交机制，确保事务的崩溃安全性(crash safety)与主从复制一致性。</p><div class="tags"><span>Redo Log</span><span>Undo Log</span><span>Binlog</span><span>两阶段提交</span><span>WAL</span><span>崩溃恢复</span></div></div>
+    <div class="card"><div class="eyebrow">DB / MySQL</div><h1>MySQL 日志体系</h1><p class="summary">Redo Log、Undo Log、Binlog 三日志协同工作，通过 WAL 原则和两阶段提交机制，确保事务的崩溃安全性(crash safety)与主从复制一致性。</p><div class="tags"><span>Redo Log</span><span>Undo Log</span><span>Binlog</span><span>两阶段提交</span><span>WAL</span><span>崩溃恢复</span></div></div>
     <div class="card"><div class="eyebrow">核心术语</div><ul class="concept-list"><li><strong>Redo Log</strong><span>InnoDB 物理日志，循环写入，保证 crash-safe。</span></li><li><strong>Undo Log</strong><span>记录旧值，用于回滚与 MVCC 多版本读。</span></li><li><strong>Binlog</strong><span>Server 层逻辑日志，主从复制与时间点恢复。</span></li><li><strong>Two-Phase Commit</strong><span>Prepare/Commit 保证 redo 与 binlog 一致。</span></li></ul></div>
   </section>
   <section class="lab">
@@ -124,7 +124,7 @@
           <g id="mn4" class="mnode">
             <rect x="200" y="225" width="130" height="55" rx="8"/>
             <text x="265" y="247" text-anchor="middle" font-size="10" font-weight="700">Redo Log File</text>
-            <text x="265" y="263" text-anchor="middle" font-size="8" fill="#64748b" id="redoFileState">ib_logfile0/1</text>
+            <text x="265" y="263" text-anchor="middle" font-size="8" fill="#64748b" id="redoFileState">redo log files</text>
           </g>
           <!-- n5: Binlog Buffer -->
           <g id="mn5" class="mnode">
@@ -160,8 +160,8 @@
   <section class="deep">
     <section><h2>背景与机制</h2><ul><li>Redo Log 保证持久性（crash-safe）：物理日志，记录页级变更，循环覆盖写。</li><li>Undo Log 保证原子性和隔离性：记录旧值，支持回滚和 MVCC 快照读。</li><li>Binlog 保证复制一致性：逻辑日志，追加写，永久保留，用于主从复制和 PITR。</li><li>WAL 原则：先写日志再写数据页，顺序 IO 替代随机 IO，是性能与安全的基石。</li></ul></section>
     <section><h2>常见误区</h2><ul><li>Redo Log 不等于 Binlog：前者是 InnoDB 层物理日志（循环写），后者是 Server 层逻辑日志（追加写）。</li><li>"Double Write" 不是写两份日志，而是 InnoDB 防止 partial page write 的机制。</li><li>fsync 完成不等于事务提交：两阶段提交中，redo COMMIT 标记写入才是最终提交点。</li><li>Group Commit 并非总是更快：低并发下分组效果有限，反而可能增加延迟。</li></ul></section>
-    <section><h2>工程场景</h2><ul><li>innodb_flush_log_at_trx_commit：=1 每次提交 fsync（最安全）；=2 写 OS 缓冲每秒 fsync；=0 每秒写+fsync。</li><li>sync_binlog：=1 每次提交 fsync binlog（配合 flush=1 实现双1配置）；=0 依赖 OS。</li><li>监控 redo log 利用率：当 write_pos 快追上 checkpoint 时触发强制刷脏页，导致写入暂停。</li><li>生产建议：redo log 总大小设为 1-2 倍 buffer pool 的 dirty page 峰值。</li></ul></section>
-    <section><h2>边界与恢复</h2><ul><li>Redo Log 大小规划：太小频繁 checkpoint 影响性能，太大崩溃恢复时间长。MySQL 8.0.30+ 支持动态调整。</li><li>Binlog 格式选择：ROW 精确但日志量大，STATEMENT 紧凑但有函数不一致风险，MIXED 折中。</li><li>崩溃恢复流程：扫描 redo log 中 PREPARE 状态记录，比对 binlog 中是否存在对应 XID，有则提交无则回滚。</li><li>恢复时间与 redo log 中未 checkpoint 的数据量成正比，大事务会延长恢复时间。</li></ul></section>
+    <section><h2>工程场景</h2><ul><li>innodb_flush_log_at_trx_commit：=1 每次提交写并刷盘；=2 每次提交写入 OS 缓冲、通常每秒刷盘；=0 通常每秒写并刷盘，实际丢失窗口受调度与系统影响。</li><li>sync_binlog：=1 每次提交同步 binlog（配合 flush=1 常称“双 1”配置）；=0 由操作系统决定同步时机。</li><li>监控 redo log 利用率：当 write_pos 快追上 checkpoint 时可能触发更激进的刷脏并造成抖动。</li><li>Redo 容量没有通用“buffer pool 倍数”：应依据峰值 redo 生成速率、可接受 checkpoint 压力与恢复时间做压测和监控后确定。</li></ul></section>
+    <section><h2>边界与恢复</h2><ul><li>Redo Log 太小会增加 checkpoint 压力，过大可能增加恢复扫描工作。MySQL 8.0.30+ 使用 <code>innodb_redo_log_capacity</code> 管理容量，并在数据目录的 <code>#innodb_redo</code> 下维护一组 redo 文件；旧版常见的固定 <code>ib_logfile0/1</code> 描述不再适用。</li><li>Binlog 格式选择：ROW 精确但日志量大，STATEMENT 紧凑但有函数不一致风险，MIXED 折中。</li><li>崩溃恢复流程：扫描 redo log 中 PREPARE 状态记录，比对 binlog 中是否存在对应 XID，有则提交无则回滚。</li><li>恢复时间受未 checkpoint 的 redo 量、页状态和 I/O 能力等共同影响，大事务也可能延长恢复。</li></ul></section>
   </section>
 </main>
 <script>

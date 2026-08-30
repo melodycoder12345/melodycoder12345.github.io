@@ -124,7 +124,7 @@ a{color:var(--accent);text-decoration:none}
 <main class="wrap">
   <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">云原生</a><span>/</span>K8s 存储 PV/PVC</div>
   <h1 class="page-title">K8s 存储：PV / PVC / StorageClass</h1>
-  <p class="subtitle">Kubernetes 将存储解耦为三层：StorageClass（存储类型）、PersistentVolume（实际磁盘资源）、PersistentVolumeClaim（Pod 的存储申请）。动态 Provision 让 CSI driver 自动创建磁盘，Pod 重调度时数据持久保留，解决容器无状态的存储困境。</p>
+  <p class="subtitle">StorageClass 描述动态制备策略，PersistentVolume 表示集群存储资源，PersistentVolumeClaim 表达用户请求。CSI 可实现制备、挂载和扩容；持久性、拓扑、访问模式、故障切换与在线扩容能力取决于存储后端、CSI 驱动及配置。</p>
 
   <div class="layout">
     <div class="left-panel">
@@ -349,7 +349,7 @@ const SCENE1 = {
     },
     {
       label: 'Step 4：创建 EBS 磁盘',
-      msg: 'Step 4：CSI Driver 调用 AWS EC2 CreateVolume API，在与节点相同的 Availability Zone（如 us-east-1a）创建 20Gi gp3 类型 EBS 卷。AWS 返回 volumeId（vol-0abc1234）。EBS 卷状态 available，等待 Attach 到 EC2 实例。真实磁盘此时已存在，会产生费用。',
+      msg: 'Step 4：CSI Driver 调用 AWS EC2 CreateVolume API 创建 20Gi gp3 EBS 卷。若 StorageClass 使用 WaitForFirstConsumer，制备会延迟到 Pod 参与调度后，才能结合其约束选择可访问区；若使用默认 Immediate，则可能在创建 PVC 后立即制备，不能笼统说一定与某个节点同 AZ。',
       apply() {
         card('pod', ''); badge('pod-status', null);
         card('pvc', 'done'); badge('pvc-status', 'Pending', 'pending');
@@ -368,7 +368,7 @@ const SCENE1 = {
     },
     {
       label: 'Step 5：创建 PV 对象',
-      msg: 'Step 5：CSI Driver（通过 external-provisioner）在 K8s 中创建 PV 对象：spec.csi.volumeHandle=vol-0abc1234、capacity=20Gi、storageClassName=ssd、accessModes=[ReadWriteOnce]、reclaimPolicy=Delete。PV 状态变为 Available，等待与 PVC 绑定。',
+      msg: 'Step 5：external-provisioner 根据 CSI 返回值创建 PV 对象并预绑定发起制备的 PVC；控制器随后完成 PVC/PV 绑定。这里把短暂状态拆成动画步骤便于理解，动态制备的 PV 并非通常作为通用 Available 卷等待任意 PVC。',
       apply() {
         card('pod', ''); badge('pod-status', null);
         card('pvc', 'done'); badge('pvc-status', 'Pending', 'pending');
@@ -404,7 +404,7 @@ const SCENE1 = {
     },
     {
       label: 'Step 7：Pod 引用 PVC 被调度',
-      msg: 'Step 7：用户创建 Pod，spec.volumes[].persistentVolumeClaim.claimName: my-pvc。Scheduler 调度时考虑 CSI Topology Constraint（EBS 只能挂载到同 AZ 节点），选择 node-1（us-east-1a）。kubelet volume manager 开始处理卷挂载流程。',
+      msg: 'Step 7：Pod 引用 PVC。Scheduler 的 VolumeBinding 等插件会结合 PV node affinity 和 CSI 拓扑约束选择可使用该卷的节点。若 StorageClass 使用 WaitForFirstConsumer，调度和动态制备会协同进行，以避免先制备到不合适的可访问区。',
       apply() {
         card('pod', 'active pulse'); badge('pod-status', 'Scheduling', 'pending');
         card('pvc', 'done'); badge('pvc-status', 'Bound', 'bound');
@@ -876,7 +876,7 @@ const SCENE4 = {
   steps: [
     {
       label: '初始：20Gi 磁盘快满了',
-      msg: '初始状态：应用运行中（Pod Running），挂载了 20Gi 的 EBS PV。随着数据增长，磁盘使用率达到 92%，急需扩容到 50Gi。前提条件：StorageClass 必须启用 allowVolumeExpansion: true（K8s 1.11+ 默认支持，但需要 StorageClass 配置）。',
+      msg: '初始状态：应用运行中并挂载 20Gi EBS PV。扩容前提包括 StorageClass 设置 allowVolumeExpansion: true，且卷类型与 CSI 驱动支持扩容；Kubernetes 提供该能力不代表每个驱动或存储后端都支持在线文件系统扩容。',
       apply() {
         card('pod', 'done'); badge('pod-status', 'Running', 'running');
         card('pvc', 'warn'); badge('pvc-status', 'Bound', 'bound');
@@ -896,7 +896,7 @@ const SCENE4 = {
     },
     {
       label: 'Step 1：修改 PVC 容量申请',
-      msg: 'Step 1：用户执行 kubectl patch pvc my-pvc -p \'{"spec":{"resources":{"requests":{"storage":"50Gi"}}}}\' 或直接编辑 PVC。这是唯一需要的用户操作。K8s 验证 StorageClass 允许扩容后，PVC 进入 FileSystemResizePending 状态，等待 CSI 完成。',
+      msg: 'Step 1：用户增大 PVC 的 storage request。控制面和 CSI 先扩展底层卷；FileSystemResizePending 只在仍需节点侧文件系统扩展时出现，并不是修改请求后立即必然进入的状态。不要直接编辑 PV capacity，否则可能妨碍自动扩容流程。',
       apply() {
         card('pod', 'done'); badge('pod-status', 'Running', 'running');
         card('pvc', 'active pulse'); badge('pvc-status', 'FileSystemResizePending', 'pending');
@@ -936,7 +936,7 @@ const SCENE4 = {
     },
     {
       label: 'Step 3：NodeExpandVolume + resize2fs',
-      msg: 'Step 3：块设备已扩容（50Gi），但文件系统仍为旧大小（20Gi）。K8s 在 Pod 下次 mount 时（或立即）触发 NodeExpandVolume，kubelet 调用 CSI Node Plugin，在节点层执行 resize2fs（ext4）或 xfs_growfs（xfs），将文件系统扩展到 50Gi。整个过程 Pod 不需要重启！',
+      msg: 'Step 3：若卷使用文件系统且驱动支持节点扩容，kubelet 调用 CSI NodeExpandVolume 完成文件系统扩展；扩展可在 Pod 使用卷时在线完成，也可能要求重新挂载或重建 Pod，具体取决于驱动和文件系统。块模式卷不执行文件系统扩展。',
       apply() {
         card('pod', 'done'); badge('pod-status', 'Running', 'running');
         card('pvc', 'done'); badge('pvc-status', 'FileSystemResizePending', 'pending');
@@ -958,7 +958,7 @@ const SCENE4 = {
     },
     {
       label: 'Step 4：扩容完成，50Gi 可用',
-      msg: 'Step 4：文件系统扩容完成，PVC 状态从 FileSystemResizePending 变回 Bound。Pod 内执行 df -h /data 可以看到磁盘空间变为 50Gi。整个扩容过程对应用完全透明，零停机。PV capacity 更新为 50Gi，使用率降至约 37%（原来 20Gi 数据 / 50Gi）。',
+      msg: 'Step 4：本示例假设驱动与文件系统支持在线扩展，完成后容器内可看到新容量。真实环境是否无需重启、是否零停机以及完成耗时均由 CSI 驱动、存储后端、文件系统和应用行为决定。',
       apply() {
         card('pod', 'done'); badge('pod-status', 'Running', 'running');
         card('pvc', 'done'); badge('pvc-status', 'Bound', 'bound');

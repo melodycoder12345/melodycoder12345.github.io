@@ -82,10 +82,10 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
 </style>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">系统设计 / Feed System / C 类型</div>
+      <div class="eyebrow">系统设计 / Feed System</div>
       <h1>信息流系统</h1>
       <p class="summary">信息流系统需要在低延迟和高吞吐之间权衡。推模式（写扩散）降低读延迟但写放大，拉模式（读扩散）减少写压力但读慢，混合模式用粉丝数阈值动态选择策略。</p>
       <div class="tags"><span>推模式</span><span>拉模式</span><span>扇出</span><span>Timeline</span></div>
@@ -93,7 +93,7 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
     <div class="card">
       <div class="eyebrow">核心术语</div>
       <ul class="concept-list">
-        <li><strong>Push（写扩散）</strong><span>写入时将内容推送到所有粉丝的 Feed Timeline，读取时 O(1) 但写放大 O(N followers)。</span></li>
+        <li><strong>Push（写扩散）</strong><span>写入时将内容扇出到粉丝的 Feed Timeline；读取避免现场遍历全部关注者，但仍有分页、排序、过滤和缓存访问成本。</span></li>
         <li><strong>Pull（读扩散）</strong><span>读取时从所有关注者的内容源聚合，避免写放大但读 O(M followings)。</span></li>
         <li><strong>Timeline（时间线）</strong><span>用户的 Feed，通常存在 Redis sorted set，score=timestamp，按时间倒序读取。</span></li>
       </ul>
@@ -143,7 +143,7 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
   <section class="deep">
     <section>
       <h2>背景与机制</h2>
-      <p>微博、Twitter、抖音的 Feed 核心挑战是写扩散和读放大的权衡。大 V 用户（粉丝数百万）如果用纯推模式，每发一条帖子就要写入数百万 sorted set，写放大严重。普通用户粉丝少，用推模式读 O(1) 性价比高。混合策略：粉丝数 &lt; 1000 用 Push，粉丝数 &gt; 1M 用 Pull，中间区间可动态决策。</p>
+      <p>Feed 的核心挑战是写扩散和读放大的权衡。高粉丝量账号若使用纯推模式会产生严重写放大；普通账号可更倾向写扩散。Push/Pull 分界应由粉丝活跃度、发布频率、延迟目标与成本压测动态决定，不能把固定粉丝数阈值当作通用规则。</p>
     </section>
     <section>
       <h2>常见误区</h2>
@@ -177,7 +177,7 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
 
 <script>
 const STEPS=[
-  {title:"用户发布内容",desc:"User 写入 UserPost DB，同时发布 Kafka 事件 post_created，包含 postId、userId、timestamp。",kind:"normal",active:[0],fail:[],recover:[],edges:[],detail:"写 DB 和发 Kafka 通常在同一个事务边界内，或用 outbox pattern 保证最终一致性。"},
+  {title:"用户发布内容",desc:"User 写入 UserPost DB，并可靠地产生 post_created 事件，包含 postId、userId、timestamp。",kind:"normal",active:[0],fail:[],recover:[],edges:[],detail:"业务数据库与 Kafka 通常不能直接共享本地事务；可用事务 outbox 先原子写业务记录与事件，再异步发布。消费者必须幂等，并监控积压与死信，状态才有机会最终收敛。"},
   {title:"扇出服务消费 Kafka",desc:"FanOutService 消费 post_created 事件，准备执行写扩散（Push）或读扩散（Pull）策略。",kind:"normal",active:[0,1,2],fail:[],recover:[],edges:[0,1],detail:"Kafka consumer group 保证每条消息被一个 FanOut 实例处理，分区数决定并发度。"},
   {title:"查询粉丝列表",desc:"FanOutService 查询 follow 表，获取该 User 的粉丝 ID 列表，数量决定使用哪种策略。",kind:"normal",active:[2],fail:[],recover:[],edges:[2],detail:"MySQL: SELECT follower_id FROM follow WHERE followee_id=? LIMIT 5000，大 V 分批分页查询。"},
   {title:"普通用户推模式（Push）",desc:"粉丝数 < 1000 的普通用户，FanOut 直接写入每个粉丝的 Redis sorted set，ZADD feed:{fid} ts postId。",kind:"normal",active:[2,4],fail:[],recover:[],edges:[4],detail:"写放大倍数 = 粉丝数，普通用户可接受。Redis pipeline 批量写入，减少 RTT。"},

@@ -3,16 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="Kafka 元数据管理的新模式，逐步替代 ZooKeeper。">
+<meta name="description" content="Kafka 4.x 唯一支持的元数据管理模式，使用 controller quorum 复制元数据日志。">
 <link rel="canonical" href="https://melodycoder12345.github.io/kafka/kraft.html">
 <meta property="og:title" content="KRaft — 码海拾贝">
-<meta property="og:description" content="Kafka 元数据管理的新模式，逐步替代 ZooKeeper。">
+<meta property="og:description" content="Kafka 4.x 唯一支持的元数据管理模式，使用 controller quorum 复制元数据日志。">
 <meta property="og:url" content="https://melodycoder12345.github.io/kafka/kraft.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="码海拾贝">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="KRaft — 码海拾贝">
-<meta name="twitter:description" content="Kafka 元数据管理的新模式，逐步替代 ZooKeeper。">
+<meta name="twitter:description" content="Kafka 4.x 唯一支持的元数据管理模式，使用 controller quorum 复制元数据日志。">
 <title>KRaft - Kafka</title>
 <script src="../nav.js"></script>
 <script src="../concept.js"></script>
@@ -40,14 +40,14 @@
 <script>window.PAGE_CONCEPTS=[
   {"title":"Controller Quorum","body":"一组 controller 节点，通过元数据日志达成一致，是 KRaft 的核心。","tag":"term"},
   {"title":"Metadata Log","body":"topic、partition、ACL、broker 注册等变更的有序日志，controller 通过此日志达成一致。","tag":"term"},
-  {"title":"Broker Registration","body":"Broker 从 controller quorum 获取元数据 snapshot 并注册自身状态。","tag":"term"}
+  {"title":"Broker Registration","body":"Broker 向 active controller 注册身份，并持续获取已提交的元数据更新。","tag":"term"}
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
-    <div class="card"><div class="eyebrow">Kafka / kraft / C 类型</div><h1>KRaft</h1><p class="summary">KRaft 把 Kafka 元数据从 ZooKeeper 迁回 Kafka 自身，用 controller quorum 复制元数据日志，统一 metadata plane。</p><div class="tags"><span>Controller</span><span>Metadata Log</span><span>Quorum</span></div></div>
-    <div class="card"><div class="eyebrow">核心术语</div><ul class="concept-list"><li><strong>Controller Quorum</strong><span>一组 controller 节点，通过元数据日志达成一致。</span></li><li><strong>Metadata Log</strong><span>topic、partition、ACL、broker 注册等变更的日志。</span></li><li><strong>Broker Registration</strong><span>Broker 从 quorum 获取元数据并注册自身状态。</span></li></ul></div>
+    <div class="card"><div class="eyebrow">Kafka / kraft</div><h1>KRaft</h1><p class="summary">KRaft 把 Kafka 元数据从 ZooKeeper 迁回 Kafka 自身，用 controller quorum 复制元数据日志，统一 metadata plane。</p><div class="tags"><span>Controller</span><span>Metadata Log</span><span>Quorum</span></div></div>
+    <div class="card"><div class="eyebrow">核心术语</div><ul class="concept-list"><li><strong>Controller Quorum</strong><span>一组 controller 节点，通过元数据日志达成一致。</span></li><li><strong>Metadata Log</strong><span>topic、partition、ACL、broker 注册等变更的日志。</span></li><li><strong>Broker Registration</strong><span>Broker 向 active controller 注册，并持续同步已提交元数据。</span></li></ul></div>
   </section>
   <section class="lab">
     <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
@@ -139,9 +139,9 @@
     <aside class="panel"><div class="panel-hd">当前状态</div><div class="status"><span class="badge" id="stateBadge">normal</span><h2 id="stepTitle"></h2><p id="stepDesc"></p><p id="stepDetail" style="margin-top:8px;font-size:.82rem;"></p></div></aside>
   </section>
   <section class="deep">
-    <section><h2>背景与机制</h2><p>旧 Kafka 依赖 ZooKeeper 存储 broker、topic、partition 等元数据。KRaft 用 Raft 风格 quorum 管理元数据，让部署、扩展和恢复路径更统一。</p></section>
+    <section><h2>背景与机制</h2><p>旧 Kafka 依赖 ZooKeeper 协调集群元数据。KRaft 以 quorum 复制 <code>__cluster_metadata</code> 日志；Kafka 3.3 首次将 KRaft 标记为生产可用，Kafka 4.0 已移除 ZooKeeper 模式。旧集群迁移应使用官方支持的桥接版本和迁移流程。</p></section>
     <section><h2>常见误区</h2><ul><li>KRaft 管元数据 plane，不直接替代 partition ISR 的数据复制。</li><li>controller quorum 太小或磁盘慢会影响元数据变更速度，影响 topic 创建/扩容响应。</li></ul></section>
-    <section><h2>工程场景</h2><ul><li>迁移和升级时关注 metadata.version、controller 日志、broker 注册和 quorum 健康。</li><li>故障排查先分清 metadata plane（controller/log）和 data plane（broker/partition ISR）。</li></ul></section>
+    <section><h2>工程场景</h2><ul><li>迁移和升级时关注 metadata.version、controller 日志、broker 注册和 quorum 健康；Kafka 4.1+ 还需区分静态与 KIP-853 动态 controller quorum。</li><li>生产环境通常将 broker 与 controller 角色隔离；3 个 controller 可容忍 1 个 controller 故障，维持可用必须有 voter 多数派存活。</li><li>故障排查先分清 metadata plane（controller/log）和 data plane（broker/partition ISR）。</li></ul></section>
     <section><h2>边界与恢复</h2><p>动画覆盖：quorum 组建 → 选 Leader → 元数据写入 → Broker 注册 → controller 故障 → Follower 接管恢复。</p></section>
   </section>
 </main>
@@ -178,7 +178,7 @@ const STEPS = [
     title: "Admin 创建 Topic → 写入 Metadata Log",
     desc: "Admin 请求先进入 controller leader，leader 将变更追加到 metadata log。",
     kind: "normal",
-    detail: "未复制到多数派的本地变更不能被 Broker 当作权威元数据，必须等待多数派确认。",
+    detail: "元数据记录提交需要 voter 多数派复制；只有 committed metadata 才能成为集群权威状态。",
     active: [0,1,3], fail: [], recover: [],
     edges: ['ke0','ke3'],
     edgeStyle: {ke0:'active', ke3:'active'},
@@ -200,7 +200,7 @@ const STEPS = [
     title: "Active Controller 故障",
     desc: "Controller leader 崩溃，Broker 暂时使用最后 committed metadata 继续服务。",
     kind: "failure",
-    detail: "未提交的元数据变更会被丢弃，quorum 必须从已提交日志重新选主。Broker 仍可处理数据请求。",
+    detail: "未提交记录不会成为权威状态。现有数据路径通常可以继续工作，但需要元数据变更、Leader 故障恢复或新建分区的操作会受 controller 可用性影响。",
     active: [2,3,4], fail: [1], recover: [],
     edges: ['ke4'],
     edgeStyle: {ke4:'active'},
@@ -211,7 +211,7 @@ const STEPS = [
     title: "Follower 接管并恢复",
     desc: "新的 controller leader 从 committed offset 继续处理变更，Broker 追平新版本元数据。",
     kind: "recovery",
-    detail: "旧 controller 恢复后先追日志，再作为 follower 加回 quorum。metadata.version 不倒退。",
+    detail: "旧 controller 恢复后先追赶已提交日志，再作为 follower（standby controller）参与 quorum。metadata.version 是独立管理的集群 feature level。",
     active: [1,2,3,4], fail: [], recover: [1,2],
     edges: ['ke1','ke2','ke4'],
     edgeStyle: {ke1:'active', ke2:'active', ke4:'active'},

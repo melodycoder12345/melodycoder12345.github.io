@@ -27,7 +27,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
 .steps-panel{background:rgba(17,24,39,.92);border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;overflow:hidden}
 .sp-head{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,.06)}
 .sp-eyebrow{font-size:.65rem;color:var(--accent);text-transform:uppercase;letter-spacing:.14em;font-weight:700;margin-bottom:6px}
-.sp-title{font-size:1rem;font-weight:700;margin-bottom:4px}
+.sp-title{font-size:1rem;font-weight:700;margin:0 0 4px}
 .sp-sub{font-size:.75rem;color:var(--dim);line-height:1.5}
 .scene-tabs{display:flex;flex-direction:column;gap:4px;padding:12px 10px;border-bottom:1px solid rgba(255,255,255,.06)}
 .scene-tab{padding:8px 12px;border-radius:8px;font-size:.78rem;cursor:pointer;border:1px solid transparent;color:var(--dim);transition:all .15s;text-align:left;background:none}
@@ -73,7 +73,7 @@ svg.arch{width:100%;height:100%}
   <aside class="steps-panel">
     <div class="sp-head">
       <div class="sp-eyebrow">System Design</div>
-      <div class="sp-title">直播系统</div>
+      <h1 class="sp-title">直播系统</h1>
       <div class="sp-sub">RTMP推流 · 转码 · CDN分发 · 弹幕</div>
     </div>
     <div class="scene-tabs" id="sceneTabs">
@@ -268,9 +268,9 @@ const CDN_COMPS = {
 };
 const CDN_STEPS = [
   { desc:'观众请求播放：App 请求 m3u8 播放列表，DNS 解析指向 GSLB（Global Server Load Balancing）智能调度节点，而非直接返回固定 IP。', from:'viewer', to:'gslb', color:'#38bdf8', msg:'GET /live/room123/master.m3u8' },
-  { desc:'GSLB 就近调度：根据观众 IP 的 BGP/地理信息，选择网络延迟最低的 CDN PoP 节点。北京用户 → 北京 CDN，响应时间 < 5ms。', from:'gslb', to:'cdn1', color:'#a78bfa', msg:'302 → cdn-beijing\n.xxx.com' },
+  { desc:'GSLB 根据 DNS/Anycast、网络拓扑、健康状态与负载选择合适的 CDN PoP。地理邻近不必然等于网络延迟最低，实际响应时间需观测。', from:'gslb', to:'cdn1', color:'#a78bfa', msg:'302 → cdn-beijing\n.xxx.com' },
   { desc:'CDN 北京 PoP 检查本地缓存：查找 room123 的最新 .ts 切片是否已缓存。CDN 命中率目标 > 95%，避免大量回源。', from:'viewer', to:'cdn1', color:'#4ade80', msg:'GET /seg_001.ts' },
-  { desc:'CDN 缓存命中，直接返回切片数据给观众。响应时间 < 50ms，带宽由 CDN 节点就近提供，源站压力极低。', from:'cdn1', to:'viewer', color:'#4ade80', msg:'200 OK\nseg_001.ts (2s)' },
+  { desc:'CDN 缓存命中后由边缘返回切片，减少回源流量；端到端延迟仍受首包、网络、切片长度、播放器缓冲和节点负载影响。', from:'cdn1', to:'viewer', color:'#4ade80', msg:'200 OK\nseg_001.ts (2s)' },
   { desc:'CDN 缓存未命中时触发回源：CDN 向 Origin 源站拉取最新切片，缓存后再返回给观众。回源率应控制在 5% 以内。', from:'cdn1', to:'origin', color:'#f59e0b', msg:'Cache MISS\nfetch from origin' },
   { desc:'LLHLS 延迟优化：对比标准 HLS（延迟 10-30s）与 LLHLS（延迟 2-5s）。LLHLS 通过 200ms 部分切片 + HTTP/2 推送显著降低延迟。', from:'origin', to:'cdn1', color:'#f59e0b', msg:'seg_001_part3.ts\n(200ms partial)' },
   { desc:'CDN 分发架构完成：GSLB 智能调度 + 就近 CDN PoP + 高命中率缓存，支撑百万并发观众同时在线，P99 首帧时间 < 3s。', from:'cdn2', to:'viewer', color:'#38bdf8', msg:'百万并发\nP99首帧 < 3s' },

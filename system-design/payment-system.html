@@ -94,17 +94,17 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
 <script>window.PAGE_CONCEPTS=[
   {"title":"预扣 + 确认（两阶段）","body":"支付分为预扣（Authorize）和确认（Capture）两步。预扣时冻结账户余额但不实际扣减，收到银行确认后再实际扣减。避免钱多扣：银行拒绝时直接释放冻结金额。","tag":"term"},
   {"title":"幂等 Key","body":"每笔支付请求附带唯一的幂等 key（通常是 order_id）。服务端将其记录到数据库，重复请求时直接返回已有结果，不再执行扣款。防止用户多次点击或网络重试造成重复扣款。","tag":"term"},
-  {"title":"对账（Reconciliation）","body":"定时任务扫描 DB 中状态为"处理中"超过阈值时间的记录，主动向银行查询状态，根据结果执行确认或回滚，修复因网络超时导致的状态不一致。","tag":"term"},
+  {"title":"对账（Reconciliation）","body":"定时任务扫描 DB 中状态为“处理中”超过阈值时间的记录，主动向银行查询状态，根据结果执行确认或回滚，修复因网络超时导致的状态不一致。","tag":"term"},
   {"title":"事务性发件箱（Outbox）","body":"支付结果写入 DB 和下游通知写在同一个 DB 事务中，避免支付成功但通知未发送的不一致。CDC 进程异步读取 Outbox 表并发布到消息队列。","tag":"term"}
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">系统设计 / 支付系统 / C 类型</div>
+      <div class="eyebrow">系统设计 / 支付系统</div>
       <h1>支付系统</h1>
-      <p class="summary">支付系统的核心是"钱不能多扣也不能少扣"。通过预扣（冻结余额）+ 确认（实际扣减）两阶段状态机，配合幂等 Key 防重，对账任务修复超时未确认的记录。动画展示余额条的真实变化和各状态的转换时机。</p>
+      <p class="summary">支付系统以账务守恒、可追溯和可恢复为目标。预扣（冻结余额）+ 确认（实际扣减）状态机、幂等键、不可变账务流水与对账补偿共同缩小差错窗口；任一机制都不能单独承诺绝不多扣或少扣。</p>
       <div class="tags"><span>预扣 / Authorize</span><span>确认 / Capture</span><span>幂等</span><span>对账</span><span>Outbox 模式</span></div>
     </div>
     <div class="card">

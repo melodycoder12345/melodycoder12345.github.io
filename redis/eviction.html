@@ -55,15 +55,15 @@
 </style>
 <script>window.PAGE_CONCEPTS=[
   {"title":"maxmemory","body":"当 Redis 内存使用达到 maxmemory 上限时，新写入会触发淘汰策略。未设置则内存无上限，可能导致 OOM。生产必须配置。","tag":"配置"},
-  {"title":"采样淘汰","body":"Redis 不维护完整 LRU/LFU 链表，而是随机采样 N 个 key（默认5），从中选出最应淘汰的。牺牲精确度换取 O(1) 内存开销。","tag":"核心机制"},
+  {"title":"采样淘汰","body":"Redis 不维护完整全局 LRU/LFU 链表，而是按 maxmemory-samples 采样并维护候选池，从中选择淘汰对象。默认值应以所用版本配置为准；近似算法避免了精确全局排序的额外成本。","tag":"核心机制"},
   {"title":"Morris Counter","body":"LFU 用 8bit 对数计数器（Morris Counter），每次访问以概率 1/(counter*factor+1) 递增，最大255。结合时间衰减实现频率近似。","tag":"LFU"},
   {"title":"TTL","body":"volatile-* 策略只对设置了过期时间的 key 生效。纯缓存场景推荐 allkeys-*，混合场景用 volatile-* 保护永久 key。","tag":"策略"}
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
-    <div class="card"><div class="eyebrow">Redis / 内存管理 / C 类型</div><h1>Redis 内存淘汰策略</h1><p class="summary">当 Redis 使用内存达到 maxmemory 限制时，需要通过淘汰策略（eviction policy）选择并驱逐部分 key 以释放空间。支持 noeviction、LRU、LFU、volatile-ttl 等 8 种策略，各有适用场景。</p><div class="tags"><span>maxmemory</span><span>LRU</span><span>LFU</span><span>volatile</span><span>allkeys</span></div></div>
+    <div class="card"><div class="eyebrow">Redis / 内存管理</div><h1>Redis 内存淘汰策略</h1><p class="summary">当 Redis 使用内存达到 maxmemory 限制时，需要通过淘汰策略（eviction policy）选择并驱逐部分 key 以释放空间。支持 noeviction、LRU、LFU、volatile-ttl 等 8 种策略，各有适用场景。</p><div class="tags"><span>maxmemory</span><span>LRU</span><span>LFU</span><span>volatile</span><span>allkeys</span></div></div>
     <div class="card"><div class="eyebrow">核心术语</div><ul class="concept-list"><li><strong>maxmemory</strong><span>内存上限配置，达到后触发淘汰或拒绝写入。</span></li><li><strong>采样淘汰</strong><span>随机取 N 个 key 选最差的淘汰，避免全局扫描。</span></li><li><strong>Morris Counter</strong><span>8bit 对数计数器，LFU 核心数据结构。</span></li><li><strong>TTL</strong><span>过期时间，volatile 策略的筛选条件。</span></li></ul></div>
   </section>
   <section class="lab">
@@ -143,7 +143,7 @@
     <aside class="panel"><div class="panel-hd">当前状态</div><div class="status"><span class="badge" id="stateBadge">normal</span><h2 id="stepTitle"></h2><p id="stepDesc"></p><p id="stepDetail" style="margin-top:8px;font-size:.82rem;"></p></div></aside>
   </section>
   <section class="deep">
-    <section><h2>背景与机制</h2><p>Redis 是内存数据库，物理内存有限。当数据量增长超过 maxmemory 后，必须在"拒绝写入"与"淘汰旧数据"之间选择。近似 LRU/LFU 用 O(1) 额外空间（每个 key 仅多 24bit）实现了接近理想算法的效果，是空间换精度的工程权衡。</p></section>
+    <section><h2>背景与机制</h2><p>当受策略计量的内存超过 <code>maxmemory</code> 后，Redis 会按策略淘汰 key，或在 noeviction 下拒绝会增加数据集内存的命令。近似 LRU/LFU 复用对象元数据并采用采样与候选池，避免维护精确全局顺序；具体内存布局属于版本相关实现细节。</p></section>
     <section><h2>常见误区</h2><ul><li>认为 Redis LRU 是精确的双向链表实现。实际是随机采样近似，<code>maxmemory-samples</code> 控制精度。</li><li>volatile-* 策略在没有带 TTL 的 key 时等同于 noeviction，会直接报错。</li><li>LFU counter 最大 255，不是真实访问次数，是对数近似值。</li></ul></section>
     <section><h2>工程场景</h2><ul><li>纯缓存：<code>maxmemory-policy allkeys-lru</code> 或 <code>allkeys-lfu</code></li><li>会话存储：<code>volatile-lru</code> 保护无 TTL 的配置 key</li><li>采样精度：<code>maxmemory-samples 10</code>（默认5，越大越精确）</li><li>LFU 调参：<code>lfu-log-factor 10</code>（增长速度）、<code>lfu-decay-time 1</code>（衰减分钟）</li><li>监控：<code>INFO memory</code> 关注 used_memory / maxmemory / evicted_keys</li></ul></section>
     <section><h2>边界与恢复</h2><p>动画覆盖：内存增长 → 触发淘汰 → noeviction 拒绝 → allkeys-lru 采样 → volatile-lru 筛选 → LFU 频率淘汰 → LFU 衰减 → volatile-ttl → 释放恢复。关注采样框高亮与节点颜色变化理解淘汰流程。</p></section>

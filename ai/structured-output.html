@@ -21,7 +21,7 @@
 body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
 .nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:44px;z-index:10;}
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;}.back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{margin:0;font-size:1.06rem;font-weight:700;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
@@ -88,7 +88,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
 <body>
 <div class="nav-bar">
   <a href="index.html" class="back">← 返回</a>
-  <span class="nav-title">📐 LLM 结构化输出</span>
+  <h1 class="nav-title">📐 LLM 结构化输出</h1>
   <div class="nav-tags">
     <span class="ntag">json-mode</span>
     <span class="ntag">function-calling</span>
@@ -122,7 +122,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
             <li><strong>额外文字</strong>：在 JSON 前后添加解释性文字导致解析失败</li>
           </ul>
           <div class="highlight-box">
-            结构化输出的目标：让 LLM 输出<strong>机器可直接消费</strong>的数据，无需后处理正则匹配，且具备强类型保证。这是构建可靠 LLM 应用的基础能力。
+            结构化输出的目标：让 LLM 输出可按约定解析和验证的数据，避免脆弱的正则提取。语法或 Schema 合规不代表字段值真实、授权有效或业务语义正确，应用仍须验证。
           </div>
         </div>
       </div>
@@ -247,7 +247,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
       <div class="compare-grid">
         <div class="cmp-card">
           <h4>Constrained Decoding</h4>
-          <p>在解码阶段使用有限状态自动机（FSM）约束每一步 token 的选择，只允许选择符合目标 Schema 的 token。从根本上保证输出合规，无需后处理验证。OpenAI Structured Output、vLLM、llama.cpp 均已内置支持。</p>
+          <p>约束解码会屏蔽不符合目标语法的 token，可提高受支持 Schema 子集的格式合规率；不同实现支持的 JSON Schema 关键字和拒绝/截断行为不同，业务仍需解析、Schema 校验及语义校验。</p>
         </div>
         <div class="cmp-card">
           <h4>Outlines / Guidance</h4>
@@ -301,7 +301,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
       </div>
       <div class="schema-principle">
         <div class="sp-title">避免嵌套过深 <span class="tag">稳定性</span></div>
-        <p>嵌套超过 3 层的 Schema 会增加模型出错概率。若业务必须有深嵌套，考虑拆成多次调用，每次提取一层。</p>
+        <p>深层嵌套通常增加生成和消费复杂度，但不存在通用的“三层”正确性阈值。应按模型、约束解码实现和目标 Schema 做测试，必要时拆分调用。</p>
       </div>
       <div class="schema-principle">
         <div class="sp-title">可选字段的处理 <span class="tag">类型安全</span></div>
@@ -352,7 +352,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
       <div class="pitfall">
         <div class="pitfall-hd">❌ 误区 3：不加 description 靠字段名传达含义</div>
         <div class="pitfall-body">
-          字段名对模型来说只是一个字符串标识符，含义模糊。<code>ts</code> 是时间戳还是打字稿？<code>amount</code> 是金额还是数量？<code>type</code> 是类型还是打字？所有字段都必须有清晰的 description，这是模型理解 Schema 的主要信息来源。
+          字段名和 description 都能帮助模型理解意图，但不是正确性的唯一来源。关键字段还应使用类型、enum、范围和跨字段业务规则约束，并由宿主程序验证。
         </div>
       </div>
     </div>

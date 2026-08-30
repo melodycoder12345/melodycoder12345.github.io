@@ -22,7 +22,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
 .nav{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);flex-shrink:0;position:sticky;top:var(--snav-h,44px);z-index:10;}
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;}
 .back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{margin:0;font-size:1.06rem;font-weight:700;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .main-area{display:flex;flex:none;height:calc(100vh - var(--snav-h,44px) - 88px);min-height:300px;overflow:hidden;}
@@ -94,7 +94,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
 <body>
 <div class="nav">
   <a href="index.html" class="back">← 返回</a>
-  <span class="nav-title">逃逸分析</span>
+  <h1 class="nav-title">逃逸分析</h1>
   <div class="nav-tags">
     <span class="ntag">escape</span>
     <span class="ntag">stack</span>
@@ -143,16 +143,16 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
         <div class="qa-a">① 函数返回指针（生命周期超过函数）<br>② 赋值给接口变量（编译器无法确定具体类型大小）<br>③ 发送到 channel（接收方可能在不同 goroutine）<br>④ 闭包捕获变量（闭包生命周期可能更长）<br>⑤ 切片/map 动态增长（编译期大小未知）<br>⑥ 大对象（超过栈增长阈值）<br>⑦ 被外部指针引用</div>
       </div>
       <div class="qa-card" onclick="toggleQA(this)">
-        <div class="qa-q">接口赋值为什么一定会逃逸？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a">接口（iface/eface）内部存储的是指针（itab + data pointer）。当具体类型的值被赋给接口时，如果值不是指针，编译器需要在堆上为其分配内存（因为接口只能存指针，不能内联存储任意大小的值）。例外：对于指针类型赋给接口，不一定额外分配（本身就是指针）。</div>
+        <div class="qa-q">接口赋值为什么可能逃逸？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a">接口转换需要构造 iface/eface 表示，但这不等于语言保证会堆分配。具体值是否逃逸取决于它的生命周期、调用链、内联和当前编译器优化；指针和值类型都应以当前 Go 版本的 <code>-gcflags=-m</code> 输出及基准测试为准。</div>
       </div>
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q">如何避免不必要的逃逸？<span class="qa-arrow">▶</span></div>
         <div class="qa-a">① 避免返回局部变量的指针，改为传入指针参数（调用方分配）<br>② 减少接口的使用（具体类型比接口快，无逃逸）<br>③ 使用值类型传参（小 struct 值拷贝比堆分配更快）<br>④ 预分配 slice：<code>make([]T, 0, n)</code><br>⑤ 使用 <code>sync.Pool</code> 复用堆对象<br>用 pprof 和逃逸分析信息来定位高频逃逸热点。</div>
       </div>
       <div class="qa-card" onclick="toggleQA(this)">
-        <div class="qa-q">fmt.Println 为什么会导致参数逃逸？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a"><code>fmt.Println</code> 的参数类型是 <code>...interface{}</code>。任何传入的具体类型值都会被自动转换为接口，触发逃逸。在性能敏感路径上，避免使用 fmt，改用 <code>log</code>（有相同问题）或 <code>zerolog</code>/<code>zap</code>（使用结构化日志避免接口转换）或直接操作 <code>[]byte</code>。</div>
+        <div class="qa-q">fmt.Println 的参数一定会逃逸吗？<span class="qa-arrow">▶</span></div>
+        <div class="qa-a"><code>fmt.Println</code> 接受 <code>...interface{}</code>，接口转换和反射格式化可能带来分配，但参数是否逃逸不是 API 保证，会随值类型、内联、调用链和编译器版本变化。性能敏感路径应通过 <code>go build -gcflags=-m</code> 与基准测试验证，而不是仅凭“传给 fmt”下结论。</div>
       </div>
     </div>
   </div>
@@ -262,7 +262,7 @@ const SCENARIOS=[
     {title:'编译期逃逸分析',desc:'编译器分析 sum 函数，变量 a、b、result 均未逃出函数作用域（没有被返回指针、没有赋值给外部变量）。'},
     {title:'决策：栈分配',desc:'逃逸分析确认变量不逃逸，所有变量分配在栈上。函数调用时，栈帧（stack frame）包含所有局部变量的空间。'},
     {title:'函数执行，栈帧创建',desc:'调用 sum(3,4) 时，在调用方的栈上创建新的栈帧。a=3, b=4, result 均在栈帧内。'},
-    {title:'函数返回，栈帧自动回收',desc:'sum 函数返回后，栈指针移回调用前的位置，栈帧自动"释放"。无 GC 开销，零分配，速度极快（~1ns）。'},
+    {title:'函数返回，栈帧自动回收',desc:'sum 函数返回后，栈指针移回调用前的位置，栈帧自动“释放”。不增加堆分配和 GC 压力；具体耗时应以目标环境的基准测试为准。'},
   ],
   hl:[[2,3,4],[],[6,7],[8,9]],
   code:`package main
@@ -283,11 +283,11 @@ func main() {
     // Stack region
     s+=`<rect x="60" y="${stackY}" width="300" height="110" rx="10" fill="rgba(56,189,248,.04)" stroke="#1e3a5f" stroke-width="1"/>`;
     s+=lbl(65,stackY+14,'Stack（栈）','#38bdf8',10);
-    s+=lbl(280,stackY+14,'自动管理，~1ns','#64748b',9);
+    s+=lbl(280,stackY+14,'自动管理，无堆分配','#64748b',9);
     // Heap region
     s+=`<rect x="60" y="${heapY}" width="300" height="80" rx="10" fill="rgba(255,255,255,.02)" stroke="#334155" stroke-width="1" stroke-dasharray="5 3"/>`;
     s+=lbl(65,heapY+14,'Heap（堆）','#475569',10);
-    s+=lbl(270,heapY+14,'GC 管理，~100ns','#475569',9);
+    s+=lbl(270,heapY+14,'GC 管理，成本需实测','#475569',9);
     // Stack frame for main
     s+=stackBox(75,stackY+22,120,36,'main frame','#38bdf8',step>=1);
     // Stack frame for sum
@@ -372,9 +372,9 @@ func main() {
   label:'interface{} 逃逸',
   codeTitle:'interface_escape.go',
   steps:[
-    {title:'具体类型赋给 interface{}',desc:'fmt.Println(x) 的参数是 ...interface{}。当 x 为具体类型（如 int）时，需要将其装箱为 eface（空接口），需要在堆上分配一个 int 副本。'},
+    {title:'具体类型转换为 interface{}',desc:'fmt.Println(x) 的参数是 ...interface{}，调用时会构造 eface（空接口）表示；这可能产生装箱或分配，但是否落到堆上由当前编译器的逃逸分析决定。'},
     {title:'eface 结构：type + data',desc:'空接口（eface）由两个字段组成：_type（类型信息指针）和 data（数据指针）。对于非指针类型，data 指向堆上的值拷贝。'},
-    {title:'逃逸：值被装箱到堆',desc:'x = 42 本来是栈上的 int，但赋值给 interface{} 后，42 的副本被分配到堆（或在某些情况下存在 staticData 区），data 指向该副本。'},
+    {title:'检查实际逃逸结果',desc:'x = 42 转为 interface{} 后需要可供 data 引用的表示；编译器可能使用栈、静态数据或堆，需用当前工具链的 -gcflags=-m 确认。'},
     {title:'接口调用（虚函数）',desc:'通过接口调用方法时，runtime 读取 _type 字段获取 itab（方法表），间接调用具体实现。比直接调用多一次间接寻址。'},
   ],
   hl:[[2],[4,5],[7],[9]],
@@ -387,7 +387,7 @@ x := 42  // int，本来在栈
 // _type *_type  (类型信息)
 // data  unsafe.Pointer (数据指针)
 
-fmt.Println(x)  // x 被装箱，逃逸
+fmt.Println(x)  // 会做接口转换；是否逃逸以编译器诊断为准
 // 等价于: var i interface{} = x`,
   render(step){
     let s=defs();

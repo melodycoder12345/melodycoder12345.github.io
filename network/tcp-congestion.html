@@ -79,6 +79,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
     <span class="badge" style="background:rgba(16,185,129,0.15);color:#10b981">拥塞控制</span>
     <span class="badge" style="background:rgba(56,189,248,0.15);color:#38bdf8">AIMD</span>
     <span class="badge" style="background:rgba(196,132,252,0.15);color:#c084fc">慢启动</span>
+    <span class="badge" id="bbr" style="background:rgba(251,191,36,0.13);color:#fbbf24">CUBIC / BBR 边界</span>
   </div>
 </nav>
 <div class="main">
@@ -119,7 +120,7 @@ window.PAGE_CONCEPTS = [
   { title: '拥塞避免 (CA)', body: `cwnd 超过 ssthresh 后，每经过一个 RTT 增加 1 MSS（线性增长），探测网络可用带宽上限，避免突然拥塞。`, tag: '线性增长' },
   { title: '快重传 & 快恢复', body: `收到 3 个重复 ACK：立即重传丢失段（不等 RTO），ssthresh = cwnd/2，cwnd = ssthresh（New Reno）/ cwnd = ssthresh + 3（Reno）。网络未完全拥塞，快速恢复到拥塞避免阶段。` },
   { title: '超时重传 (RTO)', body: `定时器超时仍未收到 ACK：ssthresh = cwnd/2，cwnd 重置为 1 MSS，重新慢启动。代价高昂，是最严重的拥塞信号。`, tag: '最严重' },
-  { title: 'CUBIC & BBR', body: `CUBIC（Linux 默认）：基于丢包，cwnd 以三次函数增长，在高 BDP 网络效果好。BBR（Google）：基于带宽-延迟模型，测量 BtlBw 和 RTprop，不依赖丢包，在有轻微丢包的网络（卫星、无线）表现更优。`, tag: '现代算法' }
+  { title: 'CUBIC & BBR', body: `CUBIC（Linux 常见默认算法）主要依据丢包调整窗口；BBR 则估计瓶颈带宽与最小 RTT，并通过 pacing 控制发送。下方曲线用于解释 Reno 风格的窗口变化，不模拟 BBR 内部状态机。`, tag: '算法边界' }
 ];
 
 const CODE_LINES = [
@@ -202,7 +203,7 @@ const STEPS = [
   {highlightLines:[13,14,15],hlJs:[20,21],hlPy:[22,23],description:'快速重传: 收到 3 个重复 ACK → ssthresh=cwnd/2=5，cwnd=ssthresh（不回到慢启动）',dataIdx:14},
   {highlightLines:[13,14,15],hlJs:[10,11],hlPy:[10,11],description:'快速恢复后进入拥塞避免: cwnd = 6',dataIdx:15},
   {highlightLines:[13,14,15],hlJs:[10,11],hlPy:[10,11],description:'CUBIC 算法（Linux 默认）: 更激进的增长曲线，比 Reno 吞吐量更高',dataIdx:16},
-  {highlightLines:[19,20,21],hlJs:[20,21],hlPy:[22,23],description:'BBR: 基于带宽和延迟模型，而非丢包信号，减少缓冲膨胀',dataIdx:17},
+  {highlightLines:[19,20,21],hlJs:[20,21],hlPy:[22,23],description:'对比边界：本曲线展示 Reno 风格窗口；BBR 会估计瓶颈带宽和最小 RTT，再用 pacing 调整发送速率',dataIdx:17},
 ];
 
 let cur = 0, playing = false, timer = null;

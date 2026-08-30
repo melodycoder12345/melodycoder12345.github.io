@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="以 Git 仓库为唯一事实来源（Single Source of Truth），声明式定义集群期望状态。ArgoCD 持续对比 Git 状态与集群实际状态，检测到 drift 后自动将集群拉回声明状态，实现可审计、可回溯的持续交付。">
+<meta name="description" content="以版本化声明为期望状态，Argo CD 比较 Git 与集群状态；是否自动同步、自愈和清理资源由同步策略明确配置。">
 <link rel="canonical" href="https://melodycoder12345.github.io/cloud-native/gitops.html">
 <meta property="og:title" content="GitOps / ArgoCD — 码海拾贝">
 <meta property="og:description" content="以 Git 仓库为唯一事实来源，ArgoCD 持续对比 Git 状态与集群实际状态，检测 drift 后自动将集群拉回声明状态。">
@@ -173,6 +173,22 @@ a{color:var(--accent);text-decoration:none}
 .argo-flow{display:flex;flex-direction:column;align-items:center;gap:6px;margin:8px 0}
 .argo-flow-arrow{font-size:.9rem;color:var(--dim2);display:flex;align-items:center;gap:4px;font-size:.7rem}
 .argo-flow-arrow.active{color:var(--accent);animation:badge-pulse .8s ease-in-out infinite}
+@media (max-width:980px){
+  .wrap{padding:32px 22px 64px}
+  .layout{grid-template-columns:1fr}
+  .left-panel{position:static}
+  .viz-3col{grid-template-columns:1fr 1fr}
+  .viz-col:last-child{grid-column:1/-1}
+}
+@media (max-width:640px){
+  .wrap{padding:24px 14px 52px}
+  .left-panel,.center-panel{padding:15px;border-radius:14px}
+  .viz-3col,.env-cards{grid-template-columns:1fr}
+  .viz-col:last-child{grid-column:auto}
+  .diff-wrap{overflow-x:auto}
+  .diff-header,.diff-row{min-width:620px}
+  .git-strip-commit{align-items:flex-start;flex-wrap:wrap}
+}
 </style>
 </head>
 <body>
@@ -356,7 +372,7 @@ const SCENARIOS = [
         }
       },
       {
-        msg: 'Step 6：K8s Deployment 滚动更新进行中：新 Pod（v2.1）陆续进入 Running，旧 Pod（v2.0）陆续 Terminating 被销毁，保证服务不中断。',
+        msg: 'Step 6：Deployment 按更新策略逐步替换 Pod。是否不中断还取决于副本数、maxUnavailable/maxSurge、Readiness Probe、PodDisruptionBudget、应用启动与终止行为；滚动更新策略本身不构成绝对保证。',
         git: {
           commits: [
             { hash: 'a1b2c3d', msg: 'feat: upgrade app to v2.1', tag: 'v2.1', isHead: true },

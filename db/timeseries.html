@@ -409,7 +409,7 @@ const TABS = [
     name: '写入路径',
     steps: [
       { desc: '时序数据库（TSDB）专为带时间戳的度量序列设计。传感器每秒产生 (timestamp, value, tags) 三元组数据点，写入模式是顺序追加。', action: 'w_reset' },
-      { desc: '传感器 web1 写入第一个数据点：ts=1000001, cpu_usage=72.3%。时序写入总是按时间顺序追加，利用磁盘顺序写特性（比随机写快 10-100x）。', action: 'w_s1' },
+      { desc: '传感器 web1 写入第一个数据点：ts=1000001, cpu_usage=72.3%。时序负载通常以追加为主，但可能包含乱序和迟到数据；实际写放大与吞吐取决于存储引擎实现。', action: 'w_s1' },
       { desc: 'WAL 预写日志（Write-Ahead Log）：每次写入先追加到 WAL 文件。顺序写磁盘，崩溃后可从 WAL 完整重放恢复 MemTable 数据。', action: 'w_wal' },
       { desc: 'MemTable（内存有序表）：WAL 写入后，数据插入内存按 (measurement + tags + time) 复合键排序的结构，支持快速范围查询。', action: 'w_mem' },
       { desc: '持续写入：更多传感器数据涌入，WAL 继续顺序追加，MemTable 有序积累。新数据总是比旧数据时间戳更大。', action: 'w_fill' },
@@ -438,7 +438,7 @@ const TABS = [
       { desc: '分区剪枝（Partition Pruning）：Jan 02 ~ Jan 31 共 30 个分区完全在时间范围外，直接跳过，无需打开任何文件。仅 Jan 01 需要访问。', action: 'q_prune' },
       { desc: '列存过滤：本次查询仅需 cpu_usage 列，mem_usage / disk_io / net_rx / temperature 4 列整块跳过（列式存储天然支持按需读列）。', action: 'q_col' },
       { desc: '并行扫描：对 Jan 01 分区内 cpu_usage 列数据分段并行读取（每段 ~8192 行 granule），并行聚合 avg 值。', action: 'q_scan' },
-      { desc: '查询完成！扫描 1/31 分区 × 1/5 列 → 实际 IO 仅为全表扫描的 0.65%。亿级数据点毫秒级响应，这是 TSDB 的核心优势。', action: 'q_result' },
+      { desc: '教学示例中，分区裁剪与列裁剪显著减少扫描范围；真实查询延迟还受标签基数、压缩、缓存、聚合范围和硬件影响。', action: 'q_result' },
     ]
   },
   {
@@ -447,7 +447,7 @@ const TABS = [
       { desc: '时序数据保留策略：高精度原始数据随时间降采样为低精度，超过保留期的旧分区整体删除（O(1) 代价）。', action: 'd_reset' },
       { desc: '原始数据（分钟级）：31 天 × 1440 min/天 = 44,640 行/指标。随时间持续增长，需要保留策略控制成本。', action: 'd_raw' },
       { desc: '自动降采样至小时级（Downsample 60:1）：每小时聚合为 avg/max/min → 744 行/指标。压缩 60x，历史趋势分析仍然准确。', action: 'd_hour' },
-      { desc: 'TTL 触发：分钟级原始数据保留 30 天。第 31 天分区到期 → 直接删除整个分区文件（O(1)），而非逐行 DELETE（O(n)，可能需要数小时）。', action: 'd_ttl' },
+      { desc: 'TTL 触发：分钟级原始数据保留 30 天。若存储引擎按时间分区，可通过丢弃过期分区避免逐行删除；元数据操作很快，但后台文件回收和对象存储删除仍有实际成本。', action: 'd_ttl' },
       { desc: '乱序写入（Out-of-Order Write）：延迟的传感器数据包到达，携带 5 分钟前的时间戳（比当前最新写入时间戳早）。', action: 'd_ooo' },
       { desc: 'OOO 处理：乱序点写入独立 OOO 缓冲区，不进主 MemTable。定期 Merge 将 OOO 数据合并回对应时间分区，不影响正常写入路径。', action: 'd_ooo2' },
     ]

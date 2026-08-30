@@ -27,7 +27,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
 .steps-panel{background:rgba(17,24,39,.92);border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;overflow:hidden}
 .sp-head{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,.06)}
 .sp-eyebrow{font-size:.65rem;color:var(--accent);text-transform:uppercase;letter-spacing:.14em;font-weight:700;margin-bottom:6px}
-.sp-title{font-size:1rem;font-weight:700;margin-bottom:4px}
+.sp-title{margin:0 0 4px;font-size:1rem;font-weight:700;}
 .sp-sub{font-size:.72rem;color:var(--dim);line-height:1.5}
 .scene-tabs{display:flex;flex-direction:column;gap:4px;padding:12px 10px;border-bottom:1px solid rgba(255,255,255,.06)}
 .scene-tab{padding:8px 12px;border-radius:8px;font-size:.78rem;cursor:pointer;border:1px solid transparent;color:var(--dim);transition:all .15s;text-align:left;background:none}
@@ -64,7 +64,7 @@ svg.arch{width:100%;height:100%}
   <aside class="steps-panel">
     <div class="sp-head">
       <div class="sp-eyebrow">AI / 推理优化</div>
-      <div class="sp-title">LLM 推理优化</div>
+      <h1 class="sp-title">LLM 推理优化</h1>
       <div class="sp-sub">memory-bound · 自回归 · FlashAttention · vLLM</div>
     </div>
     <div class="scene-tabs" id="sceneTabs">
@@ -115,11 +115,11 @@ svg.arch{width:100%;height:100%}
       </div>
       <div class="dp-block">
         <h4>PagedAttention</h4>
-        <p>虚拟化 KV Cache 内存管理，消除碎片化，支持不同请求动态共享物理内存页（Prefix Caching）。vLLM 核心技术。</p>
+        <p>以分页映射管理 KV Cache，减少预留空间与外部碎片；配合引用计数可实现 prefix caching。它仍有块内浪费、元数据和调度开销，收益取决于请求长度分布。</p>
       </div>
       <div class="dp-block">
         <h4>Continuous Batching</h4>
-        <p>请求完成即插入新请求，不等整个 batch 完成。将 GPU 利用率从 40-60% 提升到 80%+。</p>
+        <p>请求完成后可在迭代边界补入新请求，减少静态 batch 的 padding 和等待；GPU 利用率与吞吐收益取决于流量、调度、模型和硬件。</p>
       </div>
     </div>
     <div class="dp-section">
@@ -194,7 +194,7 @@ const SCENES=[
       {desc:'标准 Attention 步骤 1：从 HBM 读取整个 Q、K 矩阵（红色箭头=高 IO），计算 S = Q × K^T（NxN 矩阵），写回 HBM。对 N=8192 的长序列，这需要传输数 GB 数据。',draw:drawFlashStd1},
       {desc:'标准 Attention 步骤 2：从 HBM 读取 S（再一次大量 IO），计算 softmax(S)，写回 HBM。再从 HBM 读取 softmax(S) 和 V，计算最终输出 O = softmax(S)×V。总计 3 次读写大矩阵。',draw:drawFlashStd2},
       {desc:'FlashAttention 策略：将 Q/K/V 分成小块（Tiles），每个 Tile 的计算完全在 SRAM（片上高速缓存）中完成。SRAM 速度比 HBM 快 10x，且容量限制不是问题，因为每次只处理一个小块。',draw:drawFlashTile},
-      {desc:'FlashAttention 计算：每个 Tile 的 Attention 在 SRAM 中一次性完成（QK^T + softmax + V）后直接输出，无需将中间结果 NxN 矩阵写回 HBM。总 HBM IO 从 O(N²) 降至 O(N)，速度提升 2-4x。',draw:drawFlashResult},
+      {desc:'FlashAttention 通过 IO-aware tiling 与在线 softmax 避免把完整 N×N 注意力矩阵写回 HBM。其 IO 复杂度取决于序列长度、head 维度与片上存储容量；速度收益也随硬件、精度和实现而变，应以基准测试确认。',draw:drawFlashResult},
     ]
   },
   // 2: PagedAttention
@@ -204,7 +204,7 @@ const SCENES=[
       {desc:'传统 KV Cache 内存分配问题：为每个请求预先分配一块连续的最大长度显存（max_length * hidden_size）。即使请求只生成了 100 个 Token，也占用了 2048 个 Token 的显存。碎片率 > 50%。',draw:drawPageInit},
       {desc:'PagedAttention 思路（借鉴 OS 虚拟内存分页）：将 KV Cache 分成固定大小的物理页（如 16 Tokens/页），请求的 KV Cache 由多个不连续的物理页组成，按需分配，不预留空间。',draw:drawPageVirtual},
       {desc:'Prefix Caching（共享物理页）：两个不同请求共享相同的系统 Prompt（"你是一个助手..."），对应的 KV Cache 物理页只存储一份，用引用计数管理。节省大量显存。',draw:drawPageShare},
-      {desc:'动态分配：Request A 生成新 Token 时，按需分配新的物理页（不影响 Request B 的页）；Request B 完成后，物理页立即释放给等待队列中的 Request C。显存利用率从 40-60% 提升到 80-90%。',draw:drawPageAlloc},
+      {desc:'动态分配：Request A 生成新 Token 时按需分配物理块；Request B 完成后，其块可归还分配器供其他请求复用。收益取决于块大小、序列分布与调度实现。',draw:drawPageAlloc},
     ]
   },
   // 3: Continuous Batching
@@ -212,7 +212,7 @@ const SCENES=[
     name:'Continuous Batching',
     steps:[
       {desc:'静态 Batching 问题：将 4 个请求组成一个 Batch，必须等所有请求都生成完毕才能处理下一个 Batch。即使 Request 1 在第 3 步就完成，GPU 仍然等待最慢的 Request 4 完成（GPU 空闲等待）。',draw:drawBatchStatic},
-      {desc:'静态 Batching：Request 1 第 3 步完成，但 Batch 中其他请求还在继续。GPU 计算资源浪费在填充（padding）上。蓝色=计算，灰色=空闲/padding，整体 GPU 利用率约 40-60%。',draw:drawBatchStaticWaste},
+      {desc:'静态 Batching：Request 1 先完成，但 batch 中其他请求还在继续；固定形状实现可能把计算浪费在 padding 或让空出的槽位闲置。',draw:drawBatchStaticWaste},
       {desc:'Continuous Batching 策略：不等整个 Batch 完成。Request 1 一完成，立即将等待队列中的 Request 5 插入 Batch（替换 Request 1 的 slot）。GPU 始终保持满负载。',draw:drawBatchContinuous},
       {desc:'Continuous Batching 结果：GPU 利用率曲线从锯齿形（静态 Batching）变为接近满载的平稳曲线。吞吐量提升 2-4x，P99 延迟降低。这是 vLLM、TensorRT-LLM 的核心优化之一。',draw:drawBatchResult},
     ]
@@ -349,7 +349,7 @@ function drawFlashStd2(){
   txt(350,245,'N=8192 时需传输 ~8GB 数据（A100 显存带宽 2TB/s，约 4ms/次）','#a78bfa',10);
   rect(50,290,600,60,hex('#4ade80',.06),'#4ade80',8);
   txt(350,315,'FlashAttention：将以上 3 步合并，中间结果全留在 SRAM','#4ade80',12);
-  txt(350,335,'总 HBM IO：O(N)，加速 2-4x','#4ade80',11);
+  txt(350,335,'HBM IO 显著减少；加速取决于形状、硬件与实现','#4ade80',11);
 }
 function drawFlashTile(){
   mkGrid();
@@ -480,8 +480,8 @@ function drawPageAlloc(){
     txt(x+100,188,'显存利用率',s.color,9);
   });
   rect(50,270,620,50,hex('#4ade80',.08),'#4ade80',8);
-  txt(350,290,'PagedAttention 显存利用率：80-90%','#4ade80',12);
-  txt(350,308,'对比传统预分配：40-60% → 服务能力提升 2x','#a7f3d0',11);
+  txt(350,290,'PagedAttention：减少预留与外部碎片，收益需实测','#4ade80',12);
+  txt(350,308,'对比传统预分配：减少碎片，收益需实测','#a7f3d0',11);
 }
 
 // ===== Scene 3: Continuous Batching =====

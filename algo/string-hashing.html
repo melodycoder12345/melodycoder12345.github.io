@@ -87,16 +87,16 @@ h1{font-size:clamp(2rem,4vw,3.6rem);line-height:1.04;letter-spacing:-.05em;margi
 </style>
 <script>window.PAGE_CONCEPTS=[
   {"title":"滚动哈希（Rabin-Karp）","body":"将长度为 k 的窗口内的字符串映射为一个整数（哈希值）。当窗口向右滑动时，不重新计算整个窗口的哈希，而是：减去最左字符的贡献（× base^(k-1)）+ 加上新字符。O(1) 时间完成哈希更新，总时间 O(n)。","tag":"term"},
-  {"title":"哈希碰撞","body":"两个不同的字符串映射到相同哈希值。使用大模数（10^9+7，10^9+9）和质数 base 降低碰撞概率；或使用双哈希（两组不同参数）几乎消除碰撞。碰撞发生时需要逐字符比对验证（fallback）。","tag":"term"},
+  {"title":"哈希碰撞","body":"两个不同的字符串可能映射到相同哈希值。随机化参数和双哈希可降低碰撞风险，但不会从数学上消除；需要确定性结果时应逐字符比对验证。","tag":"term"},
   {"title":"字符串哈希应用","body":"字符串搜索（Rabin-Karp 子串匹配）、查找最长重复子串（二分 + 哈希集合）、检测重复子字符串。比 KMP 实现简单，但有碰撞风险；比暴力 O(n×k) 快，但有隐藏常数。","tag":"term"},
   {"title":"多模式匹配中的优势","body":"同时搜索多个模式串时，先哈希所有模式串放入集合，滑动窗口计算文本哈希，命中则验证。比 Aho-Corasick 实现简单，适合模式数量不固定或运行时动态添加模式的场景。","tag":"term"}
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="A">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">算法 / 字符串 / A 类型</div>
+      <div class="eyebrow">算法 / 字符串</div>
       <h1>字符串哈希</h1>
       <p class="summary">滚动哈希（Rabin-Karp）将 k 长窗口映射为整数，窗口滑动时 O(1) 更新：减去最左字符 × base^(k-1)，加上新字符。动画展示窗口从左向右滑动，哈希值变化公式在窗口下方实时更新；发生哈希碰撞时（两个不同窗口值相同）触发红框高亮，然后启动逐字符比对（fallback）验证。</p>
       <div class="tags"><span>Rabin-Karp</span><span>滚动哈希</span><span>字符串匹配</span><span>哈希碰撞</span><span>双哈希</span></div>
@@ -106,7 +106,7 @@ h1{font-size:clamp(2rem,4vw,3.6rem);line-height:1.04;letter-spacing:-.05em;margi
       <ul class="concept-list">
         <li><strong>滚动哈希</strong><span>O(1) 滑动窗口哈希更新，减左加右，总 O(n) 时间。</span></li>
         <li><strong>哈希碰撞</strong><span>不同字符串映射相同值，碰撞时逐字符 fallback 验证。</span></li>
-        <li><strong>双哈希</strong><span>两组不同参数，碰撞概率降到 1/(10^18) 量级。</span></li>
+        <li><strong>双哈希</strong><span>两组独立、随机化参数可进一步降低碰撞风险；具体概率取决于哈希族与输入模型。</span></li>
         <li><strong>应用</strong><span>子串匹配、最长重复子串、多模式匹配。</span></li>
       </ul>
     </div>
@@ -175,9 +175,9 @@ h1{font-size:clamp(2rem,4vw,3.6rem);line-height:1.04;letter-spacing:-.05em;margi
       <h2>参数选择</h2>
       <ul>
         <li><strong>base：</strong>通常选 131 或 31（字母集大小附近的质数）</li>
-        <li><strong>模数 M：</strong>选大质数，常用 10^9+7, 10^9+9, 10^18+9，单哈希约 1/M 碰撞概率</li>
-        <li><strong>双哈希：</strong>使用两组 (base, M)，碰撞概率约 1/(M1 × M2) ≈ 1/10^18</li>
-        <li>自然溢出：用 unsigned long long（2^64 取模），省去显式取模操作，稍快但碰撞概率略高</li>
+        <li><strong>模数与基数：</strong>大质数模数、随机化基数通常能降低非对抗输入的碰撞风险，但不能把任意字符串对的概率无条件写成 1/M</li>
+        <li><strong>双哈希：</strong>若两组哈希足够独立，风险可近似相乘；固定参数或相关哈希不具备无条件的 1/(M1×M2) 保证</li>
+        <li>自然溢出：用无符号整数按 2^64 取模可省去显式取模；仍是概率性指纹，对抗输入场景应随机化或做确定性验证</li>
       </ul>
     </section>
     <section>
@@ -197,7 +197,7 @@ h1{font-size:clamp(2rem,4vw,3.6rem);line-height:1.04;letter-spacing:-.05em;margi
         <li><strong>算法：</strong>二分子串长度 k + 哈希集合判断重复</li>
         <li>对于每个长度 k：O(n) 计算所有长度 k 子串的哈希，存入集合，若有重复则存在重复子串</li>
         <li>时间复杂度：O(n log n)（二分 × 每次 O(n) 哈希检查）</li>
-        <li>后缀数组/后缀自动机可 O(n) 解决，但实现更复杂；竞赛中哈希+二分够用</li>
+        <li>后缀数组或后缀自动机也可解决；实际构建复杂度取决于所选算法与字符集，不能笼统都写成 O(n)</li>
       </ul>
     </section>
   </section>
@@ -278,7 +278,7 @@ const STEPS=[
     badge:'碰撞',
     desc:'（扩展演示）假设另一个字符串 "xyz" 的哈希值碰巧等于 pattern 哈希值（碰撞）。系统高亮红框警告，随即触发逐字符 fallback 比对：x≠a，立即返回不匹配。碰撞不会导致误报，但增加了少量比对开销。',
     window:{start:0,end:2,type:'collision'},
-    formula:`hash("xyz") = ${patHashVal} ← 碰撞!\n逐字符验证: x ≠ a → 不匹配\n双哈希可将碰撞概率降至 1/10¹⁸`,
+    formula:`hash("xyz") = ${patHashVal} ← 碰撞!\n逐字符验证: x ≠ a → 不匹配\n双哈希可进一步降低风险，但不能消除碰撞`,
     collision:true,matchAt:null
   }
 ];

@@ -60,7 +60,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
 .nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;}
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;}
 .back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{margin:0;font-size:1.06rem;font-weight:700;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .table-wrap{overflow-x:auto;margin:10px 0;}
@@ -74,7 +74,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
 <body>
 <div class="nav-bar">
   <a href="index.html" class="back">← 返回</a>
-  <span class="nav-title">🗄️ database/sql</span>
+  <h1 class="nav-title">🗄️ database/sql</h1>
   <div class="nav-tags">
     <span class="ntag">sql</span>
     <span class="ntag">connection-pool</span>
@@ -130,10 +130,10 @@ tr:hover td{background:rgba(255,255,255,.02);}
           <div class="table-wrap">
             <table>
               <tr><th>参数</th><th>作用</th><th>推荐值</th></tr>
-              <tr><td><code>SetMaxOpenConns(n)</code></td><td>限制并发连接总数，防止数据库过载</td><td>数据库最大连接数 / 服务实例数</td></tr>
-              <tr><td><code>SetMaxIdleConns(n)</code></td><td>保持空闲连接避免频繁建立</td><td>MaxOpenConns 的 30~50%</td></tr>
-              <tr><td><code>SetConnMaxLifetime(d)</code></td><td>强制连接定期重建，防止 MySQL 8h 超时</td><td>小于 MySQL wait_timeout（默认 8h），建议 5min</td></tr>
-              <tr><td><code>SetConnMaxIdleTime(d)</code></td><td>空闲连接超时回收，释放数据库资源</td><td>1~5 分钟</td></tr>
+              <tr><td><code>SetMaxOpenConns(n)</code></td><td>限制并发连接总数；达到上限后操作会等待</td><td>结合数据库容量、实例数、查询时延与等待指标压测</td></tr>
+              <tr><td><code>SetMaxIdleConns(n)</code></td><td>保持空闲连接避免频繁建立</td><td>依据突发并发、建连成本和数据库预算调整</td></tr>
+              <tr><td><code>SetConnMaxLifetime(d)</code></td><td>限制连接可复用的最长时间</td><td>结合服务端、中间代理的连接寿命并考虑错峰</td></tr>
+              <tr><td><code>SetConnMaxIdleTime(d)</code></td><td>回收空闲时间过长的连接</td><td>依据流量波动和空闲连接成本调整</td></tr>
             </table>
           </div>
           <p>注意：<code>SetMaxIdleConns</code> 的值不应超过 <code>SetMaxOpenConns</code>，否则多余的空闲连接限制无效。若 MaxIdleConns=0，每次用完连接立即关闭，没有连接复用。</p>
@@ -267,7 +267,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
         <div class="card-hd"><h3>db.Prepare 与防 SQL 注入</h3><span class="badge badge-core">核心</span></div>
         <div class="card-body">
           <p>Prepared Statement 将 SQL 模板预先发送到数据库编译，执行时只传参数。优势：防 SQL 注入（参数不参与 SQL 解析）、多次执行时减少解析开销。</p>
-          <p><strong>所有带用户输入的 SQL 都应使用占位符 <code>?</code>，而非字符串拼接！</strong></p>
+          <p><strong>所有带用户输入的 SQL 都应通过驱动参数绑定，而非字符串拼接；占位符语法由驱动决定，例如 MySQL 常用 <code>?</code>，PostgreSQL 驱动常用 <code>$1</code>。</strong></p>
           <pre><span class="cm">// 错误：SQL 注入风险</span>
 <span class="id">query</span> := <span class="id">fmt</span>.<span class="fn">Sprintf</span>(<span class="st">"SELECT * FROM users WHERE name = '%s'"</span>, <span class="id">userInput</span>)
 <span class="cm">// 输入 "' OR '1'='1" 会返回全表数据！</span>

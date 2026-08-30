@@ -59,7 +59,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
 .nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;}
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;}
 .back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{margin:0;font-size:1.06rem;font-weight:700;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .table-wrap{overflow-x:auto;margin:10px 0;}
@@ -74,7 +74,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
 <body>
 <div class="nav-bar">
   <a href="index.html" class="back">← 返回</a>
-  <span class="nav-title">🔬 反射</span>
+  <h1 class="nav-title">🔬 反射</h1>
   <div class="nav-tags">
     <span class="ntag">reflect</span>
     <span class="ntag">type-assertion</span>
@@ -403,18 +403,15 @@ tr:hover td{background:rgba(255,255,255,.02);}
           <span class="badge badge-high">高频考点</span>
         </div>
         <div class="card-body">
-          <p>反射操作比直接调用慢约 <strong>10~100 倍</strong>，主要来源：</p>
+          <p>反射通常比直接、静态类型的代码开销更高，但差距取决于具体操作、分配行为和 Go 版本，应通过 benchmark 验证。常见来源包括：</p>
           <ul>
             <li><strong>类型信息查找</strong>：运行时通过 typelinks 查找类型元数据</li>
-            <li><strong>接口装箱/拆箱</strong>：每次 ValueOf/Interface() 都涉及 heap 分配</li>
-            <li><strong>间接调用</strong>：方法调用通过函数指针，无法内联</li>
-            <li><strong>逃逸分析失效</strong>：反射传值基本都逃逸到堆上，GC 压力增大</li>
+            <li><strong>接口转换</strong>：某些转换和结果物化可能产生分配，但 <code>ValueOf</code> 本身不保证分配</li>
+            <li><strong>动态分派</strong>：反射调用较难像直接调用一样优化</li>
+            <li><strong>逃逸与分配</strong>：部分反射用法会使值逃逸，应以编译器诊断和基准为准</li>
           </ul>
-          <pre><span class="cm">// 基准对比（仅示意数量级）</span>
-<span class="cm">// 直接调用:  ~1  ns/op</span>
-<span class="cm">// 类型断言:  ~2  ns/op</span>
-<span class="cm">// 反射调用:  ~50 ns/op</span>
-<span class="cm">// 反射 Set:  ~80 ns/op</span></pre>
+          <pre><span class="cm">// 使用 go test -bench=. -benchmem 比较目标操作；</span>
+<span class="cm">// 不把某台机器、某个 Go 版本的 ns/op 当成固定结论。</span></pre>
         </div>
       </div>
 

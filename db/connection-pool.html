@@ -71,10 +71,10 @@ td code{font-size:.8em}
 </style>
 </head>
 <body>
-<main class="content" data-page-type="B">
+<main class="content">
   <section class="hero">
     <div class="hero-card">
-      <div class="eyebrow">DB / 连接管理 / B 类型</div>
+      <div class="eyebrow">DB / 连接管理</div>
       <h1>数据库连接池</h1>
       <p class="summary">连接池复用数据库连接，避免每次查询建立新连接的开销。理解池大小设置、超时参数和连接泄漏检测，是防止数据库成为性能瓶颈的关键。</p>
       <div class="tags"><span>连接复用</span><span>池大小</span><span>超时</span><span>泄漏检测</span></div>
@@ -82,7 +82,7 @@ td code{font-size:.8em}
     <div class="hero-card">
       <div class="eyebrow">核心概念</div>
       <ul class="concept-list">
-        <li><strong>连接建立成本</strong><span>TCP 三次握手 + TLS 握手 + MySQL 认证握手，合计 1-10ms，高并发下完全不可接受</span></li>
+        <li><strong>连接建立成本</strong><span>新连接包含 TCP、可选 TLS 和数据库认证等往返，延迟随网络与配置变化；高频建连会增加尾延迟和服务器负载</span></li>
         <li><strong>连接泄漏</strong><span>程序忘记归还连接到池，导致池耗尽，新请求无限等待或立即失败</span></li>
         <li><strong>池大小权衡</strong><span>不是越大越好：DB 端每个连接消耗内存（~1MB），过多连接导致 DB 内存压力和上下文切换</span></li>
       </ul>
@@ -100,7 +100,7 @@ td code{font-size:.8em}
           <tr><td>TCP 三次握手</td><td>0.5-2ms（局域网）</td></tr>
           <tr><td>TLS 握手（若开启 SSL）</td><td>2-5ms</td></tr>
           <tr><td>MySQL 认证握手</td><td>0.5-3ms</td></tr>
-          <tr><td><strong>合计</strong></td><td><strong>1-10ms（每次请求）</strong></td></tr>
+          <tr><td><strong>合计</strong></td><td><strong>取决于网络 RTT、TLS 版本、认证方式与服务器负载，应实测</strong></td></tr>
         </tbody>
       </table>
       <p>假设 QPS=10000，平均查询耗时 5ms：</p>
@@ -147,12 +147,11 @@ td code{font-size:.8em}
     <!-- 3. 池大小如何设置 -->
     <section class="section">
       <h2><span class="num">3</span>池大小如何设置？</h2>
-      <p>理论公式（Littel's Law）：</p>
-      <p><strong>最优连接数 ≈ 并发请求数 × 平均 DB 查询时间（秒）</strong></p>
-      <pre><span class="cm">// 示例：100 并发，每次查询 10ms</span>
-<span class="cm">// 最优连接数 = 100 × 0.01 = 1 个？？</span>
-<span class="cm">// 实际：留 2-3× 余量处理峰值</span>
-<span class="cm">// 推荐：5-20 个连接 for 大多数 OLTP 场景</span>
+      <p>Little 定律可用于估算同时占用连接数：</p>
+      <p><strong>平均占用连接数 ≈ DB 请求吞吐量（次/秒）× 平均持有连接时间（秒）</strong></p>
+      <pre><span class="cm">// 示例：1000 次 DB 操作/秒，每次持有连接 10ms</span>
+<span class="cm">// 平均占用约 1000 × 0.01 = 10 个连接</span>
+<span class="cm">// 最终上限还要结合峰值、尾延迟、事务时长和数据库承载能力压测</span>
 
 <span class="cm">// HikariCP 推荐公式（Java 生态）：</span>
 <span class="cm">// pool_size = (core_count × 2) + effective_spindle_count</span>
@@ -212,7 +211,7 @@ dsn := <span class="st">"user:pass@tcp(host:3306)/db"</span> +
     <span class="st">"&amp;readTimeout=30s"</span> +   <span class="cm">// 读超时</span>
     <span class="st">"&amp;writeTimeout=5s"</span> +   <span class="cm">// 写超时</span>
     <span class="st">"&amp;parseTime=true"</span></pre>
-      <div class="alert"><strong>常见陷阱：</strong>MySQL <code>wait_timeout</code> 默认 8h，若 ConnMaxLifetime 不设置或设置过长，空闲连接被 MySQL 主动断开后，应用发请求会报 <code>invalid connection</code>。将 ConnMaxLifetime 设为 &lt; wait_timeout（如 1h）可避免此问题。</div>
+      <div class="alert"><strong>常见陷阱：</strong><code>wait_timeout</code> 的默认值和实际值会受版本、发行版及服务器配置影响。连接池应校验失效连接，并让生命周期策略与服务端超时协调；Go <code>database/sql</code> 与驱动也会在一定条件下丢弃坏连接，不能把某个固定时长当作通用答案。</div>
     </section>
 
     <!-- 6. HikariCP / pgxpool -->

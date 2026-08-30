@@ -62,7 +62,7 @@ a{color:var(--accent);text-decoration:none}
 <main class="wrap">
   <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">可观测性</a><span>/</span>OpenTelemetry 追踪</div>
   <h1 class="page-title">OpenTelemetry 追踪</h1>
-  <p class="subtitle">分布式追踪通过在 HTTP 请求头中传播 traceparent（traceId + spanId）串联跨服务调用。每个服务创建子 Span 记录耗时和属性，Span 批量上报到 OTel Collector（OTLP gRPC），最终写入 Jaeger/Grafana Tempo 展示为瀑布图。</p>
+  <p class="subtitle">分布式追踪可通过 W3C <code>traceparent</code> 传播 TraceId、父 SpanId 与 Trace Flags。各进程创建 Span 并通过配置的处理器/导出器上报；本例采用批处理与 OTLP gRPC，经 Collector 写入 Jaeger 或 Grafana Tempo。</p>
 
   <div class="layout">
     <div class="left-panel">
@@ -136,11 +136,11 @@ const STEPS = [
   {visibleSpans:5,activeSpan:3,
    header:`traceparent: 00-${traceId}-${spanIds[3]}-01`,
    spanDetail:{Service:'user-service',Operation:'DB Query users',TraceID:traceId.slice(0,16)+'...',SpanID:spanIds[3],ParentSpanID:spanIds[1],Duration:'60ms','DB System':'postgresql','DB Statement':'SELECT * FROM users WHERE id=$1'},
-   msg:'user-service 查询数据库（60ms），先检查 Redis 缓存（5ms），Redis miss 后执行 PostgreSQL 查询。数据库 Span 的 Attributes 包含 SQL 语句，便于慢查询分析。'},
+   msg:'user-service 查询数据库（60ms），先检查 Redis 缓存（5ms），Redis miss 后执行 PostgreSQL 查询。数据库 Span 可按语义约定记录 db.system 等属性；查询文本可能含敏感数据或造成高基数，应按安全策略采集、脱敏或省略。'},
   {visibleSpans:6,activeSpan:5,
    header:`（所有 Span 完成，上报到 Collector）`,
    spanDetail:{Service:'user-service',Operation:'DB Query posts（关联查询）',TraceID:traceId.slice(0,16)+'...',SpanID:spanIds[5],Duration:'20ms','总链路耗时':'180ms','最慢组件':'DB Query users（60ms）'},
-   msg:'所有 6 个 Span 完成并上报。在 Jaeger/Grafana Tempo 中可以看到完整瀑布图，一眼识别出 DB Query（60ms）是最慢的环节，是优化首选目标。'},
+   msg:'本例的 6 个 Span 已完成并上报，可在 Jaeger/Grafana Tempo 中查看瀑布图。DB Query（60ms）是观测到的最长子 Span，但优化优先级仍应结合关键路径、调用重叠、频率与用户影响判断。'},
 ];
 
 let cur = -1, timer = null;
@@ -170,7 +170,7 @@ function renderWaterfall(step){
 function updateHeader(step){
   const box = document.getElementById('headerBox');
   if(!step || !step.header){ box.innerHTML = '（初始）用户浏览器发起请求，尚未携带 traceparent'; return; }
-  if(step.header.includes('traceparent')){
+  if(step.header.startsWith('traceparent:')){
     const parts = step.header.split(':');
     const vals = parts[1].trim().split('-');
     box.innerHTML = `traceparent: <span class="hl">00</span>-<span style="color:var(--warn)">${vals[1].slice(0,16)}…</span>-<span class="hl2">${vals[2]}</span>-01<br><span style="color:var(--dim2);font-size:.68rem">version=00 | traceId=${vals[1].slice(0,8)}… | spanId=${vals[2]} | sampled=01</span>`;

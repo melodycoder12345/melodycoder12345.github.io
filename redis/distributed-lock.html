@@ -58,12 +58,12 @@
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">Redis / distributed-lock / C 类型</div>
+      <div class="eyebrow">Redis / distributed-lock</div>
       <h1>Redis 分布式锁</h1>
-      <p class="summary">使用 SET NX PX 原子命令实现互斥加锁，配合 Lua 脚本原子释放和 Redlock 多数派算法，在分布式环境下保证临界区安全执行。</p>
+      <p class="summary">使用 SET NX PX 原子命令实现带租约的互斥尝试，配合 Lua 脚本避免误删他人锁；Redlock 提供多节点方案，但安全性依赖时间与故障假设，关键下游仍应使用单调 fencing token 拒绝过期持有者。</p>
       <div class="tags"><span>SETNX</span><span>Redlock</span><span>原子性</span><span>TTL</span></div>
     </div>
     <div class="card">
@@ -185,7 +185,7 @@
       <ul>
         <li>Go SDK 加锁: <code>rdb.SetNX(ctx, key, token, 30*time.Second)</code></li>
         <li>Lua 释放: <code>if redis.call("get",KEYS[1])==ARGV[1] then redis.call("del",KEYS[1]) end</code></li>
-        <li>Redisson/Watchdog 模式: 每 TTL/3 自动续期，业务完成前锁不过期。</li>
+        <li>续期机制: 在持有者身份仍匹配时定期延长 TTL，并设置续期失败、暂停和最大执行时间的处理；不能承诺业务完成前锁一定不过期。</li>
         <li>Redlock: 向 5 个独立 Redis 发 SET NX，>= 3 个成功且总耗时 < TTL 才算加锁成功。</li>
       </ul>
     </section>
@@ -227,7 +227,7 @@ const STEPS = [
   {
     title: "Client A 获得锁",
     desc: "Redis 返回 OK — key 之前不存在，Client A 成功加锁，锁值 = uuid-A，TTL = 30s。",
-    detail: "从这一刻起，Client A 进入安全临界区，其他客户端无法获取同一把锁。",
+    detail: "在该 Redis 实例可达且 TTL 尚未过期的窗口内，其他客户端不能成功 SET NX；长暂停、故障转移和分区仍需 fencing token 保护下游。",
     kind: "normal",
     nodes: { n0: "locked", n1: "", n2: "locked", n3: "hide", n4: "hide" },
     edges: [{ id: "e1", cls: "ok" }],
@@ -304,7 +304,7 @@ const STEPS = [
   {
     title: "Redlock — 多节点加锁",
     desc: "向 3 个独立 Redis 节点同时发起 SET NX。需 >= 2 个节点成功，且总耗时 < TTL，才算加锁成功。",
-    detail: "Redlock 容忍单节点故障，但依赖节点时钟近似同步。Martin Kleppmann 指出其在异步模型下不安全。",
+    detail: "Redlock 旨在容忍少数独立节点故障，但依赖有界执行时间与时钟假设。官方文档也建议对长任务使用 fencing token，并明确提示壁钟跳变风险。",
     kind: "normal",
     nodes: { n0: "active", n1: "", n2: "locked", n3: "locked", n4: "fail" },
     edges: [{ id: "e0", cls: "ok" }, { id: "e4", cls: "ok" }, { id: "e5", cls: "fail" }],

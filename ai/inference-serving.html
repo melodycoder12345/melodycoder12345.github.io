@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="description" content="面向后端与架构师理解 LLM 推理服务、MoE、缓存、批处理和投机解码的工程取舍。">
+<link rel="canonical" href="https://melodycoder12345.github.io/ai/inference-serving.html"><title>LLM 推理与服务 - AI 系统</title>
+<script src="../nav.js"></script><link rel="stylesheet" href="../demo-collection.css">
+<style>body{margin:0;background:radial-gradient(circle at 18% 0%,rgba(34,211,238,.13),transparent 34%),#0f172a;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh}.dc-shell{--dc-accent:#22d3ee}</style>
+</head>
+<body>
+<main class="dc-shell">
+  <section class="dc-hero">
+    <article class="dc-card"><div class="dc-eyebrow">AI / Serving Architecture</div><h1 class="dc-title">LLM 推理与服务</h1><p class="dc-summary">在线 LLM 服务本质上是显存、内存带宽、计算和调度的联合优化。架构设计要同时观察首 Token 延迟、逐 Token 延迟、吞吐、并发、成本与质量，而不是只比较模型参数量。</p></article>
+    <aside class="dc-card dc-principles"><div class="dc-principle"><strong>先拆 Prefill 与 Decode</strong><span>两阶段的计算特征不同，延迟瓶颈、批处理策略和扩缩容指标也不同。</span></div><div class="dc-principle"><strong>优化必须匹配负载</strong><span>请求长度、输出长度、并发和硬件不同，PagedAttention、量化或投机解码的收益会变化。</span></div><div class="dc-principle"><strong>模型结构不等于服务方案</strong><span>MoE 降低单 Token 激活计算量，但通信、路由与负载均衡仍会成为系统成本。</span></div></aside>
+  </section>
+  <div class="dc-decision"><b>工程结论：</b>先用真实流量建立 TTFT、TPOT、吞吐、显存和质量基线，再决定连续批处理、KV Cache 管理、量化、并行策略或投机解码；每项优化都应保留可回滚配置和质量回归测试。</div>
+  <section class="dc-lab" aria-labelledby="demoTitle"><div class="dc-tabs" id="demoTabs" role="tablist" aria-label="LLM 推理与服务动画"></div><header class="dc-demo-head"><div><h2 id="demoTitle"></h2><p id="demoDescription"></p></div><div class="dc-badges" id="demoBadges"></div></header><div class="dc-frame-wrap"><iframe class="dc-frame" id="demoFrame" data-demo-frame title="LLM 推理与服务交互动画"></iframe><div class="dc-loading">正在加载动画…</div></div></section>
+  <div class="dc-table-wrap"><table class="dc-table"><thead><tr><th>手段</th><th>主要收益</th><th>边界与代价</th></tr></thead><tbody><tr><td>连续批处理 / PagedAttention</td><td>提高利用率、降低 KV Cache 浪费</td><td>调度复杂度和排队延迟，需要按负载验证</td></tr><tr><td>MoE</td><td>以稀疏激活扩展模型容量</td><td>专家通信、热点和容量溢出</td></tr><tr><td>FlashAttention / 量化</td><td>降低 IO 或显存压力</td><td>硬件、内核和精度约束</td></tr><tr><td>投机解码</td><td>减少目标模型串行解码轮次</td><td>依赖接受率以及草稿模型额外成本</td></tr></tbody></table></div>
+</main>
+<script>window.DEMO_COLLECTION={demos:[
+{id:'serving',label:'推理服务主线',src:'llm-serving.html',description:'观察 PagedAttention、连续批处理和 KV Cache 管理如何共同影响吞吐与尾延迟。',badges:['工程重点','完整动画','在线服务']},
+{id:'moe',label:'MoE 架构',src:'mixture-of-experts.html',description:'理解 Router、Top-k Expert、容量限制与负载均衡，区分模型计算收益和服务通信成本。',badges:['完整动画','模型架构','负载均衡']},
+{id:'optimization',label:'优化工具箱',src:'inference-optimization.html',description:'对照 FlashAttention、PagedAttention、连续批处理和投机解码各自优化的系统瓶颈。',badges:['完整动画','性能决策','实测优先']},
+{id:'speculative',label:'投机解码',src:'speculative-decoding.html',description:'深入观察 Draft Model 生成候选、Target Model 批量验证以及拒绝后的修正过程。',badges:['完整动画','按需深入','接受率']}
+]};</script><script src="../demo-collection.js"></script>
+</body></html>

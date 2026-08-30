@@ -56,15 +56,15 @@ h1{font-size:clamp(2rem,4vw,3.4rem);line-height:1.05;letter-spacing:-.05em;margi
 <script>window.PAGE_CONCEPTS=[
   {"title":"CLIP（对比语言-图像预训练）","body":"Contrastive Language-Image Pretraining，OpenAI 2021。同时训练图像编码器（ViT）和文本编码器（Transformer），用对比损失让匹配的图文对嵌入向量靠近，不匹配的远离。训练数据是 4 亿图文对。用途：zero-shot 图像分类（无需微调）、文生图的语义锚点（Stable Diffusion 的 text encoder）。","tag":"term"},
   {"title":"跨模态注意力","body":"Cross-Modal Attention，让文本 token 对图像 patch（或视频帧）做注意力查询。Query 来自文本，Key/Value 来自视觉特征。GPT-4V、LLaVA、Flamingo 等视觉语言模型的核心融合机制。与自注意力的区别：Q 和 K/V 来自不同模态的特征空间。","tag":"term"},
-  {"title":"视觉编码器（ViT）","body":"Vision Transformer，把图像切成固定大小的 patch（如 16×16 像素），每个 patch 展平为 token，加上 [CLS] token 和位置编码后送入 Transformer。ViT-L/14 的输出 patch embedding 维度为 768。是 CLIP、GPT-4V 等多模态模型的图像侧骨干。","tag":"term"},
+  {"title":"视觉编码器（ViT）","body":"Vision Transformer 把图像切成 patch 并编码为 token。具体是否使用 [CLS]、patch 大小和隐藏维度取决于变体；经典 ViT-L 的隐藏维度为 1024，而 CLIP 还可能投影到不同输出维度。","tag":"term"},
   {"title":"多模态幻觉","body":"视觉语言模型生成与图像内容不符的文字描述，如图中没有但模型编造的对象、关系或文字。主要原因：语言先验过强（模型更倾向语言分布而非图像）、视觉 token 压缩丢失细节、训练数据中图文对齐不精确。缓解：对比解码、视觉链式思维、更高分辨率 patch。","tag":"trap"}
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="B">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">AI 系统 / 多模态 / B 类型</div>
+      <div class="eyebrow">AI 系统 / 多模态</div>
       <h1>多模态 AI</h1>
       <p class="summary">多模态 AI 让模型能同时理解和生成图像、文本、音频、视频等不同类型内容。核心挑战是异质特征空间的对齐：如何让"一只猫的照片"和"a photo of a cat"在同一个向量空间中表示为相近的点。CLIP 的对比预训练、ViT 的图像 tokenization、跨模态注意力机制是现代多模态架构的三块基石，理解它们是读懂 GPT-4V、Gemini、DALL-E 3、Stable Diffusion 的前提。</p>
       <div class="tags"><span>CLIP</span><span>ViT</span><span>Cross-Attention</span><span>扩散模型</span><span>视觉语言模型</span><span>多模态对齐</span></div>
@@ -90,7 +90,7 @@ h1{font-size:clamp(2rem,4vw,3.4rem);line-height:1.05;letter-spacing:-.05em;margi
         <li><strong>Zero-shot 分类：</strong>将类别名写成模板（"a photo of {class}"），用文本编码器编码后与图像向量比相似度，无需微调即可分类</li>
         <li><strong>局限：</strong>对细粒度视觉关系（"左边的红色球在右边的蓝色立方体上方"）理解弱，对 OCR 文字识别效果差</li>
       </ul>
-      <div class="callout">CLIP 对 Stable Diffusion 的重要性：SD 的 text encoder 就是 CLIP ViT-L/14，文本 prompt 经过 CLIP 编码后作为条件信号指导扩散模型的去噪方向。</div>
+      <div class="callout">CLIP 对部分 Stable Diffusion 版本很重要：例如 SD 1.x 使用 OpenAI CLIP ViT-L/14 的文本编码器；SD 2.x、SDXL 等采用不同的 OpenCLIP/多编码器组合，不能把 ViT-L/14 推广到所有版本。</div>
     </section>
     <section class="section">
       <h2>ViT：图像的 Tokenization</h2>
@@ -98,7 +98,7 @@ h1{font-size:clamp(2rem,4vw,3.4rem);line-height:1.05;letter-spacing:-.05em;margi
         <li><strong>Patch 划分：</strong>将 224×224 图像切成 14×14=196 个 16×16 的 patch，每个 patch 展平为 256 维向量后线性投影</li>
         <li><strong>[CLS] token：</strong>类似 BERT 的 [CLS]，附加在 patch 序列头部，最终输出代表整图的全局特征</li>
         <li><strong>位置编码：</strong>ViT 用可学习的 1D 位置编码（不是 2D），实验表明模型自己学到了 2D 空间关系</li>
-        <li><strong>ViT 变体：</strong>ViT-B（12层 768维）、ViT-L（24层 1024维）、ViT-H（32层 1280维），CLIP 使用 ViT-L/14</li>
+        <li><strong>ViT 变体：</strong>经典 ViT-B/L/H 的深度和隐藏维度不同；CLIP 与下游生成模型使用的具体视觉或文本编码器需按模型版本确认</li>
         <li><strong>分辨率外推：</strong>推理时用更高分辨率（如 336px），patch 数量增加，位置编码用双线性插值扩展</li>
       </ul>
       <div class="code-block"><span class="cm"># ViT patch 编码伪代码</span>

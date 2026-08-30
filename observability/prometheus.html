@@ -3,16 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="拉取模式 Scrape 每 15s、TSDB 内存块压缩到磁盘和 Alertmanager 规则持续评估。">
+<meta name="description" content="Prometheus 按配置周期拉取目标，使用本地 TSDB 存储样本，由 Prometheus 评估规则并把告警发送给 Alertmanager。">
 <link rel="canonical" href="https://melodycoder12345.github.io/observability/prometheus.html">
 <meta property="og:title" content="Prometheus — 码海拾贝">
-<meta property="og:description" content="拉取模式 Scrape 每 15s、TSDB 内存块压缩到磁盘和 Alertmanager 规则持续评估。">
+<meta property="og:description" content="Prometheus 按配置周期拉取目标，使用本地 TSDB 存储样本，由 Prometheus 评估规则并把告警发送给 Alertmanager。">
 <meta property="og:url" content="https://melodycoder12345.github.io/observability/prometheus.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="码海拾贝">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Prometheus — 码海拾贝">
-<meta name="twitter:description" content="拉取模式 Scrape 每 15s、TSDB 内存块压缩到磁盘和 Alertmanager 规则持续评估。">
+<meta name="twitter:description" content="Prometheus 按配置周期拉取目标，使用本地 TSDB 存储样本，由 Prometheus 评估规则并把告警发送给 Alertmanager。">
 <title>Prometheus - 可观测性</title>
 <script src="../nav.js"></script>
 <style>
@@ -64,7 +64,7 @@ a{color:var(--accent);text-decoration:none}
 <main class="wrap">
   <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">可观测性</a><span>/</span>Prometheus</div>
   <h1 class="page-title">Prometheus</h1>
-  <p class="subtitle">Prometheus 采用拉取（Pull）模式，每 15s 向 Target 的 /metrics 端点发起 HTTP 请求，解析文本格式指标，写入内存 TSDB 块（2h 后压缩到磁盘），Alertmanager 持续评估规则，跨越阈值时触发告警。</p>
+  <p class="subtitle">Prometheus 通常按配置周期以拉取（Pull）模式采集 Target。默认 <code>scrape_interval</code> 和 <code>evaluation_interval</code> 均为 1 分钟，本例显式设为 15 秒。样本先进入受 WAL 保护的 Head，随后切割为通常约 2 小时的持久块；规则由 Prometheus 评估，Alertmanager 负责分组、抑制和通知。</p>
 
   <div class="layout">
     <div class="left-panel">
@@ -124,19 +124,19 @@ a{color:var(--accent);text-decoration:none}
 <script>
 const STEPS = [
   {scraping:false,blocks:['mem'],alertState:'inactive',
-   msg:'初始状态：Prometheus 已配置 scrape_configs，每 15s 向 Target 发起 HTTP GET /metrics 请求。TSDB 中有当前活跃的内存块。'},
+   msg:'初始状态：本例已把 scrape_interval 配置为 15s（Prometheus 全局默认是 1m），向 Target 发起 HTTP GET /metrics 请求。TSDB 中有当前活跃且由 WAL 保护的 Head 数据。'},
   {scraping:true,blocks:['mem','mem'],alertState:'inactive',
    metrics:`<span class="hl">http_requests_total</span>{method="GET",status="200"} 1823\n<span class="hl">http_requests_total</span>{method="POST",status="500"} 4\n<span class="hl">process_cpu_seconds_total</span> 431.5\n<span class="hl">go_goroutines</span> 45`,
-   msg:'Prometheus 向 app-server:8080/metrics 发起 Scrape 请求，解析文本格式（OpenMetrics），每个 {metric_name + labels + value + timestamp} 作为一个 Sample 写入内存块。'},
+   msg:'Prometheus 向 app-server:8080/metrics 发起 Scrape 请求，通过内容协商解析支持的 Prometheus/OpenMetrics 格式。每个时间序列由指标名和标签集标识，采集结果形成带值与时间戳的样本。'},
   {scraping:false,blocks:['mem','mem','mem'],alertState:'inactive',
-   msg:'经过多次 Scrape（~1h），内存块已积累约 7200 个 Sample（15s×240次）。TSDB 内存块是追加写入，每个 time series 按时间排序。'},
+   msg:'经过 1 小时、每 15 秒一次的 Scrape，每条持续存在的时间序列约产生 240 个样本；总样本数还要乘以时间序列数量。Head 接收新样本，并通过 WAL 提供崩溃恢复能力。'},
   {scraping:false,blocks:['compressed','mem'],alertState:'inactive',
-   msg:'内存块到达 2h，Prometheus 后台将其压缩写入磁盘（Gorilla 压缩，约 1-2 字节/样本）。压缩块不可修改，是 TSDB 的不可变段（immutable segment）。'},
+   msg:'Head 数据通常按约 2 小时范围切割成持久块。块目录包含 chunks、索引和元数据；后台压实会合并已有块。具体压缩率取决于数据，官方容量规划可用约 1–2 字节/样本作粗略估算。'},
   {scraping:true,blocks:['compressed','compressed','mem'],alertState:'inactive',
    metrics:`<span class="hl">http_requests_total</span>{method="GET",status="200"} 2341\n<span class="hl" style="color:var(--err)">http_requests_total</span>{method="POST",status="500"} <strong style="color:var(--err)">48</strong>\n<span class="hl">process_cpu_seconds_total</span> 459.1\n<span class="hl">go_goroutines</span> 51`,
-   msg:'错误率上升：5xx 请求数从 4 增加到 48。Alertmanager 每 evaluation_interval（15s）对规则 HighErrorRate 进行一次 PromQL 查询。'},
+   msg:'错误率上升：5xx 请求数从 4 增加到 48。本例中的 Prometheus 每 evaluation_interval（15s）评估一次 HighErrorRate 规则；Alertmanager 不执行 PromQL。'},
   {scraping:false,blocks:['compressed','compressed','mem'],alertState:'firing',
-   msg:'⚠ 告警触发！rate(http_requests_total{status~="5.."}[5m]) / rate(http_requests_total[5m]) = 0.048 > 0.01 阈值。状态 PENDING → FIRING。Alertmanager 发送通知到 Slack/PagerDuty。'},
+   msg:'⚠ 告警触发！rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) = 0.048 > 0.01。若规则配置了 for，告警会从 PENDING 进入 FIRING；Prometheus 随后把告警状态发送给 Alertmanager，由其路由通知。'},
 ];
 
 let cur = -1, timer = null;

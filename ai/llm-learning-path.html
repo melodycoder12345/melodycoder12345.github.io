@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="从调用大模型 API、理解 Transformer，到实现 Mini GPT 和分析训练算法的四阶段学习路线。">
+<link rel="canonical" href="https://melodycoder12345.github.io/ai/llm-learning-path.html">
+<meta property="og:title" content="大模型底层学习路线 — 码海拾贝">
+<meta property="og:description" content="从调用大模型 API、理解 Transformer，到实现 Mini GPT 和分析训练算法的四阶段学习路线。">
+<meta property="og:url" content="https://melodycoder12345.github.io/ai/llm-learning-path.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="大模型底层学习路线 — 码海拾贝">
+<meta name="twitter:description" content="从调用大模型 API、理解 Transformer，到实现 Mini GPT 和分析训练算法的四阶段学习路线。">
+<title>大模型底层学习路线 - AI 系统</title>
+<script src="../nav.js"></script>
+<script src="../footer.js"></script>
+<link rel="stylesheet" href="ai.css">
+<style>
+  .route-start{display:flex;flex-direction:column;justify-content:center;border-color:rgba(74,222,128,.28);background:linear-gradient(145deg,rgba(74,222,128,.1),rgba(17,24,39,.82) 52%)}
+  .route-start h2{font-size:1.38rem;margin-bottom:8px}
+  .route-start p{color:var(--dim);font-size:.9rem;line-height:1.75}
+  .route-start .btn{align-self:flex-start;margin-top:18px;border-color:var(--green);background:rgba(74,222,128,.15);color:#dcfce7;font-weight:800}
+  .route-intro{display:flex;align-items:end;justify-content:space-between;gap:18px;margin:28px 0 13px}
+  .route-intro h2{font-size:1.2rem;margin-bottom:3px}
+  .route-intro p{color:var(--dim);font-size:.84rem}
+  .route{display:grid;gap:12px}
+  .route-stage{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.68);border-radius:20px;position:relative;overflow:hidden}
+  .route-stage:before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 0 0,color-mix(in srgb,var(--stage-color) 16%,transparent),transparent 38%);pointer-events:none}
+  .route-stage>*{position:relative}
+  .route-stage[open]{border-color:color-mix(in srgb,var(--stage-color) 42%,rgba(255,255,255,.08))}
+  .route-summary{display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:22px;align-items:center;padding:20px 22px;cursor:pointer;list-style:none}
+  .route-summary::-webkit-details-marker{display:none}
+  .route-summary:after{content:'展开';color:var(--stage-color);font-size:.72rem;font-weight:800;letter-spacing:.08em}
+  .route-stage[open] .route-summary:after{content:'收起'}
+  .route-index{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--stage-color);font-size:.76rem;letter-spacing:.12em;text-transform:uppercase}
+  .route-index strong{display:block;font-size:1.8rem;line-height:1;margin-bottom:8px}
+  .route-body h2{font-size:1.08rem;margin-bottom:5px}
+  .route-body>p{color:var(--dim);font-size:.84rem}
+  .route-links{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+  .route-stage>.route-links{margin:0 22px 22px 194px;padding-top:17px;border-top:1px solid rgba(255,255,255,.07)}
+  .route-link,.route-future{display:block;border:1px solid rgba(255,255,255,.08);background:rgba(8,13,28,.48);border-radius:14px;padding:12px 13px;text-decoration:none}
+  .route-link:hover{border-color:var(--stage-color);transform:translateY(-1px)}
+  .route-link b,.route-future b{display:block;font-size:.86rem;margin-bottom:3px}
+  .route-link span,.route-future span{display:block;color:var(--dim);font-size:.76rem;line-height:1.55}
+  .route-future{opacity:.74}
+  .checklist{display:grid;gap:9px;margin-top:12px}
+  .checklist li{list-style:none;padding-left:24px;position:relative}
+  .checklist li:before{content:'✓';position:absolute;left:0;color:var(--green);font-weight:900}
+  @media(max-width:760px){.route-intro{display:block}.route-intro p{margin-top:4px}.route-summary{grid-template-columns:1fr auto;gap:12px;padding:17px}.route-index{grid-column:1/-1;display:flex;align-items:center;gap:10px}.route-index strong{margin:0;font-size:1.35rem}.route-stage>.route-links{grid-template-columns:1fr;margin:0 17px 17px;padding-top:15px}.route-body h2{font-size:1rem}}
+</style>
+</head>
+<body>
+<main class="shell">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">AI Foundations / Four Stages</div>
+      <h1>大模型底层学习路线</h1>
+      <p class="summary">先会安全、稳定地调用模型，再理解 Token 与 Transformer，随后亲手实现 Mini GPT，最后进入训练算法实验。数学知识在真正用到时补齐，不要求先学完整套大学数学。</p>
+      <div class="tags"><span>API</span><span>Transformer</span><span>Mini GPT</span><span>Training</span></div>
+    </div>
+    <div class="card route-start">
+      <div class="eyebrow">你现在只做一件事</div>
+      <h2>先完成 API 调用基础</h2>
+      <p>暂时不用看 Transformer 公式。先理解请求、认证、流式响应、结果校验和错误恢复，完成后再回来进入阶段二。</p>
+      <a class="btn" href="api-basics.html">开始第一课 →</a>
+    </div>
+  </section>
+
+  <header class="route-intro">
+    <div><h2>完整路线</h2><p>阶段一已展开；其余阶段需要时再展开。</p></div>
+  </header>
+  <section class="route" aria-label="四阶段学习路线">
+    <details class="route-stage" style="--stage-color:#4ade80" open>
+      <summary class="route-summary">
+        <span class="route-index"><strong>01</strong>从这里开始</span>
+        <span class="route-body"><h2>阶段一：使用大模型与 API</h2><p>理解调用链路、安全边界和错误恢复；几乎不需要数学。</p></span>
+      </summary>
+      <div class="route-links">
+          <a class="route-link" href="training-alignment.html#llm-overview"><b>1. LLM 基础概念</b><span>先理解 Token、生成、训练与推理。</span></a>
+          <a class="route-link" href="api-basics.html"><b>2. API 调用基础</b><span>请求、认证、流式消费与错误恢复。</span></a>
+          <a class="route-link" href="prompt-engineering.html"><b>3. Prompt Engineering</b><span>组织指令、上下文和示例。</span></a>
+          <a class="route-link" href="context-length.html"><b>4. 上下文长度</b><span>理解输入预算与超限边界。</span></a>
+          <a class="route-link" href="structured-output.html"><b>5. 结构化输出</b><span>用 Schema 约束并校验结果。</span></a>
+          <a class="route-link" href="agent-tool-calling.html"><b>6. 工具调用</b><span>理解模型提议与宿主执行的边界。</span></a>
+      </div>
+    </details>
+
+    <details class="route-stage" style="--stage-color:#22d3ee">
+      <summary class="route-summary">
+        <span class="route-index"><strong>02</strong>完成阶段一后</span>
+        <span class="route-body"><h2>阶段二：理解 Transformer</h2><p>按需补向量、Softmax 和梯度，再串联 Tokenization、Embedding 与 Attention。</p></span>
+      </summary>
+      <div class="route-links">
+          <a class="route-link" href="vector-matrix-for-llm.html"><b>1. 向量与矩阵</b><span>Token 向量、点积、形状和矩阵乘法。</span></a>
+          <a class="route-link" href="softmax-cross-entropy.html"><b>2. Softmax 与交叉熵</b><span>从 Logits 到概率与 Loss。</span></a>
+          <a class="route-link" href="gradient-backprop.html"><b>3. 梯度与反向传播</b><span>链式法则和一次参数更新。</span></a>
+          <a class="route-link" href="tokenization.html"><b>4. BPE 分词</b><span>复用现有 Tokenization 主讲页面。</span></a>
+          <a class="route-link" href="embedding.html"><b>5. Embedding</b><span>复用现有向量语义与检索页面。</span></a>
+          <a class="route-link" href="transformer-attention.html"><b>6. Transformer Attention</b><span>把数学前置装进 Q/K/V 流程。</span></a>
+          <a class="route-link" href="training-alignment.html#training-pipeline"><b>7. Training Pipeline</b><span>理解 Loss、Backward 与 Optimizer 的系统位置。</span></a>
+      </div>
+    </details>
+
+    <details class="route-stage" style="--stage-color:#a78bfa">
+      <summary class="route-summary">
+        <span class="route-index"><strong>03</strong>完成阶段二后</span>
+        <span class="route-body"><h2>阶段三：从零实现 Mini GPT</h2><p>把组件组合成一个可运行的小模型，并跟随完整张量流。</p></span>
+      </summary>
+      <div class="route-links">
+        <a class="route-link" href="mini-gpt.html"><b>Mini GPT 分步实验</b><span>跟随张量形状，并对照 PyTorch 教学实现。</span></a>
+      </div>
+    </details>
+
+    <details class="route-stage" style="--stage-color:#fb923c">
+      <summary class="route-summary">
+        <span class="route-index"><strong>04</strong>完成阶段三后</span>
+        <span class="route-body"><h2>阶段四：训练算法实验</h2><p>通过 Loss 曲线理解优化器、学习率、梯度裁剪、正则化与 LoRA。</p></span>
+      </summary>
+      <div class="route-links">
+        <a class="route-link" href="training-optimization-lab.html"><b>训练优化实验室</b><span>识别慢、发散、梯度爆炸与过拟合曲线。</span></a>
+        <a class="route-link" href="fine-tuning.html"><b>微调 / LoRA</b><span>继续进入现有参数高效微调页面。</span></a>
+      </div>
+    </details>
+  </section>
+
+  <section class="grid">
+    <article class="section">
+      <h2>阶段一完成标准</h2>
+      <ul class="checklist">
+        <li>能解释一次模型 API 请求的完整生命周期。</li>
+        <li>能区分普通响应和流式响应。</li>
+        <li>知道 API Key 为什么必须保存在服务端。</li>
+        <li>能识别限流、超时、上下文超限和结果校验失败。</li>
+      </ul>
+    </article>
+    <article class="section">
+      <h2>数学从哪里开始</h2>
+      <p>第一阶段几乎不需要数学。第二阶段遇到 Embedding、Attention、Softmax 和训练时，再依次补向量、矩阵、概率、导数和梯度。这样每个公式都有明确用途。</p>
+      <div class="callout">四个阶段均已提供页面与验收入口；仍建议按顺序学习，不必一次看完。</div>
+    </article>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="index.html">返回 AI 系统</a>
+    <a class="btn" href="api-basics.html">开始阶段一</a>
+  </div>
+</main>
+</body>
+</html>

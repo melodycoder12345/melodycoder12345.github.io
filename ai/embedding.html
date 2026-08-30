@@ -20,14 +20,14 @@
 <script>window.PAGE_CONCEPTS=[
   {"title":"对比学习","body":"通过拉近正样本对（语义相关）、推远负样本对（语义无关）来训练 Embedding 模型，InfoNCE loss 是最主流的对比学习目标。","tag":"term"},
   {"title":"Bi-Encoder","body":"双塔结构，query 和 document 独立编码成向量，支持离线预计算和 ANN 检索，是语义搜索的主流架构。","tag":"term"},
-  {"title":"ANN","body":"Approximate Nearest Neighbor，近似最近邻搜索，用 HNSW/IVF 等索引结构在亿级向量中毫秒级找到最相近的向量。","tag":"term"}
+  {"title":"ANN","body":"Approximate Nearest Neighbor，用 HNSW、IVF 等索引在召回率、内存、构建成本和查询延迟之间取舍；规模本身不保证毫秒级响应。","tag":"term"}
 ];</script>
 </head>
 <body>
-<main class="shell" data-page-type="B">
+<main class="shell">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">AI / Embedding / B 类型</div>
+      <div class="eyebrow">AI / Embedding</div>
       <h1>Embedding 模型</h1>
       <p class="summary">Embedding 将文本、图像等离散对象映射到连续向量空间，使语义相似的内容距离相近。理解对比学习、向量化应用场景和局限性，是构建语义搜索和 RAG 系统的基础。</p>
       <div class="tags"><span>对比学习</span><span>语义相似度</span><span>向量检索</span><span>Bi-Encoder</span></div>
@@ -35,8 +35,8 @@
     <div class="card map">
       <div class="eyebrow">核心权衡</div>
       <div class="term"><strong>语义 vs 词汇匹配</strong><span>Embedding 捕获语义相似性，"汽车"和"轿车"距离近，但精确词汇匹配（如代码、ID）需要 BM25 等词汇模型补充。</span></div>
-      <div class="term"><strong>Bi-Encoder vs Cross-Encoder</strong><span>Bi-Encoder 速度快（独立编码），适合大规模检索；Cross-Encoder 精度高（联合编码），适合 rerank 精排阶段。</span></div>
-      <div class="term"><strong>领域泛化 vs 领域专用</strong><span>通用 Embedding（如 text-embedding-3）开箱即用，但在垂直领域（医疗、法律、代码）通常不如领域微调的专用模型。</span></div>
+      <div class="term"><strong>Bi-Encoder vs Cross-Encoder</strong><span>Bi-Encoder 可预计算文档向量，适合召回；Cross-Encoder 联合编码 query 与文档，通常用于较小候选集重排，质量和延迟需实测。</span></div>
+      <div class="term"><strong>领域泛化 vs 领域专用</strong><span>通用与领域模型没有必然优劣，应在目标语料、查询和相关性标注上比较。</span></div>
     </div>
   </section>
 
@@ -47,7 +47,7 @@
       <ul>
         <li><strong>几何直觉</strong>：词向量空间中，"国王" - "男人" + "女人" ≈ "女王"。这说明向量空间能编码语义关系，不只是标签。</li>
         <li><strong>相似度度量</strong>：通常用余弦相似度（cosine similarity）衡量两个向量的语义接近程度，不受向量模长影响。</li>
-        <li><strong>维度</strong>：常见 Embedding 维度是 384、768、1024、1536，维度越高表达能力越强，但存储和计算成本越高。</li>
+        <li><strong>维度</strong>：更高维度增加存储与计算，但不保证表达或检索质量更高；模型训练目标和数据同样关键。</li>
         <li><strong>归一化</strong>：语义搜索中，通常对向量 L2 归一化，使余弦相似度等价于内积，便于 ANN 索引加速。</li>
       </ul>
       <div class="callout">不要把 Embedding 理解为"特征提取"的黑盒。理解它的训练目标（对比学习）和相似度定义（余弦距离），才能理解为什么它有时失效。</div>
@@ -98,10 +98,10 @@ scores = cross_encoder.predict(pairs)   # 精确但慢</pre>
       <h2>向量数据库和 ANN 索引</h2>
       <p>当向量库达到百万级，暴力搜索（brute-force cosine）不再可行，需要 ANN 索引在精度和延迟之间取得平衡。</p>
       <ul>
-        <li><strong>HNSW（Hierarchical Navigable Small World）</strong>：图结构索引，查询精度高（recall ~99%），插入快，适合实时更新，是 Milvus/Weaviate/Qdrant 的默认索引。</li>
+        <li><strong>HNSW（Hierarchical Navigable Small World）</strong>：图结构索引；召回率、延迟、内存和构建成本由 M、efConstruction、efSearch 与数据分布共同决定。</li>
         <li><strong>IVF（倒排向量）</strong>：先 K-Means 聚类，查询时只搜最近的几个 cluster，速度快但需要离线建索引，适合静态大规模数据集（FAISS 场景）。</li>
-        <li><strong>PQ（乘积量化）</strong>：压缩向量到极小尺寸（32 bytes），牺牲部分精度换取超低内存，适合超大规模（10亿+）场景。</li>
-        <li><strong>向量数据库选择</strong>：Milvus（企业大规模）、Qdrant（Rust，性能强）、Weaviate（支持 hybrid search）、pgvector（PostGres 扩展，已有 PG 用户的最简选择）。</li>
+        <li><strong>PQ（乘积量化）</strong>：把子向量编码为码本索引；每向量字节数由子量化器数量和编码位宽决定，不固定为 32 bytes。</li>
+        <li><strong>向量数据库选择</strong>：应比较过滤语义、索引能力、一致性、运维、成本和目标工作负载，不宜仅凭语言或产品定位判断。</li>
       </ul>
     </article>
     <article class="section">

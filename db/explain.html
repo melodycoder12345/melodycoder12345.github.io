@@ -73,10 +73,10 @@ td.warn{color:#fbbf24}
 </style>
 </head>
 <body>
-<main class="content" data-page-type="B">
+<main class="content">
   <section class="hero">
     <div class="hero-card">
-      <div class="eyebrow">DB / MySQL 优化 / B 类型</div>
+      <div class="eyebrow">DB / MySQL 优化</div>
       <h1>EXPLAIN 执行计划</h1>
       <p class="summary">EXPLAIN 是 MySQL 查询优化的主要入口，通过分析执行计划可以发现全表扫描、低效索引和不必要的 filesort。理解每个字段的含义是优化 SQL 性能的基本技能。</p>
       <div class="tags"><span>type</span><span>key</span><span>rows</span><span>Extra</span></div>
@@ -84,7 +84,7 @@ td.warn{color:#fbbf24}
     <div class="hero-card">
       <div class="eyebrow">关键字段</div>
       <ul class="concept-list">
-        <li><strong>type（访问类型）</strong><span>最重要的列，const/ref/range 都可以，ALL（全表扫描）必须避免</span></li>
+        <li><strong>type（访问类型）</strong><span>重要的访问路径提示；ALL 表示全表扫描，但小表、低选择性查询或分析型扫描中可能是合理选择</span></li>
         <li><strong>key（实际索引）</strong><span>优化器实际选择的索引。NULL 表示未使用任何索引</span></li>
         <li><strong>rows × filtered</strong><span>估算返回行数 = rows × filtered/100，影响 JOIN 顺序决策</span></li>
       </ul>
@@ -121,7 +121,7 @@ td.warn{color:#fbbf24}
         <div class="type-row ok"><span class="type-name">ref</span><span class="type-desc">非唯一索引等值，可能多行</span></div>
         <div class="type-row ok"><span class="type-name">range</span><span class="type-desc">索引范围扫描（BETWEEN/>/&lt;/IN）</span></div>
         <div class="type-row ok"><span class="type-name">index</span><span class="type-desc">全索引扫描（无需回表，但扫全索引）</span></div>
-        <div class="type-row warn"><span class="type-name">ALL</span><span class="type-desc">全表扫描，必须优化！</span></div>
+        <div class="type-row warn"><span class="type-name">ALL</span><span class="type-desc">全表扫描；需结合表大小、过滤比例和实际耗时判断是否优化</span></div>
       </div>
       <pre style="margin-top:12px"><span class="cm">-- const：主键等值</span>
 <span class="kw">EXPLAIN</span> <span class="kw">SELECT</span> * <span class="kw">FROM</span> users <span class="kw">WHERE</span> id = <span class="num">1</span>;
@@ -181,8 +181,8 @@ td.warn{color:#fbbf24}
           <tr><td><code>Using index</code></td><td>覆盖索引：查询所需字段全在索引中，无需回表（最优情况）</td><td class="good">好，保持</td></tr>
           <tr><td><code>Using index condition</code></td><td>ICP（Index Condition Pushdown）：部分 WHERE 条件在存储引擎层过滤，减少回表次数</td><td class="good">好</td></tr>
           <tr><td><code>Using where</code></td><td>WHERE 条件有部分在 Server 层过滤（索引无法完全覆盖），会产生额外判断开销</td><td class="warn">可接受，考虑优化</td></tr>
-          <tr><td><code>Using filesort</code></td><td>无法用索引排序，需要额外排序操作（内存或磁盘）。排序大结果集时极慢</td><td class="bad">必须优化</td></tr>
-          <tr><td><code>Using temporary</code></td><td>需要创建临时表（GROUP BY、DISTINCT 等），磁盘临时表会极大影响性能</td><td class="bad">必须优化</td></tr>
+          <tr><td><code>Using filesort</code></td><td>无法直接利用索引顺序，需要额外排序；名称并不表示一定落盘</td><td class="warn">结合实际行数判断</td></tr>
+          <tr><td><code>Using temporary</code></td><td>执行中需要内部临时表；是否落盘及代价取决于数据类型、大小和服务器配置</td><td class="warn">结合实际耗时判断</td></tr>
           <tr><td><code>Using join buffer</code></td><td>JOIN 时被驱动表无有效索引，使用 Block Nested Loop 算法，大量内存/IO 消耗</td><td class="bad">需加索引</td></tr>
         </tbody>
       </table>

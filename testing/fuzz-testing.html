@@ -21,7 +21,7 @@
 body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh;}
 .nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:44px;z-index:10;}
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;}.back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{margin:0;font-size:1.06rem;font-weight:700;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .page-wrap{display:flex;max-width:1200px;margin:0 auto;padding:0 20px;gap:32px;}
@@ -80,7 +80,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
 <body>
 <div class="nav-bar">
   <a href="index.html" class="back">← 返回</a>
-  <span class="nav-title">🔀 模糊测试</span>
+  <h1 class="nav-title">🔀 模糊测试</h1>
   <div class="nav-tags">
     <span class="ntag">go test -fuzz</span>
     <span class="ntag">corpus</span>
@@ -107,7 +107,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
       <div class="card">
         <div class="card-hd"><h3>自动化的边界输入生成</h3><span class="badge badge-core">[核心]</span></div>
         <div class="card-body">
-          <p>模糊测试（Fuzzing）是一种自动化测试技术：<strong>通过随机或变异的方式生成大量输入，喂给被测函数，观察是否触发崩溃、Panic、数据竞争或其他异常行为</strong>。</p>
+          <p>模糊测试（Fuzzing）是一种自动化测试技术：<strong>通过随机或变异的方式生成大量输入，喂给被测函数，并用显式测试属性或运行时异常判断失败</strong>。它擅长发现崩溃、Panic 和属性违例；数据竞争只有在同时启用相应竞态检测且实际触发交错时才可能被发现。</p>
           <p>传统单元测试的局限：开发者手写的测试用例受思维定势限制，往往覆盖不到"意想不到"的边界输入（空字节、超长字符串、特殊 Unicode、递归结构等）。Fuzzer 可以机械地探索这些边界。</p>
           <ul>
             <li><strong>发现 Parser 漏洞</strong>：JSON、XML、Protobuf 解析中的 Panic</li>
@@ -160,7 +160,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
           <p>Go 1.18 内置了 fuzzing 支持，无需额外依赖。Fuzz 函数和普通测试在同一文件中，使用 <code>*testing.F</code> 类型。</p>
 <pre><span class="cm">// 模糊测试：发现 ParseURL 的边界 Panic</span>
 <span class="kw">func</span> <span class="fn">FuzzParseURL</span>(f *testing.F) {
-    <span class="cm">// Seed corpus：初始有意义的输入（必须！）</span>
+    <span class="cm">// Seed corpus：建议提供有意义的输入；也可不调用 Add</span>
     f.<span class="fn">Add</span>(<span class="st">"https://example.com/path?q=1"</span>)
     f.<span class="fn">Add</span>(<span class="st">"http://user:pass@host:8080/path"</span>)
     f.<span class="fn">Add</span>(<span class="st">""</span>)    <span class="cm">// 空字符串边界</span>
@@ -329,7 +329,7 @@ string("http://\x00\x01\x02")</pre>
       <div class="section-title"><div class="title-bar"></div><h2>面试问答</h2></div>
       <div class="qa-card">
         <div class="qa-q" onclick="toggleQA(this)">Coverage-guided fuzzing 和随机 fuzzing 的区别？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a">随机 fuzzing 直接生成完全随机的输入，大部分输入无法通过基础验证（如输入不是合法 JSON），浪费大量时间探索无效路径。Coverage-guided fuzzing（如 libFuzzer、Go fuzzing）在每次执行后收集代码覆盖率，保留那些触发了新代码路径的输入进行变异，优先探索未覆盖的代码区域。这样 fuzzer 可以"学习"输入格式，逐步穿透验证层，发现深层 Bug。效率比纯随机高 100-1000 倍。</div>
+        <div class="qa-a">随机 fuzzing 直接生成完全随机的输入，大部分输入无法通过基础验证（如输入不是合法 JSON），浪费大量时间探索无效路径。Coverage-guided fuzzing（如 libFuzzer、Go fuzzing）在每次执行后收集代码覆盖率，保留那些触发了新代码路径的输入进行变异，优先探索未覆盖的代码区域。这样 fuzzer 可以“学习”输入格式，逐步穿透验证层；它通常比无反馈的纯随机生成更有效，但提升幅度依输入语法、种子、插桩和目标程序而异，不存在通用的 100–1000 倍保证。</div>
       </div>
       <div class="qa-card">
         <div class="qa-q" onclick="toggleQA(this)">Seed Corpus 的质量为什么重要？<span class="qa-arrow">▶</span></div>

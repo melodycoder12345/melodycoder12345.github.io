@@ -94,17 +94,17 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
 .cmp-box p{font-size:.75rem;color:var(--dim);margin-top:4px;}
 </style>
 <script>window.PAGE_CONCEPTS=[
-  {"title":"RTT（Round-Trip Time）","body":"命令从客户端发出到服务端响应返回的网络往返延迟。局域网约 0.1-1ms，跨城市约 5-20ms。逐条发送时，每条命令都要等待上一条的响应，RTT 是主要瓶颈。","tag":"term"},
+  {"title":"RTT（Round-Trip Time）","body":"命令从客户端发出到服务端响应返回的网络往返延迟，随网络拓扑、拥塞和部署环境变化。逐条同步发送时，每条命令都要等待上一条响应，RTT 常成为主要瓶颈。","tag":"term"},
   {"title":"Pipeline","body":"将多条命令打包一次性发送，服务端按顺序执行并批量返回响应。客户端不需要等待每条命令的响应，显著减少 RTT 等待时间。","tag":"term"},
   {"title":"MULTI/EXEC 事务","body":"Redis 事务将命令队列化，EXEC 时原子执行。与 Pipeline 不同：事务保证原子性（EXEC 之前不执行任何命令），Pipeline 只是批量传输，命令间没有原子性保证。","tag":"term"},
   {"title":"原子性边界","body":"Pipeline 不是事务：执行过程中其他客户端的命令可能插入其中。若需原子性，应使用 MULTI/EXEC 或 Lua 脚本。Pipeline 的优势是纯粹减少网络往返次数。","tag":"term"}
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">Redis / Pipeline / C 类型</div>
+      <div class="eyebrow">Redis / Pipeline</div>
       <h1>Redis Pipeline</h1>
       <p class="summary">Pipeline 将多条命令打包一次发送，服务端顺序执行后批量返回响应。核心收益是消除逐条命令模式下每次等待 RTT 的空白时间。动画展示相同 N 条命令在两种模式下的时间线差异：逐条模式的灰色等待段大幅缩短为 Pipeline 模式的单次往返。</p>
       <div class="tags"><span>Pipeline</span><span>RTT</span><span>MULTI/EXEC</span><span>批量操作</span><span>吞吐优化</span></div>
@@ -113,9 +113,9 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
       <div class="eyebrow">核心术语</div>
       <ul class="concept-list">
         <li><strong>RTT（往返延迟）</strong><span>命令从发出到收到响应的网络时间。逐条模式每条命令独占一个 RTT 等待。</span></li>
-        <li><strong>Pipeline 批量</strong><span>多条命令一次性发送，只需一个 RTT 等待，其余时间为纯执行时间。</span></li>
+        <li><strong>Pipeline 批量</strong><span>多条命令可连续发送而不逐条等待响应，显著摊薄往返等待；分包、服务端执行和响应传输仍有成本。</span></li>
         <li><strong>原子性</strong><span>Pipeline 无原子性保证，执行中可插入其他客户端命令。需要原子性用 MULTI/EXEC。</span></li>
-        <li><strong>缓冲区</strong><span>服务端将 Pipeline 命令写入输出缓冲区，EXEC 后统一返回。客户端需一次读取所有响应。</span></li>
+        <li><strong>缓冲区</strong><span>服务端按序处理命令并把回复写入客户端输出缓冲区；Pipeline 本身没有 EXEC，客户端按序读取回复。</span></li>
       </ul>
     </div>
   </section>
@@ -227,7 +227,7 @@ pipe.Exec(ctx) <span style="color:#fbbf24">// 原子执行</span></pre>
         <li><strong style="color:var(--text)">MULTI/EXEC：</strong>事务原子性，命令提前入队，EXEC 后统一执行</li>
         <li><strong style="color:var(--text)">Lua 脚本：</strong>最强原子性，脚本执行期间 Redis 不处理其他命令</li>
         <li>MULTI/EXEC + Pipeline 可组合：TxPipeline() 一次发送事务</li>
-        <li>注意：MULTI/EXEC 不支持 WATCH 时的乐观锁（需要检查）</li>
+        <li><code>WATCH</code> 可在 <code>MULTI/EXEC</code> 前监视 key，实现 CAS 风格的乐观锁；若 key 在 EXEC 前变化，EXEC 返回空结果，客户端应按业务策略重试。</li>
       </ul>
     </section>
     <section>

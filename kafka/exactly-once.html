@@ -39,15 +39,15 @@
 .deep{display:grid;grid-template-columns:1fr 1fr;gap:16px}.deep section{border:1px solid rgba(255,255,255,.08);background:rgba(17,24,39,.58);border-radius:18px;padding:20px}.deep h2{font-size:.88rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px}.deep p,.deep li{color:var(--dim);font-size:.9rem;line-height:1.8}.deep ul{display:flex;flex-direction:column;gap:8px;padding-left:18px}.back-row{margin-top:22px;display:flex;gap:12px;flex-wrap:wrap}.btn{text-decoration:none;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 14px;color:var(--dim);background:rgba(255,255,255,.04)}.btn:hover{color:var(--text);border-color:var(--accent)}@media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
 </style>
 <script>window.PAGE_CONCEPTS=[
-  {"title":"PID / Sequence","body":"Producer 幂等发送依赖 producer id 和递增序号去重，解决单 session 内的重复发送。","tag":"term"},
+  {"title":"PID / Sequence","body":"Producer 幂等发送依赖 producer id、epoch 和批次序号，对客户端协议内的重试去重；应用主动重发不在其去重范围内。","tag":"term"},
   {"title":"Transaction Coordinator","body":"协调事务状态（BEGIN/COMMIT/ABORT）和 producer epoch 管理，防止僵尸 producer 写入。","tag":"term"},
-  {"title":"sendOffsetsToTransaction","body":"把消费位点作为事务的一部分提交，保证结果和消费进度原子生效，实现端到端 EOS。","tag":"term"}
+  {"title":"sendOffsetsToTransaction","body":"把消费位点作为事务的一部分提交，使 Kafka 内输出和消费进度原子生效；下游需使用 read_committed。","tag":"term"}
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
-    <div class="card"><div class="eyebrow">Kafka / exactly-once / C 类型</div><h1>Exactly Once</h1><p class="summary">Kafka 的 Exactly Once 由幂等 Producer、事务和 offset 原子提交组合而来，把"产生结果"和"提交消费位点"放进同一个事务边界。</p><div class="tags"><span>Idempotent Producer</span><span>Transaction</span><span>Offset</span></div></div>
+    <div class="card"><div class="eyebrow">Kafka / exactly-once</div><h1>Exactly Once</h1><p class="summary">Kafka 范围内的 Exactly-Once 处理由幂等 Producer、事务、offset 原子提交和 read_committed 消费组合而来；外部数据库或 API 不自动包含在该事务边界内。</p><div class="tags"><span>Idempotent Producer</span><span>Transaction</span><span>Offset</span></div></div>
     <div class="card"><div class="eyebrow">核心术语</div><ul class="concept-list"><li><strong>PID / Sequence</strong><span>Producer 幂等发送依赖 producer id 和递增序号去重。</span></li><li><strong>Transaction Coordinator</strong><span>协调事务状态和提交/回滚，管理 producer epoch。</span></li><li><strong>sendOffsetsToTransaction</strong><span>把消费位点作为事务的一部分提交。</span></li></ul></div>
   </section>
   <section class="lab">
@@ -211,7 +211,7 @@ const STEPS = [
     title: "sendOffsetsToTransaction",
     desc: "Processor 把输入 offset 写入 Txn Coordinator，offset 成为事务的一部分。",
     kind: "normal",
-    detail: "结果和消费进度一起提交，避免"结果可见但 offset 未推进"或反过来的不一致。",
+    detail: "结果和消费进度一起提交，避免‘结果可见但 offset 未推进’或反过来的不一致。",
     active: [1,3,4], fail: [], recover: [],
     edges: ['ee4','ee5'],
     edgeStyle: {ee4:'active',ee5:'active'},
@@ -224,7 +224,7 @@ const STEPS = [
     title: "commitTransaction → 结果对 read_committed 可见",
     desc: "commitTransaction 写入 commit marker，read_committed 消费者才会看到输出。",
     kind: "normal",
-    detail: "至此输出记录和 offset 原子生效，端到端处理表现为一次。之后同一输入不会被重复处理。",
+    detail: "至此 Kafka 内的输出记录和消费位点原子生效。输入仍可能因故障而被重新读取和执行，但 abort 的旧输出不会对 read_committed 下游可见。",
     active: [1,2,3,4], fail: [], recover: [],
     edges: ['ee1','ee5'],
     edgeStyle: {ee1:'active',ee5:'active'},
@@ -257,7 +257,7 @@ const STEPS = [
     txnBox: true, txnLabel: '新事务',
     inputOffset:'offset=5（重新处理）', processorState:'新实例运行', pidLabel:'PID=42 epoch=2',
     outputState:'✓ read_committed 可见', txnState:'COMPLETE_COMMIT', offsetState:'committed=5 ✓',
-    info: 'epoch=2 fencing 旧实例，EOS 保证不重复'
+    info: 'epoch=2 fencing 旧实例，read_committed 只暴露已提交结果'
   }
 ];
 

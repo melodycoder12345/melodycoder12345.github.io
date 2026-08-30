@@ -22,7 +22,7 @@
 body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;min-height:100vh;}
 .nav{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);flex-shrink:0;position:sticky;top:var(--snav-h,44px);z-index:10;}
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;display:flex;align-items:center;gap:5px;}.back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{margin:0;font-size:1.06rem;font-weight:700;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .main-area{display:flex;flex:none;height:calc(100vh - var(--snav-h,44px) - 88px);min-height:480px;overflow:hidden;}
@@ -86,7 +86,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
 <body>
 <div class="nav">
   <a href="index.html" class="back">← 返回</a>
-  <span class="nav-title">GC 三色标记</span>
+  <h1 class="nav-title">GC 三色标记</h1>
   <div class="nav-tags">
     <span class="ntag">tricolor</span><span class="ntag">write-barrier</span><span class="ntag">STW</span><span class="ntag">escape</span>
   </div>
@@ -140,7 +140,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
       </div>
       <div class="qa-card">
         <div class="qa-q" onclick="toggleQA(this)">Go GC 有几次 STW？各做什么？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a">Go GC 有<strong style="color:var(--text)"> 2 次 STW</strong>（通常总共 &lt;1ms）：<br>1. <strong style="color:var(--text)">Mark Setup STW</strong>：开启写屏障，扫描根对象（goroutine 栈、全局变量），启动并发标记。<br>2. <strong style="color:var(--text)">Mark Termination STW</strong>：关闭写屏障，处理最后一批写屏障日志，确保三色不变性，进入并发清扫。<br>之后的清扫（sweep）与应用并发执行，不需要 STW。</div>
+        <div class="qa-a">当前 Go GC 的标记周期包含两次主要 STW 转换：<br>1. <strong style="color:var(--text)">Mark Setup STW</strong>：切换到标记阶段并开启写屏障；恢复执行后并发扫描根和可达堆对象，运行中的 goroutine 会为栈扫描被短暂挂起。<br>2. <strong style="color:var(--text)">Mark Termination STW</strong>：完成剩余标记工作并切换到清扫阶段。<br>停顿时长取决于运行环境和负载，不应承诺固定小于 1ms。</div>
       </div>
       <div class="qa-card">
         <div class="qa-q" onclick="toggleQA(this)">如何降低 Go GC 的停顿时间？<span class="qa-arrow">▶</span></div>
@@ -148,11 +148,11 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
       </div>
       <div class="qa-card">
         <div class="qa-q" onclick="toggleQA(this)">GOGC 控制什么？默认值是多少？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a"><code>GOGC=100</code>（默认）表示：当堆内存达到上次 GC 后存活对象大小的 <strong style="color:var(--text)">2 倍</strong>时触发下一次 GC（100% 增长）。<br>GOGC=200：堆翻 3 倍才触发，GC 频率更低，但内存占用更高。<br>GOGC=off：完全关闭 GC（危险，仅用于极短暂的批处理任务）。<br>Go 1.19+ 推荐用 <code>GOMEMLIMIT</code> 配合 GOGC 使用，更精确。</div>
+        <div class="qa-a"><code>GOGC=100</code>（默认）把下一周期新增堆预算设为约等于“存活堆 + GC roots”。更精确的目标是 <code>live heap + (live heap + roots) × GOGC/100</code>，并非始终恰好是存活堆的 2 倍。<code>GOMEMLIMIT</code> 是涵盖运行时内存的软限制，压力下可暂时超过以避免 GC thrashing。</div>
       </div>
       <div class="qa-card">
         <div class="qa-q" onclick="toggleQA(this)">什么是混合写屏障（hybrid write barrier）？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a">Go 1.14 引入，结合了 Dijkstra 插入写屏障和 Yuasa 删除写屏障：<br>· <strong style="color:var(--text)">插入时</strong>：新写入的目标指针标记为灰色<br>· <strong style="color:var(--text)">删除时</strong>：被覆盖的旧指针也标记为灰色<br>优点：<strong style="color:var(--text)">不需要在 STW 时重新扫描 goroutine 栈</strong>（Go 1.13 之前需要），显著缩短 mark termination STW 时间。</div>
+        <div class="qa-a">Go 1.8 引入混合写屏障，结合了 Dijkstra 插入写屏障和 Yuasa 删除写屏障：<br>· <strong style="color:var(--text)">插入时</strong>：新写入的目标指针参与标记保护<br>· <strong style="color:var(--text)">删除时</strong>：被覆盖的旧指针也参与标记保护<br>它消除了标记终止阶段重新扫描全部 goroutine 栈的需要。</div>
       </div>
     </div>
   </div>
@@ -177,7 +177,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
       </div>
       <div class="qa-card">
         <div class="qa-q" onclick="toggleQA(this)">场景 5：P 数量变化<span class="qa-arrow">▶</span></div>
-        <div class="qa-a">P 数量（GOMAXPROCS）直接影响 GC 并行度：<br>→ <strong style="color:var(--text)">P 增多</strong>：可并行标记的 mark worker 更多，并发标记速度更快，STW 更短。<br>→ <strong style="color:var(--text)">P 减少</strong>：并发标记速度下降，单次 GC 持续时间变长。<br>→ 容器环境中注意使用 <code>automaxprocs</code> 正确设置 P 数量。</div>
+        <div class="qa-a">P 数量会影响应用与 GC 的并行度，但更多 P 不等于 STW 必然更短。Go 1.25+ 在 Linux 容器中默认感知 cgroup CPU 限制；较旧版本可显式设置 <code>GOMAXPROCS</code> 或使用 automaxprocs。</div>
       </div>
     </div>
   </div>
@@ -395,7 +395,7 @@ steps:[
 {title:'三色不变性得到维护',desc:'GC 继续扫描灰色对象 C，将 C 变黑。所有活跃对象都被正确保留。写屏障保证了"黑色对象不直接引用白色对象"的不变性（强三色不变式）。'}
 ],
 code:[
-'// 混合写屏障（Go 1.14+）',
+'// 混合写屏障（Go 1.8+）',
 '',
 '// 指针写入操作（伪码）',
 'func writePointer(slot *unsafe.Pointer, ptr unsafe.Pointer) {',
@@ -452,16 +452,16 @@ cnode(500,160,'C',...C_color)+
 {id:'stw',name:'STW 阶段',
 steps:[
 {title:'触发 GC：检查堆大小阈值',desc:'当堆内存达到上次 GC 后存活对象大小的 (1+GOGC/100) 倍时，触发新一轮 GC。Go 1.19+ 也可通过 GOMEMLIMIT 触发。'},
-{title:'STW #1：Mark Setup（<0.3ms）',desc:'第一次 STW：暂停所有 goroutine，开启写屏障，扫描所有 goroutine 的栈以找到根对象（指针）。完成后恢复所有 goroutine，开始并发标记。'},
-{title:'并发标记（与应用同时运行）',desc:'所有 P 上的后台标记 goroutine（mark worker）同时运行，扫描堆上所有可达对象。写屏障保护并发安全。标记 goroutine 使用 25% CPU 配额（不影响应用）。'},
-{title:'STW #2：Mark Termination（<0.5ms）',desc:'第二次 STW：关闭写屏障，处理最后一批写屏障日志，确保没有遗漏对象。之后并发清扫开始，应用恢复运行。清扫不需要 STW。'}
+{title:'STW #1：Mark Setup',desc:'第一次 STW 切换到标记阶段并开启写屏障。恢复执行后并发扫描根和可达对象；运行中的 goroutine 会为栈扫描被短暂挂起。'},
+{title:'并发标记（与应用同时运行）',desc:'后台标记 worker 与应用并发扫描可达对象，并可能由分配较快的用户 goroutine 执行 GC assist。GC 使用 CPU，因此会影响应用可用算力。'},
+{title:'STW #2：Mark Termination',desc:'第二次 STW 完成剩余标记并切换阶段。之后清扫主要与应用并发执行；具体停顿取决于负载和环境。'}
 ],
 code:[
 '// GC 触发与两次 STW 流程',
 '',
 '// 1. GC 触发条件',
 '// 堆大小 >= 上次存活 * (1 + GOGC/100)',
-'// 默认 GOGC=100，即堆翻倍时触发',
+'// 目标 = live heap + (live heap + roots) * GOGC/100',
 '// Go 1.19+：GOMEMLIMIT 软触发',
 '',
 '// 2. STW #1：Mark Setup',
@@ -469,7 +469,7 @@ code:[
 '    stopTheWorld("GC mark setup") // STW ~0.3ms',
 '    // 开启写屏障（所有 P）',
 '    writeBarrierEnabled = true',
-'    // 扫描根对象（stack, globals, ...）',
+'    // 根扫描主要在恢复执行后的并发标记阶段完成',
 '    scanRoots()',
 '    startTheWorld()  // 恢复执行',
 '}',
@@ -532,9 +532,9 @@ SCENARIOS.push({
 id:'timing',name:'GC 时序图',
 steps:[
 {title:'时序图结构：角色与阶段',desc:'GC 时序图展示了 G（用户程序）、M（内核线程）、P（处理器）和 GC 后台线程在 GC 各阶段的行为。横轴为时间，纵轴为各角色。GC 包含两次 STW 和两个并发阶段。'},
-{title:'STW 1：标记准备阶段',desc:'第一次 STW：暂停所有 G、M、P。GC 初始化标记数据结构，扫描根对象（stack、globals）。通常 <0.3ms。STW 期间所有用户程序完全停止。'},
-{title:'并发标记阶段',desc:'恢复所有 G/M/P 执行用户代码（与应用并发执行）。GC 后台线程同时进行并发扫描和标记（最多占 25% CPU）。M 和 P 并发执行用户 G 和 GC 标记工作。'},
-{title:'STW 2 + 并发清扫阶段',desc:'第二次 STW（<0.5ms）：处理剩余标记，重置状态。之后进入并发清扫：G/M/P 恢复执行用户代码，GC 后台线程并发清扫不可达对象。用户程序无感知。'}
+{title:'STW 1：标记准备阶段',desc:'第一次 STW 初始化标记状态并开启写屏障。恢复执行后，根与可达对象主要并发扫描。'},
+{title:'并发标记阶段',desc:'GC 后台 worker 与用户代码并发执行，并消耗一部分 CPU；分配过快时用户 goroutine 还会参与 GC assist。'},
+{title:'STW 2 + 并发清扫阶段',desc:'第二次 STW 完成剩余标记并切换到清扫阶段。清扫主要并发进行，但不能据此承诺固定停顿时长或完全无感知。'}
 ],
 code:[
 '// GC 各阶段时序概览',
@@ -549,7 +549,7 @@ code:[
 '// GC 后台线程',
 '//   空闲         | 初始化标记| 并发扫描标记| 处理剩余 | 并发清扫',
 '',
-'// 两次 STW 总时间通常 < 1ms',
+'// STW 时长取决于环境与负载，不承诺固定上限',
 '// 并发标记：gcController 控制 25% CPU 配额',
 'func gcBgMarkWorker(p *P) {',
 '    for {',

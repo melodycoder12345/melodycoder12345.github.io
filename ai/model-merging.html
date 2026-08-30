@@ -38,16 +38,16 @@ td:first-child{color:var(--text);font-weight:600;font-size:.84rem}
 .flow-arrow{color:var(--dim);font-size:.9rem}
 </style>
 <script>window.PAGE_CONCEPTS=[
-  {"title":"Task Arithmetic（任务向量算术）","body":"微调后的模型权重减去预训练权重得到"任务向量"(task vector)。多个任务向量可以直接相加到预训练模型上：加法方向=增强该能力，减法方向=削弱（遗忘）该能力。公式：θ_merge = θ_base + λΣ task_vector_i。实现简单但多个向量参数干扰时效果下降。","tag":"term"},
-  {"title":"SLERP（球形线性插值）","body":"Spherical Linear Interpolation，在权重参数空间的高维超球面上做插值，比简单的线性插值（LERP）路径更短、过渡更平滑。融合两个同架构同基座的模型时，SLERP 得到的中间模型在两端能力之间平衡，不会出现向量长度缩短的问题。仅适合融合两个模型。","tag":"term"},
-  {"title":"TIES/DARE（参数稀疏化）","body":"DARE 以随机丢弃方式稀疏化任务向量（保留绝对值大的参数，其余置零并重新缩放），TIES 在融合前执行三步：Trim（裁剪绝对值小的参数）→ Elect Sign（解决符号冲突，多数票决定符号方向）→ Merge（加权平均保留参数）。主要解决多个任务向量直接相加时的参数干扰问题。","tag":"term"}
+  {"title":"Task Arithmetic（任务向量算术）","body":"共同基座下，微调权重减去基座权重形成任务向量，再用缩放后的向量做组合；能力是否增强或遗忘必须通过评测确认。","tag":"term"},
+  {"title":"SLERP（球形线性插值）","body":"Spherical Linear Interpolation 沿单位超球面的测地线插值两个对齐向量，避免普通线性插值的范数收缩；权重空间中的模型质量仍无普遍保证。","tag":"term"},
+  {"title":"TIES/DARE（任务向量稀疏化）","body":"TIES 通过 trim、符号选择和合并缓解任务向量干扰；DARE 使用随机丢弃并重缩放，而不是按绝对值保留参数。两者效果依模型和任务而定。","tag":"term"}
 ];</script>
 </head>
 <body>
-<main class="shell" data-page-type="B">
+<main class="shell">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">AI 系统 / 模型融合 / B 类型</div>
+      <div class="eyebrow">AI 系统 / 模型融合</div>
       <h1>模型融合</h1>
       <p class="summary">Model Merging 让我们无需重新训练，直接通过合并多个微调模型的权重来组合不同专业能力——将代码能力、数学推理、安全对齐融合进同一个模型。核心洞见是：微调改变的增量权重（任务向量）可以像向量一样叠加。SLERP 做两模型的球面插值，Task Arithmetic 支持多任务向量相加，TIES/DARE 解决参数冲突。Mergekit 等开源工具让这一切在 CPU 上就能完成，无需 GPU。</p>
       <div class="tags"><span>Task Arithmetic</span><span>SLERP</span><span>TIES</span><span>DARE</span><span>Mergekit</span><span>任务向量</span><span>权重空间</span></div>
@@ -56,8 +56,8 @@ td:first-child{color:var(--text);font-weight:600;font-size:.84rem}
       <div class="eyebrow">核心术语</div>
       <div class="map">
         <div class="term"><strong>Task Arithmetic</strong><span>任务向量 = θ_ft − θ_base，多个向量直接相加到基座模型，加法增强/减法削弱能力。</span></div>
-        <div class="term"><strong>SLERP</strong><span>球面线性插值，在权重超球面上平滑融合两个模型，比 LERP 路径更短更稳定。</span></div>
-        <div class="term"><strong>TIES / DARE</strong><span>稀疏化任务向量后再融合，解决多向量相加时的参数符号冲突问题。</span></div>
+        <div class="term"><strong>SLERP</strong><span>沿归一化向量所在球面的测地线插值，可避免 LERP 的范数收缩；它并不比空间中的直线段更短，模型质量需评测。</span></div>
+        <div class="term"><strong>TIES / DARE</strong><span>TIES 通过裁剪、符号选择和合并缓解冲突；DARE 则随机丢弃并重缩放任务增量，两者机制不同。</span></div>
       </div>
     </div>
   </section>
@@ -72,7 +72,7 @@ td:first-child{color:var(--text);font-weight:600;font-size:.84rem}
         <li><strong>Mergekit 生态：</strong>arcee-ai/mergekit 提供 YAML 配置一键完成融合，Hugging Face 上存在大量社区融合模型（如 Mistral、LLaMA 的多种融合变体）</li>
         <li><strong>DARE+TIES 的突破：</strong>2023-2024 年研究表明，稀疏化后融合多个模型不仅可行，甚至可以超过单独任意一个基础模型</li>
       </ul>
-      <div class="warn-box"><strong>局限前提：</strong>所有要融合的模型必须来自同一基座（same base model）且架构相同，Llama-3-8B 的微调版不能与 Mistral-7B 的微调版直接融合。</div>
+      <div class="warn-box"><strong>局限前提：</strong>直接逐参数融合通常要求参数名称、形状与语义对齐；同一基座的微调模型最容易满足此前提。跨架构或不同 tokenizer 的模型不能直接按位置相加。</div>
     </section>
 
     <section class="section">
@@ -122,7 +122,7 @@ td:first-child{color:var(--text);font-weight:600;font-size:.84rem}
       <ul>
         <li><strong>适用场景：</strong>融合两个模型（只支持两路）；同基座的两个微调变体，例如 Instruct 版本与 Chat 版本的平衡</li>
         <li><strong>t=0.5 的含义：</strong>两个模型能力等权重融合，t 偏向 0 时更接近 θ₁，偏向 1 时更接近 θ₂</li>
-        <li><strong>与 LERP 对比：</strong>向量角度大时 SLERP 明显优于 LERP；角度接近零时两者效果相近。实际权重矩阵的差异通常足够大，推荐优先使用 SLERP</li>
+        <li><strong>与 LERP 对比：</strong>SLERP 可保持球面插值的范数特性；角度接近零时两者相近。权重插值后的下游质量没有普遍保证，应针对任务与安全指标比较</li>
       </ul>
       <pre><span class="kw">import</span> <span class="va">torch</span>
 
@@ -224,14 +224,14 @@ td:first-child{color:var(--text);font-weight:600;font-size:.84rem}
     <section class="section full">
       <h2>局限与工程场景</h2>
       <ul>
-        <li><strong>同架构同基座限制：</strong>融合的所有模型必须来自完全相同的基座（相同的权重初始化），Llama 3.1 8B Instruct 的各种微调版可以互相融合，但 Llama 3.1 8B 与 Mistral-7B-v0.3 不可融合</li>
+        <li><strong>参数对齐限制：</strong>Task Arithmetic 等 delta 方法需要共同基座；一般权重插值至少需要参数结构与语义对齐。同尺寸不代表可安全融合，融合后仍必须评测</li>
         <li><strong>能力平均化：</strong>融合后的模型在各任务上通常接近所有源模型的平均水平，而不是取每个任务的最优值；若需某一任务最佳，仍应使用该任务的专用微调版</li>
         <li><strong>量化兼容性：</strong>融合前需要将模型反量化到 float32 或 bfloat16，融合后可再次量化（GPTQ/AWQ），整个流程需要 2-3× 模型大小的 RAM</li>
         <li><strong>生产中的用法：</strong>融合模型通常用于 "capability combination" 原型验证，快速测试多能力组合效果；商业部署时仍需完整评估各任务 benchmark（MMLU、HumanEval、GSM8K 等）</li>
         <li><strong>输出乱码问题：</strong>融合参数冲突严重时，模型可能重复输出或乱码；调低 λ（0.1-0.3）或使用 TIES 稀疏化可缓解，也可以检查各任务向量的 L2 范数是否差异悬殊</li>
         <li><strong>跨架构融合研究：</strong>LinearMoE、FrankenMerge（拼接不同模型的层）等方法可部分突破同架构限制，但需要额外对齐训练，仍处于研究阶段</li>
       </ul>
-      <div class="warn-box"><strong>经验法则：</strong>λ 总和控制在 0.5-1.0 之间；多个任务向量时建议先用 DARE（density=0.5）稀疏化后再融合；融合后必须在目标任务上跑 eval 验证，不要直接发布。</div>
+      <div class="warn-box"><strong>调参边界：</strong>混合权重与稀疏密度没有跨模型通用默认值；应保留各源模型基线，在目标任务、安全集和回归集上搜索并验证后再发布。</div>
     </section>
   </div>
 

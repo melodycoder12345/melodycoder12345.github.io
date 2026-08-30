@@ -60,7 +60,7 @@ a{color:var(--accent);text-decoration:none}
 <main class="wrap">
   <div class="breadcrumb"><a href="../index.html">首页</a><span>/</span><a href="index.html">云原生</a><span>/</span>Pod 调度</div>
   <h1 class="page-title">Pod 调度</h1>
-  <p class="subtitle">Scheduler 收到 Pending Pod 后，先 Filter 淘汰不满足条件的节点，再 Score 对剩余节点打分，最高分节点绑定 Pod。本例演示一个请求 2 CPU / 2Gi 内存且要求 SSD 节点的 Pod 调度过程。</p>
+  <p class="subtitle">Scheduler 经 API Server 观察到尚未绑定节点的 Pod 后，通过可扩展调度框架执行 PreFilter、Filter、Score、Reserve、Permit、PreBind、Bind 等阶段（实际启用插件依配置而定）。本例简化展示一个请求 2 CPU / 2Gi 内存且要求 SSD 节点的 Pod。</p>
 
   <div class="layout">
     <div class="left-panel">
@@ -131,14 +131,14 @@ const STEPS = [
     state:{n1:'filtered',n2:'filtered',n3:'filtered',n4:'candidate',n5:'candidate'},
     filterReasons:{n1:'nodeSelector 不匹配（disk=hdd）',n2:'CPU 可用量不足（可用 1 core < 需要 2）',n3:'Taint NoSchedule（Pod 无 Toleration）'},
     scores:{n4:78,n5:92},
-    msg:'Score 阶段：对 node-4 和 node-5 运行打分插件（LeastRequested / BalancedAllocation / NodeAffinity 等）。node-4 得 78 分，node-5 得 92 分。'
+    msg:'Score 阶段：对 node-4 和 node-5 运行已配置的打分插件（如 NodeResourcesFit、NodeAffinity 等）。本例假设归一化及加权后 node-4 得 78 分、node-5 得 92 分；分值不是 Kubernetes 固定计算结果。'
   },
   {
     phase:'Bind：绑定最高分节点',
     state:{n1:'filtered',n2:'filtered',n3:'filtered',n4:'candidate',n5:'winner'},
     filterReasons:{n1:'nodeSelector 不匹配（disk=hdd）',n2:'CPU 可用量不足（可用 1 core < 需要 2）',n3:'Taint NoSchedule（Pod 无 Toleration）'},
     scores:{n4:78,n5:92},
-    msg:'Bind：node-5 得分最高（92），Scheduler 将 Pod.spec.nodeName 设为 node-5 并写入 etcd。node-5 的 kubelet Watch 到事件后，开始拉取镜像并启动容器。'
+    msg:'Bind：本例中 node-5 得分最高。Scheduler 通过 API Server 提交 Binding，API Server 持久化绑定结果；node-5 的 kubelet 经 API Server 观察到分配给本节点的 Pod 后开始同步。Scheduler 和 kubelet不直接读写 etcd。'
   },
 ];
 

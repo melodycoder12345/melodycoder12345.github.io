@@ -27,7 +27,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
 .steps-panel{background:rgba(17,24,39,.92);border-right:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;overflow:hidden}
 .sp-head{padding:18px 16px 14px;border-bottom:1px solid rgba(255,255,255,.06)}
 .sp-eyebrow{font-size:.65rem;color:var(--accent);text-transform:uppercase;letter-spacing:.14em;font-weight:700;margin-bottom:6px}
-.sp-title{font-size:1rem;font-weight:700;margin-bottom:4px}
+.sp-title{font-size:1rem;font-weight:700;margin:0 0 4px}
 .sp-sub{font-size:.75rem;color:var(--dim);line-height:1.5}
 .scene-tabs{display:flex;flex-direction:column;gap:4px;padding:12px 10px;border-bottom:1px solid rgba(255,255,255,.06)}
 .scene-tab{padding:8px 12px;border-radius:8px;font-size:.78rem;cursor:pointer;border:1px solid transparent;color:var(--dim);transition:all .15s;text-align:left;background:none}
@@ -68,7 +68,7 @@ svg.arch{width:100%;height:100%}
   <aside class="steps-panel">
     <div class="sp-head">
       <div class="sp-eyebrow">System Design</div>
-      <div class="sp-title">分布式 ID</div>
+      <h1 class="sp-title">分布式 ID</h1>
       <div class="sp-sub">Snowflake · 时钟回拨 · Leaf 号段模式</div>
     </div>
     <div class="scene-tabs" id="sceneTabs">
@@ -104,7 +104,7 @@ svg.arch{width:100%;height:100%}
         <div class="kv-row"><span class="kv-k">机器 ID (5 bit)</span><span class="kv-v">每 DC 最多 32 台</span></div>
         <div class="kv-row"><span class="kv-k">序列号 (12 bit)</span><span class="kv-v">同毫秒 4096 个</span></div>
       </div>
-      <div class="highlight-note">理论上单台机器每毫秒可生成 4096 个 ID，1024 台机器集群每秒可生成约 40 亿个 ID。</div>
+      <div class="highlight-note">按该位分配，单节点每毫秒最多编码 4096 个序列值；集群吞吐还受时钟、节点分配、实现与下游容量约束，不能把位空间直接当作可持续 QPS。</div>
     </div>
 
     <div class="dp-section">
@@ -160,13 +160,13 @@ function drawGrid(){
 }
 
 const SNOW_STEPS = [
-  { highlight:-1, desc:'Snowflake 是 Twitter 开源的分布式 ID 方案，生成 64 位整数，保证全局唯一且趋势递增。总共 4 个字段组成。' },
+  { highlight:-1, desc:'Snowflake 是 Twitter 公开过的分布式 ID 思路，常用 64 位整数编码时间、节点与序列。只有节点 ID 不冲突、时钟回拨被正确处理且序列不溢出时才能维持唯一；其结果通常只是大体按时间递增，并非严格全局有序。' },
   { highlight:0,  desc:'符号位（1 bit）：始终为 0，保证 ID 是正整数，可以被 Java Long 直接存储。' },
   { highlight:1,  desc:'时间戳（41 bit）：存储毫秒级时间戳与自定义纪元的差值。41 bit 可以表示约 69 年的时间跨度。' },
   { highlight:2,  desc:'数据中心 ID（5 bit）：最多支持 32 个数据中心。部署时由运维手动配置，每个 DC 唯一。' },
-  { highlight:3,  desc:'机器 ID（5 bit）：每个数据中心内最多 32 台机器。可从 ZooKeeper 或配置中心获取，保证唯一。' },
+  { highlight:3,  desc:'机器 ID（5 bit）：该示例允许每个数据中心编码 32 个节点值。ZooKeeper 或配置中心可协助租约分配，但仍需处理重复配置、租约失效与网络分区。' },
   { highlight:4,  desc:'序列号（12 bit）：同一毫秒内的递增序号，最多 4096。超过则等待下一毫秒。这保证了高并发下的 ID 唯一性。' },
-  { highlight:-1, desc:'组合示例：时间戳部分保证了 ID 趋势递增（利于 B+ 树索引），节点部分保证分布式唯一，序列号保证单机并发唯一。' },
+  { highlight:-1, desc:'组合示例：正常时钟下时间字段使 ID 大体随时间递增；节点字段与序列字段共同降低冲突风险。唯一性仍依赖节点分配和回拨策略，跨节点 ID 不保证严格有序。' },
 ];
 
 const CLOCK_STEPS = [

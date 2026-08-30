@@ -301,6 +301,21 @@ a{color:var(--accent);text-decoration:none}
 .vs-cell.hdr{color:var(--dim2);font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;background:rgba(255,255,255,.03)}
 .vs-cell.ok-cell{color:var(--ok)}
 .vs-cell.warn-cell{color:var(--warn)}
+@media (max-width:920px){
+  .wrap{padding:32px 22px 64px}
+  .layout{grid-template-columns:1fr}
+  .left-panel{position:static}
+}
+@media (max-width:640px){
+  .wrap{padding:24px 14px 52px}
+  .left-panel,.center-panel{padding:15px;border-radius:14px}
+  .cert-card{width:100%}
+  .swimlane-wrap,.vs-table{overflow-x:auto}
+  .swimlane,.vs-row{min-width:580px}
+  .revoke-wrap{flex-direction:column}
+  .revoke-left,.revoke-right{min-width:0;width:100%}
+  .compare-grid{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
@@ -365,17 +380,17 @@ const SCENES = [
     },
     {
       label: '查看叶证书内容',
-      msg: 'Step 2：浏览器收到叶证书（Leaf Certificate）。\n\nSubject: CN=example.com\nIssuer: Let\'s Encrypt R3\nValid: 2024-01-01 → 2024-04-01\nPublic Key: EC 256-bit\nSignature: SHA256withECDSA（由 Let\'s Encrypt R3 私钥签名）\nSAN: DNS:example.com, DNS:www.example.com',
+      msg: 'Step 2（示意字段，不代表当前 Let\'s Encrypt 实际链）：浏览器收到叶证书。\n\nSubject: CN=example.com\nIssuer: Example Intermediate CA\nValid: 2026-01-01 → 2026-04-01\nPublic Key: EC 256-bit\nSignature: ECDSA with SHA-256\nSAN: DNS:example.com, DNS:www.example.com',
       s: {phase:1}
     },
     {
       label: '找到中间 CA 证书',
-      msg: 'Step 3：叶证书的 Issuer 字段指向 "Let\'s Encrypt R3"（中间 CA）。浏览器从服务器一同发来的证书链中找到这张中间 CA 证书。\n\nSubject: CN=Let\'s Encrypt R3\nIssuer: ISRG Root X1\nPublic Key: RSA 2048-bit',
+      msg: 'Step 3：叶证书的 Issuer 指向中间 CA。浏览器从服务器提供的证书链或本地缓存中构建候选路径。真实路径可能交叉签名且随 CA 部署变化，不应把某个中间证书名称写成永久固定链。',
       s: {phase:2}
     },
     {
       label: '验证叶证书签名 ✓',
-      msg: 'Step 4：浏览器用 Let\'s Encrypt R3 的公钥（RSA 2048）验证叶证书上的签名。\n\nVerify(R3.pubKey, leaf.signature, leaf.tbsCertificate) → OK\n\n验证通过！叶证书的内容未被篡改，且确实由 Let\'s Encrypt R3 签发。',
+      msg: 'Step 4：路径验证器用中间 CA 公钥验证叶证书签名，并检查中间 CA 是否允许签发、名称约束、用途、有效期和算法策略。验签通过仅是整条路径验证的一部分。',
       s: {phase:3, verifyLeaf:true}
     },
     {
@@ -390,7 +405,7 @@ const SCENES = [
     },
     {
       label: '信任链验证成功',
-      msg: 'Step 7：证书链完整验证。浏览器确认：\n① example.com 的公钥可信（由受信 CA 签发）\n② 证书未过期，域名匹配 SAN 字段\n③ 可用该公钥加密会话密钥，防止中间人攻击\n\nTLS 握手继续：发送 Finished 消息，切换对称加密。',
+      msg: 'Step 7：路径验证还包括有效期、SAN 主机名、Basic Constraints、Key Usage/Extended Key Usage、算法与策略等检查。证书公钥用于认证握手；现代 TLS 1.3 使用 (EC)DHE 协商密钥，而不是用证书 RSA 公钥直接加密会话密钥。Finished 验证握手 transcript 后进入应用数据阶段。',
       s: {phase:6, verifyLeaf:true, verifyInt:true, success:true}
     },
   ]
@@ -486,7 +501,7 @@ const SCENES = [
   steps: [
     {
       label: '私钥泄漏（安全事件）',
-      msg: 'Step 1：服务器被攻击，私钥文件泄漏。攻击者持有私钥即可伪造该服务器的身份，对用户发起中间人攻击。\n\n必须立即吊销证书！即使证书还未到期，吊销后浏览器会拒绝该证书。',
+      msg: 'Step 1：服务器私钥泄漏后应立即停止使用并申请吊销、部署新密钥与证书并调查影响。攻击者仍需控制流量/DNS等条件才能实施冒充；客户端是否及时拒绝旧证书取决于其吊销检查策略、缓存和可用性，不能把吊销视为瞬时全局失效。',
       s: {phase:'leak'}
     },
     {
@@ -511,7 +526,7 @@ const SCENES = [
     },
     {
       label: '浏览器拒绝连接 ✗',
-      msg: 'Step 6：浏览器显示「此证书已被吊销」安全警告，拒绝建立 TLS 连接。\n\nERR_CERT_REVOKED\n\n即使攻击者持有私钥，吊销后的证书也无法通过验证，有效限制了私钥泄漏的损害。',
+      msg: 'Step 6：若客户端获得并强制执行可信的 revoked 状态，会拒绝连接。现实浏览器可能采用 CRLSet/CRLite、OCSP stapling 或不同的 soft-fail 策略；网络失败、缓存和客户端差异意味着传统 OCSP/CRL 不是即时且完美的撤销保证。',
       s: {phase:'blocked', steps:[0,1,2,3,4]}
     },
     {
@@ -538,7 +553,7 @@ const SCENES = [
     },
     {
       label: '服务启动时申请短期证书',
-      msg: 'Step 3：Service A 启动时，通过 Vault Agent 或 SDK 申请证书：\n\nvault write pki/issue/service-cert \\\n  common_name="service-a.internal" ttl=24h\n\nVault 内部 CA 签发证书，TTL=24h（24 小时后自动过期）。\n短期证书：私钥泄漏的影响时间窗口最多 24 小时。',
+      msg: 'Step 3：Service A 通过受控身份向 Vault PKI 申请 24h 证书。短有效期限制旧证书可被接受的最长时间，但泄漏影响还取决于发现时间、续签权限是否也被盗、客户端时钟和撤销/策略；不能简单断言攻击窗口最多 24 小时。',
       s: {phase:2, arrows:['req']}
     },
     {

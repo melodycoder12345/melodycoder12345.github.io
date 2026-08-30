@@ -71,7 +71,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
 .nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;}
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;}
 .back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{margin:0;font-size:1.06rem;font-weight:700;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .table-wrap{overflow-x:auto;margin:10px 0;}
@@ -91,7 +91,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
 
 <div class="nav-bar">
   <a href="index.html" class="back">← Golang</a>
-  <span class="nav-title">⚡ Go 性能调优</span>
+  <h1 class="nav-title">⚡ Go 性能调优</h1>
   <div class="nav-tags">
     <span class="ntag">pprof</span>
     <span class="ntag">escape-analysis</span>
@@ -295,7 +295,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
 <span class="cm">// 2. 赋值给 interface{}</span>
 <span class="kw">func</span> <span class="fn">logValue</span>(<span class="id">v</span> <span class="kw">interface</span>{}) { <span class="pkg">fmt</span>.<span class="fn">Println</span>(<span class="id">v</span>) }
 <span class="id">x</span> := <span class="num">42</span>
-<span class="fn">logValue</span>(<span class="id">x</span>)  <span class="cm">// x 逃逸！box int → interface{}</span>
+<span class="fn">logValue</span>(<span class="id">x</span>)  <span class="cm">// 发生接口转换；是否逃逸以 -gcflags=-m 为准</span>
 
 <span class="cm">// 3. slice/map 中存储指针</span>
 <span class="id">m</span> := <span class="kw">map</span>[<span class="kw">string</span>]*<span class="id">User</span>{}
@@ -643,7 +643,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
         </div>
         <div class="qa-a">
           栈上分配的变量随 goroutine 栈帧自动回收，不参与 GC 扫描；堆上分配的变量需要 GC 标记和清除，分配次数越多 GC 越频繁（触发阈值是堆增长 100%）。通过减少逃逸，allocs/op 降低，GC 频率也随之降低。<br><br>
-          常见逃逸触发：①返回局部变量指针；②赋值给 interface{}（如传给 fmt.Println）；③闭包捕获局部变量；④slice/map 中存储指针；⑤goroutine 中引用外部变量；⑥变量大小超过编译器阈值（64KB）。<br><br>
+          常见的逃逸候选包括：返回局部变量指针、接口转换、闭包或 goroutine 捕获、把指针存入更长生命周期的数据结构，以及过大的栈对象；它们都不是脱离上下文的固定规则，阈值和结果会随 Go 版本、内联与调用链变化。<br><br>
           用 <code>go build -gcflags="-m"</code> 验证，<code>does not escape</code> 是目标，<code>escapes to heap</code> 需要分析原因。
         </div>
       </div>

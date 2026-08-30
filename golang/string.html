@@ -1,16 +1,16 @@
 <!DOCTYPE html><html lang="zh-CN">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="字符串不可变、UTF-8、rune 和底层字节序列。">
+<meta name="description" content="字符串是不可变的任意字节序列；range 按 UTF-8 解码为 rune，并返回字节偏移。">
 <link rel="canonical" href="https://melodycoder12345.github.io/golang/string.html">
 <meta property="og:title" content="字符串 — 码海拾贝">
-<meta property="og:description" content="字符串不可变、UTF-8、rune 和底层字节序列。">
+<meta property="og:description" content="字符串是不可变的任意字节序列；range 按 UTF-8 解码为 rune，并返回字节偏移。">
 <meta property="og:url" content="https://melodycoder12345.github.io/golang/string.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="码海拾贝">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="字符串 — 码海拾贝">
-<meta name="twitter:description" content="字符串不可变、UTF-8、rune 和底层字节序列。">
+<meta name="twitter:description" content="字符串是不可变的任意字节序列；range 按 UTF-8 解码为 rune，并返回字节偏移。">
 <title>字符串 - Golang 深度笔记</title>
 <script src="../nav.js"></script>
 <style>
@@ -59,7 +59,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
 .nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;}
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;}
 .back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{margin:0;font-size:1.06rem;font-weight:700;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .perf-table{width:100%;border-collapse:collapse;font-size:.82rem;margin:10px 0;}
@@ -71,7 +71,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
 <body>
 <div class="nav-bar">
   <a href="index.html" class="back">← 返回</a>
-  <span class="nav-title">📝 字符串</span>
+  <h1 class="nav-title">📝 字符串</h1>
   <div class="nav-tags">
     <span class="ntag">string</span>
     <span class="ntag">rune</span>
@@ -97,10 +97,10 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
       <div class="card">
         <div class="card-hd"><h3>StringHeader：两字段结构</h3><span class="badge badge-core">核心</span></div>
         <div class="card-body">
-          <p>Go 的 string 在运行时由 <code>reflect.StringHeader</code> 表示，包含两个字段：指向字节数组的指针 Data 和字节长度 Len。字符串本身是<strong>不可变的</strong>——不能修改某个字节，只能创建新字符串。</p>
+          <p>Go 语言把 string 定义为<strong>不可变的任意字节序列</strong>，不要求内容一定是有效 UTF-8。常见实现用数据指针和字节长度表示；<code>reflect.StringHeader</code> 只适合解释这种布局，不是稳定的运行时契约。</p>
           <pre><span class="cm">// runtime/string.go（简化）</span>
 <span class="kw">type</span> <span class="id">StringHeader</span> <span class="kw">struct</span> {
-    <span class="id">Data</span> <span class="pkg">uintptr</span>  <span class="cm">// 指向只读内存段的字节数组</span>
+    <span class="id">Data</span> <span class="pkg">uintptr</span>  <span class="cm">// 示意：指向字符串字节</span>
     <span class="id">Len</span>  <span class="pkg">int</span>      <span class="cm">// 字节数（不是字符数）</span>
 }
 
@@ -160,7 +160,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
         <div class="card-body">
           <table class="perf-table">
             <tr><th>方式</th><th>原理</th><th>适用场景</th></tr>
-            <tr><td><code>+</code> 操作符</td><td>每次创建新字符串，O(n²)</td><td>少量（2-3个）</td></tr>
+            <tr><td><code>+</code> 操作符</td><td>单个表达式可被优化；循环反复拼接可能累计到 O(n²)</td><td>少量字符串</td></tr>
             <tr><td><code>fmt.Sprintf</code></td><td>格式化，反射，最慢</td><td>需要格式化时</td></tr>
             <tr><td><code>strings.Join</code></td><td>预计算总长，一次分配</td><td>已有 slice</td></tr>
             <tr><td><code>strings.Builder</code></td><td>动态增长，最终一次转换</td><td>循环拼接（推荐）</td></tr>
@@ -187,8 +187,8 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
 }
 
 <span class="id">result</span> := <span class="id">b</span>.<span class="fn">String</span>()  <span class="cm">// 零拷贝转换</span>
-<span class="id">b</span>.<span class="fn">Reset</span>()             <span class="cm">// 重置，复用底层 []byte</span></pre>
-          <p><strong>注意</strong>：Builder 不能被复制（内部有 copyCheck），只能通过指针传递。如果需要并发写，需要外部加锁。</p>
+<span class="id">b</span>.<span class="fn">Reset</span>()             <span class="cm">// 重置为空；当前实现释放对缓冲区的引用</span></pre>
+          <p><strong>注意</strong>：非零 Builder 在第一次使用后不能再按值复制；通常在原值上继续调用其方法。如果需要并发写，需要外部同步。</p>
         </div>
       </div>
     </div>
@@ -198,7 +198,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
 
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q">string 的底层结构是什么？为什么是不可变的？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a">string 底层是 <code>reflect.StringHeader{Data uintptr, Len int}</code>，16 字节。Data 指向一段只读内存（通常在程序的 rodata 段），所以不能修改。这种设计保证：<br>
+        <div class="qa-a">语言层面，string 是不可变的字节序列；常见实现由数据指针和长度组成，但具体布局不是应用代码应依赖的契约。这种语义使得：<br>
         1. 字符串赋值/传参只拷贝 header，O(1) 操作<br>
         2. 多个字符串可以安全共享底层数据（子串切片时）<br>
         3. 不需要加锁，天然并发安全<br>

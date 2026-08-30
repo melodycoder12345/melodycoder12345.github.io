@@ -23,7 +23,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
 .nav{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);flex-shrink:0;position:sticky;top:var(--snav-h,44px);z-index:10;}
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;display:flex;align-items:center;gap:5px;}
 .back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{font-size:1.06rem;font-weight:700;margin:0;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .main-area{display:flex;flex:none;height:calc(100vh - var(--snav-h,44px) - 88px);min-height:300px;overflow:hidden;}
@@ -101,7 +101,7 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
 
 <div class="nav">
   <a href="index.html" class="back">← 返回</a>
-  <span class="nav-title">原子指令 — CS 基础</span>
+  <h1 class="nav-title">原子指令 — CS 基础</h1>
   <div class="nav-tags">
     <span class="ntag">CAS</span>
     <span class="ntag">LL/SC</span>
@@ -150,19 +150,19 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,-ap
       </div>
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q">ABA 问题是什么？在什么场景下会产生实际危害？Go 如何解决？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a">ABA 问题：goroutine G1 读取 <code>old=A</code>，此时 G2 将值改为 B 再改回 A，G1 的 <code>CAS(A,new)</code> 成功，但中间经历了 B 状态被忽略。对计数器（单调递增）无害，但对无锁链表 pop 有害：弹出 A 后链表结构已变，再次匹配 A 指针会操作已释放的内存。Go 解决方案：<code>sync/atomic.Pointer[T]</code> 用带版本号思路比较；或用 <code>sync.Mutex</code>；链表 pop 场景推荐用 channel 替代。</div>
+        <div class="qa-a">ABA 问题：goroutine G1 读取 <code>old=A</code>，此时 G2 将值改为 B 再改回 A，G1 的 <code>CAS(A,new)</code> 仍会成功，因而无法察觉中间状态。它会破坏某些无锁栈、链表算法；是否涉及悬空指针还取决于语言的内存回收方式。<code>atomic.Pointer[T]</code> 只提供指针 CAS，<strong>自身并不解决 ABA</strong>；常见方案是把版本计数与值一起比较、采用适合的回收协议，或改用锁保护。</div>
       </div>
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q">x86 的 LOCK CMPXCHG 和 ARM 的 LDREX/STREX 有什么本质区别？性能上有什么影响？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a">x86 用 LOCK 前缀锁定总线/缓存行，在操作期间阻止其他 CPU 访问该地址，是一种"悲观锁"硬件实现，代价是总线仲裁延迟。ARM 用独占监控器（Exclusive Monitor）—— LDREX 标记监视，STREX 检查监控器是否仍有效，不锁总线，是"乐观"方式。性能上：ARM LL/SC 在低竞争时开销更小（不锁总线），高竞争时 STREX 失败率高导致更多重试；x86 LOCK 延迟固定但在超高并发下总线争用明显。现代 x86 已用 MESI 缓存一致性协议优化，很少真正锁总线。</div>
+        <div class="qa-a">x86 的带 <code>LOCK</code> 读改写通常通过缓存一致性机制独占目标缓存行；对不可缓存或跨缓存行等特殊访问，处理方式可能不同。ARM 原子操作既可能由独占加载/存储循环实现，也可能在支持 LSE 的处理器上使用单条原子指令。两者的成本都受微架构、对齐、缓存位置和竞争程度影响，不能概括为固定延迟或断言某一架构始终更快。</div>
       </div>
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q"><code>sync/atomic.AddInt64</code> 和手写 CAS 循环，各自适合什么场景？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a"><code>atomic.AddInt64</code> 底层是单条原子指令（x86: LOCK XADD，ARM: LDADDAL），适合简单的加减操作，开销最小。手写 CAS 循环适合：1) 需要"先读取再条件写"的复合逻辑（如 <code>if val > threshold { val = newVal }</code>）；2) 更新非数值类型（指针、复合结构）；3) 实现自定义无锁数据结构。原则：能用 <code>atomic.Add/Swap/Load/Store</code> 解决的不要用 CAS 循环，CAS 循环能解决的不要用 mutex。</div>
+        <div class="qa-a"><code>atomic.AddInt64</code> 适合简单加减；具体会生成单条指令、LSE 指令还是运行时/指令序列，由目标架构和工具链决定。CAS 循环适合可表达为“读取—计算—条件提交”的单变量状态转换。跨多个独立位置维持不变量、需要阻塞等待或代码可维护性更重要时，mutex 往往更合适，应以基准测试和正确性分析决定。</div>
       </div>
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q">无锁数据结构（lock-free）一定比有锁更快吗？什么情况下 mutex 反而更好？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a">不一定。lock-free 在低竞争、短临界区时优势明显（避免内核陷入、上下文切换）。但以下场景 mutex 更好：1) 高竞争：大量 goroutine 争同一地址，CAS 失败率 > 50% 时自旋浪费 CPU；2) 临界区操作复杂：多个变量需要原子更新时，CAS 无法保证跨变量原子性；3) 需要等待而非自旋：mutex 在等待时让出 CPU，CAS 自旋持续占用。Go runtime 的 sync.Mutex 在有竞争时会先自旋再进入 futex 等待，比纯 CAS 自旋更节能。</div>
+        <div class="qa-a">不一定。lock-free 描述的是系统级进展保证，不是性能承诺。竞争、缓存行迁移、重试次数、临界区大小及调度都会影响结果；不存在通用的“CAS 失败率阈值”。多变量不变量、阻塞等待或复杂逻辑通常更适合 mutex；简单计数等场景可使用专用原子操作，并通过目标平台基准测试比较。</div>
       </div>
     </div>
   </div>
@@ -224,7 +224,7 @@ func inc() {
 // C++ std::atomic&lt;int&gt;
 val.store(1, std::memory_order_relaxed)
 val.load(std::memory_order_acquire)
-// Go 没有这种选项——全部 SeqCst</pre></div>
+// Go API 不提供逐操作选择内存序的参数</pre></div>
           <div class="pitfall-col"><pre>// Go 的 sync/atomic 全部是顺序一致
 // （Sequential Consistency），最强内存序
 // 不如 Relaxed/Acquire/Release 性能好

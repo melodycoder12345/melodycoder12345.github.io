@@ -20,7 +20,7 @@
 <script>window.PAGE_CONCEPTS=[
   {"title":"Plan 9 汇编","body":"Go 使用的汇编语法，源自 Plan 9 操作系统。指令顺序是 src → dst（AT&T 风格），但操作数表示与 x86 AT&T 有差异。数据类型用后缀区分：B(1)、W(2)、L(4)、Q(8 字节)。","tag":"syntax"},
   {"title":"伪寄存器","body":"Go 汇编中的虚拟寄存器：FP（函数参数指针）、SP（指向本地变量区顶部，比硬件 SP 低 8 字节）、PC（程序计数器）、SB（静态基址，全局符号起点）。","tag":"asm"},
-  {"title":"调用约定 ABI","body":"Go 1.17+ 使用寄存器传参（ABI Internal），整型参数按 AX/BX/CX/DI/SI/R8/R9/R10/R11 顺序传递，返回值同样用寄存器。旧版本（ABI0）全部通过栈传参。","tag":"abi"}
+  {"title":"调用约定 ABI","body":"Go 1.17+ 的编译器生成代码使用基于寄存器的 ABIInternal；寄存器分配依赖目标架构，是工具链内部约定。普通手写汇编通常通过稳定的 ABI0 及工具链生成的适配包装器衔接。","tag":"abi"}
 ];</script>
 <style>
 :root{--bg:#0f172a;--panel:#1e293b;--panel2:#0d1117;--border:#1e3a5f;--border2:#334155;--text:#e2e8f0;--dim:#94a3b8;--dim2:#64748b;--accent:#00add8;}
@@ -70,7 +70,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
 .nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;}
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;}
 .back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{margin:0;font-size:1.06rem;font-weight:700;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .table-wrap{overflow-x:auto;margin:10px 0;}
@@ -98,7 +98,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
 
 <div class="nav-bar">
   <a href="index.html" class="back">← Golang</a>
-  <span class="nav-title">🔧 Go 汇编</span>
+  <h1 class="nav-title">🔧 Go 汇编</h1>
   <div class="nav-tags">
     <span class="ntag">Plan9</span>
     <span class="ntag">pseudo-register</span>
@@ -320,7 +320,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
           <span class="badge badge-adv">adv</span>
         </div>
         <div class="card-body">
-          <p>Go 1.17 引入寄存器传参（Register-based ABI），整型/指针参数按顺序使用：</p>
+          <p>Go 1.17 引入基于寄存器的 ABI。下面仅展示 amd64 工具链实现的概念示意；实际寄存器分配还受参数类型、聚合拆分、返回值和工具链版本影响，不能作为 Go 语言级调用约定依赖：</p>
           <pre><span class="cm">// 整型参数寄存器顺序（AMD64）</span>
 <span class="cm">// 第 1 个参数 → AX</span>
 <span class="cm">// 第 2 个参数 → BX</span>
@@ -331,7 +331,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
 <span class="cm">// 第 7 个参数 → R9</span>
 <span class="cm">// 第 8 个参数 → R10</span>
 <span class="cm">// 第 9 个参数 → R11</span>
-<span class="cm">// 超过 9 个参数：通过栈传递</span>
+<span class="cm">// 寄存器预算不足的参数会使用栈；不能简单按“第 10 个参数”判断</span>
 <span class="cm">//</span>
 <span class="cm">// 浮点参数寄存器：X0-X14（15 个）</span>
 <span class="cm">// 返回值同样使用寄存器</span>
@@ -621,7 +621,7 @@ tr:hover td{background:rgba(255,255,255,.02);}
         </div>
         <div class="qa-a">
           Go 1.17+ 引入了两套 ABI：<strong>ABI Internal</strong>（新，寄存器传参，Go 函数间调用使用）和 <strong>ABI0</strong>（旧，栈传参，汇编函数使用）。<br><br>
-          手写汇编函数自动使用 ABI0（栈传参），Go 编译器会自动为其生成一个 ABI0↔ABI Internal 的"shim wrapper"。因此：①手写汇编中通过 FP 读参数的代码无需修改；②有一点点额外开销（寄存器↔栈的 copy），极端热路径才需要用 <code>//go:linkname</code> 直接以 ABI Internal 实现。
+          普通包中的手写汇编使用 ABI0，工具链在需要时生成 ABI0 与 ABIInternal 之间的适配包装器，因此通过伪 FP 访问参数的既有写法仍可工作。ABIInternal 是不稳定的工具链内部接口，普通包不能用 <code>//go:linkname</code> 把它当成受支持的优化入口；应以目标版本的汇编输出和 benchmark 验证性能。
         </div>
       </div>
 

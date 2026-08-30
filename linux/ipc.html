@@ -79,16 +79,16 @@ td{padding:6px 10px;border:1px solid rgba(255,255,255,.06);color:var(--dim)}
 @media(max-width:1000px){.hero,.lab,.deep{grid-template-columns:1fr}.content{padding:28px 16px 56px}}
 </style>
 <script>window.PAGE_CONCEPTS=[
-  {"title":"Pipe（管道）","body":"单向字节流，内核缓冲区，父子进程最简通信方式，支持匿名和命名管道（FIFO），写满 64KB 后阻塞","tag":"term"},
+  {"title":"Pipe（管道）","body":"单向字节流，内核缓冲区，父子进程最简通信方式，支持匿名和命名管道（FIFO）；容量由内核、页大小与配置决定，写满后阻塞或返回 EAGAIN","tag":"term"},
   {"title":"Shared Memory（共享内存）","body":"多进程映射同一物理内存区域，最快的 IPC 方式，零数据复制，但需配合信号量同步原语","tag":"term"},
   {"title":"Message Queue（消息队列）","body":"内核管理的消息链表，带 mtype 类型字段，支持按类型选择接收，发送方和接收方完全解耦","tag":"term"}
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">Linux / IPC / C 类型</div>
+      <div class="eyebrow">Linux / IPC</div>
       <h1>进程间通信（IPC）</h1>
       <p class="summary">Linux 提供管道、消息队列、共享内存、信号量等多种 IPC 机制，各自在通信语义、性能和适用场景上不同。选择合适的 IPC 方式直接影响系统性能和架构复杂度。</p>
       <div class="tags"><span>管道</span><span>共享内存</span><span>消息队列</span><span>信号量</span></div>
@@ -211,7 +211,7 @@ td{padding:6px 10px;border:1px solid rgba(255,255,255,.06);color:var(--dim)}
       <h2>边界与误区</h2>
       <ul>
         <li>共享内存不是"免费的"：缓存行竞争（false sharing）在多核下依然有损耗</li>
-        <li>管道容量 64KB，写满后 write() 阻塞，两端互等可能导致死锁</li>
+        <li>管道容量不是固定 64KB：Linux 默认通常按若干页分配，且可受内核版本、页大小、资源限制及 <code>F_SETPIPE_SZ</code> 调整；阻塞模式写满后 write() 会等待，两端互等可能导致死锁</li>
         <li>System V IPC（shmget/msgget）资源不随进程退出自动释放，需手动 ipcrm</li>
         <li>POSIX 信号量（sem_open）有名称，进程退出不影响信号量计数值</li>
       </ul>
@@ -221,7 +221,7 @@ td{padding:6px 10px;border:1px solid rgba(255,255,255,.06);color:var(--dim)}
 <script>
 const STEPS=[
   {title:"fork() 创建父子进程",desc:"父进程调用 pipe(fd) 创建管道，再 fork() 创建子进程。父子进程各持有管道两端文件描述符。",kind:"normal",nodes:[0,1],edges:[],detail:"pipe() 返回 fd[0]（读端）和 fd[1]（写端）。fork() 后两进程都持有两端，惯例是各自关闭不使用的那端。"},
-  {title:"父进程 write(pipe_fd[1], data)",desc:"父进程关闭读端，向写端写入数据。数据暂存在内核管道缓冲区（默认 64KB），不立即传到子进程。",kind:"normal",nodes:[0,2],edges:[0],detail:"管道是字节流，无消息边界。写入超过 64KB 时 write() 阻塞，等子进程读走数据再继续。"},
+  {title:"父进程 write(pipe_fd[1], data)",desc:"父进程关闭读端，向写端写入数据。数据暂存在容量可查询和调整的内核管道缓冲区，不立即传到子进程。",kind:"normal",nodes:[0,2],edges:[0],detail:"管道是字节流，无消息边界。阻塞模式下缓冲区写满时 write() 等待读端释放空间；非阻塞模式可能返回 EAGAIN。"},
   {title:"子进程 read(pipe_fd[0], buf)",desc:"子进程关闭写端，从读端读数据。内核将管道缓冲区数据复制到子进程用户空间。",kind:"normal",nodes:[2,1],edges:[1],detail:"共 2 次数据复制：用户态→内核缓冲区（write），内核缓冲区→用户态（read）。"},
   {title:"命名管道（FIFO）：无血缘进程通信",desc:"mkfifo(\"/tmp/myfifo\", 0666) 在文件系统创建 FIFO，任意进程通过路径名打开同一管道。",kind:"normal",nodes:[0,2,1],edges:[0,1],detail:"FIFO 有文件系统路径但数据仍在内核缓冲区，不写磁盘。常用于日志管道和进程间单向数据流。"},
   {title:"共享内存：shmget/shmat 映射",desc:"shmget() 申请内核共享内存段，两进程各自 shmat() 将同一物理内存映射到各自虚拟地址空间。",kind:"normal",nodes:[0,3,1],edges:[2,3],detail:"映射完成后进程通过普通指针访问内存，写操作对另一进程立即可见。虚拟地址不同，物理地址相同。"},

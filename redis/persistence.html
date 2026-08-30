@@ -49,9 +49,9 @@
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
-    <div class="card"><div class="eyebrow">Redis / persistence / C 类型</div><h1>Redis 持久化机制</h1><p class="summary">Redis 通过 RDB 快照和 AOF 日志两种持久化策略确保内存数据在进程重启后可恢复。RDB 适合全量备份与快速恢复，AOF 保证写操作级别的数据安全，二者可结合使用（混合持久化）实现速度与完整性的最佳平衡。</p><div class="tags"><span>RDB</span><span>AOF</span><span>fork</span><span>COW</span><span>混合持久化</span></div></div>
+    <div class="card"><div class="eyebrow">Redis / persistence</div><h1>Redis 持久化机制</h1><p class="summary">Redis 提供 RDB 时间点快照与 AOF 写操作日志，使进程重启后可以从持久化文件恢复。两者可单独或结合使用，选择取决于可接受的数据丢失窗口、恢复时间、资源成本与备份策略。</p><div class="tags"><span>RDB</span><span>AOF</span><span>fork</span><span>COW</span><span>混合持久化</span></div></div>
     <div class="card"><div class="eyebrow">核心术语</div><ul class="concept-list"><li><strong>RDB Snapshot</strong><span>全量二进制快照，fork 子进程写盘，恢复速度快。</span></li><li><strong>AOF Append</strong><span>写命令追加日志，fsync 策略控制刷盘频率。</span></li><li><strong>Copy-on-Write</strong><span>fork 后共享内存页，写时才复制，减少内存开销。</span></li><li><strong>AOF Rewrite</strong><span>子进程重写 AOF，将内存状态序列化为最小命令集。</span></li></ul></div>
   </section>
   <section class="lab">
@@ -150,10 +150,10 @@
     <aside class="panel"><div class="panel-hd">当前状态</div><div class="status"><span class="badge" id="stateBadge">normal</span><h2 id="stepTitle"></h2><p id="stepDesc"></p><p id="stepDetail" style="margin-top:8px;font-size:.82rem;"></p></div></aside>
   </section>
   <section class="deep">
-    <section><h2>背景</h2><p>Redis 作为内存数据库，一旦进程退出数据即丢失。持久化机制将内存状态落盘，使数据可在重启后恢复。RDB 提供时间点快照能力，AOF 提供命令级日志回放能力，两者配合实现高可用数据保障。</p></section>
-    <section><h2>常见误区</h2><ul><li>RDB 与 AOF 并非二选一，生产环境推荐同时开启（混合持久化）。</li><li>AOF everysec 并非严格"最多丢 1 秒"，极端情况下可能丢 2 秒（上一次 fsync 延迟时）。</li><li>fork 不会立即占用双倍内存，COW 只在写时才复制对应页面。</li></ul></section>
+    <section><h2>背景</h2><p>Redis 的数据集主要驻留内存；未启用持久化时，进程重启无法从本地文件恢复数据。RDB 提供时间点快照，AOF 记录可重放的写操作。持久化改善耐久性，但不等于高可用，也不能替代副本、备份和恢复演练。</p></section>
+    <section><h2>常见误区</h2><ul><li>RDB、AOF 或两者并用应按 RPO/RTO、磁盘与写入负载选择，并非所有生产环境都必须同时开启。</li><li>AOF everysec 通常把灾难故障的数据窗口控制在约一秒，但不是端到端零丢失承诺，仍受 OS、磁盘和故障类型影响。</li><li>fork 不会立即复制全部数据页，COW 只在页面写入时复制；页表与写放大仍可能带来显著内存和延迟。</li><li>Redis 7.0 起 AOF 使用多文件机制（基础文件、增量文件和 manifest），不能按单个旧式 AOF 文件理解运维流程。</li></ul></section>
     <section><h2>工程实践</h2><ul><li>混合持久化配置：<code>aof-use-rdb-preamble yes</code>，AOF 重写时先写 RDB 头再追加增量命令。</li><li>RDB 触发规则：<code>save 900 1</code> / <code>save 300 10</code> / <code>save 60 10000</code>，可根据写入频率调整。</li><li>AOF 推荐：<code>appendfsync everysec</code>，兼顾性能与安全。</li><li>Go SDK 触发：<code>rdb.BgSave(ctx)</code> / <code>rdb.BgRewriteAOF(ctx)</code>。</li></ul></section>
-    <section><h2>边界与代价</h2><ul><li>fork 内存开销：大实例 fork 时 COW 可能导致短暂内存翻倍（写入密集场景）。</li><li>fsync 延迟：always 策略每次写命令都 fsync，吞吐量下降明显。</li><li>AOF 重写期间双缓冲区内存消耗和 CPU 开销。</li><li>恢复时间：纯 AOF 重放大文件可能需要数分钟，混合持久化可将此降至秒级。</li></ul></section>
+    <section><h2>边界与代价</h2><ul><li>fork 与 COW：大实例会复制页表；写入密集时被修改页面持续复制，峰值内存取决于工作集而非固定翻倍。</li><li>fsync 延迟：always 的耐久性更强但通常增加延迟；实际吞吐需在目标存储上测量。</li><li>AOF 重写会消耗额外 CPU、内存与磁盘 I/O；Redis 7.0+ 的多文件 AOF减少了旧实现中的双写开销。</li><li>恢复时间取决于数据量、AOF 增量大小、编码、CPU 和存储，不应承诺固定的分钟或秒级结果。</li></ul></section>
   </section>
 </main>
 <script>
@@ -230,7 +230,7 @@ const STEPS = [
     title: "AOF fsync 策略刷盘",
     desc: "AOF 缓冲区的数据根据 fsync 策略写入磁盘：always（每条立即刷）、everysec（每秒一次）、no（交给 OS）。",
     kind: "normal",
-    detail: "everysec 是推荐策略，最多丢失约 1 秒数据，吞吐量接近 no 策略。",
+    detail: "everysec 是默认且常用的折中：通常约一秒执行一次 fsync，但故障窗口和性能取决于 OS、存储与故障类型。",
     active: [0,2,4], fail: [], recover: [],
     edges: ['pe2','pe3'],
     edgeStyle: {pe2:'active',pe3:'active'},
@@ -240,9 +240,9 @@ const STEPS = [
   },
   {
     title: "AOF 过大，触发 BGREWRITEAOF",
-    desc: "当 AOF 文件增长超过阈值（默认 64MB 且比上次重写增长 100%），自动触发 BGREWRITEAOF，fork 子进程基于内存状态重写。",
+    desc: "当 AOF 增长满足 auto-aof-rewrite-min-size 与 auto-aof-rewrite-percentage 条件时，可自动触发 BGREWRITEAOF；阈值应以当前配置为准。",
     kind: "normal",
-    detail: "重写期间新命令同时写入旧 AOF 和重写缓冲区，完成后原子替换旧文件。如 100 次 INCR 合并为一条 SET。",
+    detail: "重写根据当前数据集生成紧凑表示。Redis 7.0+ 使用多文件 AOF：新写入进入独立增量文件，完成后通过 manifest 切换文件集合。",
     active: [0,1,2,4], fail: [], recover: [],
     edges: ['pe0','pe5','pe2'],
     edgeStyle: {pe0:'active',pe5:'active',pe2:'active'},
@@ -254,7 +254,7 @@ const STEPS = [
     title: "崩溃场景：数据丢失窗口",
     desc: "进程崩溃时，最后一次 RDB 快照之后和最后一次 AOF fsync 之后的数据将丢失。",
     kind: "failure",
-    detail: "纯 RDB 模式可能丢失数分钟数据；AOF everysec 最多丢失约 1-2 秒；always 理论上不丢但性能差。",
+    detail: "纯 RDB 的窗口由快照频率决定；AOF everysec 通常约一秒一次 fsync；always 也不能替代磁盘可靠性、复制和备份。",
     active: [3,4], fail: [0,1,2], recover: [],
     edges: [],
     edgeStyle: {},
@@ -266,7 +266,7 @@ const STEPS = [
     title: "恢复：加载 RDB 然后重放 AOF",
     desc: "Redis 重启时优先加载 AOF（如果存在），否则加载 RDB。混合模式下先加载 AOF 头部的 RDB 数据再重放尾部增量命令。",
     kind: "recovery",
-    detail: "混合持久化恢复最快：RDB 部分直接内存映射加载（毫秒级），再重放少量增量 AOF 命令。",
+    detail: "混合 AOF 先载入 RDB 前导部分再重放增量命令，通常减少需要重放的命令量；恢复耗时仍取决于数据量和资源。",
     active: [0], fail: [], recover: [0,3,4],
     edges: ['pe6','pe7'],
     edgeStyle: {pe6:'active',pe7:'active'},

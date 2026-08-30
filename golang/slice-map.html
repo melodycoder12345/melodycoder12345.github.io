@@ -1,16 +1,16 @@
 <!DOCTYPE html><html lang="zh-CN">
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="slice header、扩容、map bucket 和并发安全边界。">
+<meta name="description" content="slice 共享底层数组、append 扩容边界、Go 1.24+ Swiss Table map 与并发访问规则。">
 <link rel="canonical" href="https://melodycoder12345.github.io/golang/slice-map.html">
 <meta property="og:title" content="切片与 Map — 码海拾贝">
-<meta property="og:description" content="slice header、扩容、map bucket 和并发安全边界。">
+<meta property="og:description" content="slice 共享底层数组、append 扩容边界、Go 1.24+ Swiss Table map 与并发访问规则。">
 <meta property="og:url" content="https://melodycoder12345.github.io/golang/slice-map.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="码海拾贝">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="切片与 Map — 码海拾贝">
-<meta name="twitter:description" content="slice header、扩容、map bucket 和并发安全边界。">
+<meta name="twitter:description" content="slice 共享底层数组、append 扩容边界、Go 1.24+ Swiss Table map 与并发访问规则。">
 <title>Slice 与 Map - Golang 深度笔记</title>
 <script src="../nav.js"></script>
 <style>
@@ -59,7 +59,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
 .nav-bar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-bottom:1px solid var(--border2);background:var(--panel);position:sticky;top:0;z-index:10;}
 .back{color:var(--dim);text-decoration:none;font-size:.88rem;}
 .back:hover{color:var(--text);}
-.nav-title{font-size:1.06rem;font-weight:700;}
+.nav-title{margin:0;font-size:1.06rem;font-weight:700;}
 .nav-tags{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;}
 .ntag{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--dim);font-family:monospace;}
 .slice-diagram{display:flex;align-items:center;gap:16px;margin:14px 0;flex-wrap:wrap;}
@@ -74,7 +74,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
 <body>
 <div class="nav-bar">
   <a href="index.html" class="back">← 返回</a>
-  <span class="nav-title">📦 Slice 与 Map</span>
+  <h1 class="nav-title">📦 Slice 与 Map</h1>
   <div class="nav-tags">
     <span class="ntag">slice</span>
     <span class="ntag">map</span>
@@ -135,7 +135,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
           <p><strong>Go 1.18+</strong>：改为更平滑的增长策略，避免在 1024 处出现突变，综合考虑元素类型对齐等因素。</p>
           <pre><span class="id">s</span> := <span class="fn">make</span>([]<span class="pkg">int</span>, <span class="num">0</span>, <span class="num">3</span>)  <span class="cm">// len=0, cap=3</span>
 <span class="id">s</span> = <span class="fn">append</span>(<span class="id">s</span>, <span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>)  <span class="cm">// len=3, cap=3，不扩容</span>
-<span class="id">s</span> = <span class="fn">append</span>(<span class="id">s</span>, <span class="num">4</span>)        <span class="cm">// len=4, cap=6，发生扩容！</span>
+<span class="id">s</span> = <span class="fn">append</span>(<span class="id">s</span>, <span class="num">4</span>)        <span class="cm">// len=4，发生扩容；新 cap 由实现决定</span>
 <span class="cm">// 原底层数组被废弃，s 指向新数组</span>
 
 <span class="cm">// 扩容前保存的子切片不受影响（指向旧数组）</span>
@@ -151,23 +151,17 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
     <div class="section" id="map-internals">
       <div class="section-title"><div class="title-bar"></div><h2>Map 底层结构</h2></div>
       <div class="card">
-        <div class="card-hd"><h3>hmap + bmap bucket 结构</h3><span class="badge badge-adv">进阶</span></div>
+        <div class="card-hd"><h3>Go 1.24+ Swiss Table 实现</h3><span class="badge badge-adv">进阶</span></div>
         <div class="card-body">
-          <p>Go map 底层是哈希表，由 <code>hmap</code> 结构体管理，包含多个 bucket（<code>bmap</code>）。</p>
+          <p>map 的语言契约是无序键值集合，具体布局属于运行时实现细节。Go 1.24 起，默认实现改为基于 Swiss Table 的开放寻址哈希表；旧版 <code>hmap/bmap</code> 描述不再代表当前默认实现。</p>
           <ul>
-            <li><strong>hmap</strong>：count（元素数）、B（bucket 数量的对数，共 2^B 个 bucket）、buckets 指针、oldbuckets（扩容时的旧 bucket 指针）</li>
-            <li><strong>bmap</strong>：每个 bucket 存储 8 个 key-value 对，加上 8 字节的 tophash 数组（哈希值高8位，快速过滤），以及指向 overflow bucket 的指针</li>
+            <li><strong>group</strong>：8 个键值槽位配合控制字，记录空闲、删除或占用状态及哈希低 7 位</li>
+            <li><strong>table / directory</strong>：使用探测序列处理冲突；大型 map 通过目录选择多个 table，并按 table 扩容或分裂</li>
           </ul>
-          <pre><span class="cm">// 哈希碰撞处理：链地址法</span>
-<span class="cm">// 同一 bucket 最多 8 个 KV，超出则用 overflow bucket</span>
-
-<span class="cm">// 扩容触发条件：</span>
-<span class="cm">// 1. 负载因子 > 6.5（count/buckets &gt; 6.5）→ 翻倍扩容</span>
-<span class="cm">// 2. overflow bucket 过多 → 等量扩容（整理）</span>
-
-<span class="cm">// 扩容是渐进式的（incremental rehash）</span>
-<span class="cm">// 每次读写操作最多迁移 2 个 bucket，避免卡顿</span></pre>
-          <p><strong>注意</strong>：map 的迭代顺序是随机的（Go 1.0 起有意随机化，防止依赖顺序的代码）。</p>
+          <pre><span class="cm">// 当前实现：开放寻址 + group 控制字并行匹配</span>
+<span class="cm">// 小表整体扩容；大表通过目录进行局部 table 分裂</span>
+<span class="cm">// 这些实现细节可能随 Go 版本继续变化</span></pre>
+          <p><strong>注意</strong>：规范只保证 map 迭代顺序未指定，且不保证两次遍历顺序相同；业务逻辑不能依赖所谓“随机顺序”。</p>
         </div>
       </div>
     </div>
@@ -187,7 +181,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
 <span class="cm">// 删除</span>
 <span class="fn">delete</span>(<span class="id">m</span>, <span class="st">"key"</span>)  <span class="cm">// key 不存在时是 no-op</span>
 
-<span class="cm">// 迭代（顺序随机）</span>
+<span class="cm">// 迭代（顺序未指定）</span>
 <span class="kw">for</span> <span class="id">k</span>, <span class="id">v</span> := <span class="kw">range</span> <span class="id">m</span> { ... }
 
 <span class="cm">// 并发不安全！多 goroutine 读写需要保护</span>
@@ -217,7 +211,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
 
       <div class="qa-card" onclick="toggleQA(this)">
         <div class="qa-q">map 的并发读写会发生什么？如何解决？<span class="qa-arrow">▶</span></div>
-        <div class="qa-a">Go 的 map 并发读写（同时有写操作）会触发运行时 panic：<code>concurrent map read and map write</code> 或 <code>concurrent map writes</code>。这是 Go 运行时在竞争检测中故意加的保护。<br><br>
+        <div class="qa-a">未同步的 map 并发读写属于数据竞争，程序不正确；当前运行时经常会以 <code>concurrent map read and map write</code> 或 <code>concurrent map writes</code> 致命终止，但不能把它当作同步或完整的竞争检测。应使用 <code>-race</code> 辅助检查。<br><br>
         解决方案：<br>
         1. <code>sync.RWMutex</code>：读操作用 RLock，写操作用 Lock，适合读多写少<br>
         2. <code>sync.Map</code>：适合读极多写少的场景，内部用两个 map（read/dirty）减少锁竞争<br>
@@ -230,7 +224,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--accent);font
         <div class="qa-a">主要区别：<br>
         • <strong>长度</strong>：array 长度是类型的一部分（[3]int != [4]int），编译时固定；slice 长度动态可变<br>
         • <strong>值/引用</strong>：array 是值类型，赋值拷贝整个数组；slice 是引用类型，赋值只拷贝 header<br>
-        • <strong>内存</strong>：array 可以在栈上分配；slice 底层数组通常在堆上<br>
+        • <strong>内存</strong>：array 与 slice 的底层数组位于栈还是堆，由逃逸分析和编译器实现决定<br>
         • <strong>传参</strong>：array 传参是拷贝（大数组建议传指针）；slice 传参只拷贝 header（三个字段）<br>
         • <strong>comparable</strong>：array 可以用 == 比较；slice 不能用 == 比较（只能与 nil 比较）</div>
       </div>

@@ -101,10 +101,10 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--cyan);font-s
 </head>
 <body>
 <div class="main">
-<main class="shell" data-page-type="C">
+<main class="shell">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">计算机组成原理 / GPU / C 类型</div>
+      <div class="eyebrow">计算机组成原理 / GPU</div>
       <h1>GPU 架构</h1>
       <p class="summary">GPU 不是一个大 CPU，而是数千个轻量级核心组成的大规模并行处理器。理解 SM、Warp 调度、HBM 带宽层次和 PCIe 传输开销，是优化 AI 推理、图形渲染和通用计算（GPGPU）的基础。</p>
       <div class="tags"><span>SM</span><span>Warp</span><span>SIMT</span><span>HBM</span><span>PCIe</span><span>CUDA</span></div>
@@ -147,9 +147,9 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--cyan);font-s
     <article class="section">
       <h2>GPU 推理服务配置指南</h2>
       <ul>
-        <li><strong>显存估算</strong>：模型参数量 × 精度字节 + KV Cache。7B FP16 = 14GB，加 KV Cache 通常需要 20-24GB。</li>
-        <li><strong>Batch size 影响 MFU</strong>：小 batch decode 阶段 MFU 极低（&lt;5%），大 batch prefill MFU 可达 40-60%。Continuous batching 让 GPU 保持满载。</li>
-        <li><strong>Tensor Parallelism</strong>：多卡通过 NVLink（600 GB/s）切分权重矩阵，降低单卡内存压力，代价是 AllReduce 通信开销。</li>
+        <li><strong>显存估算</strong>：至少考虑模型权重、KV Cache、运行时工作区和框架开销；“参数量 × 精度字节”只估算未压缩权重。</li>
+        <li><strong>Batch size 影响利用率</strong>：增大 batch 往往提高权重复用和算术强度，但 MFU 取决于模型、阶段、内核、GPU 与统计口径，不存在通用百分比。</li>
+        <li><strong>Tensor Parallelism</strong>：可通过 NVLink、PCIe 或其他互联切分权重矩阵，降低单卡内存压力，代价是 collective 通信；带宽取决于具体拓扑和代际。</li>
         <li><strong>Flash Attention</strong>：将 Attention 计算分块在 L1/Shared Memory 完成，减少 HBM 读写次数，大幅提升 Memory Bound 效率。</li>
       </ul>
     </article>
@@ -157,9 +157,9 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--cyan);font-s
       <h2>LLM 显存占用计算</h2>
       <ul>
         <li><strong>模型权重</strong>：参数量 × dtype。7B FP16 = 14GB；INT8 量化减半，INT4 再减半。</li>
-        <li><strong>KV Cache</strong>：2 × 层数 × 头数 × 头维度 × 序列长度 × batch × dtype。Llama-2-7B 在 seq=4096、batch=32 时约 8 GB。</li>
+        <li><strong>KV Cache</strong>：基础估算为 2 × 层数 × KV 头数 × 头维度 × 已缓存 token 数 × batch × 每元素字节；GQA/MQA 要使用 KV 头数，分页、量化和运行时元数据会改变实际占用。</li>
         <li><strong>为什么 batch 影响 MFU</strong>：算术强度 = FLOP / HBM 字节。batch 越大 → 每次读权重服务更多 token → 算术强度越高 → 越接近 Compute Bound。</li>
-        <li><strong>量化加速 Decode</strong>：INT8 量化让同等 HBM 带宽传输的权重量翻倍，Decode 吞吐可提升约 2x。</li>
+        <li><strong>量化与 Decode</strong>：降低权重位宽可减少带宽和容量压力，但实际加速受量化元数据、反量化、内核支持和其他瓶颈影响，不能由位宽比例直接推出吞吐倍数。</li>
       </ul>
     </article>
   </section>
@@ -203,11 +203,11 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--cyan);font-s
       steps: [
         {kicker:'overview',title:'SM 内 Warp 调度总览',badge:'sm',nodes:['sched','w0','w1','w2','w3'],desc:'一个 SM 内同时有多个 Warp，Warp 调度器每时钟周期选一个就绪 Warp 发射指令。Warp 切换零开销（寄存器独立）。',metrics:[{label:'SM',value:'1 个'},{label:'Warp 数',value:'4（示意）'}]},
         {kicker:'dispatch',title:'发射 Warp 0 执行',badge:'dispatch',nodes:['sched','w0'],edges:['sw0'],desc:'调度器选择 Warp 0 并发射指令。Warp 0 的 32 个线程同步执行相同的指令（SIMT），比如 LOAD 全局内存。',metrics:[{label:'执行单元',value:'Warp 0'},{label:'线程数',value:'32'}]},
-        {kicker:'stall',title:'Warp 0 等待 HBM 访存',badge:'stall',tone:'warn',warnNodes:['w0','hbm'],edges:['w0mem'],desc:'Warp 0 触发全局内存访问（读 HBM），需等待约 400-800 个时钟周期。此时 Warp 0 进入 stalled 状态。',detail:'HBM 延迟高但吞吐大。这段等待时间若没有其他 Warp，GPU 就会空转。',metrics:[{label:'HBM 延迟',value:'~500 cycles'}]},
-        {kicker:'switch',title:'切换到 Warp 1 隐藏延迟',badge:'switch',goodNodes:['w1'],warnNodes:['w0'],edges:['sw1'],desc:'调度器立即切换到就绪的 Warp 1 执行。切换开销为零，每个 Warp 有独立的寄存器文件，无需保存/恢复上下文。'},
+        {kicker:'stall',title:'Warp 0 等待全局内存',badge:'stall',tone:'warn',warnNodes:['w0','hbm'],edges:['w0mem'],desc:'Warp 0 触发全局内存访问并等待数据。延迟随 GPU 代际、缓存命中、地址合并与竞争而变化，不能视为固定周期数。',detail:'全局内存吞吐高但单次依赖访问仍可能停顿；若没有其他就绪 Warp，执行单元会空闲。',metrics:[{label:'访存延迟',value:'依平台而异'}]},
+        {kicker:'switch',title:'发射 Warp 1 隐藏延迟',badge:'switch',goodNodes:['w1'],warnNodes:['w0'],edges:['sw1'],desc:'调度器可从驻留且就绪的 Warp 中选择 Warp 1 发射，无需操作系统式上下文保存；发射能力仍受调度器、执行管线和依赖约束。'},
         {kicker:'continue',title:'Warp 2/3 轮流执行',badge:'execute',goodNodes:['w1','w2','w3'],warnNodes:['w0'],desc:'在 Warp 0 等待期间，调度器轮流发射 Warp 1/2/3，GPU 核心保持忙碌。这正是 GPU 靠大量 Warp 隐藏延迟的核心机制。'},
         {kicker:'ready',title:'Warp 0 内存数据就绪',badge:'ready',goodNodes:['hbm'],nodes:['w0'],edges:['memw0'],desc:'HBM 返回数据，Warp 0 重新变为就绪状态，等待调度器下次发射。',metrics:[{label:'状态变化',value:'stalled → ready'}]},
-        {kicker:'hidden',title:'延迟完全隐藏',badge:'optimal',tone:'good',goodNodes:['w0','w1','w2','w3'],desc:'所有 Warp 交替执行，HBM 访存延迟被计算完全掩盖。GPU 核心利用率接近 100%。',detail:'充足的 Warp 数量（Occupancy）是发挥 GPU 性能的关键。Occupancy = 活跃 Warp 数 / SM 最大 Warp 数。',metrics:[{label:'延迟掩盖',value:'完全隐藏'},{label:'核心利用率',value:'~100%'}]}
+        {kicker:'hidden',title:'用并发隐藏部分延迟',badge:'optimal',tone:'good',goodNodes:['w0','w1','w2','w3'],desc:'多个就绪 Warp 交替发射可以掩盖部分访存停顿，但是否充分取决于指令级并行、资源占用和内存系统。高 occupancy 既非充分条件，也不总是越高越快。',detail:'Occupancy = 活跃 Warp 数 / SM 支持的最大驻留 Warp 数，应结合吞吐与瓶颈分析。',metrics:[{label:'延迟掩盖',value:'依工作负载'},{label:'利用率',value:'需测量'}]}
       ]
     },
     {
@@ -258,7 +258,7 @@ code{font-family:'JetBrains Mono','Fira Code',monospace;color:var(--cyan);font-s
         {kicker:'l1_detail',title:'L1/Shared Memory：片上最快',badge:'l1',nodes:['l1','l2'],edges:['l2l1'],desc:'L1 和 Shared Memory 共用同一 SRAM，每 SM 192KB（A100）。Shared Memory 由程序员显式控制，Flash Attention 正是利用它减少 HBM 读写。',metrics:[{label:'带宽',value:'~20 TB/s'},{label:'延迟',value:'~20 cycles'}]},
         {kicker:'compute_bound',title:'Compute Bound：计算密集',badge:'compute',goodNodes:['cores','l1'],nodes:['l2'],desc:'Prefill 阶段：大矩阵乘（整个 prompt 的 Q×K^T），算术强度高（FLOP/Byte 比值大），HBM 带宽不是瓶颈，CUDA Core 是瓶颈。',metrics:[{label:'瓶颈',value:'CUDA Core 算力'},{label:'算术强度',value:'高 (>200 FLOP/B)'}]},
         {kicker:'memory_bound',title:'Memory Bound：访存密集',badge:'memory',warnNodes:['hbm'],badNodes:['cores'],desc:'Decode 阶段：每步只生成 1 个 token，矩阵规模极小，但需要把全量权重从 HBM 读一遍，算术强度极低，CUDA Core 大量空转。',metrics:[{label:'瓶颈',value:'HBM 带宽'},{label:'CUDA 利用率',value:'< 5%'}]},
-        {kicker:'llm_decode',title:'LLM Decode：KV Cache 反复读',badge:'decode',tone:'warn',warnNodes:['hbm','l2'],nodes:['cores'],desc:'每个 decode step 需读全量 KV Cache + 权重，小矩阵乘。加更多 CUDA Core 无法提速，提升 HBM 带宽（H100 SXM 的 3.35TB/s）或量化才有帮助。',detail:'INT8 量化让同等带宽传输的权重量翻倍，Decode 吞吐可提升约 2x，是最高 ROI 的优化手段。',metrics:[{label:'瓶颈',value:'HBM 带宽'},{label:'优化方向',value:'量化/Flash Decoding'}]}
+        {kicker:'llm_decode',title:'LLM Decode：频繁读取状态与权重',badge:'decode',tone:'warn',warnNodes:['hbm','l2'],nodes:['cores'],desc:'自回归 decode 常因低算术强度而受内存带宽限制，但还可能受 KV Cache、kernel launch、通信或调度限制；瓶颈必须按模型、batch 和硬件测量。',detail:'量化可降低权重带宽和容量压力，但实际吞吐收益取决于量化格式、反量化开销、内核支持和其他瓶颈，不能直接由位宽比例推导。',metrics:[{label:'常见瓶颈',value:'带宽/调度'},{label:'优化方向',value:'测量后选择'}]}
       ]
     },
     {

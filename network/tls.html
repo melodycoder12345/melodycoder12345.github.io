@@ -87,16 +87,16 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
 <script>window.PAGE_CONCEPTS=[
   {"title":"Handshake","body":"TLS握手：客户端和服务端协商加密套件、交换密钥、验证身份的过程，TLS 1.3 只需 1-RTT。","tag":"term"},
   {"title":"Forward Secrecy","body":"前向安全：即使长期密钥泄漏，历史会话也无法被解密——依赖 ECDHE 每次生成临时密钥对。","tag":"term"},
-  {"title":"Session Ticket","body":"会话复用：客户端携带上次握手缓存的 ticket，服务端验证后可跳过完整握手，实现 0-RTT。","tag":"term"}
+  {"title":"Session Ticket","body":"会话复用：ticket 可用于建立 PSK 恢复会话、减少握手成本；只有客户端和服务端都协商 early_data 且策略允许时，才会发送 0-RTT。","tag":"term"}
 ];</script>
 </head>
 <body>
-<main class="content" data-page-type="C">
+<main class="content">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">网络 / TLS 1.3 / C 类型</div>
+      <div class="eyebrow">网络 / TLS 1.3</div>
       <h1>TLS 1.3</h1>
-      <p class="summary">TLS 1.3 把握手从 2-RTT 缩短到 1-RTT，并用 ECDHE 保证前向安全。理解握手流程、证书链验证和 0-RTT 的重放风险，是排查 HTTPS 延迟和证书问题的基础。</p>
+      <p class="summary">TLS 1.3 的完整握手通常在 ClientHello 后 1-RTT 即可发送应用数据，并通过临时 (EC)DHE 或与 PSK 组合提供前向安全。理解证书链验证和 0-RTT 的重放风险，是排查 HTTPS 延迟与证书问题的基础。</p>
       <div class="tags"><span>TLS 1.3</span><span>ECDHE</span><span>Certificate</span><span>0-RTT</span></div>
     </div>
     <div class="card">
@@ -104,7 +104,7 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
       <ul class="concept-list">
         <li><strong>Handshake</strong><span>TLS握手：客户端和服务端协商加密套件、交换密钥、验证身份的过程，TLS 1.3 只需 1-RTT。</span></li>
         <li><strong>Forward Secrecy</strong><span>前向安全：即使长期密钥泄漏，历史会话也无法被解密——依赖 ECDHE 每次生成临时密钥对。</span></li>
-        <li><strong>Session Ticket</strong><span>会话复用：客户端携带上次握手缓存的 ticket，服务端验证后可跳过完整握手，实现 0-RTT。</span></li>
+        <li><strong>Session Ticket</strong><span>ticket 可用于建立 PSK 恢复会话；恢复与 0-RTT 是两件事，后者还需双方协商 early_data 并接受重放风险。</span></li>
       </ul>
     </div>
   </section>
@@ -150,7 +150,7 @@ h1{font-size:clamp(2rem,4vw,4.2rem);line-height:1.04;letter-spacing:-.055em;marg
   <section class="deep">
     <section>
       <h2>背景与机制</h2>
-      <p>TLS 1.2 需要 2 次往返（TCP 握手 + TLS 握手）才能发送第一个字节。TLS 1.3 移除了 RSA 密钥交换和弱算法（RC4、DES、3DES、MD5、SHA-1），强制使用 ECDHE 保证前向安全，把握手压缩到 1-RTT（首次）或 0-RTT（会话恢复）。密钥派生使用 HKDF，握手全程加密，握手消息不暴露给网络中间设备。</p>
+      <p>不计 TCP 建连时，TLS 1.2 完整握手通常需要 2-RTT，TLS 1.3 完整握手通常为 1-RTT；PSK 恢复在双方允许时可附带 0-RTT early data，但恢复并不必然启用 0-RTT。TLS 1.3 移除了静态 RSA/DH 密钥交换和旧式密码套件，完整握手使用临时 (EC)DHE，PSK 恢复可单独使用或与 (EC)DHE 组合。密钥派生使用 HKDF；ServerHello 之后的大部分握手消息会被加密，初始 ClientHello 通常可见，但部署 ECH 时可加密其敏感内层内容。</p>
     </section>
     <section>
       <h2>常见误区</h2>
@@ -237,7 +237,7 @@ const STEPS = [
   },
   {
     title: "0-RTT 快速重连",
-    desc: "客户端携带 session ticket，第一个请求与 ClientHello 同时发出，无需等待握手完成。",
+    desc: "在 ticket 建立的 PSK、双方 early_data 能力与服务端策略均允许时，客户端可让第一个请求随 ClientHello 发出，无需等待握手完成。",
     kind: "recovery",
     active: [0, 5],
     recover: [0, 5],

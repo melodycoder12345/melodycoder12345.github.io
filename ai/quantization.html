@@ -3,16 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="INT8/INT4 量化将显存需求降低 4-8x，GPTQ/AWQ 是主流训练后量化方案。">
+<meta name="description" content="解释 INT8/INT4 权重与激活量化、校准、量化粒度及其精度和硬件边界。">
 <link rel="canonical" href="https://melodycoder12345.github.io/ai/quantization.html">
 <meta property="og:title" content="模型量化 — 码海拾贝">
-<meta property="og:description" content="INT8/INT4 量化将显存需求降低 4-8x，GPTQ/AWQ 是主流训练后量化方案。">
+<meta property="og:description" content="解释 INT8/INT4 权重与激活量化、校准、量化粒度及其精度和硬件边界。">
 <meta property="og:url" content="https://melodycoder12345.github.io/ai/quantization.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="码海拾贝">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="模型量化 — 码海拾贝">
-<meta name="twitter:description" content="INT8/INT4 量化将显存需求降低 4-8x，GPTQ/AWQ 是主流训练后量化方案。">
+<meta name="twitter:description" content="解释 INT8/INT4 权重与激活量化、校准、量化粒度及其精度和硬件边界。">
 <title>模型量化 - AI</title>
 <script src="../nav.js"></script>
 <script src="../concept.js"></script>
@@ -24,33 +24,33 @@
 ];</script>
 </head>
 <body>
-<main class="shell" data-page-type="B">
+<main class="shell">
   <section class="hero">
     <div class="card">
-      <div class="eyebrow">AI / 量化 / B 类型</div>
+      <div class="eyebrow">AI / 量化</div>
       <h1>模型量化</h1>
-      <p class="summary">量化将模型权重和激活从 FP32/BF16 降低到 INT8/INT4，大幅减少显存占用和推理延迟。理解量化粒度、校准方法和精度损失，是在资源受限环境部署大模型的关键。</p>
+      <p class="summary">量化用较低位宽表示权重或激活，通常减少模型存储和内存带宽；是否降低端到端延迟取决于量化范围、内核、硬件、batch 和反量化开销。</p>
       <div class="tags"><span>INT8</span><span>INT4</span><span>AWQ</span><span>GPTQ</span><span>QAT</span></div>
     </div>
     <div class="card map">
       <div class="eyebrow">核心权衡</div>
-      <div class="term"><strong>精度 vs 显存</strong><span>FP32 权重每个参数 4 字节；INT8 降为 1 字节（节省 75%）；INT4 只需 0.5 字节（节省 87.5%）。精度依次降低，但对大多数任务可接受。</span></div>
-      <div class="term"><strong>PTQ vs QAT</strong><span>PTQ 无需重训练，几分钟完成，精度损失较大；QAT 在训练中模拟量化，精度接近 FP16，但成本与微调相当。</span></div>
-      <div class="term"><strong>权重量化 vs 激活量化</strong><span>权重量化（W-only）静态，无需运行时信息，几乎无精度损失；激活量化需要校准集估计分布，且动态范围难以预测。</span></div>
+      <div class="term"><strong>位宽 vs 内存</strong><span>裸权重的理论位宽可从 FP32 的 32 bit 降至 INT8/INT4；实际占用还包含 scale、zero-point、分组元数据、对齐和运行时缓冲。</span></div>
+      <div class="term"><strong>PTQ vs QAT</strong><span>PTQ 在训练后校准或优化量化参数；QAT 在训练中模拟量化误差。耗时和精度差异依模型、数据、量化对象与工具链而定。</span></div>
+      <div class="term"><strong>权重量化 vs 激活量化</strong><span>仅权重量化通常更容易部署，但仍是有损近似；激活量化可用静态校准或运行时动态 scale，对离群值和内核支持更敏感。</span></div>
     </div>
   </section>
 
   <section class="grid">
     <article class="section">
       <h2>为什么要量化？</h2>
-      <p>推理成本和可访问性是量化的主要动机。以 LLaMA-3 7B 为例，不同精度的显存需求对比：</p>
+      <p>推理成本和可访问性是量化的主要动机。以下用 70 亿参数仅计算裸权重理论下限，不代表某个具体模型或可运行所需显存：</p>
       <ul>
-        <li><strong>FP32</strong>：7B × 4 bytes = <strong>28 GB</strong> 显存，需要 A100 40GB 或更高</li>
-        <li><strong>BF16/FP16</strong>：7B × 2 bytes = <strong>14 GB</strong> 显存，RTX 3090/4090 可运行</li>
-        <li><strong>INT8</strong>：7B × 1 byte = <strong>7 GB</strong> 显存，RTX 3080 可运行</li>
-        <li><strong>INT4</strong>：7B × 0.5 bytes = <strong>3.5 GB</strong> 显存，笔记本 GPU 也能跑</li>
+        <li><strong>FP32</strong>：7B × 4 bytes ≈ <strong>28 GB</strong> 裸权重（十进制）</li>
+        <li><strong>BF16/FP16</strong>：7B × 2 bytes ≈ <strong>14 GB</strong> 裸权重</li>
+        <li><strong>INT8</strong>：7B × 1 byte ≈ <strong>7 GB</strong> 裸权重，另有量化元数据</li>
+        <li><strong>INT4</strong>：7B × 0.5 bytes ≈ <strong>3.5 GB</strong> 裸权重，另有量化元数据</li>
       </ul>
-      <p>除显存外，INT8/INT4 指令在现代 GPU 上的吞吐量比 FP16 高 2-4 倍，推理延迟相应降低。</p>
+      <p>低位宽内核在受支持硬件和合适形状上可能提高吞吐，但权重解包、反量化、未量化算子及小 batch 都可能抵消收益，因此不能从位宽直接推导延迟倍率。</p>
     </article>
     <article class="section">
       <h2>量化原理</h2>
@@ -76,25 +76,25 @@ W_deq = (W_q - zero_point) * scale</pre>
         <li><strong>PTQ（训练后量化）</strong>：
           <ul>
             <li>时间：几分钟到几小时（需要校准集）</li>
-            <li>精度损失：INT8 约 0.5-1%；INT4 约 2-5%</li>
+            <li>精度损失：没有跨模型、量化方案和任务通用的百分比，需相对浮点基线评测</li>
             <li>适用场景：资源受限，快速部署，不需要重新训练</li>
           </ul>
         </li>
         <li><strong>QAT（量化感知训练）</strong>：
           <ul>
             <li>时间：与微调相当，需要完整训练循环</li>
-            <li>精度：接近 FP16 基线，几乎无损</li>
+            <li>精度：论文在其模型与任务上报告了较小退化，部署前仍需逐任务评估</li>
             <li>适用场景：对精度要求极高，有训练资源</li>
           </ul>
         </li>
       </ul>
-      <div class="callout">工程实践中，LLM 通常使用 PTQ（GPTQ/AWQ），因为 QAT 的成本对 7B+ 模型来说过高。</div>
+      <div class="callout">权重 PTQ、动态/静态激活量化和 QAT 各有适用范围；选择取决于目标硬件内核、精度预算、训练资源与模型许可。</div>
     </article>
     <article class="section">
       <h2>GPTQ 和 AWQ</h2>
-      <p>这两种方法是目前最主流的 LLM INT4 量化算法，大幅提升了 PTQ 的精度上限。</p>
+      <p>GPTQ 与 AWQ 是常见的 LLM 权重训练后量化方法，两者优化目标和实现生态不同。</p>
       <ul>
-        <li><strong>GPTQ</strong>：基于 Hessian 信息的逐层最优量化，在量化每个权重后用 Hessian 逆矩阵补偿相邻权重的误差传播，将量化误差最小化。典型效果：LLaMA-2 7B INT4 GPTQ 的精度损失 &lt; 1%。</li>
+        <li><strong>GPTQ</strong>：基于近似二阶信息逐层量化并补偿后续权重，目标是降低层输出重建误差；下游任务损失仍随模型、校准集和配置变化。</li>
         <li><strong>AWQ（Activation-Aware Weight Quantization）</strong>：观察到不是所有权重对精度的贡献相同——激活值（activation）大的通道对应的权重更重要。AWQ 对这些"显著权重"保持更高精度或放大 scale，其他权重正常量化。</li>
       </ul>
       <pre># AWQ 核心思路：per-channel scaling
@@ -109,8 +109,8 @@ W_q = quantize(W_scaled, bits=4)  # INT4 量化</pre>
       <p>量化粒度决定了 scale 参数的共享范围，粒度越细精度越高，但开销越大。</p>
       <ul>
         <li><strong>逐张量（per-tensor）</strong>：整个权重矩阵共享一个 scale。最简单，精度最差。适合激活量化的快速实验。</li>
-        <li><strong>逐通道（per-channel/per-row）</strong>：每行或每列独立 scale。精度显著提升，几乎无运行时开销。是权重量化的主流选择。</li>
-        <li><strong>逐组（group quantization）</strong>：每 G 个元素（g=64/128）共享一个 scale。精度接近 FP16，但 scale 参数增加约 1/G 的开销。GPTQ/AWQ 默认 g=128。</li>
+        <li><strong>逐通道（per-channel/per-row）</strong>：每行或每列独立 scale，通常比逐张量更好地适应离群值，但元数据和内核开销取决于实现。</li>
+        <li><strong>逐组（group quantization）</strong>：每 G 个元素共享一个 scale；较小组通常更精细但元数据更多。组大小是格式与实现配置，不是 GPTQ/AWQ 算法的统一固定值。</li>
       </ul>
       <div class="callout">实践中：权重用逐通道或逐组量化；激活用逐张量（静态校准）或动态量化（每次推理计算 scale）。</div>
     </article>

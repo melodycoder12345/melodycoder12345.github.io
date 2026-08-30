@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="从应用侧理解大模型 API 的认证、请求、流式返回、结果校验和错误恢复。">
+<link rel="canonical" href="https://melodycoder12345.github.io/ai/api-basics.html">
+<meta property="og:title" content="大模型 API 调用基础 — 码海拾贝">
+<meta property="og:description" content="从应用侧理解大模型 API 的认证、请求、流式返回、结果校验和错误恢复。">
+<meta property="og:url" content="https://melodycoder12345.github.io/ai/api-basics.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="码海拾贝">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="大模型 API 调用基础 — 码海拾贝">
+<meta name="twitter:description" content="从应用侧理解大模型 API 的认证、请求、流式返回、结果校验和错误恢复。">
+<title>大模型 API 调用基础 - AI 系统</title>
+<script src="../nav.js"></script>
+<script src="../concept.js"></script>
+<link rel="stylesheet" href="ai.css">
+<script>window.PAGE_CONCEPTS=[
+  {"title":"Server-side Proxy","body":"由自己的服务端保存凭证、校验业务输入并调用模型 API；浏览器只访问自己的后端。","tag":"term"},
+  {"title":"Streaming","body":"服务端把模型增量生成的事件持续转发给客户端，降低用户感知等待，但需要处理断线和半成品状态。","tag":"term"},
+  {"title":"Rate Limit","body":"服务商按请求数、Token 或并发限制流量；调用方应退避、排队或降级，不能无上限立即重试。","tag":"term"}
+];</script>
+</head>
+<body>
+<main class="shell">
+  <section class="hero">
+    <div class="card">
+      <div class="eyebrow">Stage 01 / Caller-side Lifecycle</div>
+      <h1>大模型 API 调用基础</h1>
+      <p class="summary">一次可靠调用不只是发送 Prompt：应用需要在服务端读取 API Key、限制输入、设置超时、消费流式事件、校验结果，并对限流、断线和不合法输出做恢复。</p>
+      <div class="tags"><span>Server-side</span><span>Streaming</span><span>Timeout</span><span>Validation</span></div>
+    </div>
+    <div class="card map">
+      <div class="eyebrow">三条安全边界</div>
+      <div class="term"><strong>密钥只放服务端</strong><span>浏览器代码、前端环境变量和公开仓库都不能保存 API Key。</span></div>
+      <div class="term"><strong>重试必须有上限</strong><span>只对适合重试的错误使用指数退避，并设置总次数、超时和预算。</span></div>
+      <div class="term"><strong>模型输出不可信</strong><span>文本和 JSON 都要经过长度、Schema、权限和业务规则校验。</span></div>
+    </div>
+  </section>
+
+  <section class="lab" aria-label="大模型 API 生命周期动画">
+    <aside class="panel"><div class="panel-hd">Step Timeline</div><div class="steps" id="stepList"></div></aside>
+    <section class="panel viz"><div class="stage" id="aiStage"></div><div class="controls"><button class="ctrl" id="btnReset">重置</button><button class="ctrl" id="btnPrev">上一步</button><button class="ctrl primary" id="btnPlay">播放</button><button class="ctrl" id="btnNext">下一步</button></div></section>
+    <aside class="panel"><div class="panel-hd">当前状态</div><div class="status"><span class="badge" id="stateBadge">normal</span><h2 id="stepTitle"></h2><p id="stepDesc"></p><p id="stepDetail"></p><div class="metrics" id="metrics"></div><div class="codebox"><h3>调用方伪代码</h3><pre id="codeBlock"></pre></div></div></aside>
+  </section>
+
+  <section class="grid">
+    <article class="section">
+      <h2>推荐调用结构</h2>
+      <pre><code>// 只在服务端执行
+const response = await fetch(process.env.LLM_API_URL, {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${process.env.LLM_API_KEY}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({ input, stream: true }),
+  signal: AbortSignal.timeout(30_000)
+});
+
+if (!response.ok) handleModelError(response.status);
+for await (const event of readStream(response.body)) {
+  validateAndForward(event);
+}</code></pre>
+      <div class="callout">代码只展示通用调用边界。具体请求字段、事件格式和错误码应以所选服务的当前官方文档为准。</div>
+    </article>
+    <article class="section">
+      <h2>普通响应与流式响应</h2>
+      <ul>
+        <li><strong>普通响应：</strong>实现简单，必须等完整结果生成后才能展示。</li>
+        <li><strong>流式响应：</strong>可以逐步展示 Token，但要处理断线、取消、重复事件和未完成输出。</li>
+        <li><strong>共同要求：</strong>都需要超时、日志、Token 预算、输出校验和敏感信息保护。</li>
+      </ul>
+    </article>
+    <article class="section">
+      <h2>错误处理清单</h2>
+      <ul>
+        <li><strong>认证失败：</strong>停止请求并检查服务端凭证配置，不向客户端返回密钥细节。</li>
+        <li><strong>限流：</strong>读取可用的重试提示，指数退避并限制总次数。</li>
+        <li><strong>超时或断线：</strong>取消上游请求，保留可追踪状态，允许用户重新发起。</li>
+        <li><strong>上下文超限：</strong>缩短输入、摘要历史或拒绝请求，不能无限截断关键内容。</li>
+        <li><strong>校验失败：</strong>对安全的请求有限重试，否则进入降级或人工处理。</li>
+      </ul>
+    </article>
+    <article class="section">
+      <h2>与现有概念的边界</h2>
+      <p>本页只解释调用方生命周期。模型服务内部如何 Tokenize、Prefill、写入 KV Cache、Decode 和采样，由现有的 <a href="inference-kv-cache.html">推理与 KV Cache</a> 页面主讲。</p>
+      <p>Prompt 技巧、上下文长度、结构化输出和工具调用也继续由各自页面承担，本页只说明它们在 API 链路中的位置。</p>
+    </article>
+  </section>
+
+  <div class="back-row">
+    <a class="btn" href="llm-learning-path.html">返回学习路线</a>
+    <a class="btn" href="prompt-engineering.html">下一步：Prompt Engineering</a>
+  </div>
+</main>
+<script>
+window.AI_DEMO = {
+  title:'大模型 API 调用生命周期', viewBox:'0 0 560 360', interval:1800,
+  nodes:[
+    {id:'client',label:'Client',sub:'user input',x:72,y:72,w:108},
+    {id:'server',label:'App Server',sub:'auth + policy',x:220,y:72,w:118},
+    {id:'vault',label:'Secret Store',sub:'API Key',x:220,y:172,w:112},
+    {id:'model',label:'Model API',sub:'generate',x:390,y:72,w:116},
+    {id:'stream',label:'Event Stream',sub:'SSE chunks',x:470,y:180,w:116},
+    {id:'validate',label:'Validator',sub:'schema + rules',x:330,y:284,w:118},
+    {id:'result',label:'Business UI',sub:'safe output',x:142,y:284,w:116},
+    {id:'recovery',label:'Recovery',sub:'backoff / fallback',x:72,y:180,w:126}
+  ],
+  edges:[
+    {id:'e1',x1:126,y1:72,x2:161,y2:72},{id:'e2',x1:220,y1:145,x2:220,y2:101},
+    {id:'e3',x1:279,y1:72,x2:332,y2:72},{id:'e4',x1:420,y1:99,x2:454,y2:148},
+    {id:'e5',x1:435,y1:206,x2:368,y2:257},{id:'e6',x1:271,y1:284,x2:200,y2:284},
+    {id:'e7',x1:166,y1:101,x2:105,y2:153},{id:'e8',x1:123,y1:180,x2:328,y2:101}
+  ],
+  code:'validate(input)\ncallModel({ timeout, stream: true })\nconsumeEvents()\nvalidateOutput()\nreturn result',
+  steps:[
+    {kicker:'request',title:'客户端提交业务输入',badge:'request',nodes:['client'],desc:'浏览器把用户输入发送给自己的应用服务端，不直接持有模型服务凭证。',metrics:[{label:'trust',value:'untrusted input'}],code:'POST /api/generate\n{ input: userText }'},
+    {kicker:'auth',title:'服务端读取 API Key',badge:'server-only',nodes:['server','vault'],edges:['e1','e2'],desc:'服务端完成用户鉴权、输入校验和预算检查，再从安全配置读取 API Key。',detail:'密钥不得进入 HTML、前端构建产物、日志或错误响应。',code:'const key = process.env.LLM_API_KEY\nassertAuthorized(user)\nvalidate(input)'},
+    {kicker:'dispatch',title:'发送有超时边界的请求',badge:'dispatch',nodes:['server','model'],edges:['e3'],desc:'请求包含模型输入、生成参数和是否流式返回，并设置取消信号与总超时。',metrics:[{label:'timeout',value:'bounded'}],code:'callModel({\n  input, stream: true,\n  signal: AbortSignal.timeout(limit)\n})'},
+    {kicker:'stream',title:'消费增量生成事件',badge:'stream',nodes:['model','stream'],edges:['e4'],desc:'模型生成一部分就返回一个事件，服务端解析后再转发给客户端。',detail:'断线时必须取消上游请求，不能让生成任务继续消耗预算。',code:'for await (const event of stream) {\n  parse(event)\n  forward(event)\n}'},
+    {kicker:'validate',title:'校验完整输出',badge:'validate',nodes:['stream','validate','result'],edges:['e5','e6'],desc:'完成事件到达后，校验长度、Schema、权限和业务约束，再把结果交给业务。',metrics:[{label:'output',value:'validated'}],code:'const output = assemble(events)\nassertSchema(output)\nreturn sanitize(output)'},
+    {kicker:'rate-limit',title:'限流：等待后再重试',badge:'429',tone:'warn',warnNodes:['model','recovery'],warnEdges:['e7'],desc:'达到请求、Token 或并发额度时进入有上限的指数退避，不立即无限重试。',metrics:[{label:'action',value:'backoff + jitter'}],code:'if (isRateLimited(error))\n  retryWithBackoff({ maxAttempts: 3 })'},
+    {kicker:'timeout',title:'超时或流式连接中断',badge:'timeout',tone:'bad',badNodes:['stream'],warnNodes:['recovery'],badEdges:['e4'],warnEdges:['e7'],desc:'取消上游任务并记录已完成状态，向客户端返回可理解的重试提示。',detail:'不能把半段 JSON 当作完整业务结果。',code:'controller.abort()\nrecordPartialState()\nreturn retryableError()'},
+    {kicker:'context-limit',title:'上下文超过模型边界',badge:'context limit',tone:'warn',warnNodes:['server','model'],warnEdges:['e3'],desc:'输入 Token 超出预算时，在发起生成前缩短历史、摘要或拒绝请求。',detail:'不能静默删除系统指令、权限信息或关键证据。',code:'if (estimateTokens(input) > budget)\n  return reduceOrReject(input)'},
+    {kicker:'validation-failed',title:'结构化结果校验失败',badge:'invalid output',tone:'bad',badNodes:['validate'],warnNodes:['recovery'],badEdges:['e5'],warnEdges:['e7'],desc:'模型返回了文本，但不满足 Schema 或业务约束，不能直接进入数据库或工具执行。',code:'const parsed = schema.safeParse(output)\nif (!parsed.success) recover()'},
+    {kicker:'recovery',title:'有限重试、降级或人工处理',badge:'recovered',tone:'good',goodNodes:['recovery','result'],nodes:['server'],edges:['e8'],desc:'根据错误类型选择重试、备用模型、模板结果或人工处理，并保留请求 ID 便于追踪。',metrics:[{label:'rule',value:'bounded recovery'}],code:'recover({\n  retry: retryable,\n  fallback: safeFallback,\n  traceId\n})'}
+  ]
+};
+</script>
+<script src="ai.js"></script>
+</body>
+</html>

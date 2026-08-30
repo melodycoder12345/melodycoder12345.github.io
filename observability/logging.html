@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="日志体系 ELK/Loki — ELK 提供全文检索，Loki 以标签索引为核心，Filebeat/Promtail 采集分散日志汇聚到中央存储，支持全文检索与告警。">
+<meta name="description" content="日志体系 ELK/Loki — Elasticsearch 可索引文本与字段，Loki 主要索引标签；采集、缓冲与投递语义取决于 Agent 和管道配置。">
 <link rel="canonical" href="https://melodycoder12345.github.io/observability/logging.html">
 <meta property="og:title" content="日志体系：ELK / Loki — 码海拾贝">
 <meta property="og:description" content="日志体系 ELK/Loki — ELK 提供全文检索，Loki 以标签索引为核心，Filebeat/Promtail 采集分散日志汇聚到中央存储，支持全文检索与告警。">
@@ -225,7 +225,7 @@ a{color:var(--accent);text-decoration:none}
     日志体系 ELK / Loki
   </div>
   <h1 class="page-title">日志体系：ELK / Loki</h1>
-  <p class="subtitle">日志是可观测性三大支柱之一。ELK（Elasticsearch + Logstash + Kibana）提供全文搜索能力，Loki 以标签索引为核心，更轻量且与 Prometheus 生态集成。两者均通过采集 Agent（Fluentd / Fluent Bit / Promtail）将分散在各 Pod 的日志汇聚到中央存储，支持全文检索和告警。</p>
+  <p class="subtitle">日志是常用的可观测信号之一。ELK（Elasticsearch + Logstash + Kibana）可对字段和文本建立索引；Loki 主要索引标签，并在匹配的 Chunk 中过滤日志内容。采集端可使用 Fluent Bit、OpenTelemetry Collector 或 Grafana Alloy；Promtail 已弃用并于 2026 年 3 月结束生命周期，只适合解释既有部署。</p>
 
   <div class="layout">
     <!-- ── Left panel ── -->
@@ -551,31 +551,31 @@ const MSGS = [
   [
     '初始状态：ELK 栈已部署。Filebeat 以 DaemonSet 形式运行于每个节点，持续监听容器 stdout 路径（/var/log/containers/*.log）。Logstash 已配置 filter 管道，Elasticsearch 根据 index template 已准备好接收写入。',
     '① App Service（payment-svc）将结构化 JSON 日志输出到 stdout。容器运行时（Docker / containerd）将 stdout 写入节点上的 /var/log/containers/payment-svc-xxx.log。JSON 包含 timestamp、level、service、traceId、message 等字段，便于后续解析。',
-    '② Filebeat Agent 监听到日志文件追加，读取新增行后按批次（bulk）推送到 Logstash。Filebeat 在本地维护 registry 文件记录每个文件的读取 offset，保证崩溃重启后 at-least-once 语义，不跳过日志行。',
+    '② Filebeat Agent 监听日志文件追加，读取新增行后发送到 Logstash。Registry 记录读取状态，可在重启后续传；官方目标是至少一次投递，但日志轮转、文件过早删除、队列与输出配置仍会影响是否丢失或重复。',
     '③ Logstash 通过 filter 插件链处理日志：grok 插件解析非结构化字段、mutate 做类型转换、geoip 根据客户端 IP 附加地理信息（如 geo_ip.country = "CN"）、date 插件将 timestamp 字段解析为 ES 时间类型。',
-    '④ Logstash 调用 Elasticsearch _bulk API 批量写入文档。ES 根据 mapping 对 message 字段进行分词（standard analyzer），为每个 token 建立 倒排索引（Posting List）。写入先进 translog（WAL），保证持久性。',
+    '④ Logstash 可调用 Elasticsearch Bulk API 写入文档。ES 按 mapping 分析可检索字段并构建倒排索引；已确认写入先进入内存缓冲与 translog，但持久性强度取决于 translog durability、复制和确认配置。',
     '⑤ Kibana 用户在 Discover 页面输入查询：level:error AND service:payment-service。Kibana 将其转换为 ES Query DSL（bool must：term + term）发往 ES 搜索接口，等待倒排索引命中。',
     '⑥ ES 扫描倒排索引：在 level 字段的 "error" posting list 中找到候选文档，在 service 字段的 "payment-service" posting list 中找到另一组，两者做 AND 交集，命中 doc#2、doc#4。ES 返回高亮结果（关键词加粗），Kibana 渲染展示。',
   ],
   /* Tab 1 — Loki */
   [
-    '初始状态：Loki 栈已部署。Promtail 以 DaemonSet 运行，通过 pipeline_stages 提取 Pod 日志中的标签。Loki 核心组件包括 Distributor（路由）、Ingester（写入）、Querier（查询），Object Storage（S3/GCS）用于持久化 chunk。',
+    '初始状态：这是一个既有 Promtail 部署示例。新部署应优先使用 Grafana Alloy 或 OpenTelemetry Collector，因为 Promtail 已结束生命周期。Loki 可由 Distributor、Ingester、Querier 等组件组成，并使用对象存储保存 Chunk 与 TSDB 索引。',
     '① Pod 将日志写入 stdout，kubelet 将其落盘到 /var/log/pods/<namespace>/<pod>/<container>/ 路径。Loki 的关键差异：它 不对日志内容建立索引，只索引 标签（Labels），大幅降低存储成本和索引压力。',
     '② Promtail 读取日志文件，通过 pipeline_stages 从文件路径与日志内容中提取标签：namespace=prod、pod=payment-svc-abc、level=error 等。每条日志形成三元组：{labels, nanosecond_timestamp, line}，构成一个 Log Stream。',
     '③ Promtail 将同一标签集（Stream）的日志批量推送到 Loki Distributor。Distributor 对标签集做哈希，通过 一致性哈希环（consistent hash ring）将该 Stream 路由到特定的 Ingester 节点，保证同 Stream 的日志有序写入。',
-    '④ Ingester 接收日志后先写 WAL（Write-Ahead Log），然后在内存中按 {stream_labels + 时间} 组织 chunk。单个 chunk 最大 256KB 或经过 1h，之后触发持久化。WAL 保证 Ingester 崩溃后可以从最后检查点恢复。',
-    '⑤ Chunk 达到大小阈值（256KB）或超时（1h），Ingester 使用 Snappy 或 gzip 压缩后上传到 Object Storage。Chunk 文件名编码了 Stream hash + 时间范围，元数据（哪些标签对应哪些 chunk）写入 Index Store（BoltDB / DynamoDB）。',
+    '④ Ingester 可把接收的数据写入 WAL，并在内存中按 Stream 组织 Chunk。Chunk 的目标大小、空闲/最大存活时间和刷新行为均可配置；WAL 与检查点帮助崩溃恢复，但不应被表述为端到端零丢失保证。',
+    '⑤ Chunk 达到配置的目标大小、空闲期或最大存活时间后被切割并刷新到对象存储。当前推荐的 TSDB 单存储模式也把索引文件存入对象存储；压缩算法与索引实现取决于 schema 和配置，不应固定为 256KB、1h、BoltDB/DynamoDB。',
     '⑥ Grafana 用户输入 LogQL：{namespace="prod", level="error"} |= "payment"。Loki Querier 解析标签选择器，查询 Index Store 定位所有匹配标签的 chunk 文件列表（可能跨多个时间段）。',
-    '⑦ Querier 从 Object Storage 下载对应 chunk，解压后逐行扫描，用 |= "payment" 过滤器筛选包含关键词的日志行，按时间排序后流式返回给 Grafana。注意：Loki 只有标签索引，内容过滤必须全量扫描 chunk，这是 Loki 的核心取舍。',
+    '⑦ 查询组件读取与标签和时间范围匹配的 Chunk，再执行 |= "payment" 等行过滤并返回结果。它扫描的是被索引筛选出的相关数据，不是所有日志；Bloom 等可选能力也可能进一步减少内容扫描。',
   ],
   /* Tab 2 — Crash Recovery */
   [
     '初始状态：Fluentd Agent（DaemonSet）正常运行。它持续从 Pod stdout 日志文件读取数据，通过 in_tail 插件跟踪文件偏移量，解析后转发到 Elasticsearch。position file 实时记录已处理的文件偏移量（checkpoint）。',
     '② Fluentd Agent Pod 因内存使用超过 limit，被 Linux OOM Killer 强制杀死（SIGKILL）。进程瞬间消失，正在内存中缓冲但尚未 flush 的日志批次丢失。但 Pod 的日志文件仍在文件系统持续增长。',
-    '③ Agent 崩溃后，应用程序日志继续写入文件系统。由于没有读取进程，日志只是静默地在 /var/log/containers/*.log 中累积。Kubernetes 不会丢失这些文件（只要 Pod 本身未被驱逐），日志仍可被恢复读取。',
+    '③ Agent 崩溃后，应用日志可能继续写入节点文件。能否补采取决于 Agent 恢复前日志是否仍在、轮转与保留策略以及节点/Pod 生命周期；Kubernetes 不提供“这些文件一定不丢”的保证。',
     '④ Kubernetes Pod 重启策略（restartPolicy: Always）触发，Fluentd Agent Pod 重新创建并启动。容器初始化时，Fluentd 加载配置，从持久化存储（PVC 或 HostPath）读取 position file，定位上次的 checkpoint。',
-    '⑤ Fluentd 从 position file 中恢复上次成功提交的偏移量（offset: 87040），从该位置继续读取，跳过 offset 之前已处理的日志。崩溃前内存中未 ACK 的最后一批日志可能被重发——这正是 at-least-once 语义。',
-    '⑥ Elasticsearch 端：Fluentd 为每条日志生成确定性文档 ID（由 log_path + offset + timestamp 哈希而来）。即使 Fluentd 重发了少量重复日志，ES 的 index 操作检测到相同 _id 时执行 UPDATE 覆盖，不产生重复文档——实现幂等写入。',
+    '⑤ Fluentd 从 position file 保存的读取位置附近继续。Position file 记录输入读取进度，并不天然等同于 Elasticsearch 已确认提交位置；配合持久缓冲和重试可改善投递保证，但崩溃边界仍需按插件配置测试。',
+    '⑥ 本示例额外配置确定性 Elasticsearch _id（例如由稳定事件 ID 生成），重试相同事件时可覆盖同一文档。Fluentd/Elasticsearch 默认不会自动按 log_path + offset + timestamp 去重；没有稳定 ID 时至少一次投递可能产生重复。',
   ],
   /* Tab 3 — Log Flood */
   [
@@ -853,7 +853,7 @@ POST /_bulk
 <span class="lp-ok">// 结果：无重复文档 ✓  (幂等写入)</span>`;
     resultA.style.display='';
     $('cr-badges').innerHTML=`
-<div class="comp-box ok" style="min-width:110px"><div class="cname">✓ 不丢数据</div><div class="csub">at-least-once</div></div>
+<div class="comp-box ok" style="min-width:110px"><div class="cname">可恢复续传</div><div class="csub">需持久缓冲与保留配合</div></div>
 <div class="comp-box warn" style="min-width:110px"><div class="cname" style="color:var(--warn)">△ 可能重发</div><div class="csub">崩溃前未 ACK 批次</div></div>
 <div class="comp-box ok" style="min-width:110px"><div class="cname">✓ ES 幂等</div><div class="csub">_id 覆盖去重</div></div>`;
   }
